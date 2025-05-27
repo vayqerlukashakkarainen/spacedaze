@@ -23,6 +23,7 @@ import {
 import { clearPlayer, setupPlayer } from "./setupPlayer";
 import { level1 } from "./levels/level1";
 import { tags } from "./tags";
+import { clearGameLoopUi, setupGameLoopUi } from "./gameUi";
 
 const lengthBetweenLevels = 1;
 
@@ -36,6 +37,7 @@ export const projectiles: GameObj<PosComp | any>[] = [];
 
 export function startGame() {
 	playerObj = setupPlayer();
+	setupGameLoopUi(player.maxHealth);
 }
 
 export function updateGameLoop() {
@@ -79,14 +81,18 @@ export function updateGameLoop() {
 }
 
 export function clearGame() {
+	clearPlayer();
+	timeSinceLastLevel = 0;
+	debrees = [];
+	resetCurrentLevel();
 	k.destroyAll(tags.enemy);
 	k.destroyAll(tags.blaster);
 	k.destroyAll(tags.rocket);
 	k.destroyAll(tags.enemy);
 	k.destroyAll(tags.levelBg);
-	clearPlayer();
-	timeSinceLastLevel = 0;
-	debrees = [];
+	k.destroyAll(tags.unit);
+	k.destroyAll(tags.debree);
+	clearGameLoopUi();
 	changeGameState(GameState.LevelUp);
 }
 

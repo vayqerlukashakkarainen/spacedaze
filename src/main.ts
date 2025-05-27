@@ -39,11 +39,6 @@ initParticles();
 loadGameSlot();
 k.setLayers([layers.bg, layers.game, layers.ui], layers.game);
 
-export const debugText = k.add([
-	k.pos(10, 10),
-	k.text("Hi!", { width: k.width(), size: 12 }),
-]);
-
 addBorderOffsets();
 
 changeGameState(GameState.LevelUp);
@@ -55,10 +50,6 @@ k.onUpdate(() => {
 	} else if (gameState == GameState.LevelUp) {
 		updateLevelUpLoop();
 	}
-
-	debugText.text = `time:  ${timeSeconds} \nFPS: ${Math.floor(
-		1 / k.dt()
-	)}, \nEntities: ${k.getTreeRoot().children.length} \nScore: ${score}`;
 });
 
 export function changeGameState(state: number) {

@@ -1,6 +1,7 @@
 export const tags = {
 	friendly: "friendly",
 	enemy: "enemy",
+	gameLoopUi: "game_loop_ui",
 
 	blaster: "blaster",
 	rocket: "rocket",

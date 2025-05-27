@@ -32,7 +32,7 @@ interface Ship {
 }
 
 export const player: Ship = {
-	maxHealth: 10,
+	maxHealth: 3,
 	scorePerPickup: 1,
 	blasterDmg: 2,
 	blasterDmgMultiplier: 1,

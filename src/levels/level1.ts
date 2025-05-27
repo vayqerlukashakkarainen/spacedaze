@@ -1,34 +1,39 @@
+import { AudioPlay, MusicData } from "kaplay";
 import { playerObj } from "../game";
 import { getPosAtBorder, k, layers } from "../main";
 import { spawnAssasin } from "../spawn/spawnAssasin";
 import { spawnMeteorite } from "../spawn/spawnAsteroid";
 import { spawnHighway } from "../spawn/spawnHighway";
 import { spawnShip1 } from "../spawn/spawnShip1";
+import { tags } from "../tags";
 import { Level } from "../wave";
-import { loadSongData } from "../web";
+import { endSong, loadSongData } from "../web";
 
 let lvlData: any = {};
 let timer = 0;
 let spawned = 0;
 let toSpawn = 0;
+let song: AudioPlay;
 export const level1: Level = {
 	music: "arcadia",
 	songTitle: "Arcadia",
 	songAuthor: "Dunderpatrullen",
-	songAlbumCover: "/public/covers/arcadia_cover.jpg",
+	songAlbumCover: "/covers/arcadia_cover.jpg",
 	bpm: 0.44,
 	title: "",
 	introduceSound: "",
 	levelLengthSeconds: 190,
 	reset: () => {
 		lvlData = {};
+		song.stop();
+		endSong();
 	},
 	lvlUpd: () => {},
 	waves: [
 		{
 			timeStamp: 0,
 			begin: () => {
-				k.play(level1.music, { volume: 0.9 });
+				song = k.play(level1.music, { volume: 0.9 });
 			},
 			upd: () => {},
 		},
@@ -111,6 +116,7 @@ export const level1: Level = {
 					k.sprite("bg_moon1"),
 					k.scale(2),
 					k.layer(layers.bg),
+					tags.levelBg,
 				]);
 
 				k.add([
@@ -119,6 +125,7 @@ export const level1: Level = {
 					k.sprite("bg_building1"),
 					k.scale(2),
 					k.layer(layers.bg),
+					tags.levelBg,
 				]);
 			},
 			upd: (ld) => {},

@@ -3,6 +3,7 @@ import {
 	clearGame,
 	createExplosion,
 } from "./game";
+import { updatePlayerHealthBar, updateSpecialBar } from "./gameUi";
 import { k } from "./main";
 import { starsEmitter, trailEmitter } from "./particles";
 import { hasLvlValue, player } from "./player";
@@ -14,7 +15,8 @@ import { randomExplosion } from "./util";
 
 let blasters = 0;
 let bulletIndex = 1;
-
+let specialTimer = 0;
+const rocketSpecialCooldown = 6;
 export function setupPlayer() {
 	const playerObj = k.add([
 		k.pos(k.center()),
@@ -51,6 +53,11 @@ export function setupPlayer() {
 	});
 
 	playerObj.onUpdate(() => {
+		if (specialTimer < rocketSpecialCooldown) {
+			specialTimer += k.dt();
+			updateSpecialBar(specialTimer, rocketSpecialCooldown);
+		}
+
 		checkProjectileIntersection(playerObj.pos, 12, tags.enemy, (p) => {
 			k.destroy(p);
 			if (p.tags.includes(tags.blaster)) {
@@ -69,13 +76,19 @@ export function setupPlayer() {
 			}
 		});
 
+		// If rockets have a target for too long, find new target
+		const dist = playerObj.pos.dist(k.mousePos()) - 12;
 		const { dir, lerp } = lerpAngleBetweenPos(
 			playerObj.angle,
 			playerObj.pos,
 			k.mousePos(),
-			0.01,
+			0.05,
 			-90
 		);
+
+		const maxSpeed =
+			player.speed * player.speedMultiplier * player.speedPwrUpMultiplier;
+		const speed = k.clamp(dist * 4, 0, maxSpeed);
 
 		playerObj.angle = lerp;
 
@@ -84,18 +97,17 @@ export function setupPlayer() {
 			playerObj.pos.x + 12 * playerCurrentDir.x,
 			playerObj.pos.y + 12 * playerCurrentDir.y
 		);
-		trailEmitter.emitter.position = emitterPos;
-		trailEmitter.emitter.direction = k.Vec2.toAngle(dir);
-		trailEmitter.emit(1);
+
+		if (speed > 4) {
+			trailEmitter.emitter.position = emitterPos;
+			trailEmitter.emitter.direction = k.Vec2.toAngle(dir);
+			trailEmitter.emit(1);
+		}
 
 		const lerpAngle = k.deg2rad(lerp + 90);
 		playerObj.move(
-			Math.cos(lerpAngle) *
-				(player.speed * player.speedMultiplier * player.speedPwrUpMultiplier) *
-				-1,
-			Math.sin(lerpAngle) *
-				(player.speed * player.speedMultiplier * player.speedPwrUpMultiplier) *
-				-1
+			Math.cos(lerpAngle) * speed * -1,
+			Math.sin(lerpAngle) * speed * -1
 		);
 	});
 
@@ -104,6 +116,7 @@ export function setupPlayer() {
 		playerObj.animation.seek(0);
 		k.shake(20);
 		k.flash(k.RED, 0.4);
+		updatePlayerHealthBar(playerObj.hp());
 	});
 
 	playerObj.onMousePress("left", () => {
@@ -137,6 +150,11 @@ export function setupPlayer() {
 	});
 
 	playerObj.onMousePress("right", () => {
+		if (specialTimer < rocketSpecialCooldown) {
+			return;
+		}
+
+		specialTimer = 0;
 		k.loop(
 			0.1,
 			() => {
