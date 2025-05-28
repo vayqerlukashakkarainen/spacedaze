@@ -1,7 +1,11 @@
+import { Vec2 } from "kaplay";
 import { pickUnitInDistance, projectiles } from "../game";
 import { k, ROCKET_SPEED } from "../main";
 import { trailEmitter } from "../particles";
-import { lerpAngleBetweenPos } from "../shared";
+import { lerpAngleBetweenPos, lerpMoveRotateAndScale } from "../shared";
+import { shootBlaster } from "./blaster";
+import { tags } from "../tags";
+import { player } from "../player";
 
 const acquireTargetAfter = 0.5;
 const trailOffset = 12;
@@ -16,7 +20,7 @@ export function shootRocket(
 	splashDmgFallof,
 	splashDmgFallofDist,
 	speedMltp,
-	tags,
+	tagsToAttach,
 	canSeek
 ) {
 	const r = k.add([
@@ -25,6 +29,7 @@ export function shootRocket(
 		k.rotate(rot),
 		k.offscreen({ destroy: true }),
 		k.anchor("center"),
+		k.scale(1),
 		k.sprite("rocket1"),
 		{
 			impactDmg,
@@ -38,7 +43,7 @@ export function shootRocket(
 			targetUnit: null,
 			canSeek,
 		},
-		...tags,
+		...tagsToAttach,
 	]);
 
 	k.play("fire_rocket1", { volume: 0.4 });
@@ -61,14 +66,7 @@ export function shootRocket(
 				0.04,
 				-90
 			);
-			const lerpAngle = k.deg2rad(lerp + 90);
-
-			r.dir = dir;
-			r.move(
-				Math.cos(lerpAngle) * speed * -1,
-				Math.sin(lerpAngle) * speed * -1
-			);
-			r.angle = lerp;
+			lerpMoveRotateAndScale(r, lerp, speed);
 		} else {
 			r.move(currentDir.x * speed, currentDir.y * speed);
 		}
@@ -85,7 +83,7 @@ export function shootRocket(
 			pickUnitInDistance(r.pos, 200, "enemy", (u) => {
 				r.targetUnit = u;
 
-				r.targetUnit.onDestroy(() => {
+				r.targetUnit?.onDestroy(() => {
 					r.targetUnit = null;
 				});
 			});
@@ -96,6 +94,17 @@ export function shootRocket(
 		const index = projectiles.findIndex((p2) => p2.id == r.id);
 
 		projectiles.splice(index, 1);
+
+		if (player.rocketShards !== undefined) {
+			const shards = player.rocketShardsAmount;
+			for (let i = 0; i < shards; i++) {
+				const angle = 360 * (i / shards);
+				shootBlaster(r.pos, k.Vec2.fromAngle(angle), angle + 90, 1, 1, [
+					tags.friendly,
+					tags.blaster,
+				]);
+			}
+		}
 	});
 
 	projectiles.push(r);

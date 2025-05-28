@@ -7,6 +7,7 @@ export const tags = {
 	rocket: "rocket",
 	debree: "debree",
 	unit: "unit",
+	part: "part",
 
 	levelBg: "level_bg",
 };

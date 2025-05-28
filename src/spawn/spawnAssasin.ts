@@ -7,7 +7,11 @@ import {
 import { k } from "../main";
 import { starsEmitter } from "../particles";
 import { shootBlaster } from "../projectiles/blaster";
-import { lerpAngleBetweenPos, registerHitAnimation } from "../shared";
+import {
+	lerpAngleBetweenPos,
+	lerpMoveRotateAndScale,
+	registerHitAnimation,
+} from "../shared";
 import { tags } from "../tags";
 import { randomExplosion } from "../util";
 import { spawnDebree } from "./spawnDebree";
@@ -74,12 +78,7 @@ export function spawnAssasin(pos, am, hp, scale) {
 			-90
 		);
 
-		const lerpAngle = k.deg2rad(lerp + 90);
-		m.move(
-			Math.cos(lerpAngle) * m.speed * -1,
-			Math.sin(lerpAngle) * m.speed * -1
-		);
-		m.angle = lerp;
+		lerpMoveRotateAndScale(m, lerp, m.speed);
 
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
 			k.destroy(p);

@@ -56,6 +56,7 @@ export const level1: Level = {
 					k.anchor("center"),
 					k.animate(),
 					k.text("...INIT SPACEJUMP...", { font: "", size: 42 }),
+					tags.gameLoopUi,
 				]);
 
 				txt.animate("opacity", [1, 0], {
@@ -107,7 +108,14 @@ export const level1: Level = {
 					var randomPos = k.rand(k.vec2(k.width(), k.height()));
 
 					if (playerObj.pos.dist(randomPos) < 200) continue;
-					spawnMeteorite(randomPos, k.DOWN, 4, 10, k.rand(20, 40));
+					spawnMeteorite({
+						pos: randomPos,
+						dir: k.DOWN,
+						scoreOnKill: 1,
+						hp: 3,
+						speed: k.rand(20, 40),
+						splitOnDeath: 2,
+					});
 				}
 
 				k.add([
@@ -137,7 +145,8 @@ export const level1: Level = {
 					k.pos(k.center()),
 					k.anchor("center"),
 					k.animate(),
-					k.text("!!ANOMOLY DETECTED!!", { font: "", size: 42 }),
+					k.text("!!THREAT DETECTED!!", { font: "", size: 42 }),
+					tags.gameLoopUi,
 				]);
 
 				txt.animate("opacity", [1, 0], {
@@ -158,7 +167,7 @@ export const level1: Level = {
 				for (let i = 0; i < max; i++) {
 					const pos = getPosAtBorder(0.25 * (i / max));
 
-					spawnShip1(pos, k.DOWN, 3, 5, 1);
+					spawnShip1(pos, k.DOWN, 3, 5, 1, k.rand(40, 60));
 				}
 			},
 			upd: (ld) => {},
@@ -177,7 +186,8 @@ export const level1: Level = {
 						k.Vec2.fromAngle(pos.angleBetween(k.center())),
 						3,
 						5,
-						1
+						1,
+						k.rand(40, 60)
 					);
 				}
 			},
@@ -197,7 +207,8 @@ export const level1: Level = {
 						k.Vec2.fromAngle(pos.angleBetween(k.center())),
 						3,
 						5,
-						1
+						1,
+						k.rand(40, 60)
 					);
 				}
 			},
@@ -232,7 +243,14 @@ export const level1: Level = {
 
 				if (timer >= 0.03 && spawned < toSpawn) {
 					const t = 0.25 + 0.25 * (spawned / toSpawn);
-					spawnMeteorite(getPosAtBorder(t), k.LEFT, 0, 2, 40);
+					spawnMeteorite({
+						pos: getPosAtBorder(t),
+						dir: k.LEFT,
+						scoreOnKill: 1,
+						hp: 3,
+						speed: 40,
+						splitOnDeath: 2,
+					});
 					spawned++;
 					timer = 0;
 				}
@@ -251,7 +269,14 @@ export const level1: Level = {
 
 				if (timer >= 0.03 && spawned < toSpawn) {
 					const t = 0.75 + 0.25 * (spawned / toSpawn);
-					spawnMeteorite(getPosAtBorder(t), k.RIGHT, 0, 2, 40);
+					spawnMeteorite({
+						pos: getPosAtBorder(t),
+						dir: k.RIGHT,
+						scoreOnKill: 1,
+						hp: 3,
+						speed: 40,
+						splitOnDeath: 2,
+					});
 					spawned++;
 					timer = 0;
 				}
@@ -271,7 +296,14 @@ export const level1: Level = {
 				if (timer >= 0.03 && spawned < toSpawn) {
 					for (let i = 0; i < 2; i++) {
 						const t = 0.5 * i + 0.25 * (spawned / toSpawn);
-						spawnMeteorite(getPosAtBorder(t), i == 0 ? k.DOWN : k.UP, 0, 5, 40);
+						spawnMeteorite({
+							pos: getPosAtBorder(t),
+							dir: i == 0 ? k.DOWN : k.UP,
+							scoreOnKill: 1,
+							hp: 3,
+							speed: 40,
+							splitOnDeath: 2,
+						});
 					}
 
 					spawned++;

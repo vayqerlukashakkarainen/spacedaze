@@ -1,3 +1,29 @@
+import {
+	blaster,
+	blasterDmg,
+	blasterMultiple,
+	blasterSpeed,
+} from "./upgrades/blasters";
+import {
+	follower,
+	followerBlasterDmg,
+	followerMissiles,
+} from "./upgrades/follower";
+import {
+	increaseRockets,
+	rocket,
+	rocketShards,
+	rocketShardsAmount,
+} from "./upgrades/rockets";
+import {
+	debreeDist,
+	debreeSpeed,
+	debreeValue,
+	maxHealth,
+	movespeed,
+	sprint,
+	sprintSpeed,
+} from "./upgrades/ship";
 import { saveGame } from "./util";
 
 interface Upgrade {
@@ -16,156 +42,30 @@ export interface Tool {
 	upgrades: Upgrade[];
 }
 
-const blaster: Tool = {
-	toolName: "Blaster",
-	upgrades: [
-		{
-			name: "Level 1",
-			desc: "Add a blaster at the front of the ship as firepower",
-			price: 12,
-			sprite: "blaster1",
-			value: 1,
-		},
-		{
-			name: "Level 2",
-			desc: "Add a second blaster to your ship",
-			price: 12,
-			sprite: "blaster1",
-			value: 2,
-		},
-		{
-			name: "Level 3",
-			desc: "Upgrade the ships blaster cabels, firing both blasters at the same time",
-			price: 12,
-			sprite: "blaster1",
-			value: 3,
-		},
-		{
-			name: "Level 4",
-			desc: "Add a third blaster to your ship",
-			price: 12,
-			sprite: "blaster1",
-			value: 4,
-		},
-	],
-};
-
-const blasterDmg: Tool = {
-	toolName: "Blaster dmg",
-	requiredTool: "blaster",
-	upgrades: [
-		{
-			name: "Level 1",
-			desc: "Increase damage of the ships primary blasters",
-			price: 12,
-			sprite: "blaster_upg_dmg1",
-			value: 2,
-		},
-	],
-};
-
-const blasterSpeed: Tool = {
-	toolName: "Blaster speed",
-	requiredTool: "blaster",
-	upgrades: [
-		{
-			name: "Level 1",
-			desc: "Increase velocity of blaster projectiles",
-			price: 12,
-			sprite: "blaster_upg_speed1",
-			value: 1.65,
-		},
-	],
-};
-
-const rocket: Tool = {
-	toolName: "Rockets",
-	upgrades: [
-		{
-			name: "Level 1",
-			desc: "Install rocket pods to the ship",
-			sprite: "rocket_upg1",
-			price: 22,
-			value: 1,
-		},
-	],
-};
-
-const debreeDist: Tool = {
-	toolName: "Debree magnets",
-	upgrades: [
-		{
-			name: "Level 1",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
-			sprite: "debree_dist_upg1",
-			price: 32,
-			value: 1.2,
-		},
-		{
-			name: "Level 2",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
-			sprite: "debree_dist_upg1",
-			price: 32,
-			value: 1.4,
-		},
-		{
-			name: "Level 3",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
-			sprite: "debree_dist_upg1",
-			price: 32,
-			value: 1.6,
-		},
-		{
-			name: "Level 4",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
-			sprite: "debree_dist_upg1",
-			price: 32,
-			value: 1.8,
-		},
-		{
-			name: "Level 5",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
-			sprite: "debree_dist_upg1",
-			price: 32,
-			value: 2,
-		},
-	],
-};
-
-const debreeSpeed: Tool = {
-	toolName: "Stronger magnets",
-	upgrades: [
-		{
-			name: "Level 1",
-			desc: "Stronger magnets = faster debree",
-			sprite: "debree_speed_upg1",
-			price: 32,
-			value: 1.2,
-		},
-		{
-			name: "Level 2",
-			desc: "Stronger magnets = faster debree",
-			sprite: "debree_speed_upg1",
-			price: 32,
-			value: 1.4,
-		},
-		{
-			name: "Level 3",
-			desc: "Stronger magnets = faster debree",
-			sprite: "debree_speed_upg1",
-			price: 32,
-			value: 2,
-		},
-	],
-};
-
 export const upgrades = {
 	blaster: blaster,
+	blasterParallel: blasterMultiple,
 	blasterDmg: blasterDmg,
 	blasterSpeed: blasterSpeed,
+
 	rockets: rocket,
+	nrOfRockets: increaseRockets,
+	rocketShards: rocketShards,
+	rocketShardsAmount: rocketShardsAmount,
+
 	debreeDist: debreeDist,
 	debreeSpeed: debreeSpeed,
+	debreeValue: debreeValue,
+
+	sprint: sprint,
+	sprintSpeed: sprintSpeed,
+
+	movespeed: movespeed,
+	maxHealth: maxHealth,
+
+	follower: follower,
+	followerBlasterDmg: followerBlasterDmg,
+	followerMissiles: followerMissiles,
 } as const;
 
 export let loadout: Record<ToolKey, number | undefined> = {
@@ -175,6 +75,18 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	rockets: undefined,
 	debreeDist: undefined,
 	debreeSpeed: undefined,
+	nrOfRockets: undefined,
+	sprint: undefined,
+	movespeed: undefined,
+	debreeValue: undefined,
+	maxHealth: undefined,
+	follower: undefined,
+	followerBlasterDmg: undefined,
+	followerMissiles: undefined,
+	rocketShards: undefined,
+	rocketShardsAmount: undefined,
+	sprintSpeed: undefined,
+	blasterParallel: undefined,
 };
 
 export function getToolUpgradeLvlValue(key: ToolKey) {

@@ -56,6 +56,19 @@ export async function init(k: KAPLAYCtx<{}, never>) {
 	await k.loadSound("purchase1", "sounds/purchase1.wav");
 
 	await k.loadMusic("arcadia", "songs/arcadia.mp3");
+
+	await k.loadSprite(
+		"enemy_ship1_left_wing",
+		"sprites/ships/enemy1/enemy_ship1_left_wing.png"
+	);
+	await k.loadSprite(
+		"enemy_ship1_right_wing",
+		"sprites/ships/enemy1/enemy_ship1_right_wing.png"
+	);
+	await k.loadSprite(
+		"enemy_ship1_body",
+		"sprites/ships/enemy1/enemy_ship1_body.png"
+	);
 }
 
 const explArr = ["explosion1", "explosion2", "explosion3"];

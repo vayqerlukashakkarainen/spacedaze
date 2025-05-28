@@ -17,13 +17,15 @@ import {
 	Level,
 	loadLevel,
 	resetCurrentLevel,
-	resetLvlData,
 	updateLvl,
 } from "./wave";
 import { clearPlayer, setupPlayer } from "./setupPlayer";
 import { level1 } from "./levels/level1";
 import { tags } from "./tags";
 import { clearGameLoopUi, setupGameLoopUi } from "./gameUi";
+import { spawnShip1 } from "./spawn/spawnShip1";
+import { Component } from "./compose";
+import { spawnFollower } from "./spawn/spawnFollower";
 
 const lengthBetweenLevels = 1;
 
@@ -46,6 +48,18 @@ export function updateGameLoop() {
 
 	if (timeSinceLastLevel >= lengthBetweenLevels && !activeLevel()) {
 		loadLevel(level1);
+
+		for (let i = 0; i < player.nrOfFollowers; i++) {
+			spawnFollower({
+				follow: playerObj,
+				hp: 6,
+				pos: k.vec2(k.rand(k.width()), 0),
+				speed: k.rand(80, 110),
+				blasterDmg:
+					player.followerBlasterDmg * player.followerBlasterDmgMultiplier,
+				canUseMissiles: player.followerCanUseMissiles !== undefined,
+			});
+		}
 	}
 
 	if (activeLevel()) {
@@ -133,6 +147,32 @@ export function checkProjectileIntersection(
 		}
 	}
 }
+export function checkProjectileComponentIntersection(
+	pos: Vec2,
+	dist: number,
+	projectilesWithTag: string,
+	components: Component[],
+	onHit: (p: GameObj<PosComp | RotateComp | any>, index: number) => void
+) {
+	for (let i = 0; i < projectiles.length; i++) {
+		const p = projectiles[i];
+
+		if (p.pos.dist(pos) < dist) {
+			if (!p.tags.includes(projectilesWithTag)) continue;
+
+			for (let i = 0; i < components.length; i++) {
+				if (components[i].obj.hidden) continue;
+
+				if (
+					p.pos.dist(pos.sub(components[i].localPos)) < components[i].hitbox
+				) {
+					onHit(p, i);
+					return;
+				}
+			}
+		}
+	}
+}
 
 export function pickUnitInDistance(
 	pos: Vec2,
@@ -146,6 +186,9 @@ export function pickUnitInDistance(
 
 		if (u.pos.dist(pos) < dist) {
 			onFound(u);
+			return true;
 		}
 	}
+
+	return false;
 }

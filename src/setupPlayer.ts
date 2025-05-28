@@ -9,7 +9,11 @@ import { starsEmitter, trailEmitter } from "./particles";
 import { hasLvlValue, player } from "./player";
 import { shootBlaster } from "./projectiles/blaster";
 import { shootRocket } from "./projectiles/rocket";
-import { lerpAngleBetweenPos, registerHitAnimation } from "./shared";
+import {
+	lerpAngleBetweenPos,
+	lerpMoveRotateAndScale,
+	registerHitAnimation,
+} from "./shared";
 import { tags } from "./tags";
 import { randomExplosion } from "./util";
 
@@ -22,6 +26,7 @@ export function setupPlayer() {
 		k.pos(k.center()),
 		k.sprite("ship"),
 		k.rotate(0),
+		k.scale(),
 		k.health(player.maxHealth),
 		k.area(),
 		k.anchor("center"),
@@ -39,7 +44,7 @@ export function setupPlayer() {
 		playerObj.add([k.anchor("center"), k.pos(-10, 0)]);
 		blasters++;
 	}
-	if (hasLvlValue(player.blasterLvl, 4)) {
+	if (hasLvlValue(player.blasterLvl, 3)) {
 		playerObj.add([k.anchor("center"), k.pos(0, -6)]);
 		blasters++;
 	}
@@ -104,11 +109,7 @@ export function setupPlayer() {
 			trailEmitter.emit(1);
 		}
 
-		const lerpAngle = k.deg2rad(lerp + 90);
-		playerObj.move(
-			Math.cos(lerpAngle) * speed * -1,
-			Math.sin(lerpAngle) * speed * -1
-		);
+		lerpMoveRotateAndScale(playerObj, lerp, speed);
 	});
 
 	playerObj.onHurt(() => {
@@ -121,7 +122,7 @@ export function setupPlayer() {
 
 	playerObj.onMousePress("left", () => {
 		if (hasLvlValue(player.blasterLvl, 1)) {
-			if (hasLvlValue(player.blasterLvl, 3)) {
+			if (hasLvlValue(player.blasterParallel, 1)) {
 				for (let i = 0; i < blasters; i++) {
 					const gunPipe = playerObj.children[i];
 					shootBlaster(
@@ -150,6 +151,8 @@ export function setupPlayer() {
 	});
 
 	playerObj.onMousePress("right", () => {
+		if (player.rocketsLvl === undefined) return;
+
 		if (specialTimer < rocketSpecialCooldown) {
 			return;
 		}
@@ -167,17 +170,18 @@ export function setupPlayer() {
 					player.rocketSplashSize * player.rocketSplashSizeMultiplier,
 					player.rocketSplashDmgFallDistanceValue,
 					player.rocketSplashDmgFallOverDistance,
-					player.blasterSpeedMultiplier,
+					1,
 					[tags.friendly, tags.rocket],
 					true
 				);
 			},
-			10
+			player.nrOfRockets
 		);
 	});
 
 	playerObj.onKeyDown("shift", () => {
-		player.speedPwrUpMultiplier = 1.8;
+		if (player.canSprint === undefined) return;
+		player.speedPwrUpMultiplier = 1.8 * player.sprintSpeedMultiplier;
 	});
 	playerObj.onKeyRelease("shift", () => {
 		player.speedPwrUpMultiplier = 1;

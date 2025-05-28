@@ -11,8 +11,10 @@
 				align-items: center;
 				flex-direction: column;
 				justify-content: center;
-				color: white;
+
 				gap: 12px;
+				color: white;
+
 				font-family: Arial, Helvetica, sans-serif;
 			}
 			.song {
@@ -46,10 +48,53 @@
 				gap: 12px;
 				align-items: center;
 			}
+
+			.controls {
+				position: absolute;
+				top: 100px;
+				left: calc(32px + 1dvw);
+				display: flex;
+				flex-direction: column;
+				gap: 4px;
+			}
+			.list {
+				width: 240px;
+				max-width: 300px;
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+			}
+			@media (max-width: 1360px) {
+				.list {
+					flex-direction: column;
+					width: auto;
+					align-items: start;
+				}
+			}
 		</style>
 		<title>spacedaze</title>
 	</head>
 	<body style="overflow: hidden">
+		<div class="controls">
+			<h2>Controls</h2>
+			<div class="list">
+				<span>Control ship</span>
+				<span>Pointer</span>
+			</div>
+			<div class="list">
+				<span>Primary attack</span>
+				<span>Left mouse</span>
+			</div>
+			<div class="list">
+				<span>Secondary attack</span>
+				<span>Right mouse</span>
+			</div>
+			<div class="list">
+				<span>Sprint (if unlocked)</span>
+				<span>Shift</span>
+			</div>
+		</div>
+
 		<div id="song" class="song">
 			<div class="song-container">
 				<img id="song_cover" src="/public/covers/arcadia_cover.jpg" />
@@ -59,6 +104,7 @@
 				</div>
 			</div>
 		</div>
+
 		<script src="src/main.ts" type="module"></script>
 	</body>
 </html>

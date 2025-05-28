@@ -38,7 +38,7 @@ export function setupGameLoopUi(health: number) {
 
 export function updatePlayerHealthBar(newHealth: number) {
 	const clamp = k.clamp(newHealth, 0, healthBars.length - 1);
-	for (let i = healthBars.length - 1; i >= clamp; i--) {
+	for (let i = healthBars.length - 1; i > clamp; i--) {
 		healthBars[i].opacity = 0.2;
 	}
 }

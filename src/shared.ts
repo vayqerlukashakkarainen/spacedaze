@@ -1,4 +1,12 @@
-import { AnimateComp, GameObj, OpacityComp, Vec2 } from "kaplay";
+import {
+	AnimateComp,
+	GameObj,
+	OpacityComp,
+	PosComp,
+	RotateComp,
+	ScaleComp,
+	Vec2,
+} from "kaplay";
 import { k } from "./main";
 import { adjustedTarget } from "./util";
 
@@ -24,4 +32,17 @@ export function lerpAngleBetweenPos(
 	const correctedDesiredRot = adjustedTarget(angle, desiredRot);
 
 	return { dir, lerp: k.lerp(angle, correctedDesiredRot, hardness) };
+}
+
+export function lerpMoveRotateAndScale(
+	m: GameObj<PosComp | RotateComp | ScaleComp | any>,
+	lerp: number,
+	speed: number
+) {
+	const lerpAngle = k.deg2rad(lerp + 90);
+	const x = Math.cos(lerpAngle);
+	const y = Math.sin(lerpAngle);
+	m.move(x * speed * -1, y * speed * -1);
+	m.angle = lerp;
+	m.scale = k.vec2(1, Math.abs(y));
 }

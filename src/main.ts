@@ -34,22 +34,23 @@ export const k = kaplay({
 	height: 600,
 });
 
-await init(k);
-initParticles();
-loadGameSlot();
-k.setLayers([layers.bg, layers.game, layers.ui], layers.game);
+init(k).then(() => {
+	initParticles();
+	loadGameSlot();
+	k.setLayers([layers.bg, layers.game, layers.ui], layers.game);
 
-addBorderOffsets();
+	addBorderOffsets();
 
-changeGameState(GameState.LevelUp);
+	changeGameState(GameState.LevelUp);
 
-k.onUpdate(() => {
-	if (gameState == GameState.Playing) {
-		timeSeconds += k.dt();
-		updateGameLoop();
-	} else if (gameState == GameState.LevelUp) {
-		updateLevelUpLoop();
-	}
+	k.onUpdate(() => {
+		if (gameState == GameState.Playing) {
+			timeSeconds += k.dt();
+			updateGameLoop();
+		} else if (gameState == GameState.LevelUp) {
+			updateLevelUpLoop();
+		}
+	});
 });
 
 export function changeGameState(state: number) {

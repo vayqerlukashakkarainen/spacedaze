@@ -214,6 +214,7 @@ function buildToolUi() {
 	]);
 
 	toolGroupObj.purchaseBtn!.onClick(() => {
+		if (toolGroupObj.group!.hidden || toolGroupObj.purchaseBtn?.hidden) return;
 		const toPurchase = upgrades[selectedTool.key].upgrades[selectedTool.index];
 		if (score < toPurchase.price) {
 			k.play("error", { volume: 0.4 });
