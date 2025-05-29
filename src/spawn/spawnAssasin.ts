@@ -59,10 +59,15 @@ export function spawnAssasin(pos, am, hp, scale) {
 			m.enterState("retreat");
 		} else if (dist > 50 && dist < 200) {
 			if (Math.floor(k.rand(0, 200)) == 1) {
-				shootBlaster(m.pos, k.Vec2.fromAngle(m.angle - 90), m.angle, 2, 1, [
-					tags.enemy,
-					tags.blaster,
-				]);
+				shootBlaster(
+					m.pos,
+					k.Vec2.fromAngle(m.angle - 90),
+					m.angle,
+					2,
+					1,
+					[tags.enemy, tags.blaster],
+					true
+				);
 			}
 		}
 	});

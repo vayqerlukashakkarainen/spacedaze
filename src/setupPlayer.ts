@@ -39,12 +39,13 @@ export function setupPlayer() {
 	if (hasLvlValue(player.blasterLvl, 1)) {
 		playerObj.add([k.anchor("center"), k.pos(10, 0)]);
 		blasters++;
-	}
-	if (hasLvlValue(player.blasterLvl, 2)) {
 		playerObj.add([k.anchor("center"), k.pos(-10, 0)]);
 		blasters++;
+	} else {
+		playerObj.add([k.anchor("center"), k.pos(0, -6)]);
+		blasters++;
 	}
-	if (hasLvlValue(player.blasterLvl, 3)) {
+	if (hasLvlValue(player.blasterLvl, 2)) {
 		playerObj.add([k.anchor("center"), k.pos(0, -6)]);
 		blasters++;
 	}
@@ -131,7 +132,8 @@ export function setupPlayer() {
 						playerObj.angle,
 						player.blasterDmg * player.blasterDmgMultiplier,
 						player.blasterSpeedMultiplier,
-						[tags.friendly, tags.blaster]
+						[tags.friendly, tags.blaster],
+						true
 					);
 				}
 				return;
@@ -144,7 +146,8 @@ export function setupPlayer() {
 				playerObj.angle,
 				player.blasterDmg * player.blasterDmgMultiplier,
 				player.blasterSpeedMultiplier,
-				[tags.friendly, tags.blaster]
+				[tags.friendly, tags.blaster],
+				true
 			);
 			bulletIndex++;
 		}

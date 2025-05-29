@@ -32,7 +32,7 @@ export function spawnFollower(props: Props) {
 	const hb = 12;
 	const m = k.add([
 		k.pos(props.pos),
-		k.sprite("asteroid1"),
+		k.sprite("follower"),
 		k.rotate(0),
 		k.anchor("center"),
 		k.scale(0.4),
@@ -97,7 +97,8 @@ export function spawnFollower(props: Props) {
 					m.targetAngle() + 90,
 					m.dmg,
 					2,
-					[tags.friendly, tags.blaster]
+					[tags.friendly, tags.blaster],
+					true
 				);
 			}
 		}

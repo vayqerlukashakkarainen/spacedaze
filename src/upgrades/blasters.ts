@@ -5,37 +5,30 @@ export const blaster: Tool = {
 	upgrades: [
 		{
 			name: "Level 1",
-			desc: "Add a blaster at the front of the ship as firepower",
+			desc: "Add a second blaster to your ship",
 			price: 12,
 			sprite: "blaster1",
 			value: 1,
 		},
 		{
 			name: "Level 2",
-			desc: "Add a second blaster to your ship",
-			price: 12,
-			sprite: "blaster1",
-			value: 2,
-		},
-		{
-			name: "Level 3",
 			desc: "Add a third blaster to your ship",
 			price: 12,
 			sprite: "blaster1",
-			value: 3,
+			value: 2,
 		},
 	],
 };
 
 export const blasterMultiple: Tool = {
-	toolName: "Blaster wires",
+	toolName: "Parallel processor",
 	requiredTool: "blaster",
 	upgrades: [
 		{
 			name: "Level 1",
 			desc: "Fire all blasters at the same time",
 			price: 12,
-			sprite: "blaster_upg_speed1",
+			sprite: "parallel_blasters_upg1",
 			value: 1,
 		},
 	],

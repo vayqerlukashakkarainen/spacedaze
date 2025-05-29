@@ -108,10 +108,9 @@ function reloadUpgradeGrid(pos: Vec2) {
 		]);
 
 		const highlight = btn.add([
-			k.rect(size + 4, size + 4),
-			k.pos(-2, -2),
+			k.rect(size + 6, size + 6),
+			k.pos(0, 0),
 			k.color(0, 0, 0),
-			k.opacity(0.2),
 			k.anchor("center"),
 			k.outline(2, new k.Color(255, 255, 255)),
 			gridTag,

@@ -9,12 +9,7 @@ import {
 	followerBlasterDmg,
 	followerMissiles,
 } from "./upgrades/follower";
-import {
-	increaseRockets,
-	rocket,
-	rocketShards,
-	rocketShardsAmount,
-} from "./upgrades/rockets";
+import { increaseRockets, rocket, rocketShards } from "./upgrades/rockets";
 import {
 	debreeDist,
 	debreeSpeed,
@@ -51,7 +46,6 @@ export const upgrades = {
 	rockets: rocket,
 	nrOfRockets: increaseRockets,
 	rocketShards: rocketShards,
-	rocketShardsAmount: rocketShardsAmount,
 
 	debreeDist: debreeDist,
 	debreeSpeed: debreeSpeed,
@@ -84,7 +78,6 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	followerBlasterDmg: undefined,
 	followerMissiles: undefined,
 	rocketShards: undefined,
-	rocketShardsAmount: undefined,
 	sprintSpeed: undefined,
 	blasterParallel: undefined,
 };

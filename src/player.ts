@@ -37,8 +37,7 @@ interface Ship {
 	rocketSplashDmgFallDistanceValue: number;
 
 	nrOfRockets: number;
-	rocketShards: number | undefined;
-	rocketShardsAmount: number;
+	rocketShards: number;
 
 	nrOfFollowers: number;
 	followerBlasterDmg: number;
@@ -55,8 +54,7 @@ export const player: Ship = {
 	blasterParallel: undefined,
 	rocketsLvl: undefined,
 	nrOfRockets: 3,
-	rocketShards: undefined,
-	rocketShardsAmount: 3,
+	rocketShards: 0,
 	blasterSpeedMultiplier: 1,
 	debreePickupDistance: 10,
 	debreeSeekDistance: 50,
@@ -91,8 +89,7 @@ export function loadPlayer() {
 
 	player.rocketsLvl = getToolUpgradeLvlValue("rockets");
 	player.nrOfRockets = getToolUpgradeLvlValue("nrOfRockets") ?? 3;
-	player.rocketShards = getToolUpgradeLvlValue("rocketShards");
-	player.rocketShardsAmount = getToolUpgradeLvlValue("rocketShardsAmount") ?? 3;
+	player.rocketShards = getToolUpgradeLvlValue("rocketShards") ?? 0;
 
 	player.debreeSeekDistanceMultiplier =
 		getToolUpgradeLvlValue("debreeDist") ?? 1;

@@ -95,10 +95,15 @@ export function spawnShip1(pos, dir: Vec2, am, hp, scale, speed) {
 		);
 
 		if (Math.floor(k.rand(0, 500)) == 10) {
-			shootBlaster(m.pos, k.Vec2.fromAngle(m.angle - 90), m.angle, 2, 1, [
-				tags.enemy,
-				tags.blaster,
-			]);
+			shootBlaster(
+				m.pos,
+				k.Vec2.fromAngle(m.angle - 90),
+				m.angle,
+				2,
+				1,
+				[tags.enemy, tags.blaster],
+				true
+			);
 		}
 
 		const dir = k.Vec2.fromAngle(m.angle - 90);

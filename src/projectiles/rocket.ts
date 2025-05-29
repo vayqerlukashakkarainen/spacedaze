@@ -95,15 +95,18 @@ export function shootRocket(
 
 		projectiles.splice(index, 1);
 
-		if (player.rocketShards !== undefined) {
-			const shards = player.rocketShardsAmount;
-			for (let i = 0; i < shards; i++) {
-				const angle = 360 * (i / shards);
-				shootBlaster(r.pos, k.Vec2.fromAngle(angle), angle + 90, 1, 1, [
-					tags.friendly,
-					tags.blaster,
-				]);
-			}
+		const shards = player.rocketShards;
+		for (let i = 0; i < shards; i++) {
+			const angle = 360 * (i / shards);
+			shootBlaster(
+				r.pos,
+				k.Vec2.fromAngle(angle),
+				angle + 90,
+				1,
+				1,
+				[tags.friendly, tags.blaster],
+				false
+			);
 		}
 	});
 

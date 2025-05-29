@@ -1,7 +1,7 @@
 import { projectiles } from "../game";
 import { BULLET_SPEED, k } from "../main";
 
-export function shootBlaster(pos, dir, rot, dmg, speedMltp, tags) {
+export function shootBlaster(pos, dir, rot, dmg, speedMltp, tags, playSound) {
 	const p = k.add([
 		k.pos(pos),
 		k.move(dir, BULLET_SPEED * speedMltp),
@@ -22,6 +22,9 @@ export function shootBlaster(pos, dir, rot, dmg, speedMltp, tags) {
 		projectiles.splice(index, 1);
 	});
 
-	k.play("shoot1", { volume: 0.6 });
+	if (playSound) {
+		k.play("shoot1", { volume: 0.6 });
+	}
+
 	projectiles.push(p);
 }

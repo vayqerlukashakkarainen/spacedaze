@@ -18,7 +18,7 @@ export const GameState = {
 };
 
 const borderOffset = -22;
-export let score = 40;
+export let score = 60;
 export const BULLET_SPEED = 320;
 export const ROCKET_SPEED = 280;
 export let timeSeconds = 0;

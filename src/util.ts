@@ -14,6 +14,7 @@ export async function init(k: KAPLAYCtx<{}, never>) {
 	await k.loadSprite("crate1", "sprites/crate1.png");
 	await k.loadSprite("bullet1", "sprites/bullet1.png");
 	await k.loadSprite("rocket1", "sprites/rocket1.png");
+	await k.loadSprite("follower", "sprites/follower.png");
 
 	await k.loadSprite("asteroid1", "sprites/asteroid1.png");
 	await k.loadSprite("enemy_ship1", "sprites/enemy_ship1.png");
@@ -27,12 +28,58 @@ export async function init(k: KAPLAYCtx<{}, never>) {
 
 	await k.loadSprite("debree_part1", "sprites/debree_part1.png");
 
-	await k.loadSprite("blaster1", "sprites/laser_cannon1.png");
-	await k.loadSprite("rocket_upg1", "sprites/rocket_upg1.png");
-	await k.loadSprite("blaster_upg_speed1", "sprites/blaster_upg_speed1.png");
-	await k.loadSprite("blaster_upg_dmg1", "sprites/blaster_upg_dmg1.png");
-	await k.loadSprite("debree_dist_upg1", "sprites/debree_dist_upg1.png");
-	await k.loadSprite("debree_speed_upg1", "sprites/debree_speed_upg1.png");
+	await k.loadSprite("blaster1", "sprites/upgrades/laser_cannon1.png");
+	await k.loadSprite("rocket_upg1", "sprites/upgrades/rocket_upg1.png");
+	await k.loadSprite(
+		"blaster_upg_speed1",
+		"sprites/upgrades/blaster_upg_speed1.png"
+	);
+	await k.loadSprite(
+		"blaster_upg_dmg1",
+		"sprites/upgrades/blaster_upg_dmg1.png"
+	);
+	await k.loadSprite(
+		"debree_dist_upg1",
+		"sprites/upgrades/debree_dist_upg1.png"
+	);
+	await k.loadSprite(
+		"debree_speed_upg1",
+		"sprites/upgrades/debree_speed_upg1.png"
+	);
+	await k.loadSprite(
+		"debree_value_upg1",
+		"sprites/upgrades/debree_value_upg1.png"
+	);
+	await k.loadSprite(
+		"faster_speed_upg1",
+		"sprites/upgrades/faster_speed_upg1.png"
+	);
+	await k.loadSprite("hull_upg1", "sprites/upgrades/hull_upg1.png");
+	await k.loadSprite(
+		"missile_shards_upg1",
+		"sprites/upgrades/missiles_shards_upg1.png"
+	);
+	await k.loadSprite(
+		"more_missiles_upg1",
+		"sprites/upgrades/more_missiles_upg1.png"
+	);
+	await k.loadSprite(
+		"overclock_thrusters_upg1",
+		"sprites/upgrades/overclock_thrusters_upg1.png"
+	);
+	await k.loadSprite(
+		"parallel_blasters_upg1",
+		"sprites/upgrades/parallel_blasters_upg1.png"
+	);
+	await k.loadSprite("follower_upg1", "sprites/upgrades/follower_upg1.png");
+	await k.loadSprite(
+		"follower_missiles_upg1",
+		"sprites/upgrades/follower_missiles_upg1.png"
+	);
+	await k.loadSprite(
+		"follower_blaster_dmg_upg1",
+		"sprites/upgrades/follower_blaster_dmg_upg1.png"
+	);
 
 	await k.loadSprite("bg_moon1", "sprites/bg/moon1.png");
 	await k.loadSprite("bg_building1", "sprites/bg/building1.png");
