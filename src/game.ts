@@ -9,7 +9,13 @@ import {
 	SpriteComp,
 	Vec2,
 } from "kaplay";
-import { k, GameState, changeGameState, addScore } from "./main";
+import {
+	k,
+	GameState,
+	changeGameState,
+	addScore,
+	mainSoundVolume,
+} from "./main";
 import { player } from "./player";
 import { explosionEmitter } from "./particles";
 import {
@@ -86,7 +92,7 @@ export function updateGameLoop() {
 			if (dist < player.debreePickupDistance) {
 				k.destroy(d);
 				debrees.splice(i, 1);
-				k.play("collect1", { volume: 0.6 });
+				k.play("collect1", { volume: mainSoundVolume });
 				addScore(player.scorePerPickup);
 				i--;
 			}

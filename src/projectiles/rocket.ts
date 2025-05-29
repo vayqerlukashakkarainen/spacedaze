@@ -1,6 +1,6 @@
 import { Vec2 } from "kaplay";
 import { pickUnitInDistance, projectiles } from "../game";
-import { k, ROCKET_SPEED } from "../main";
+import { k, mainSoundVolume, ROCKET_SPEED } from "../main";
 import { trailEmitter } from "../particles";
 import { lerpAngleBetweenPos, lerpMoveRotateAndScale } from "../shared";
 import { shootBlaster } from "./blaster";
@@ -46,7 +46,7 @@ export function shootRocket(
 		...tagsToAttach,
 	]);
 
-	k.play("fire_rocket1", { volume: 0.4 });
+	k.play("fire_rocket1", { volume: mainSoundVolume });
 
 	r.onUpdate(() => {
 		r.lifetime += k.dt();

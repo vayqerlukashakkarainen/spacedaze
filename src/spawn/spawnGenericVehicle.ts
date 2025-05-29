@@ -4,7 +4,7 @@ import {
 	createExplosion,
 	playerObj,
 } from "../game";
-import { k } from "../main";
+import { k, mainSoundVolume } from "../main";
 import { starsEmitterDir } from "../particles";
 import { tags } from "../tags";
 import { randomExplosion } from "../util";
@@ -56,7 +56,7 @@ export function spawnGenericVehicle(
 					p.splashDmgFallof,
 					p.splashDmgFallofDist
 				);
-				k.play(randomExplosion(), { volume: 0.6 });
+				k.play(randomExplosion(), { volume: mainSoundVolume });
 				k.shake(3);
 			}
 		});
@@ -72,14 +72,14 @@ export function spawnGenericVehicle(
 		starsEmitterDir.emitter.direction = m.angle + 90;
 
 		starsEmitterDir.emit(20);
-		k.play(randomExplosion(), { volume: 0.6 });
+		k.play(randomExplosion(), { volume: mainSoundVolume });
 		k.destroy(m);
 
 		addTo.killed += 1;
 	});
 
 	m.onHurt(() => {
-		k.play("hit1", { volume: 0.6 });
+		k.play("hit1", { volume: mainSoundVolume });
 		m.animation.seek(0);
 	});
 }

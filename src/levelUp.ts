@@ -7,7 +7,14 @@ import {
 	TextComp,
 	Vec2,
 } from "kaplay";
-import { addScore, changeGameState, GameState, k, score } from "./main";
+import {
+	addScore,
+	changeGameState,
+	GameState,
+	k,
+	mainSoundVolume,
+	score,
+} from "./main";
 import { loadPlayer } from "./player";
 import { addLvl, getNextLvl, loadout, Tool, ToolKey, upgrades } from "./upg";
 import { starsEmitter } from "./particles";
@@ -150,7 +157,7 @@ function onClick(key: ToolKey, upgIndex: number, pos: Vec2) {
 	}
 	highlightKeyObj[key].hidden = false;
 	loadTool(key, upgIndex);
-	k.play("click1", { volume: 1 });
+	k.play("click1", { volume: mainSoundVolume });
 	selectedPos = pos;
 }
 
@@ -216,7 +223,7 @@ function buildToolUi() {
 		if (toolGroupObj.group!.hidden || toolGroupObj.purchaseBtn?.hidden) return;
 		const toPurchase = upgrades[selectedTool.key].upgrades[selectedTool.index];
 		if (score < toPurchase.price) {
-			k.play("error", { volume: 0.4 });
+			k.play("error", { volume: mainSoundVolume });
 			return;
 		}
 
@@ -227,7 +234,7 @@ function buildToolUi() {
 		starsEmitter.emitter.position = selectedPos;
 		starsEmitter.emit(20);
 		loadPlayer();
-		k.play("purchase1", { volume: 0.8 });
+		k.play("purchase1", { volume: mainSoundVolume });
 		scoreTxt.text = getScoreStr(score);
 	});
 }

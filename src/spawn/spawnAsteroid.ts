@@ -5,7 +5,7 @@ import {
 	createExplosion,
 	playerObj,
 } from "../game";
-import { k } from "../main";
+import { k, mainSoundVolume } from "../main";
 import { debreeRocketEmitter, sparkEmitter, starsEmitter } from "../particles";
 import { registerHitAnimation } from "../shared";
 import { tags } from "../tags";
@@ -65,7 +65,7 @@ export function spawnMeteorite(props: Props) {
 					p.splashDmgFallof,
 					p.splashDmgFallofDist
 				);
-				k.play(randomExplosion(), { volume: 0.6 });
+				k.play(randomExplosion(), { volume: mainSoundVolume });
 				k.shake(3);
 				debreeRocketEmitter.emitter.position = m.pos;
 				debreeRocketEmitter.emitter.direction = p.angle - 90;
@@ -83,7 +83,7 @@ export function spawnMeteorite(props: Props) {
 		starsEmitter.emitter.position = m.pos;
 		starsEmitter.emit(20);
 		spawnDebree(m.pos, props.scoreOnKill);
-		k.play(randomExplosion(), { volume: 0.6 });
+		k.play(randomExplosion(), { volume: mainSoundVolume });
 		k.destroy(m);
 
 		if (props.splitOnDeath) {
@@ -101,7 +101,7 @@ export function spawnMeteorite(props: Props) {
 	});
 
 	m.onHurt(() => {
-		k.play("hit1", { volume: 0.6 });
+		k.play("hit1", { volume: mainSoundVolume });
 		m.animation.seek(0);
 	});
 }

@@ -5,7 +5,7 @@ import {
 	createExplosion,
 	playerObj,
 } from "../game";
-import { k } from "../main";
+import { k, mainSoundVolume } from "../main";
 import { debreeRocketEmitter, sparkEmitter, starsEmitter } from "../particles";
 import {
 	lerpAngleBetweenPos,
@@ -108,12 +108,12 @@ export function spawnFollower(props: Props) {
 		starsEmitter.emitter.position = m.pos;
 		starsEmitter.emit(20);
 
-		k.play(randomExplosion(), { volume: 0.6 });
+		k.play(randomExplosion(), { volume: mainSoundVolume });
 		k.destroy(m);
 	});
 
 	m.onHurt(() => {
-		k.play("hit1", { volume: 0.6 });
+		k.play("hit1", { volume: mainSoundVolume });
 		m.animation.seek(0);
 	});
 }

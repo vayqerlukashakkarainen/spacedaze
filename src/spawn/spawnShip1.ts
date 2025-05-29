@@ -1,6 +1,6 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileComponentIntersection, createExplosion } from "../game";
-import { k } from "../main";
+import { k, mainSoundVolume } from "../main";
 import { trailEmitter } from "../particles";
 import { shootBlaster } from "../projectiles/blaster";
 import { tags } from "../tags";
@@ -88,7 +88,7 @@ export function spawnShip1(pos, dir: Vec2, am, hp, scale, speed) {
 						p.splashDmgFallof,
 						p.splashDmgFallofDist
 					);
-					k.play(randomExplosion(), { volume: 0.6 });
+					k.play(randomExplosion(), { volume: mainSoundVolume });
 					k.shake(3);
 				}
 			}

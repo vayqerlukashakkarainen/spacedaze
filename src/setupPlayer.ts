@@ -4,7 +4,7 @@ import {
 	createExplosion,
 } from "./game";
 import { updatePlayerHealthBar, updateSpecialBar } from "./gameUi";
-import { k } from "./main";
+import { k, mainSoundVolume } from "./main";
 import { starsEmitter, trailEmitter } from "./particles";
 import { hasLvlValue, player } from "./player";
 import { shootBlaster } from "./projectiles/blaster";
@@ -54,7 +54,7 @@ export function setupPlayer() {
 		k.destroy(playerObj);
 		starsEmitter.emitter.position = playerObj.pos;
 		starsEmitter.emit(20);
-		k.play("explosion1", { volume: 1 });
+		k.play("explosion1", { volume: mainSoundVolume });
 		clearGame();
 	});
 
@@ -77,7 +77,7 @@ export function setupPlayer() {
 					p.splashDmgFallof,
 					p.splashDmgFallofDist
 				);
-				k.play(randomExplosion(), { volume: 0.6 });
+				k.play(randomExplosion(), { volume: mainSoundVolume });
 				k.shake(3);
 			}
 		});
@@ -114,7 +114,7 @@ export function setupPlayer() {
 	});
 
 	playerObj.onHurt(() => {
-		k.play("hit2", { volume: 0.4 });
+		k.play("hit2", { volume: mainSoundVolume });
 		playerObj.animation.seek(0);
 		k.shake(20);
 		k.flash(k.RED, 0.4);
@@ -122,35 +122,33 @@ export function setupPlayer() {
 	});
 
 	playerObj.onMousePress("left", () => {
-		if (hasLvlValue(player.blasterLvl, 1)) {
-			if (hasLvlValue(player.blasterParallel, 1)) {
-				for (let i = 0; i < blasters; i++) {
-					const gunPipe = playerObj.children[i];
-					shootBlaster(
-						gunPipe.worldPos(),
-						k.Vec2.fromAngle(playerObj.angle - 90),
-						playerObj.angle,
-						player.blasterDmg * player.blasterDmgMultiplier,
-						player.blasterSpeedMultiplier,
-						[tags.friendly, tags.blaster],
-						true
-					);
-				}
-				return;
+		if (hasLvlValue(player.blasterParallel, 1)) {
+			for (let i = 0; i < blasters; i++) {
+				const gunPipe = playerObj.children[i];
+				shootBlaster(
+					gunPipe.worldPos(),
+					k.Vec2.fromAngle(playerObj.angle - 90),
+					playerObj.angle,
+					player.blasterDmg * player.blasterDmgMultiplier,
+					player.blasterSpeedMultiplier,
+					[tags.friendly, tags.blaster],
+					true
+				);
 			}
-
-			const gunPipe = playerObj.children[bulletIndex % blasters];
-			shootBlaster(
-				gunPipe.worldPos(),
-				k.Vec2.fromAngle(playerObj.angle - 90),
-				playerObj.angle,
-				player.blasterDmg * player.blasterDmgMultiplier,
-				player.blasterSpeedMultiplier,
-				[tags.friendly, tags.blaster],
-				true
-			);
-			bulletIndex++;
+			return;
 		}
+
+		const gunPipe = playerObj.children[bulletIndex % blasters];
+		shootBlaster(
+			gunPipe.worldPos(),
+			k.Vec2.fromAngle(playerObj.angle - 90),
+			playerObj.angle,
+			player.blasterDmg * player.blasterDmgMultiplier,
+			player.blasterSpeedMultiplier,
+			[tags.friendly, tags.blaster],
+			true
+		);
+		bulletIndex++;
 	});
 
 	playerObj.onMousePress("right", () => {

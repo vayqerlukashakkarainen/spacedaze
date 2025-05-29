@@ -1,6 +1,6 @@
 import { AudioPlay, MusicData } from "kaplay";
 import { playerObj } from "../game";
-import { getPosAtBorder, k, layers } from "../main";
+import { getPosAtBorder, k, layers, musicVolume } from "../main";
 import { spawnAssasin } from "../spawn/spawnAssasin";
 import { spawnMeteorite } from "../spawn/spawnAsteroid";
 import { spawnHighway } from "../spawn/spawnHighway";
@@ -33,7 +33,7 @@ export const level1: Level = {
 		{
 			timeStamp: 0,
 			begin: () => {
-				song = k.play(level1.music, { volume: 0.9 });
+				song = k.play(level1.music, { volume: musicVolume });
 			},
 			upd: () => {},
 		},

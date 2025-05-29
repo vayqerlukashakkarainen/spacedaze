@@ -4,7 +4,7 @@ import {
 	createExplosion,
 	playerObj,
 } from "../game";
-import { k } from "../main";
+import { k, mainSoundVolume } from "../main";
 import { starsEmitter } from "../particles";
 import { shootBlaster } from "../projectiles/blaster";
 import {
@@ -99,7 +99,7 @@ export function spawnAssasin(pos, am, hp, scale) {
 					p.splashDmgFallof,
 					p.splashDmgFallofDist
 				);
-				k.play(randomExplosion(), { volume: 0.6 });
+				k.play(randomExplosion(), { volume: mainSoundVolume });
 				k.shake(3);
 			}
 		});
@@ -109,12 +109,12 @@ export function spawnAssasin(pos, am, hp, scale) {
 		starsEmitter.emitter.position = m.pos;
 		starsEmitter.emit(20);
 		spawnDebree(m.pos, am);
-		k.play(randomExplosion(), { volume: 0.6 });
+		k.play(randomExplosion(), { volume: mainSoundVolume });
 		k.destroy(m);
 	});
 
 	m.onHurt(() => {
-		k.play("hit1", { volume: 0.6 });
+		k.play("hit1", { volume: mainSoundVolume });
 		m.animation.seek(0);
 	});
 }

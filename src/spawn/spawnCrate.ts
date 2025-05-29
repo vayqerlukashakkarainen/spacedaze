@@ -3,7 +3,7 @@ import {
 	createExplosion,
 	playerObj,
 } from "../game";
-import { k } from "../main";
+import { k, mainSoundVolume } from "../main";
 import { debreeEmitter } from "../particles";
 import { registerHitAnimation } from "../shared";
 import { tags } from "../tags";
@@ -50,7 +50,7 @@ export function spawnCrate(pos, am, hp) {
 					p.splashDmgFallof,
 					p.splashDmgFallofDist
 				);
-				k.play(randomExplosion(), { volume: 0.6 });
+				k.play(randomExplosion(), { volume: mainSoundVolume });
 				k.shake(3);
 			}
 		});
@@ -65,12 +65,12 @@ export function spawnCrate(pos, am, hp) {
 		debreeEmitter.emitter.position = m.pos;
 		debreeEmitter.emitter.direction = m.hitAngle - 90;
 		debreeEmitter.emit(6);
-		k.play("explosion4", { volume: 0.3 });
+		k.play("explosion4", { volume: mainSoundVolume });
 		k.destroy(m);
 	});
 
 	m.onHurt(() => {
-		k.play("hit2", { volume: 0.4 });
+		k.play("hit2", { volume: mainSoundVolume });
 		m.animation.seek(0);
 	});
 }
