@@ -114,7 +114,7 @@ export const level1: Level = {
 						pos: randomPos,
 						dir: k.DOWN,
 						scoreOnKill: 1,
-						hp: 3,
+						hp: 4,
 						speed: k.rand(20, 40),
 						splitOnDeath: 2,
 					});
@@ -180,7 +180,7 @@ export const level1: Level = {
 				for (let i = 0; i < max; i++) {
 					const pos = getPosAtBorder(0.25 * (i / max));
 
-					spawnShip1(pos, k.DOWN, 2, 5, 1, k.rand(40, 60));
+					spawnShip1(pos, k.DOWN, 2, 7, 1, k.rand(40, 60));
 				}
 			},
 			upd: (ld) => {},
@@ -198,7 +198,7 @@ export const level1: Level = {
 						pos,
 						k.Vec2.fromAngle(pos.angleBetween(k.center())),
 						2,
-						5,
+						7,
 						1,
 						k.rand(40, 60)
 					);
@@ -238,7 +238,7 @@ export const level1: Level = {
 
 				if (timer >= 0.05) {
 					const rnd = k.rand(1);
-					spawnAssasin(getPosAtBorder(rnd), 2, 2, 1);
+					spawnAssasin(getPosAtBorder(rnd), 2, 4, 1);
 					timer = 0;
 				}
 			},
@@ -301,7 +301,14 @@ export const level1: Level = {
 			begin: () => {
 				timer = 0;
 				spawned = 0;
-				toSpawn = 30;
+				toSpawn = 40;
+				const max = 6;
+
+				for (let i = 0; i < max; i++) {
+					const pos = getPosAtBorder(0.25 * (i / max));
+
+					spawnShip1(pos, k.DOWN, 2, 10, 1, k.rand(40, 60));
+				}
 			},
 			upd: (ld) => {
 				timer += k.dt();
@@ -369,6 +376,14 @@ export const level1: Level = {
 						destroyAfterKills: 5,
 					});
 				}
+
+				const max = 14;
+
+				for (let i = 0; i < max; i++) {
+					const pos = getPosAtBorder(0.25 * (i / max));
+
+					spawnShip1(pos, k.DOWN, 2, 5, 1, k.rand(40, 60));
+				}
 			},
 			upd: (ld) => {},
 		},
@@ -395,7 +410,7 @@ export const level1: Level = {
 					spawnSpawner({
 						maxSpawns: 5,
 						onSpawn: (p) => {
-							spawnAssasin(p, 2, 2, 1);
+							spawnAssasin(p, 2, 6, 1);
 						},
 						spawnChance: 100,
 						pos: k.rand(k.vec2(k.width(), k.height())),
@@ -409,11 +424,34 @@ export const level1: Level = {
 			begin: () => {
 				for (let i = 0; i < 4; i++) {
 					spawnSpawner({
-						maxSpawns: 5,
+						maxSpawns: 10,
 						onSpawn: (p) => {
-							spawnAssasin(p, 2, 2, 1);
+							spawnAssasin(p, 2, 6, 1);
 						},
-						spawnChance: 100,
+						spawnChance: 70,
+						pos: k.rand(k.vec2(k.width(), k.height())),
+					});
+				}
+			},
+			upd: (ld) => {},
+		},
+		{
+			timeStamp: 125000,
+			begin: () => {
+				for (let i = 0; i < 6; i++) {
+					spawnSpawner({
+						maxSpawns: 10,
+						onSpawn: (p) => {
+							spawnMeteorite({
+								pos: p,
+								hp: 15,
+								dir: k.rand(k.vec2(-1, -1), k.vec2(1, 1)),
+								scoreOnKill: 2,
+								speed: k.rand(80, 120),
+								splitOnDeath: Math.floor(k.rand(3)),
+							});
+						},
+						spawnChance: 50,
 						pos: k.rand(k.vec2(k.width(), k.height())),
 					});
 				}

@@ -38,10 +38,10 @@ export const powerupsSprites: Record<PowerupKey, string> = {
 };
 
 export const powerupWeights: Record<PowerupKey, number> = {
-	addFollower: 250,
-	addPlayerMaxHealth: 150,
-	addExtraRockets: 150,
-	addSpaceDebree: 200,
+	addFollower: 350,
+	addPlayerMaxHealth: 200,
+	addExtraRockets: 120,
+	addSpaceDebree: 110,
 };
 
 export const powerupReq: Record<PowerupKey, (() => boolean) | undefined> = {
@@ -55,7 +55,7 @@ export const powerupReq: Record<PowerupKey, (() => boolean) | undefined> = {
 	},
 };
 
-const blankChance = 50000;
+const blankChance = 25000;
 function randomizePowerup(chanceMultiplier: number): PowerupKey | null {
 	const keyValues = Object.entries(powerupWeights).filter((x) => {
 		if (powerupReq[x[0]] === undefined) return true;
