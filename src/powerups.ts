@@ -55,7 +55,7 @@ export const powerupReq: Record<PowerupKey, (() => boolean) | undefined> = {
 	},
 };
 
-const blankChance = 25000;
+const blankChance = 45000;
 function randomizePowerup(chanceMultiplier: number): PowerupKey | null {
 	const keyValues = Object.entries(powerupWeights).filter((x) => {
 		if (powerupReq[x[0]] === undefined) return true;
