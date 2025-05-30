@@ -1,3 +1,4 @@
+import { escape } from "querystring";
 import { getToolUpgradeLvlValue, ToolKey } from "./upg";
 
 interface Ship {
@@ -39,10 +40,30 @@ interface Ship {
 	nrOfRockets: number;
 	rocketShards: number;
 
-	nrOfFollowers: number;
 	followerBlasterDmg: number;
 	followerBlasterDmgMultiplier: number;
 	followerCanUseMissiles: number | undefined;
+
+	critChance: number;
+	critMultiplier: number;
+}
+
+interface Session {
+	extraHealth: number;
+	extraRockets: number;
+	extraSpaceDebreeInMissiles: number;
+}
+
+export const session: Session = {
+	extraHealth: 0,
+	extraRockets: 0,
+	extraSpaceDebreeInMissiles: 0,
+};
+
+export function resetSession() {
+	session.extraHealth = 0;
+	session.extraRockets = 0;
+	session.extraSpaceDebreeInMissiles = 0;
 }
 
 export const player: Ship = {
@@ -75,10 +96,11 @@ export const player: Ship = {
 	sprintSpeedMultiplier: 1,
 	speedMultiplier: 1,
 	speedPwrUpMultiplier: 1,
-	nrOfFollowers: 0,
 	followerBlasterDmg: 1,
 	followerBlasterDmgMultiplier: 1,
 	followerCanUseMissiles: undefined,
+	critChance: 30,
+	critMultiplier: 1.5,
 };
 
 export function loadPlayer() {
@@ -102,7 +124,6 @@ export function loadPlayer() {
 	player.speedMultiplier = getToolUpgradeLvlValue("movespeed") ?? 1;
 	player.maxHealth = getToolUpgradeLvlValue("maxHealth") ?? 2;
 
-	player.nrOfFollowers = getToolUpgradeLvlValue("follower") ?? 0;
 	player.followerBlasterDmg = getToolUpgradeLvlValue("followerBlasterDmg") ?? 1;
 	player.followerCanUseMissiles = getToolUpgradeLvlValue("followerMissiles");
 }

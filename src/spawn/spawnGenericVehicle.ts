@@ -4,12 +4,13 @@ import {
 	createExplosion,
 	playerObj,
 } from "../game";
-import { k, mainSoundVolume } from "../main";
+import { k, mainSoundVolume, subSoundVolume } from "../main";
 import { starsEmitterDir } from "../particles";
 import { tags } from "../tags";
 import { randomExplosion } from "../util";
 import { spawnDebree } from "./spawnDebree";
 import { registerHitAnimation } from "../shared";
+import { onEnemyHit } from "./enemyShared";
 
 export function spawnGenericVehicle(
 	addTo: GameObj<{ killed: number }>,
@@ -44,21 +45,7 @@ export function spawnGenericVehicle(
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
 			k.destroy(p);
 
-			if (p.tags.includes(tags.blaster)) {
-				m.hurt(p.dmg);
-				spawnDebree(m.pos, 1);
-			} else if (p.tags.includes(tags.rocket)) {
-				m.hurt(p.impactDmg);
-				createExplosion(
-					p.pos,
-					p.splashSize,
-					p.splashDmg,
-					p.splashDmgFallof,
-					p.splashDmgFallofDist
-				);
-				k.play(randomExplosion(), { volume: mainSoundVolume });
-				k.shake(3);
-			}
+			onEnemyHit(m, p);
 		});
 
 		if (playerObj.pos.dist(m.pos) < m.hb) {
@@ -72,7 +59,7 @@ export function spawnGenericVehicle(
 		starsEmitterDir.emitter.direction = m.angle + 90;
 
 		starsEmitterDir.emit(20);
-		k.play(randomExplosion(), { volume: mainSoundVolume });
+		k.play(randomExplosion(), { volume: subSoundVolume });
 		k.destroy(m);
 
 		addTo.killed += 1;

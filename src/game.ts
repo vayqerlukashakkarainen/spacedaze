@@ -16,22 +16,24 @@ import {
 	addScore,
 	mainSoundVolume,
 } from "./main";
-import { player } from "./player";
+import { player, resetSession, session } from "./player";
 import { explosionEmitter } from "./particles";
-import {
-	activeLevel,
-	Level,
-	loadLevel,
-	resetCurrentLevel,
-	updateLvl,
-} from "./wave";
+import { activeLevel, loadLevel, resetCurrentLevel, updateLvl } from "./wave";
 import { clearPlayer, setupPlayer } from "./setupPlayer";
 import { level1 } from "./levels/level1";
 import { tags } from "./tags";
-import { clearGameLoopUi, setupGameLoopUi } from "./gameUi";
-import { spawnShip1 } from "./spawn/spawnShip1";
+import {
+	addHealthBar,
+	clearGameLoopUi,
+	setupGameLoopUi,
+	updatePlayerHealthBar,
+} from "./gameUi";
 import { Component } from "./compose";
-import { spawnFollower } from "./spawn/spawnFollower";
+import { spawnPowerup } from "./spawn/spawnPowerup";
+import { getDmg } from "./projectiles/shared";
+import { spawnFlash } from "./spawn/spawnFlash";
+import { spawnSpawner } from "./spawn/spawnSpawner";
+import { spawnAssasin } from "./spawn/spawnAssasin";
 
 const lengthBetweenLevels = 1;
 
@@ -45,6 +47,7 @@ export const projectiles: GameObj<PosComp | any>[] = [];
 
 export function startGame() {
 	playerObj = setupPlayer();
+	resetSession();
 	setupGameLoopUi(player.maxHealth);
 }
 
@@ -55,17 +58,7 @@ export function updateGameLoop() {
 	if (timeSinceLastLevel >= lengthBetweenLevels && !activeLevel()) {
 		loadLevel(level1);
 
-		for (let i = 0; i < player.nrOfFollowers; i++) {
-			spawnFollower({
-				follow: playerObj,
-				hp: 6,
-				pos: k.vec2(k.rand(k.width()), 0),
-				speed: k.rand(80, 110),
-				blasterDmg:
-					player.followerBlasterDmg * player.followerBlasterDmgMultiplier,
-				canUseMissiles: player.followerCanUseMissiles !== undefined,
-			});
-		}
+		spawnPowerup(k.center(), "addPlayerMaxHealth");
 	}
 
 	if (activeLevel()) {
@@ -112,6 +105,7 @@ export function clearGame() {
 	k.destroyAll(tags.levelBg);
 	k.destroyAll(tags.unit);
 	k.destroyAll(tags.debree);
+	k.destroyAll(tags.props);
 	clearGameLoopUi();
 	changeGameState(GameState.LevelUp);
 }
@@ -129,10 +123,17 @@ export function createExplosion(
 	});
 	explosionEmitter.emitter.position = pos;
 	explosionEmitter.emit(14);
+	spawnFlash(pos, 2);
 
 	for (let i = 0; i < enemies.length; i++) {
 		if (enemies[i].pos.dist(pos) < radius) {
-			enemies[i].hurt(splashDmg);
+			const dmg = getDmg(
+				player.critChance,
+				splashDmg,
+				player.critMultiplier,
+				enemies[i].pos
+			);
+			enemies[i].hurt(dmg);
 		}
 	}
 }
@@ -197,4 +198,15 @@ export function pickUnitInDistance(
 	}
 
 	return false;
+}
+
+export function addMaxHealth() {
+	if (!playerObj) return;
+
+	session.extraHealth++;
+	const totalHealth = player.maxHealth + session.extraHealth;
+	playerObj.setMaxHP(totalHealth);
+	addHealthBar(totalHealth - 1);
+	playerObj.heal();
+	updatePlayerHealthBar(playerObj.hp());
 }

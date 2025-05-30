@@ -8,6 +8,8 @@ import { spawnShip1 } from "../spawn/spawnShip1";
 import { tags } from "../tags";
 import { Level } from "../wave";
 import { endSong, loadSongData } from "../web";
+import { spawnCrate } from "../spawn/spawnCrate";
+import { spawnSpawner } from "../spawn/spawnSpawner";
 
 let lvlData: any = {};
 let timer = 0;
@@ -117,6 +119,17 @@ export const level1: Level = {
 						splitOnDeath: 2,
 					});
 				}
+				for (let i = 0; i < spawn / 10; i++) {
+					var randomPos = k.rand(k.vec2(k.width(), k.height()));
+
+					if (playerObj.pos.dist(randomPos) < 200) continue;
+					spawnCrate({
+						pos: randomPos,
+						am: 1,
+						hp: 3,
+						powerupMultiplier: 3,
+					});
+				}
 
 				k.add([
 					k.pos(100),
@@ -167,7 +180,7 @@ export const level1: Level = {
 				for (let i = 0; i < max; i++) {
 					const pos = getPosAtBorder(0.25 * (i / max));
 
-					spawnShip1(pos, k.DOWN, 3, 5, 1, k.rand(40, 60));
+					spawnShip1(pos, k.DOWN, 2, 5, 1, k.rand(40, 60));
 				}
 			},
 			upd: (ld) => {},
@@ -184,7 +197,7 @@ export const level1: Level = {
 					spawnShip1(
 						pos,
 						k.Vec2.fromAngle(pos.angleBetween(k.center())),
-						3,
+						2,
 						5,
 						1,
 						k.rand(40, 60)
@@ -205,7 +218,7 @@ export const level1: Level = {
 					spawnShip1(
 						pos,
 						k.Vec2.fromAngle(pos.angleBetween(k.center())),
-						3,
+						2,
 						5,
 						1,
 						k.rand(40, 60)
@@ -246,7 +259,7 @@ export const level1: Level = {
 					spawnMeteorite({
 						pos: getPosAtBorder(t),
 						dir: k.LEFT,
-						scoreOnKill: 1,
+						scoreOnKill: 0,
 						hp: 3,
 						speed: 40,
 						splitOnDeath: 2,
@@ -272,7 +285,7 @@ export const level1: Level = {
 					spawnMeteorite({
 						pos: getPosAtBorder(t),
 						dir: k.RIGHT,
-						scoreOnKill: 1,
+						scoreOnKill: 0,
 						hp: 3,
 						speed: 40,
 						splitOnDeath: 2,
@@ -299,7 +312,7 @@ export const level1: Level = {
 						spawnMeteorite({
 							pos: getPosAtBorder(t),
 							dir: i == 0 ? k.DOWN : k.UP,
-							scoreOnKill: 1,
+							scoreOnKill: 0,
 							hp: 3,
 							speed: 40,
 							splitOnDeath: 2,
@@ -333,18 +346,79 @@ export const level1: Level = {
 				timer = 0;
 				for (let i = 0; i < 2; i++) {
 					const yPos = 200 + 300 * i;
-					spawnHighway(k.vec2(0, yPos), k.vec2(k.width(), yPos), 10);
+					spawnHighway({
+						startPos: k.vec2(0, yPos),
+						endPos: k.vec2(k.width(), yPos),
+						spawnChance: 90,
+						destroyAfterKills: 5,
+					});
 				}
 			},
-			upd: (ld) => {
-				timer += k.dt();
+			upd: (ld) => {},
+		},
+		{
+			timeStamp: 86450,
+			begin: () => {
+				timer = 0;
+				for (let i = 0; i < 2; i++) {
+					const xPos = 200 + 300 * i;
+					spawnHighway({
+						startPos: k.vec2(xPos, 0),
+						endPos: k.vec2(xPos, k.height()),
+						spawnChance: 80,
+						destroyAfterKills: 5,
+					});
+				}
+			},
+			upd: (ld) => {},
+		},
+		{
+			timeStamp: 97340,
+			begin: () => {
+				k.flash(k.WHITE, 0.5);
+			},
+			upd: (ld) => {},
+		},
+		{
+			timeStamp: 100700,
+			begin: () => {
+				k.flash(k.WHITE, 0.5);
+			},
+			upd: (ld) => {},
+		},
+		{
+			timeStamp: 107900,
+			begin: () => {
+				k.flash(k.WHITE, 0.5);
 
-				if (timer >= level1.bpm) {
-					const rnd = k.rand(1);
-					spawnAssasin(getPosAtBorder(rnd), 2, 2, 1);
-					timer = 0;
+				for (let i = 0; i < 4; i++) {
+					spawnSpawner({
+						maxSpawns: 5,
+						onSpawn: (p) => {
+							spawnAssasin(p, 2, 2, 1);
+						},
+						spawnChance: 100,
+						pos: k.rand(k.vec2(k.width(), k.height())),
+					});
 				}
 			},
+			upd: (ld) => {},
+		},
+		{
+			timeStamp: 115000,
+			begin: () => {
+				for (let i = 0; i < 4; i++) {
+					spawnSpawner({
+						maxSpawns: 5,
+						onSpawn: (p) => {
+							spawnAssasin(p, 2, 2, 1);
+						},
+						spawnChance: 100,
+						pos: k.rand(k.vec2(k.width(), k.height())),
+					});
+				}
+			},
+			upd: (ld) => {},
 		},
 	],
 };

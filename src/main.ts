@@ -24,17 +24,18 @@ export const ROCKET_SPEED = 280;
 export let timeSeconds = 0;
 export const outsideBorderPos: Vec2[] = [];
 
-export const mainSoundVolume = 0.4;
-export const musicVolume = 0.9;
+export const subSoundVolume = 0.3;
+export const mainSoundVolume = 0.5;
+export const musicVolume = 0.6;
 
 let gameState = GameState.Playing;
 
 export const k = kaplay({
 	background: "#000000",
 	global: false,
-	scale: 1.3,
-	width: 600,
-	height: 600,
+	scale: 1.2,
+	width: 700,
+	height: 700,
 });
 
 init(k).then(() => {

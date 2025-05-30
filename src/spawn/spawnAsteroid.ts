@@ -1,16 +1,10 @@
 import { Vec2 } from "kaplay";
-import {
-	checkProjectileIntersection,
-	clearGame,
-	createExplosion,
-	playerObj,
-} from "../game";
-import { k, mainSoundVolume } from "../main";
-import { debreeRocketEmitter, sparkEmitter, starsEmitter } from "../particles";
+import { checkProjectileIntersection, playerObj } from "../game";
+import { k, mainSoundVolume, subSoundVolume } from "../main";
 import { registerHitAnimation } from "../shared";
 import { tags } from "../tags";
 import { randomExplosion } from "../util";
-import { spawnDebree } from "./spawnDebree";
+import { enemyOnDeath, onEnemyHit } from "./enemyShared";
 
 interface Props {
 	pos: Vec2;
@@ -53,24 +47,7 @@ export function spawnMeteorite(props: Props) {
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
 			k.destroy(p);
 
-			if (p.tags.includes(tags.blaster)) {
-				m.hurt(p.dmg);
-				spawnDebree(m.pos, 1);
-			} else if (p.tags.includes(tags.rocket)) {
-				m.hurt(p.impactDmg);
-				createExplosion(
-					p.pos,
-					p.splashSize,
-					p.splashDmg,
-					p.splashDmgFallof,
-					p.splashDmgFallofDist
-				);
-				k.play(randomExplosion(), { volume: mainSoundVolume });
-				k.shake(3);
-				debreeRocketEmitter.emitter.position = m.pos;
-				debreeRocketEmitter.emitter.direction = p.angle - 90;
-				debreeRocketEmitter.emit(6);
-			}
+			onEnemyHit(m, p);
 		});
 
 		if (playerObj.pos.dist(m.pos) < m.hb) {
@@ -80,10 +57,8 @@ export function spawnMeteorite(props: Props) {
 	});
 
 	m.onDeath(() => {
-		starsEmitter.emitter.position = m.pos;
-		starsEmitter.emit(20);
-		spawnDebree(m.pos, props.scoreOnKill);
-		k.play(randomExplosion(), { volume: mainSoundVolume });
+		enemyOnDeath(m.pos, props.scoreOnKill, 1);
+		k.play(randomExplosion(), { volume: subSoundVolume });
 		k.destroy(m);
 
 		if (props.splitOnDeath) {
@@ -101,7 +76,6 @@ export function spawnMeteorite(props: Props) {
 	});
 
 	m.onHurt(() => {
-		k.play("hit1", { volume: mainSoundVolume });
 		m.animation.seek(0);
 	});
 }

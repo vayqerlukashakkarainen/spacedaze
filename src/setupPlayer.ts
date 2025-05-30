@@ -6,7 +6,7 @@ import {
 import { updatePlayerHealthBar, updateSpecialBar } from "./gameUi";
 import { k, mainSoundVolume } from "./main";
 import { starsEmitter, trailEmitter } from "./particles";
-import { hasLvlValue, player } from "./player";
+import { hasLvlValue, player, session } from "./player";
 import { shootBlaster } from "./projectiles/blaster";
 import { shootRocket } from "./projectiles/rocket";
 import {
@@ -176,7 +176,7 @@ export function setupPlayer() {
 					true
 				);
 			},
-			player.nrOfRockets
+			player.nrOfRockets + session.extraRockets
 		);
 	});
 

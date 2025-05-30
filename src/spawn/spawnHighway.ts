@@ -3,12 +3,19 @@ import { k, timeSeconds } from "../main";
 import { tags } from "../tags";
 import { spawnGenericVehicle } from "./spawnGenericVehicle";
 
-export function spawnHighway(startPos: Vec2, endPos: Vec2, intensity) {
+interface Props {
+	spawnChance: number;
+	startPos: Vec2;
+	endPos: Vec2;
+	destroyAfterKills: number;
+}
+
+export function spawnHighway(props: Props) {
 	const m = k.add([
 		k.animate(),
 		{
-			startPos,
-			endPos,
+			startPos: props.startPos,
+			endPos: props.endPos,
 			opacity: 0.15,
 			killed: 0,
 		},
@@ -16,7 +23,7 @@ export function spawnHighway(startPos: Vec2, endPos: Vec2, intensity) {
 	]);
 
 	m.onUpdate(() => {
-		if (Math.floor(k.rand(0, 100 - intensity)) == 1) {
+		if (Math.floor(k.rand(0, props.spawnChance)) == 1) {
 			const offset = smallOffset(6);
 			spawnGenericVehicle(
 				m,
@@ -29,7 +36,7 @@ export function spawnHighway(startPos: Vec2, endPos: Vec2, intensity) {
 
 		m.opacity = k.wave(0.1, 0.2, k.time());
 
-		if (m.killed >= 5) {
+		if (m.killed >= props.destroyAfterKills) {
 			m.destroy();
 		}
 	});

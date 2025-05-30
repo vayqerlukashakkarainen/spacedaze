@@ -1,11 +1,5 @@
-import {
-	checkProjectileIntersection,
-	clearGame,
-	createExplosion,
-	playerObj,
-} from "../game";
-import { k, mainSoundVolume } from "../main";
-import { starsEmitter } from "../particles";
+import { checkProjectileIntersection, playerObj } from "../game";
+import { k, mainSoundVolume, subSoundVolume } from "../main";
 import { shootBlaster } from "../projectiles/blaster";
 import {
 	lerpAngleBetweenPos,
@@ -14,7 +8,7 @@ import {
 } from "../shared";
 import { tags } from "../tags";
 import { randomExplosion } from "../util";
-import { spawnDebree } from "./spawnDebree";
+import { enemyOnDeath, onEnemyHit } from "./enemyShared";
 
 export function spawnAssasin(pos, am, hp, scale) {
 	const hb = 12 * scale;
@@ -40,7 +34,7 @@ export function spawnAssasin(pos, am, hp, scale) {
 	m.onStateEnter("retreat", async () => {
 		const pos = k.rand(k.vec2(k.width(), k.height()));
 		m.targetPos = pos;
-		await k.wait(1);
+		await k.wait(2);
 		m.enterState("attack");
 	});
 
@@ -88,28 +82,13 @@ export function spawnAssasin(pos, am, hp, scale) {
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
 			k.destroy(p);
 
-			if (p.tags.includes(tags.blaster)) {
-				m.hurt(p.dmg);
-			} else if (p.tags.includes(tags.rocket)) {
-				m.hurt(p.impactDmg);
-				createExplosion(
-					p.pos,
-					p.splashSize,
-					p.splashDmg,
-					p.splashDmgFallof,
-					p.splashDmgFallofDist
-				);
-				k.play(randomExplosion(), { volume: mainSoundVolume });
-				k.shake(3);
-			}
+			onEnemyHit(m, p);
 		});
 	});
 
 	m.onDeath(() => {
-		starsEmitter.emitter.position = m.pos;
-		starsEmitter.emit(20);
-		spawnDebree(m.pos, am);
-		k.play(randomExplosion(), { volume: mainSoundVolume });
+		k.play(randomExplosion(), { volume: subSoundVolume });
+		enemyOnDeath(m.pos, am, 1);
 		k.destroy(m);
 	});
 

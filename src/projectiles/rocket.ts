@@ -1,11 +1,12 @@
 import { Vec2 } from "kaplay";
 import { pickUnitInDistance, projectiles } from "../game";
-import { k, mainSoundVolume, ROCKET_SPEED } from "../main";
+import { k, mainSoundVolume, ROCKET_SPEED, subSoundVolume } from "../main";
 import { trailEmitter } from "../particles";
 import { lerpAngleBetweenPos, lerpMoveRotateAndScale } from "../shared";
 import { shootBlaster } from "./blaster";
 import { tags } from "../tags";
-import { player } from "../player";
+import { player, session } from "../player";
+import { randomExplosion } from "../util";
 
 const acquireTargetAfter = 0.5;
 const trailOffset = 12;
@@ -43,7 +44,7 @@ export function shootRocket(
 			targetUnit: null,
 			canSeek,
 		},
-		...tagsToAttach,
+		...[...tagsToAttach, tags.gameLoopUi],
 	]);
 
 	k.play("fire_rocket1", { volume: mainSoundVolume });
@@ -80,7 +81,7 @@ export function shootRocket(
 		trailEmitter.emit(1);
 
 		if (r.canSeek && r.lifetime > acquireTargetAfter && r.targetUnit == null) {
-			pickUnitInDistance(r.pos, 200, "enemy", (u) => {
+			pickUnitInDistance(r.pos, 200, tags.enemy, (u) => {
 				r.targetUnit = u;
 
 				r.targetUnit?.onDestroy(() => {
@@ -94,8 +95,9 @@ export function shootRocket(
 		const index = projectiles.findIndex((p2) => p2.id == r.id);
 
 		projectiles.splice(index, 1);
+		k.play(randomExplosion(), { volume: subSoundVolume });
 
-		const shards = player.rocketShards;
+		const shards = player.rocketShards + session.extraSpaceDebreeInMissiles;
 		for (let i = 0; i < shards; i++) {
 			const angle = 360 * (i / shards);
 			shootBlaster(

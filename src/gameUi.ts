@@ -9,16 +9,7 @@ const height = 10;
 const specialHeight = 80;
 export function setupGameLoopUi(health: number) {
 	for (let i = 0; i < health; i++) {
-		const offset = height * (i + 1);
-		const c = k.add([
-			k.pos(10, k.height() - offset),
-			k.rect(10, 6),
-			k.color(k.WHITE),
-			k.opacity(1),
-			tags.gameLoopUi,
-		]);
-
-		healthBars.push(c);
+		addHealthBar(i);
 	}
 
 	k.add([
@@ -36,9 +27,25 @@ export function setupGameLoopUi(health: number) {
 	]);
 }
 
-export function updatePlayerHealthBar(newHealth: number) {
-	const clamp = k.clamp(newHealth, 0, healthBars.length - 1);
-	for (let i = healthBars.length - 1; i > clamp; i--) {
+export function addHealthBar(healthValue: number) {
+	const offset = height * healthValue;
+	const c = k.add([
+		k.pos(10, k.height() - 10 - offset),
+		k.rect(10, 6),
+		k.color(k.WHITE),
+		k.opacity(1),
+		tags.gameLoopUi,
+	]);
+
+	healthBars.push(c);
+}
+
+export function updatePlayerHealthBar(currentHealth: number) {
+	for (let i = 0; i < healthBars.length; i++) {
+		if (i < currentHealth) {
+			healthBars[i].opacity = 1;
+			continue;
+		}
 		healthBars[i].opacity = 0.2;
 	}
 }

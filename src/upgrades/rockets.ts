@@ -5,7 +5,7 @@ export const rocket: Tool = {
 	upgrades: [
 		{
 			name: "Level 1",
-			desc: "Install missile pods to the ship",
+			desc: "Install missile pods to the ship, right mouse to fire",
 			sprite: "rocket_upg1",
 			price: 22,
 			value: 1,

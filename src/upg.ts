@@ -4,11 +4,7 @@ import {
 	blasterMultiple,
 	blasterSpeed,
 } from "./upgrades/blasters";
-import {
-	follower,
-	followerBlasterDmg,
-	followerMissiles,
-} from "./upgrades/follower";
+import { followerBlasterDmg, followerMissiles } from "./upgrades/follower";
 import { increaseRockets, rocket, rocketShards } from "./upgrades/rockets";
 import {
 	debreeDist,
@@ -57,7 +53,6 @@ export const upgrades = {
 	movespeed: movespeed,
 	maxHealth: maxHealth,
 
-	follower: follower,
 	followerBlasterDmg: followerBlasterDmg,
 	followerMissiles: followerMissiles,
 } as const;
@@ -74,7 +69,25 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	movespeed: undefined,
 	debreeValue: undefined,
 	maxHealth: undefined,
-	follower: undefined,
+	followerBlasterDmg: undefined,
+	followerMissiles: undefined,
+	rocketShards: undefined,
+	sprintSpeed: undefined,
+	blasterParallel: undefined,
+};
+
+export let levelLoadout: Record<ToolKey, number | undefined> = {
+	blaster: undefined,
+	blasterDmg: undefined,
+	blasterSpeed: undefined,
+	rockets: undefined,
+	debreeDist: undefined,
+	debreeSpeed: undefined,
+	nrOfRockets: undefined,
+	sprint: undefined,
+	movespeed: undefined,
+	debreeValue: undefined,
+	maxHealth: undefined,
 	followerBlasterDmg: undefined,
 	followerMissiles: undefined,
 	rocketShards: undefined,
@@ -100,4 +113,25 @@ export function getNextLvl(key: ToolKey) {
 
 export function setLoadout(set: Record<string, number | undefined>) {
 	loadout = set;
+}
+
+export function resetLevelLoadout() {
+	levelLoadout = {
+		blaster: undefined,
+		blasterDmg: undefined,
+		blasterSpeed: undefined,
+		rockets: undefined,
+		debreeDist: undefined,
+		debreeSpeed: undefined,
+		nrOfRockets: undefined,
+		sprint: undefined,
+		movespeed: undefined,
+		debreeValue: undefined,
+		maxHealth: undefined,
+		followerBlasterDmg: undefined,
+		followerMissiles: undefined,
+		rocketShards: undefined,
+		sprintSpeed: undefined,
+		blasterParallel: undefined,
+	};
 }

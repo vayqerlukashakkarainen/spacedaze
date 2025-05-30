@@ -46,3 +46,7 @@ export function lerpMoveRotateAndScale(
 	m.angle = lerp;
 	m.scale = k.vec2(1, Math.abs(y));
 }
+
+export function sum(values: number[]) {
+	return values.reduce((a, b) => a + b, 0);
+}

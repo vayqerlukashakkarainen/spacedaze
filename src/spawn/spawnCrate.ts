@@ -1,22 +1,24 @@
-import {
-	checkProjectileIntersection,
-	createExplosion,
-	playerObj,
-} from "../game";
+import { Vec2 } from "kaplay";
+import { checkProjectileIntersection, playerObj } from "../game";
 import { k, mainSoundVolume } from "../main";
-import { debreeEmitter } from "../particles";
 import { registerHitAnimation } from "../shared";
 import { tags } from "../tags";
-import { randomExplosion } from "../util";
-import { spawnDebree } from "./spawnDebree";
+import { enemyOnDeath, onEnemyHit } from "./enemyShared";
 
-export function spawnCrate(pos, am, hp) {
+interface Props {
+	pos: Vec2;
+	am: number;
+	hp: number;
+	powerupMultiplier: number;
+}
+
+export function spawnCrate(props: Props) {
 	const m = k.add([
-		k.pos(pos),
+		k.pos(props.pos),
 		k.sprite("crate1"),
 		k.rotate(0),
 		k.anchor("center"),
-		k.health(hp),
+		k.health(props.hp),
 		k.animate(),
 		k.offscreen({ destroy: true }),
 		{
@@ -39,32 +41,16 @@ export function spawnCrate(pos, am, hp) {
 			k.destroy(p);
 
 			m.hitAngle = p.angle;
-			if (p.tags.includes(tags.blaster)) {
-				m.hurt(p.dmg);
-			} else if (p.tags.includes(tags.rocket)) {
-				m.hurt(p.impactDmg);
-				createExplosion(
-					p.pos,
-					p.splashSize,
-					p.splashDmg,
-					p.splashDmgFallof,
-					p.splashDmgFallofDist
-				);
-				k.play(randomExplosion(), { volume: mainSoundVolume });
-				k.shake(3);
-			}
+			onEnemyHit(m, p);
 		});
 
 		if (playerObj.pos.dist(m.pos) < 16) {
-			m.hurt(hp);
+			m.hurt(props.hp);
 		}
 	});
 
 	m.onDeath(() => {
-		spawnDebree(m.pos, am);
-		debreeEmitter.emitter.position = m.pos;
-		debreeEmitter.emitter.direction = m.hitAngle - 90;
-		debreeEmitter.emit(6);
+		enemyOnDeath(m.pos, props.am, props.powerupMultiplier);
 		k.play("explosion4", { volume: mainSoundVolume });
 		k.destroy(m);
 	});

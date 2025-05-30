@@ -101,6 +101,8 @@ export async function init(k: KAPLAYCtx<{}, never>) {
 	await k.loadSound("purchase", "sounds/purchase.wav");
 	await k.loadSound("error", "sounds/error.wav");
 	await k.loadSound("purchase1", "sounds/purchase1.wav");
+	await k.loadSound("powerup1", "sounds/powerup1.wav");
+	await k.loadSound("crit1", "sounds/crit1.wav");
 
 	await k.loadMusic("arcadia", "songs/arcadia.mp3");
 

@@ -5,7 +5,7 @@ import {
 	createExplosion,
 	playerObj,
 } from "../game";
-import { k, mainSoundVolume } from "../main";
+import { k, mainSoundVolume, subSoundVolume } from "../main";
 import { debreeRocketEmitter, sparkEmitter, starsEmitter } from "../particles";
 import {
 	lerpAngleBetweenPos,
@@ -23,7 +23,6 @@ interface Props {
 	pos: Vec2;
 	hp: number;
 	blasterDmg: number;
-	canUseMissiles: boolean;
 	speed: number;
 	follow: GameObj<PosComp>;
 }
@@ -44,7 +43,6 @@ export function spawnFollower(props: Props) {
 			speed: props.speed,
 			hb,
 			dmg: props.blasterDmg,
-			missiles: props.canUseMissiles,
 		},
 		tags.friendly,
 		tags.unit,
@@ -71,7 +69,7 @@ export function spawnFollower(props: Props) {
 			}
 		});
 
-		if (m.missiles && m.hasTarget()) {
+		if (player.followerCanUseMissiles && m.hasTarget()) {
 			if (Math.floor(k.rand(0, 300)) == 1) {
 				shootRocket(
 					m.pos,
@@ -89,7 +87,7 @@ export function spawnFollower(props: Props) {
 			}
 		}
 
-		if (Math.floor(k.rand(0, 110)) == 1) {
+		if (Math.floor(k.rand(0, 150)) == 1) {
 			if (m.pickTarget(m.pos, 400, tags.enemy)) {
 				shootBlaster(
 					m.pos,
@@ -108,7 +106,7 @@ export function spawnFollower(props: Props) {
 		starsEmitter.emitter.position = m.pos;
 		starsEmitter.emit(20);
 
-		k.play(randomExplosion(), { volume: mainSoundVolume });
+		k.play(randomExplosion(), { volume: subSoundVolume });
 		k.destroy(m);
 	});
 

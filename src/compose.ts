@@ -13,6 +13,7 @@ import { spawnDebree } from "./spawn/spawnDebree";
 import { randomExplosion } from "./util";
 import { unitComponents } from "./spawn/spawnShip1";
 import { JitterComp } from "./comp/jitter";
+import { enemyOnDeath } from "./spawn/enemyShared";
 
 interface Part {
 	obj: GameObj<HealthComp | AnimateComp | PosComp | SpriteComp | JitterComp>;
@@ -47,19 +48,21 @@ export function compose(c: Compose): Component[] {
 
 		part.obj.onDeath(() => {
 			const pos = part.isBody ? part.obj.pos : body!.obj.pos.sub(part.obj.pos);
-			starsEmitter.emitter.position = pos;
-			starsEmitter.emit(20);
+
 			spawnDebree(pos, part.scoreOnDestroy);
 			k.play(randomExplosion(), { volume: mainSoundVolume });
 
 			if (part.isBody) {
 				delete unitComponents[part.obj.id!];
 				k.destroy(part.obj);
+				enemyOnDeath(part.obj.pos, 10, 1);
 				return;
 			}
 
 			part.obj.hidden = true;
 			part.obj.paused = true;
+			starsEmitter.emitter.position = pos;
+			starsEmitter.emit(20);
 			detach(pos, part.obj.sprite, k.rand(40, 80));
 			body!.obj.jitter(20);
 		});

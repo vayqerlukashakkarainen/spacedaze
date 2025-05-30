@@ -11,6 +11,7 @@ import { tags } from "../tags";
 import { randomExplosion } from "../util";
 import { spawnDebree } from "./spawnDebree";
 import { registerHitAnimation } from "../shared";
+import { enemyOnDeath, onEnemyHit } from "./enemyShared";
 
 export function spawnHeavyVehicle(pos: Vec2, dir: Vec2, hp, sprite) {
 	const hb = 12;
@@ -39,21 +40,7 @@ export function spawnHeavyVehicle(pos: Vec2, dir: Vec2, hp, sprite) {
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
 			k.destroy(p);
 
-			if (p.tags.includes(tags.blaster)) {
-				m.hurt(p.dmg);
-				spawnDebree(m.pos, 1);
-			} else if (p.tags.includes(tags.rocket)) {
-				m.hurt(p.impactDmg);
-				createExplosion(
-					p.pos,
-					p.splashSize,
-					p.splashDmg,
-					p.splashDmgFallof,
-					p.splashDmgFallofDist
-				);
-				k.play(randomExplosion(), { volume: mainSoundVolume });
-				k.shake(3);
-			}
+			onEnemyHit(m, p);
 		});
 
 		if (playerObj.pos.dist(m.pos) < m.hb) {
@@ -63,8 +50,7 @@ export function spawnHeavyVehicle(pos: Vec2, dir: Vec2, hp, sprite) {
 	});
 
 	m.onDeath(() => {
-		starsEmitter.emitter.position = m.pos;
-		starsEmitter.emit(20);
+		enemyOnDeath(m.pos, 10, 2);
 		k.play(randomExplosion(), { volume: mainSoundVolume });
 		k.destroy(m);
 	});

@@ -1,10 +1,9 @@
 import { Vec2 } from "kaplay";
-import { checkProjectileComponentIntersection, createExplosion } from "../game";
-import { k, mainSoundVolume } from "../main";
+import { checkProjectileComponentIntersection } from "../game";
+import { k } from "../main";
 import { trailEmitter } from "../particles";
 import { shootBlaster } from "../projectiles/blaster";
 import { tags } from "../tags";
-import { randomExplosion } from "../util";
 
 const components = {
 	body: 1,
@@ -14,6 +13,7 @@ const components = {
 };
 import { Component, compose } from "../compose";
 import { jitter } from "../comp/jitter";
+import { onEnemyHit } from "./enemyShared";
 
 const wingOffset = [6, 2];
 export const unitComponents: Record<number, Component[]> = {};
@@ -61,8 +61,8 @@ export function spawnShip1(pos, dir: Vec2, am, hp, scale, speed) {
 	unitComponents[m.id!] = compose({
 		parts: [
 			{ obj: m, hitbox: 8, isBody: true, scoreOnDestroy: am },
-			{ obj: wing1, hitbox: 8, isBody: false, scoreOnDestroy: 2 },
-			{ obj: wing2, hitbox: 8, isBody: false, scoreOnDestroy: 2 },
+			{ obj: wing1, hitbox: 8, isBody: false, scoreOnDestroy: 0 },
+			{ obj: wing2, hitbox: 8, isBody: false, scoreOnDestroy: 0 },
 		],
 	});
 
@@ -77,20 +77,7 @@ export function spawnShip1(pos, dir: Vec2, am, hp, scale, speed) {
 			(p, i) => {
 				k.destroy(p);
 
-				if (p.tags.includes(tags.blaster)) {
-					unitComponents[m.id!][i].obj.hurt(p.dmg);
-				} else if (p.tags.includes(tags.rocket)) {
-					unitComponents[m.id!][i].obj.hurt(p.impactDmg);
-					createExplosion(
-						p.pos,
-						p.splashSize,
-						p.splashDmg,
-						p.splashDmgFallof,
-						p.splashDmgFallofDist
-					);
-					k.play(randomExplosion(), { volume: mainSoundVolume });
-					k.shake(3);
-				}
+				onEnemyHit(unitComponents[m.id!][i].obj, p);
 			}
 		);
 
@@ -99,7 +86,7 @@ export function spawnShip1(pos, dir: Vec2, am, hp, scale, speed) {
 				m.pos,
 				k.Vec2.fromAngle(m.angle - 90),
 				m.angle,
-				2,
+				1,
 				1,
 				[tags.enemy, tags.blaster],
 				true
