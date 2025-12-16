@@ -114,7 +114,7 @@ export const level1: Level = {
 						pos: randomPos,
 						dir: k.DOWN,
 						scoreOnKill: 1,
-						hp: 4,
+						hp: 8,
 						speed: k.rand(20, 40),
 						splitOnDeath: 2,
 					});

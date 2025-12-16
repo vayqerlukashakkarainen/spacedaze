@@ -8,6 +8,7 @@ import { initParticles } from "./particles";
 
 export const layers = {
 	bg: "bg",
+	game2: "game2",
 	game: "game",
 	ui: "ui",
 };
@@ -41,7 +42,7 @@ export const k = kaplay({
 init(k).then(() => {
 	initParticles();
 	loadGameSlot();
-	k.setLayers([layers.bg, layers.game, layers.ui], layers.game);
+	k.setLayers([layers.bg, layers.game2, layers.game, layers.ui], layers.game);
 
 	addBorderOffsets();
 

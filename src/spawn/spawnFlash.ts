@@ -1,13 +1,33 @@
 import { Vec2 } from "kaplay";
-import { k, mainSoundVolume } from "../main";
+import { k } from "../main";
+import { explosionEmitter } from "../particles";
 
-export function spawnFlash(pos: Vec2, multiplier: number) {
+export function spawnFlash(pos: Vec2, size: number) {
 	const crit = k.add([
 		k.pos(pos),
-		k.circle(12 * multiplier),
+		k.circle(size),
 		k.color(k.WHITE),
 		k.scale(1),
 		k.opacity(1),
 		k.lifespan(0.04),
 	]);
+}
+
+export function spawnExplosionEffect(pos: Vec2, size: number) {
+	explosionEmitter.emitter.position = pos;
+	explosionEmitter.emit(14);
+	let i = 1;
+	k.loop(
+		0.07,
+		() => {
+			spawnFlash(
+				pos.add(
+					k.rand(k.vec2(size / 2, size / 2), k.vec2(-size / 2, -size / 2))
+				),
+				size - i * (size / 5)
+			);
+			i++;
+		},
+		7
+	);
 }

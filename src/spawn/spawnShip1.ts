@@ -45,6 +45,7 @@ export function spawnShip1(pos, dir: Vec2, am, hp, scale, speed) {
 		k.anchor("center"),
 		k.health(Math.floor(hp / 2)),
 		k.animate(),
+		k.rotate(0),
 		jitter(),
 		tags.part,
 	]);
@@ -54,6 +55,7 @@ export function spawnShip1(pos, dir: Vec2, am, hp, scale, speed) {
 		k.anchor("center"),
 		k.health(Math.floor(hp / 2)),
 		k.animate(),
+		k.rotate(0),
 		jitter(),
 		tags.part,
 	]);

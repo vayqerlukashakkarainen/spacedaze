@@ -118,6 +118,10 @@ export async function init(k: KAPLAYCtx<{}, never>) {
 		"enemy_ship1_body",
 		"sprites/ships/enemy1/enemy_ship1_body.png"
 	);
+
+	await k.loadSprite("boss1_body", "sprites/boss/boss1/boss1_body.png");
+	await k.loadSprite("boss1_blaster", "sprites/boss/boss1/boss1_blaster.png");
+	await k.loadSprite("boss1_head", "sprites/boss/boss1/boss1_head.png");
 }
 
 const explArr = ["explosion1", "explosion2", "explosion3"];

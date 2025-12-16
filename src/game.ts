@@ -31,11 +31,10 @@ import {
 import { Component } from "./compose";
 import { spawnPowerup } from "./spawn/spawnPowerup";
 import { getDmg } from "./projectiles/shared";
-import { spawnFlash } from "./spawn/spawnFlash";
-import { spawnSpawner } from "./spawn/spawnSpawner";
-import { spawnAssasin } from "./spawn/spawnAssasin";
+import { spawnExplosionEffect, spawnFlash } from "./spawn/spawnFlash";
+import { spawnBoss1 } from "./spawn/spawnBoss1";
 
-const lengthBetweenLevels = 1;
+const lengthBetweenLevels = 1; // Seconds
 
 export let playerObj: GameObj<
 	PosComp | SpriteComp | RotateComp | AreaComp | AnchorComp | HealthComp
@@ -59,6 +58,8 @@ export function updateGameLoop() {
 		loadLevel(level1);
 
 		spawnPowerup(k.center(), "addPlayerMaxHealth");
+
+		//spawnBoss1(k.center(), 10, 200, 3);
 	}
 
 	if (activeLevel()) {
@@ -121,9 +122,7 @@ export function createExplosion(
 		include: [tags.enemy, tags.unit],
 		includeOp: "and",
 	});
-	explosionEmitter.emitter.position = pos;
-	explosionEmitter.emit(14);
-	spawnFlash(pos, 2);
+	spawnExplosionEffect(pos, radius);
 
 	for (let i = 0; i < enemies.length; i++) {
 		if (enemies[i].pos.dist(pos) < radius) {

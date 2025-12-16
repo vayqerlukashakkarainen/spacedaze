@@ -3,6 +3,7 @@ import {
 	GameObj,
 	HealthComp,
 	PosComp,
+	RotateComp,
 	SpriteComp,
 	Vec2,
 } from "kaplay";
@@ -16,7 +17,9 @@ import { JitterComp } from "./comp/jitter";
 import { enemyOnDeath } from "./spawn/enemyShared";
 
 interface Part {
-	obj: GameObj<HealthComp | AnimateComp | PosComp | SpriteComp | JitterComp>;
+	obj: GameObj<
+		HealthComp | AnimateComp | PosComp | SpriteComp | JitterComp | RotateComp
+	>;
 	hitbox: number;
 	isBody: boolean;
 	scoreOnDestroy: number;

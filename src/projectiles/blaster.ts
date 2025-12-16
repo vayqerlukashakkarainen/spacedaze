@@ -1,4 +1,4 @@
-import { projectiles } from "../game";
+import { createExplosion, projectiles } from "../game";
 import { BULLET_SPEED, k, mainSoundVolume } from "../main";
 import { spawnFlash } from "../spawn/spawnFlash";
 import { tags } from "../tags";
@@ -30,7 +30,7 @@ export function shootBlaster(
 		const index = projectiles.findIndex((p2) => p2.id == p.id);
 
 		projectiles.splice(index, 1);
-		spawnFlash(p.pos, 0.2);
+		spawnFlash(p.pos, 5);
 	});
 
 	if (playSound) {

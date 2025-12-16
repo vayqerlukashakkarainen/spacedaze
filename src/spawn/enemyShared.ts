@@ -12,6 +12,11 @@ export function onEnemyHit(m: GameObj, p: GameObj) {
 	if (p.tags.includes(tags.blaster)) {
 		const dmg = getDmg(player.critChance, p.dmg, player.critMultiplier, p.pos);
 		m.hurt(dmg);
+
+		if (m.vel) {
+			const dir = p.pos.sub(m.pos).unit();
+			m.vel = m.vel.add(dir.scale(-1));
+		}
 	} else if (p.tags.includes(tags.rocket)) {
 		const dmg = getDmg(
 			player.critChance,
