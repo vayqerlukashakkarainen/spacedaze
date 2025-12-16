@@ -12,13 +12,14 @@ import { randomExplosion } from "../util";
 import { spawnDebree } from "./spawnDebree";
 import { registerHitAnimation } from "../shared";
 import { onEnemyHit } from "./enemyShared";
+import { timescale } from "../comp/timescale";
 
 export function spawnGenericVehicle(
 	addTo: GameObj<{ killed: number }>,
 	pos: Vec2,
 	dir: Vec2,
-	hp,
-	sprite
+	hp: number,
+	sprite: string
 ) {
 	const hb = 12;
 	const m = k.add([
@@ -27,6 +28,7 @@ export function spawnGenericVehicle(
 		k.rotate(dir.angle() - 90),
 		k.anchor("center"),
 		k.health(hp),
+		timescale(),
 		k.animate(),
 		k.offscreen({ destroy: true }),
 		{
@@ -41,7 +43,7 @@ export function spawnGenericVehicle(
 	registerHitAnimation(m);
 
 	m.onUpdate(() => {
-		m.move(m.vel.scale(m.speed * dtScaled()));
+		m.move(m.vel.scale(m.speed * dtScaled() * m.getTimescale()));
 
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
 			k.destroy(p);

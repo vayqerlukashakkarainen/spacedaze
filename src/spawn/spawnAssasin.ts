@@ -1,5 +1,5 @@
 import { checkProjectileIntersection, playerObj } from "../game";
-import { k, mainSoundVolume, subSoundVolume } from "../main";
+import { k, mainSoundVolume, subSoundVolume, timeScale } from "../main";
 import { audioService } from "../services/audioService";
 import { shootBlaster } from "../projectiles/blaster";
 import {
@@ -11,6 +11,7 @@ import { tags } from "../tags";
 import { randomExplosion } from "../util";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
 import type { Vec2 } from "kaplay";
+import { timescale } from "../comp/timescale";
 
 export function spawnAssasin(pos: Vec2, am: number, hp: number, scale: number) {
 	const hb = 12 * scale;
@@ -21,6 +22,7 @@ export function spawnAssasin(pos: Vec2, am: number, hp: number, scale: number) {
 		k.anchor("center"),
 		k.health(hp),
 		k.animate(),
+		timescale(),
 		k.scale(scale),
 		k.offscreen({ destroy: true }),
 		{
@@ -75,12 +77,11 @@ export function spawnAssasin(pos: Vec2, am: number, hp: number, scale: number) {
 			m.angle,
 			m.pos,
 			m.targetPos,
-			0.01,
+			0.01 * timeScale * m.getTimescale(),
 			-90
 		);
 
-		lerpMoveRotateAndScale(m, lerp, m.speed);
-
+		lerpMoveRotateAndScale(m, lerp, m.speed * m.getTimescale());
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
 			k.destroy(p);
 

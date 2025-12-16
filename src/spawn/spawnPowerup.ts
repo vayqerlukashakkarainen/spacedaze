@@ -6,6 +6,7 @@ import { player } from "../player";
 import { PowerupKey, powerups, powerupsSprites } from "../powerups";
 import { tags } from "../tags";
 import { Vec2 } from "kaplay";
+import { timescale } from "../comp/timescale";
 
 export function spawnPowerup(pos: Vec2, powerupKey: PowerupKey) {
 	const m = k.add([
@@ -13,6 +14,7 @@ export function spawnPowerup(pos: Vec2, powerupKey: PowerupKey) {
 		k.sprite(powerupsSprites[powerupKey]),
 		k.rotate(0),
 		k.anchor("center"),
+		timescale(),
 		k.offscreen({ destroy: true }),
 		{
 			dir: k.rand(k.vec2(-1, -1), k.vec2(1, 1)),
@@ -38,7 +40,7 @@ export function spawnPowerup(pos: Vec2, powerupKey: PowerupKey) {
 						m.dir.x * (m.speed - m.lifeSpan),
 						m.dir.y * (m.speed - m.lifeSpan)
 					)
-					.scale(dtScaled())
+					.scale(dtScaled() * m.getTimescale())
 			);
 
 			m.lifeSpan += dt() * 45;

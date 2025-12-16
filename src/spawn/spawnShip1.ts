@@ -14,6 +14,7 @@ const components = {
 import { Component, compose } from "../compose";
 import { jitter } from "../comp/jitter";
 import { onEnemyHit } from "./enemyShared";
+import { timescale } from "../comp/timescale";
 
 const wingOffset = [6, 2];
 export const unitComponents: Record<number, Component[]> = {};
@@ -35,6 +36,7 @@ export function spawnShip1(
 		k.health(hp),
 		k.animate(),
 		k.scale(scale),
+		timescale(),
 		jitter(),
 		k.offscreen({ destroy: true }),
 		{
@@ -53,6 +55,7 @@ export function spawnShip1(
 		k.health(Math.floor(hp / 2)),
 		k.animate(),
 		k.rotate(0),
+		timescale(),
 		jitter(),
 		tags.part,
 	]);
@@ -63,6 +66,7 @@ export function spawnShip1(
 		k.health(Math.floor(hp / 2)),
 		k.animate(),
 		k.rotate(0),
+		timescale(),
 		jitter(),
 		tags.part,
 	]);
@@ -76,7 +80,7 @@ export function spawnShip1(
 	});
 
 	m.onUpdate(() => {
-		m.move(m.vel.scale(m.speed * dtScaled()));
+		m.move(m.vel.scale(m.speed * dtScaled() * m.getTimescale()));
 
 		checkProjectileComponentIntersection(
 			m.pos,

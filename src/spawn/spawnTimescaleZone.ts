@@ -1,0 +1,108 @@
+import { GameObj, PosComp, Vec2 } from "kaplay";
+import { TimescaleComp } from "../comp/timescale";
+import { dt, k } from "../main";
+import { tags } from "../tags";
+
+interface Props {
+	pos: Vec2;
+	radius: number;
+	timescaleValue: number;
+	duration?: number;
+	visualize?: boolean;
+}
+
+export function spawnTimescaleZone(props: Props) {
+	const visualize = props.visualize !== undefined ? props.visualize : true;
+
+	// Track which objects are currently affected by this zone
+	const affectedObjects = new Set<number>();
+
+	const zone = k.add([
+		k.pos(props.pos),
+		k.anchor("center"),
+		k.opacity(visualize ? 0.2 : 0),
+		k.z(0),
+		{
+			radius: props.radius,
+			timescaleValue: props.timescaleValue,
+			lifetime: 0,
+		},
+		tags.props,
+	]);
+
+	// Create visual circle outline
+	if (visualize) {
+		zone.add([
+			k.circle(props.radius, { fill: false }),
+			k.outline(2, k.Color.WHITE),
+			k.anchor("center"),
+		]);
+	}
+
+	zone.onUpdate(() => {
+		zone.lifetime += dt();
+
+		// Destroy zone after duration if specified
+		if (props.duration !== undefined && zone.lifetime >= props.duration) {
+			k.destroy(zone);
+			return;
+		}
+
+		// Get all objects with timescale component
+		const objects = k.query({
+			include: "timescale",
+		}) as GameObj<TimescaleComp & PosComp>[];
+
+		k.debug.log(`Objects in zone: ${objects.length}`);
+
+		// Track objects currently in range
+		const currentlyInRange = new Set<number>();
+
+		for (const obj of objects) {
+			if (!obj.exists() || !obj.pos) continue;
+
+			const dist = obj.pos.dist(zone.pos);
+			const objId = obj.id!;
+
+			if (dist <= zone.radius) {
+				// Object is inside the zone
+				currentlyInRange.add(objId);
+
+				if (!affectedObjects.has(objId)) {
+					// Object just entered the zone
+					affectedObjects.add(objId);
+					obj.timescaleModifiers.set(zone.id!, zone.timescaleValue);
+				}
+			} else if (affectedObjects.has(objId)) {
+				// Object just left the zone
+				affectedObjects.delete(objId);
+				obj.timescaleModifiers.delete(zone.id!);
+			}
+		}
+
+		// Optional: Add pulsing animation to visualize zone
+		if (visualize) {
+			zone.opacity = k.wave(0.1, 0.3, k.time() * 2);
+		}
+	});
+
+	zone.onDestroy(() => {
+		// Restore timescale for all affected objects when zone is destroyed
+		const objects = k.query({
+			include: "timescale",
+		}) as GameObj<TimescaleComp & PosComp>[];
+
+		for (const obj of objects) {
+			if (!obj.exists()) continue;
+			const objId = obj.id!;
+
+			if (affectedObjects.has(objId)) {
+				obj.timescaleModifiers.delete(zone.id!);
+			}
+		}
+
+		affectedObjects.clear();
+	});
+
+	return zone;
+}

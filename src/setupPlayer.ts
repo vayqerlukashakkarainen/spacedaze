@@ -18,6 +18,7 @@ import { tags } from "./tags";
 import { randomExplosion } from "./util";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
+import { timescale } from "./comp/timescale";
 
 let blasters = 0;
 let bulletIndex = 1;
@@ -33,6 +34,7 @@ export function setupPlayer() {
 		k.area(),
 		k.anchor("center"),
 		k.animate(),
+		timescale(),
 		tags.friendly,
 	]);
 
@@ -92,13 +94,13 @@ export function setupPlayer() {
 			playerObj.angle,
 			playerObj.pos,
 			k.mousePos().sub(k.center().sub(k.getCamPos())),
-			0.05 * timeScale,
+			0.05 * timeScale * playerObj.getTimescale(),
 			-90
 		);
 
 		const maxSpeed =
 			player.speed * player.speedMultiplier * player.speedPwrUpMultiplier;
-		const speed = k.clamp(dist * 4, 0, maxSpeed);
+		const speed = k.clamp(dist * 4, 0, maxSpeed) * playerObj.getTimescale();
 
 		playerObj.angle = lerp;
 

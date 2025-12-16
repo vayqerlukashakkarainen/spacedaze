@@ -7,6 +7,7 @@ import { loadPlayer } from "./player";
 import { initParticles } from "./particles";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
+import { spawnTimescaleZone } from "./spawn/spawnTimescaleZone";
 
 export const layers = {
 	bg: "bg",
@@ -92,6 +93,18 @@ init(k).then(() => {
 		timeScale = 1;
 		audioService.setMusicSpeed(timeScale);
 		audioService.updateAudioSpeed(timeScale);
+	});
+
+	// Temporary: Spawn timescale zone at mouse position (for testing)
+	k.onKeyPress("q", () => {
+		if (gameState !== GameState.Playing) return;
+		const mousePos = k.mousePos();
+		spawnTimescaleZone({
+			pos: mousePos,
+			radius: 100,
+			timescaleValue: 0.3,
+			duration: 5,
+		});
 	});
 });
 

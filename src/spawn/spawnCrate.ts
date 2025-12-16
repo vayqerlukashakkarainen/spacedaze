@@ -5,6 +5,7 @@ import { audioService } from "../services/audioService";
 import { registerHitAnimation } from "../shared";
 import { tags } from "../tags";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
+import { timescale } from "../comp/timescale";
 
 interface Props {
 	pos: Vec2;
@@ -21,6 +22,7 @@ export function spawnCrate(props: Props) {
 		k.anchor("center"),
 		k.health(props.hp),
 		k.animate(),
+		timescale(),
 		k.offscreen({ destroy: true }),
 		{
 			vel: k.Vec2.fromAngle(k.rand(0, 360)),
@@ -35,8 +37,8 @@ export function spawnCrate(props: Props) {
 	registerHitAnimation(m);
 
 	m.onUpdate(() => {
-		m.move(m.vel.scale(m.speed * dtScaled()));
-		m.angle += m.rotVel * dtScaled();
+		m.move(m.vel.scale(m.speed * dtScaled() * m.getTimescale()));
+		m.angle += m.rotVel * dtScaled() * m.getTimescale();
 
 		checkProjectileIntersection(m.pos, 12, tags.friendly, (p) => {
 			k.destroy(p);

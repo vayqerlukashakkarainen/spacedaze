@@ -1,3 +1,4 @@
+import { timescale } from "../comp/timescale";
 import { debrees } from "../game";
 import { dt, dtScaled, k } from "../main";
 import { tags } from "../tags";

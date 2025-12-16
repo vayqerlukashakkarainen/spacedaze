@@ -5,7 +5,7 @@ import {
 	createExplosion,
 	playerObj,
 } from "../game";
-import { k, mainSoundVolume, subSoundVolume } from "../main";
+import { k, mainSoundVolume, subSoundVolume, timeScale } from "../main";
 import { audioService } from "../services/audioService";
 import { debreeRocketEmitter, sparkEmitter, starsEmitter } from "../particles";
 import {
@@ -19,6 +19,7 @@ import { shootBlaster } from "../projectiles/blaster";
 import { target } from "../comp/target";
 import { shootRocket } from "../projectiles/rocket";
 import { player } from "../player";
+import { timescale } from "../comp/timescale";
 
 interface Props {
 	pos: Vec2;
@@ -38,6 +39,7 @@ export function spawnFollower(props: Props) {
 		k.scale(0.4),
 		k.health(props.hp),
 		target(),
+		timescale(),
 		k.animate(),
 		k.offscreen({ destroy: true }),
 		{
@@ -56,11 +58,11 @@ export function spawnFollower(props: Props) {
 			m.angle,
 			m.pos,
 			props.follow.pos,
-			0.015,
+			0.015 * timeScale * m.getTimescale(),
 			-90
 		);
 
-		lerpMoveRotateAndScale(m, lerp, m.speed);
+		lerpMoveRotateAndScale(m, lerp, m.speed * m.getTimescale());
 
 		checkProjectileIntersection(m.pos, m.hb, tags.enemy, (p) => {
 			k.destroy(p);

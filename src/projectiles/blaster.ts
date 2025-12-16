@@ -31,7 +31,7 @@ export function shootBlaster(
 	]);
 
 	p.onUpdate(() => {
-		p.move(dir.scale(p.speed * dtScaled() * p.timescale));
+		p.move(dir.scale(p.speed * dtScaled() * p.getTimescale()));
 	});
 
 	p.onDestroy(() => {

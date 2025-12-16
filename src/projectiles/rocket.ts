@@ -16,6 +16,7 @@ import { shootBlaster } from "./blaster";
 import { tags } from "../tags";
 import { player, session } from "../player";
 import { randomExplosion } from "../util";
+import { timescale } from "../comp/timescale";
 
 const acquireTargetAfter = 0.5;
 const trailOffset = 12;
@@ -40,6 +41,7 @@ export function shootRocket(
 		k.offscreen({ destroy: true }),
 		k.anchor("center"),
 		k.scale(1),
+		timescale(),
 		k.sprite("rocket1"),
 		{
 			impactDmg,
@@ -61,11 +63,9 @@ export function shootRocket(
 	r.onUpdate(() => {
 		r.lifetime += dtScaled();
 
-		const speed = k.clamp(
-			ROCKET_SPEED * r.speedMltp * (0.3 + r.lifetime),
-			0,
-			maxSpeed
-		);
+		const speed =
+			k.clamp(ROCKET_SPEED * r.speedMltp * (0.3 + r.lifetime), 0, maxSpeed) *
+			r.getTimescale();
 
 		const currentDir = k.Vec2.fromAngle(r.angle - 90);
 		if (r.targetUnit) {
@@ -73,13 +73,15 @@ export function shootRocket(
 				r.angle,
 				r.pos,
 				r.targetUnit.pos,
-				0.04 * timeScale,
+				0.04 * timeScale * r.getTimescale(),
 				-90
 			);
 			lerpMoveRotateAndScale(r, lerp, speed);
 		} else {
 			r.move(
-				k.vec2(currentDir.x * speed, currentDir.y * speed).scale(dtScaled())
+				k
+					.vec2(currentDir.x * speed, currentDir.y * speed)
+					.scale(dtScaled() * r.getTimescale())
 			);
 		}
 

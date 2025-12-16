@@ -6,6 +6,7 @@ import { registerHitAnimation } from "../shared";
 import { tags } from "../tags";
 import { randomExplosion } from "../util";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
+import { timescale } from "../comp/timescale";
 
 interface Props {
 	pos: Vec2;
@@ -27,6 +28,7 @@ export function spawnMeteorite(props: Props) {
 		k.scale(k.rand(1, 2)),
 		k.health(props.hp),
 		k.animate(),
+		timescale(),
 		k.offscreen({ destroy: true }),
 		{
 			vel: props.dir,
@@ -42,8 +44,8 @@ export function spawnMeteorite(props: Props) {
 	registerHitAnimation(m);
 
 	m.onUpdate(() => {
-		m.move(m.vel.scale(m.speed * dtScaled()));
-		m.angle += m.rotVel * dtScaled();
+		m.move(m.vel.scale(m.speed * dtScaled() * m.getTimescale()));
+		m.angle += m.rotVel * dtScaled() * m.getTimescale();
 
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
 			k.destroy(p);
