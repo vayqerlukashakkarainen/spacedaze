@@ -1,6 +1,7 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileIntersection, playerObj } from "../game";
-import { k, mainSoundVolume, subSoundVolume } from "../main";
+import { dtScaled, k, mainSoundVolume, subSoundVolume } from "../main";
+import { audioService } from "../services/audioService";
 import { registerHitAnimation } from "../shared";
 import { tags } from "../tags";
 import { randomExplosion } from "../util";
@@ -41,8 +42,8 @@ export function spawnMeteorite(props: Props) {
 	registerHitAnimation(m);
 
 	m.onUpdate(() => {
-		m.move(m.vel.scale(m.speed));
-		m.angle += m.rotVel;
+		m.move(m.vel.scale(m.speed * dtScaled()));
+		m.angle += m.rotVel * dtScaled();
 
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
 			k.destroy(p);
@@ -58,7 +59,7 @@ export function spawnMeteorite(props: Props) {
 
 	m.onDeath(() => {
 		enemyOnDeath(m.pos, props.scoreOnKill, 1);
-		k.play(randomExplosion(), { volume: subSoundVolume });
+		audioService.playSound(randomExplosion(), { volume: subSoundVolume });
 		k.destroy(m);
 
 		if (props.splitOnDeath) {

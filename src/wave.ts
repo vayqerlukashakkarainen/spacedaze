@@ -1,4 +1,4 @@
-import { k } from "./main";
+import { dt, k } from "./main";
 
 export interface Level {
 	music: string; // The songs that plays the whole level
@@ -34,7 +34,7 @@ export function loadLevel(lvl: Level) {
 
 export function updateLvl() {
 	if (!currentLvl) return false;
-	timeDuringLevel += k.dt() * 1000;
+	timeDuringLevel += dt() * 1000;
 
 	// Level ended
 	if (currentLvl.levelLengthSeconds < timeDuringLevel / 1000) {

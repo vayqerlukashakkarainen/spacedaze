@@ -1,6 +1,15 @@
 import { Vec2 } from "kaplay";
 import { pickUnitInDistance, projectiles } from "../game";
-import { k, mainSoundVolume, ROCKET_SPEED, subSoundVolume } from "../main";
+import {
+	dt,
+	dtScaled,
+	k,
+	mainSoundVolume,
+	ROCKET_SPEED,
+	subSoundVolume,
+	timeScale,
+} from "../main";
+import { audioService } from "../services/audioService";
 import { trailEmitter } from "../particles";
 import { lerpAngleBetweenPos, lerpMoveRotateAndScale } from "../shared";
 import { shootBlaster } from "./blaster";
@@ -12,17 +21,17 @@ const acquireTargetAfter = 0.5;
 const trailOffset = 12;
 const maxSpeed = 400;
 export function shootRocket(
-	pos,
-	dir,
-	rot,
-	impactDmg,
-	splashDmg,
-	splashSize,
-	splashDmgFallof,
-	splashDmgFallofDist,
-	speedMltp,
-	tagsToAttach,
-	canSeek
+	pos: Vec2,
+	dir: Vec2,
+	rot: number,
+	impactDmg: number,
+	splashDmg: number,
+	splashSize: number,
+	splashDmgFallof: number,
+	splashDmgFallofDist: number,
+	speedMltp: number,
+	tagsToAttach: string[],
+	canSeek: boolean
 ) {
 	const r = k.add([
 		k.pos(pos),
@@ -47,10 +56,10 @@ export function shootRocket(
 		...[...tagsToAttach, tags.gameLoopUi],
 	]);
 
-	k.play("fire_rocket1", { volume: mainSoundVolume });
+	audioService.playSound("fire_rocket1", { volume: mainSoundVolume });
 
 	r.onUpdate(() => {
-		r.lifetime += k.dt();
+		r.lifetime += dtScaled();
 
 		const speed = k.clamp(
 			ROCKET_SPEED * r.speedMltp * (0.3 + r.lifetime),
@@ -64,12 +73,14 @@ export function shootRocket(
 				r.angle,
 				r.pos,
 				r.targetUnit.pos,
-				0.04,
+				0.04 * timeScale,
 				-90
 			);
 			lerpMoveRotateAndScale(r, lerp, speed);
 		} else {
-			r.move(currentDir.x * speed, currentDir.y * speed);
+			r.move(
+				k.vec2(currentDir.x * speed, currentDir.y * speed).scale(dtScaled())
+			);
 		}
 
 		const emitterPos = k.vec2(
@@ -95,7 +106,7 @@ export function shootRocket(
 		const index = projectiles.findIndex((p2) => p2.id == r.id);
 
 		projectiles.splice(index, 1);
-		k.play(randomExplosion(), { volume: subSoundVolume });
+		audioService.playSound(randomExplosion(), { volume: subSoundVolume });
 
 		const shards = player.rocketShards + session.extraSpaceDebreeInMissiles;
 		for (let i = 0; i < shards; i++) {

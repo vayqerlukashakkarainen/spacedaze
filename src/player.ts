@@ -91,7 +91,7 @@ export const player: Ship = {
 	rocketSplashDmgFallOverDistance: 0.7, // How much the splash dmg is reduced after distance met
 	rocketSplashDmgFallDistanceValue: 0.6,
 	rocketSeekDistance: 200,
-	speed: 100,
+	speed: 200,
 	canSprint: undefined,
 	sprintSpeedMultiplier: 1,
 	speedMultiplier: 1,

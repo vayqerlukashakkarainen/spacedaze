@@ -5,7 +5,8 @@ import {
 	createExplosion,
 	playerObj,
 } from "../game";
-import { k, mainSoundVolume } from "../main";
+import { dtScaled, k, mainSoundVolume } from "../main";
+import { audioService } from "../services/audioService";
 import { starsEmitter } from "../particles";
 import { tags } from "../tags";
 import { randomExplosion } from "../util";
@@ -35,7 +36,7 @@ export function spawnHeavyVehicle(pos: Vec2, dir: Vec2, hp, sprite) {
 	registerHitAnimation(m);
 
 	m.onUpdate(() => {
-		m.move(m.vel.scale(m.speed));
+		m.move(m.vel.scale(m.speed * dtScaled()));
 
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
 			k.destroy(p);
@@ -51,12 +52,12 @@ export function spawnHeavyVehicle(pos: Vec2, dir: Vec2, hp, sprite) {
 
 	m.onDeath(() => {
 		enemyOnDeath(m.pos, 10, 2);
-		k.play(randomExplosion(), { volume: mainSoundVolume });
+		audioService.playSound(randomExplosion(), { volume: mainSoundVolume });
 		k.destroy(m);
 	});
 
 	m.onHurt(() => {
-		k.play("hit1", { volume: mainSoundVolume });
+		audioService.playSound("hit1", { volume: mainSoundVolume });
 		m.animation.seek(0);
 	});
 }

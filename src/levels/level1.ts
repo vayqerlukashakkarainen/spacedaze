@@ -1,6 +1,6 @@
-import { AudioPlay, MusicData } from "kaplay";
+import { MusicData } from "kaplay";
 import { playerObj } from "../game";
-import { getPosAtBorder, k, layers, musicVolume } from "../main";
+import { dt, dtScaled, getPosAtBorder, k, layers, musicVolume } from "../main";
 import { spawnAssasin } from "../spawn/spawnAssasin";
 import { spawnMeteorite } from "../spawn/spawnAsteroid";
 import { spawnHighway } from "../spawn/spawnHighway";
@@ -10,12 +10,12 @@ import { Level } from "../wave";
 import { endSong, loadSongData } from "../web";
 import { spawnCrate } from "../spawn/spawnCrate";
 import { spawnSpawner } from "../spawn/spawnSpawner";
+import { audioService } from "../services/audioService";
 
 let lvlData: any = {};
 let timer = 0;
 let spawned = 0;
 let toSpawn = 0;
-let song: AudioPlay;
 export const level1: Level = {
 	music: "arcadia",
 	songTitle: "Arcadia",
@@ -27,7 +27,7 @@ export const level1: Level = {
 	levelLengthSeconds: 190,
 	reset: () => {
 		lvlData = {};
-		song.stop();
+		audioService.stopMusic();
 		endSong();
 	},
 	lvlUpd: () => {},
@@ -35,7 +35,7 @@ export const level1: Level = {
 		{
 			timeStamp: 0,
 			begin: () => {
-				song = k.play(level1.music, { volume: musicVolume });
+				audioService.playMusic(level1.music, { volume: musicVolume });
 			},
 			upd: () => {},
 		},
@@ -75,8 +75,15 @@ export const level1: Level = {
 			duration: 3550,
 			begin: () => {
 				lvlData["lines"] = [];
+				timer = 0;
 			},
 			upd: (ld) => {
+				timer += dt();
+
+				if (ld > 2000) {
+					k.shake(0.01 * (ld / 100));
+				}
+				if (timer <= 0.02) return;
 				var randomPos = k.rand(k.vec2(k.width(), k.height()));
 
 				var line = k.add([
@@ -89,11 +96,7 @@ export const level1: Level = {
 				lvlData["lines"].push(line);
 
 				for (let i = 0; i < lvlData["lines"].length; i++) {
-					lvlData["lines"][i].move(0, -10 * (ld / 50));
-				}
-
-				if (ld > 2000) {
-					k.shake(0.01 * (ld / 100));
+					lvlData["lines"][i].move(0, -10 * (ld / 50) * dtScaled());
 				}
 			},
 		},
@@ -234,7 +237,7 @@ export const level1: Level = {
 				k.shake(10);
 			},
 			upd: (ld) => {
-				timer += k.dt();
+				timer += dt();
 
 				if (timer >= 0.05) {
 					const rnd = k.rand(1);
@@ -252,7 +255,7 @@ export const level1: Level = {
 				toSpawn = 30;
 			},
 			upd: (ld) => {
-				timer += k.dt();
+				timer += dt();
 
 				if (timer >= 0.03 && spawned < toSpawn) {
 					const t = 0.25 + 0.25 * (spawned / toSpawn);
@@ -278,7 +281,7 @@ export const level1: Level = {
 				toSpawn = 30;
 			},
 			upd: (ld) => {
-				timer += k.dt();
+				timer += dt();
 
 				if (timer >= 0.03 && spawned < toSpawn) {
 					const t = 0.75 + 0.25 * (spawned / toSpawn);
@@ -311,7 +314,7 @@ export const level1: Level = {
 				}
 			},
 			upd: (ld) => {
-				timer += k.dt();
+				timer += dt();
 
 				if (timer >= 0.03 && spawned < toSpawn) {
 					for (let i = 0; i < 2; i++) {
@@ -338,7 +341,7 @@ export const level1: Level = {
 				timer = 0;
 			},
 			upd: (ld) => {
-				timer += k.dt();
+				timer += dt();
 
 				if (timer >= level1.bpm * 2) {
 					const rnd = k.rand(1);

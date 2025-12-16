@@ -10,11 +10,13 @@ import {
 	Vec2,
 } from "kaplay";
 import {
+	dt,
 	k,
 	GameState,
 	changeGameState,
 	addScore,
 	mainSoundVolume,
+	dtScaled,
 } from "./main";
 import { player, resetSession, session } from "./player";
 import { explosionEmitter } from "./particles";
@@ -33,6 +35,8 @@ import { spawnPowerup } from "./spawn/spawnPowerup";
 import { getDmg } from "./projectiles/shared";
 import { spawnExplosionEffect, spawnFlash } from "./spawn/spawnFlash";
 import { spawnBoss1 } from "./spawn/spawnBoss1";
+import { audioService } from "./services/audioService";
+import { loopService } from "./services/loopService";
 
 const lengthBetweenLevels = 1; // Seconds
 
@@ -51,8 +55,8 @@ export function startGame() {
 }
 
 export function updateGameLoop() {
-	const dt = k.dt();
-	timeSinceLastLevel += dt;
+	const deltaTime = dt();
+	timeSinceLastLevel += deltaTime;
 
 	if (timeSinceLastLevel >= lengthBetweenLevels && !activeLevel()) {
 		loadLevel(level1);
@@ -86,7 +90,7 @@ export function updateGameLoop() {
 			if (dist < player.debreePickupDistance) {
 				k.destroy(d);
 				debrees.splice(i, 1);
-				k.play("collect1", { volume: mainSoundVolume });
+				audioService.playSound("collect1", { volume: mainSoundVolume });
 				addScore(player.scorePerPickup);
 				i--;
 			}
@@ -99,6 +103,7 @@ export function clearGame() {
 	timeSinceLastLevel = 0;
 	debrees = [];
 	resetCurrentLevel();
+	loopService.cancelAll();
 	k.destroyAll(tags.enemy);
 	k.destroyAll(tags.blaster);
 	k.destroyAll(tags.rocket);
@@ -112,11 +117,11 @@ export function clearGame() {
 }
 
 export function createExplosion(
-	pos,
-	radius,
-	splashDmg,
-	splashDmgFallof,
-	splashDmgFallofDist
+	pos: Vec2,
+	radius: number,
+	splashDmg: number,
+	splashDmgFallof: number,
+	splashDmgFallofDist: number
 ) {
 	const enemies = k.query({
 		include: [tags.enemy, tags.unit],

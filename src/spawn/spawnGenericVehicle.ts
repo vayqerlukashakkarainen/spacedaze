@@ -4,7 +4,8 @@ import {
 	createExplosion,
 	playerObj,
 } from "../game";
-import { k, mainSoundVolume, subSoundVolume } from "../main";
+import { dtScaled, k, mainSoundVolume, subSoundVolume } from "../main";
+import { audioService } from "../services/audioService";
 import { starsEmitterDir } from "../particles";
 import { tags } from "../tags";
 import { randomExplosion } from "../util";
@@ -40,7 +41,7 @@ export function spawnGenericVehicle(
 	registerHitAnimation(m);
 
 	m.onUpdate(() => {
-		m.move(m.vel.scale(m.speed));
+		m.move(m.vel.scale(m.speed * dtScaled()));
 
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
 			k.destroy(p);
@@ -59,14 +60,14 @@ export function spawnGenericVehicle(
 		starsEmitterDir.emitter.direction = m.angle + 90;
 
 		starsEmitterDir.emit(20);
-		k.play(randomExplosion(), { volume: subSoundVolume });
+		audioService.playSound(randomExplosion(), { volume: subSoundVolume });
 		k.destroy(m);
 
 		addTo.killed += 1;
 	});
 
 	m.onHurt(() => {
-		k.play("hit1", { volume: mainSoundVolume });
+		audioService.playSound("hit1", { volume: mainSoundVolume });
 		m.animation.seek(0);
 	});
 }

@@ -18,6 +18,7 @@ import {
 import { loadPlayer } from "./player";
 import { addLvl, getNextLvl, loadout, Tool, ToolKey, upgrades } from "./upg";
 import { starsEmitter } from "./particles";
+import { audioService } from "./services/audioService";
 
 const gridTag = "ui_grid";
 
@@ -157,7 +158,7 @@ function onClick(key: ToolKey, upgIndex: number, pos: Vec2) {
 	}
 	highlightKeyObj[key].hidden = false;
 	loadTool(key, upgIndex);
-	k.play("click1", { volume: mainSoundVolume });
+	audioService.playSound("click1", { volume: mainSoundVolume });
 	selectedPos = pos;
 }
 
@@ -223,7 +224,7 @@ function buildToolUi() {
 		if (toolGroupObj.group!.hidden || toolGroupObj.purchaseBtn?.hidden) return;
 		const toPurchase = upgrades[selectedTool.key].upgrades[selectedTool.index];
 		if (score < toPurchase.price) {
-			k.play("error", { volume: mainSoundVolume });
+			audioService.playSound("error", { volume: mainSoundVolume });
 			return;
 		}
 
@@ -234,7 +235,7 @@ function buildToolUi() {
 		starsEmitter.emitter.position = selectedPos;
 		starsEmitter.emit(20);
 		loadPlayer();
-		k.play("purchase1", { volume: mainSoundVolume });
+		audioService.playSound("purchase1", { volume: mainSoundVolume });
 		scoreTxt.text = getScoreStr(score);
 	});
 }

@@ -1,13 +1,12 @@
 import {
 	AnimateComp,
 	GameObj,
-	OpacityComp,
 	PosComp,
 	RotateComp,
 	ScaleComp,
 	Vec2,
 } from "kaplay";
-import { k } from "./main";
+import { dtScaled, k } from "./main";
 import { adjustedTarget } from "./util";
 
 export function registerHitAnimation(m: GameObj<AnimateComp>) {
@@ -42,7 +41,7 @@ export function lerpMoveRotateAndScale(
 	const lerpAngle = k.deg2rad(lerp + 90);
 	const x = Math.cos(lerpAngle);
 	const y = Math.sin(lerpAngle);
-	m.move(x * speed * -1, y * speed * -1);
+	m.move(k.vec2(x * speed * -1, y * speed * -1).scale(dtScaled()));
 	m.angle = lerp;
 	m.scale = k.vec2(1, Math.abs(y));
 }

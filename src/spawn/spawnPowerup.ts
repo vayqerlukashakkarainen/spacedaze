@@ -1,12 +1,13 @@
 import { playerObj } from "../game";
-import { k, mainSoundVolume } from "../main";
+import { dt, dtScaled, k, mainSoundVolume } from "../main";
+import { audioService } from "../services/audioService";
 import { starsEmitter } from "../particles";
 import { player } from "../player";
 import { PowerupKey, powerups, powerupsSprites } from "../powerups";
-import { registerHitAnimation } from "../shared";
 import { tags } from "../tags";
+import { Vec2 } from "kaplay";
 
-export function spawnPowerup(pos, powerupKey: PowerupKey) {
+export function spawnPowerup(pos: Vec2, powerupKey: PowerupKey) {
 	const m = k.add([
 		k.pos(pos),
 		k.sprite(powerupsSprites[powerupKey]),
@@ -32,11 +33,15 @@ export function spawnPowerup(pos, powerupKey: PowerupKey) {
 	m.onUpdate(() => {
 		if (m.lifeSpan < m.speed) {
 			m.move(
-				m.dir.x * (m.speed - m.lifeSpan),
-				m.dir.y * (m.speed - m.lifeSpan)
+				k
+					.vec2(
+						m.dir.x * (m.speed - m.lifeSpan),
+						m.dir.y * (m.speed - m.lifeSpan)
+					)
+					.scale(dtScaled())
 			);
 
-			m.lifeSpan += k.dt() * 45;
+			m.lifeSpan += dt() * 45;
 		}
 
 		const dist = m.pos.dist(playerObj.pos);
@@ -53,7 +58,7 @@ export function spawnPowerup(pos, powerupKey: PowerupKey) {
 			if (dist < player.debreePickupDistance) {
 				starsEmitter.emitter.position = m.pos;
 				starsEmitter.emit(20);
-				k.play("powerup1", { volume: mainSoundVolume });
+				audioService.playSound("powerup1", { volume: mainSoundVolume });
 				k.destroy(m);
 				powerups[powerupKey]();
 			}

@@ -1,5 +1,5 @@
 import { Comp } from "kaplay";
-import { k } from "../main";
+import { dt, k } from "../main";
 
 export interface JitterComp extends Comp {
 	jitterValue: number;
@@ -19,7 +19,7 @@ export function jitter(): JitterComp {
 					k.vec2(strength, strength)
 				);
 				this.move(toJitter);
-				this.jitterValue -= k.dt() * 100;
+				this.jitterValue -= dt() * 100;
 			}
 		},
 		jitter(value: number) {

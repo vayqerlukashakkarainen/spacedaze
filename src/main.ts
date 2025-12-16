@@ -1,10 +1,12 @@
-import kaplay, { Vec2 } from "kaplay";
+import kaplay, { GameObj, TextComp, Vec2 } from "kaplay";
 import { init, loadGame, saveGame } from "./util";
 import { startGame, updateGameLoop } from "./game";
 import { enterLevelUp, updateLevelUpLoop } from "./levelUp";
 import { setLoadout } from "./upg";
 import { loadPlayer } from "./player";
 import { initParticles } from "./particles";
+import { audioService } from "./services/audioService";
+import { loopService } from "./services/loopService";
 
 export const layers = {
 	bg: "bg",
@@ -30,6 +32,9 @@ export const mainSoundVolume = 0.5;
 export const musicVolume = 0.6;
 
 let gameState = GameState.Playing;
+let isPaused = false;
+let pauseText: GameObj<TextComp> | undefined;
+export let timeScale = 1;
 
 export const k = kaplay({
 	background: "#000000",
@@ -38,6 +43,13 @@ export const k = kaplay({
 	width: 700,
 	height: 700,
 });
+
+export function dt() {
+	return k.dt() * timeScale;
+}
+export function dtScaled() {
+	return dt() * 100;
+}
 
 init(k).then(() => {
 	initParticles();
@@ -49,12 +61,37 @@ init(k).then(() => {
 	changeGameState(GameState.LevelUp);
 
 	k.onUpdate(() => {
-		if (gameState == GameState.Playing) {
-			timeSeconds += k.dt();
+		if (gameState == GameState.Playing && !isPaused) {
+			timeSeconds += dt();
 			updateGameLoop();
 		} else if (gameState == GameState.LevelUp) {
 			updateLevelUpLoop();
 		}
+	});
+
+	// Pause toggle with Escape key
+	k.onKeyPress("escape", () => {
+		if (gameState !== GameState.Playing) return;
+		togglePause();
+	});
+
+	// Slow motion controls
+	k.onKeyPress("a", () => {
+		timeScale = 0.5;
+		audioService.setMusicSpeed(timeScale);
+		audioService.updateAudioSpeed(timeScale);
+	});
+
+	k.onKeyPress("s", () => {
+		timeScale = 0.8;
+		audioService.setMusicSpeed(timeScale);
+		audioService.updateAudioSpeed(timeScale);
+	});
+
+	k.onKeyPress("d", () => {
+		timeScale = 1;
+		audioService.setMusicSpeed(timeScale);
+		audioService.updateAudioSpeed(timeScale);
 	});
 });
 
@@ -106,4 +143,46 @@ export function getPosAtBorder(t: number) {
 	const clampedIndex = k.clamp(index, 0, outsideBorderPos.length - 1);
 
 	return outsideBorderPos[clampedIndex].add(newPos.scale(deltaT));
+}
+
+function togglePause() {
+	isPaused = !isPaused;
+
+	if (isPaused) {
+		// Show pause text
+		const objs = k.get<GameObj>("*");
+
+		objs.forEach((o) => {
+			if (!o.paused) {
+				o.paused = true;
+			}
+		});
+
+		pauseText = k.add([
+			k.text("PAUSED", { size: 32, font: "unscii" }),
+			k.pos(k.center()),
+			k.anchor("center"),
+			k.color(255, 255, 255),
+			k.layer(layers.ui),
+			k.z(1000),
+		]);
+		audioService.pauseMusic();
+		loopService.pauseAll();
+	} else {
+		// Remove pause text
+		if (pauseText) {
+			k.destroy(pauseText);
+			pauseText = undefined;
+		}
+
+		const objs = k.get<GameObj>("*");
+
+		objs.forEach((o) => {
+			if (o.paused) {
+				o.paused = false;
+			}
+		});
+		audioService.resumeMusic();
+		loopService.resumeAll();
+	}
 }

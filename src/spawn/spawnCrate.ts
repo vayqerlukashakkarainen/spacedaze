@@ -1,6 +1,7 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileIntersection, playerObj } from "../game";
-import { k, mainSoundVolume } from "../main";
+import { dtScaled, k, mainSoundVolume } from "../main";
+import { audioService } from "../services/audioService";
 import { registerHitAnimation } from "../shared";
 import { tags } from "../tags";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
@@ -34,8 +35,8 @@ export function spawnCrate(props: Props) {
 	registerHitAnimation(m);
 
 	m.onUpdate(() => {
-		m.move(m.vel.scale(m.speed));
-		m.angle += m.rotVel;
+		m.move(m.vel.scale(m.speed * dtScaled()));
+		m.angle += m.rotVel * dtScaled();
 
 		checkProjectileIntersection(m.pos, 12, tags.friendly, (p) => {
 			k.destroy(p);
@@ -51,12 +52,12 @@ export function spawnCrate(props: Props) {
 
 	m.onDeath(() => {
 		enemyOnDeath(m.pos, props.am, props.powerupMultiplier);
-		k.play("explosion4", { volume: mainSoundVolume });
+		audioService.playSound("explosion4", { volume: mainSoundVolume });
 		k.destroy(m);
 	});
 
 	m.onHurt(() => {
-		k.play("hit2", { volume: mainSoundVolume });
+		audioService.playSound("hit2", { volume: mainSoundVolume });
 		m.animation.seek(0);
 	});
 }

@@ -1,6 +1,6 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileComponentIntersection } from "../game";
-import { k } from "../main";
+import { dtScaled, k } from "../main";
 import { trailEmitter } from "../particles";
 import { shootBlaster } from "../projectiles/blaster";
 import { tags } from "../tags";
@@ -18,7 +18,14 @@ import { onEnemyHit } from "./enemyShared";
 const wingOffset = [6, 2];
 export const unitComponents: Record<number, Component[]> = {};
 
-export function spawnShip1(pos, dir: Vec2, am, hp, scale, speed) {
+export function spawnShip1(
+	pos: Vec2,
+	dir: Vec2,
+	am: number,
+	hp: number,
+	scale: number,
+	speed: number
+) {
 	const hb = 16 * scale;
 	const m = k.add([
 		k.pos(pos),
@@ -69,7 +76,7 @@ export function spawnShip1(pos, dir: Vec2, am, hp, scale, speed) {
 	});
 
 	m.onUpdate(() => {
-		m.move(m.vel.scale(m.speed));
+		m.move(m.vel.scale(m.speed * dtScaled()));
 
 		checkProjectileComponentIntersection(
 			m.pos,

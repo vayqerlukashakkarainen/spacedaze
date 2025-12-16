@@ -15,6 +15,7 @@ import { Component, compose } from "../compose";
 import { jitter } from "../comp/jitter";
 import { onEnemyHit } from "./enemyShared";
 import { lerpAngleBetweenPos } from "../shared";
+import { loopService } from "../services/loopService";
 
 const blasterOffset = [22, -2];
 const headOffset = 25;
@@ -126,7 +127,7 @@ export function spawnBoss1(pos: Vec2, am, hp, scale) {
 			blaster1.targetPos = k.center();
 			blaster2.targetPos = k.rand(k.vec2(k.width(), k.height()));
 			await k.wait(0.6);
-			await k.loop(
+			await loopService.loop(
 				0.1,
 				() => {
 					shootBlaster(

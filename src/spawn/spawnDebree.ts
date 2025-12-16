@@ -1,8 +1,9 @@
 import { debrees } from "../game";
-import { k } from "../main";
+import { dt, dtScaled, k } from "../main";
 import { tags } from "../tags";
+import type { Vec2 } from "kaplay";
 
-export function spawnDebree(pos, am) {
+export function spawnDebree(pos: Vec2, am: number) {
 	for (let i = 0; i < am; i++) {
 		const d = k.add([
 			k.pos(pos),
@@ -23,11 +24,15 @@ export function spawnDebree(pos, am) {
 				return;
 			}
 			d.move(
-				d.dir.x * (d.speed - d.lifeSpan),
-				d.dir.y * (d.speed - d.lifeSpan)
+				k
+					.vec2(
+						d.dir.x * (d.speed - d.lifeSpan),
+						d.dir.y * (d.speed - d.lifeSpan)
+					)
+					.scale(dtScaled())
 			);
 
-			d.lifeSpan += k.dt() * 45;
+			d.lifeSpan += dt() * 45;
 		});
 
 		d.animate("opacity", [1, 0.5], {

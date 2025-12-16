@@ -1,6 +1,7 @@
 import { Vec2 } from "kaplay";
 import { k } from "../main";
 import { explosionEmitter } from "../particles";
+import { loopService } from "../services/loopService";
 
 export function spawnFlash(pos: Vec2, size: number) {
 	const crit = k.add([
@@ -17,7 +18,7 @@ export function spawnExplosionEffect(pos: Vec2, size: number) {
 	explosionEmitter.emitter.position = pos;
 	explosionEmitter.emit(14);
 	let i = 1;
-	k.loop(
+	loopService.loop(
 		0.07,
 		() => {
 			spawnFlash(

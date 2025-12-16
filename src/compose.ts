@@ -8,6 +8,7 @@ import {
 	Vec2,
 } from "kaplay";
 import { k, mainSoundVolume } from "./main";
+import { audioService } from "./services/audioService";
 import { registerHitAnimation } from "./shared";
 import { starsEmitter } from "./particles";
 import { spawnDebree } from "./spawn/spawnDebree";
@@ -45,7 +46,7 @@ export function compose(c: Compose): Component[] {
 		registerHitAnimation(part.obj);
 
 		part.obj.onHurt(() => {
-			k.play("hit1", { volume: mainSoundVolume });
+			audioService.playSound("hit1", { volume: mainSoundVolume });
 			c.parts[i].obj.animation.seek(0);
 		});
 
@@ -53,7 +54,7 @@ export function compose(c: Compose): Component[] {
 			const pos = part.isBody ? part.obj.pos : body!.obj.pos.sub(part.obj.pos);
 
 			spawnDebree(pos, part.scoreOnDestroy);
-			k.play(randomExplosion(), { volume: mainSoundVolume });
+			audioService.playSound(randomExplosion(), { volume: mainSoundVolume });
 
 			if (part.isBody) {
 				delete unitComponents[part.obj.id!];

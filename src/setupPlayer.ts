@@ -4,7 +4,7 @@ import {
 	createExplosion,
 } from "./game";
 import { updatePlayerHealthBar, updateSpecialBar } from "./gameUi";
-import { k, mainSoundVolume } from "./main";
+import { dt, k, mainSoundVolume, timeScale } from "./main";
 import { starsEmitter, trailEmitter } from "./particles";
 import { hasLvlValue, player, session } from "./player";
 import { shootBlaster } from "./projectiles/blaster";
@@ -16,6 +16,8 @@ import {
 } from "./shared";
 import { tags } from "./tags";
 import { randomExplosion } from "./util";
+import { audioService } from "./services/audioService";
+import { loopService } from "./services/loopService";
 
 let blasters = 0;
 let bulletIndex = 1;
@@ -54,15 +56,17 @@ export function setupPlayer() {
 		k.destroy(playerObj);
 		starsEmitter.emitter.position = playerObj.pos;
 		starsEmitter.emit(20);
-		k.play("explosion1", { volume: mainSoundVolume });
+		audioService.playSound("explosion1", { volume: mainSoundVolume });
 		clearGame();
 	});
 
 	playerObj.onUpdate(() => {
 		if (specialTimer < rocketSpecialCooldown) {
-			specialTimer += k.dt();
+			specialTimer += dt();
 			updateSpecialBar(specialTimer, rocketSpecialCooldown);
 		}
+
+		k.setCamPos(k.center().scale(0.7).add(playerObj.pos.scale(0.3)));
 
 		checkProjectileIntersection(playerObj.pos, 12, tags.enemy, (p) => {
 			k.destroy(p);
@@ -77,7 +81,7 @@ export function setupPlayer() {
 					p.splashDmgFallof,
 					p.splashDmgFallofDist
 				);
-				k.play(randomExplosion(), { volume: mainSoundVolume });
+				audioService.playSound(randomExplosion(), { volume: mainSoundVolume });
 				k.shake(3);
 			}
 		});
@@ -87,8 +91,8 @@ export function setupPlayer() {
 		const { dir, lerp } = lerpAngleBetweenPos(
 			playerObj.angle,
 			playerObj.pos,
-			k.mousePos(),
-			0.05,
+			k.mousePos().sub(k.center().sub(k.getCamPos())),
+			0.05 * timeScale,
 			-90
 		);
 
@@ -114,7 +118,7 @@ export function setupPlayer() {
 	});
 
 	playerObj.onHurt(() => {
-		k.play("hit2", { volume: mainSoundVolume });
+		audioService.playSound("hit2", { volume: mainSoundVolume });
 		playerObj.animation.seek(0);
 		k.shake(20);
 		k.flash(k.RED, 0.4);
@@ -159,7 +163,7 @@ export function setupPlayer() {
 		}
 
 		specialTimer = 0;
-		k.loop(
+		loopService.loop(
 			0.1,
 			() => {
 				shootRocket(

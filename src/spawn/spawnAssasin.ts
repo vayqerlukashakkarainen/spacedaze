@@ -1,5 +1,6 @@
 import { checkProjectileIntersection, playerObj } from "../game";
 import { k, mainSoundVolume, subSoundVolume } from "../main";
+import { audioService } from "../services/audioService";
 import { shootBlaster } from "../projectiles/blaster";
 import {
 	lerpAngleBetweenPos,
@@ -9,8 +10,9 @@ import {
 import { tags } from "../tags";
 import { randomExplosion } from "../util";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
+import type { Vec2 } from "kaplay";
 
-export function spawnAssasin(pos, am, hp, scale) {
+export function spawnAssasin(pos: Vec2, am: number, hp: number, scale: number) {
 	const hb = 12 * scale;
 	const m = k.add([
 		k.pos(pos),
@@ -87,13 +89,13 @@ export function spawnAssasin(pos, am, hp, scale) {
 	});
 
 	m.onDeath(() => {
-		k.play(randomExplosion(), { volume: subSoundVolume });
+		audioService.playSound(randomExplosion(), { volume: subSoundVolume });
 		enemyOnDeath(m.pos, am, 1);
 		k.destroy(m);
 	});
 
 	m.onHurt(() => {
-		k.play("hit1", { volume: mainSoundVolume });
+		audioService.playSound("hit1", { volume: mainSoundVolume });
 		m.animation.seek(0);
 	});
 }
