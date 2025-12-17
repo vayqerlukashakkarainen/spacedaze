@@ -30,7 +30,10 @@ export const audioService = {
 		return audio;
 	},
 
-	playMusic(musicId: string, options?: { volume?: number }): AudioPlay {
+	playMusic(
+		musicId: string,
+		options?: { volume?: number; loop?: boolean }
+	): AudioPlay {
 		// Stop current music if playing
 		if (currentMusic) {
 			currentMusic.stop();
@@ -38,7 +41,6 @@ export const audioService = {
 
 		currentMusic = k.play(musicId, options);
 		currentMusicId = musicId;
-		currentMusic.speed = timeScale;
 
 		return currentMusic;
 	},

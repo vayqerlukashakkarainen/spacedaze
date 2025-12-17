@@ -1,4 +1,3 @@
-import { MusicData } from "kaplay";
 import { playerObj } from "../game";
 import { dt, dtScaled, getPosAtBorder, k, layers, musicVolume } from "../main";
 import { spawnAssasin } from "../spawn/spawnAssasin";
@@ -6,22 +5,27 @@ import { spawnMeteorite } from "../spawn/spawnAsteroid";
 import { spawnHighway } from "../spawn/spawnHighway";
 import { spawnShip1 } from "../spawn/spawnShip1";
 import { tags } from "../tags";
-import { Level } from "../wave";
 import { endSong, loadSongData } from "../web";
 import { spawnCrate } from "../spawn/spawnCrate";
 import { spawnSpawner } from "../spawn/spawnSpawner";
 import { audioService } from "../services/audioService";
+import { hub } from "./hub";
+import { Level, loadLevel } from "./levels";
+import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject";
 
 let lvlData: any = {};
 let timer = 0;
 let spawned = 0;
 let toSpawn = 0;
+let bgAsteroidTimer = 0;
 export const level1: Level = {
-	music: "arcadia",
-	songTitle: "Arcadia",
-	songAuthor: "Dunderpatrullen",
-	songAlbumCover: "/covers/arcadia_cover.jpg",
-	bpm: 0.44,
+	song: {
+		music: "arcadia",
+		title: "Arcadia",
+		author: "Dunderpatrullen",
+		albumCover: "/covers/arcadia_cover.jpg",
+		bpm: 0.44,
+	},
 	title: "",
 	introduceSound: "",
 	levelLengthSeconds: 190,
@@ -29,13 +33,59 @@ export const level1: Level = {
 		lvlData = {};
 		audioService.stopMusic();
 		endSong();
+		bgAsteroidTimer = 0;
+		// Return to hub after level completion (5c)
+		loadLevel("hub");
 	},
-	lvlUpd: () => {},
+	lvlUpd: () => {
+		// Continuously spawn background asteroids
+		bgAsteroidTimer += dt();
+
+		if (bgAsteroidTimer >= k.rand(1.5, 3)) {
+			bgAsteroidTimer = 0;
+
+			// Randomly choose spawn side and direction
+			const side = k.rand(0, 4);
+			let startPos: any;
+			let endPos: any;
+
+			if (side < 1) {
+				// Spawn from left, move right
+				startPos = k.vec2(-50, k.rand(0, k.height()));
+				endPos = k.vec2(k.width() + 50, k.rand(0, k.height()));
+			} else if (side < 2) {
+				// Spawn from right, move left
+				startPos = k.vec2(k.width() + 50, k.rand(0, k.height()));
+				endPos = k.vec2(-50, k.rand(0, k.height()));
+			} else if (side < 3) {
+				// Spawn from top, move down
+				startPos = k.vec2(k.rand(0, k.width()), -50);
+				endPos = k.vec2(k.rand(0, k.width()), k.height() + 50);
+			} else {
+				// Spawn from bottom, move up
+				startPos = k.vec2(k.rand(0, k.width()), k.height() + 50);
+				endPos = k.vec2(k.rand(0, k.width()), -50);
+			}
+
+			spawnBackgroundObject({
+				pos: startPos,
+				moveTo: endPos,
+				speed: k.rand(1, 2),
+				sprite: "asteroid1",
+				scale: k.rand(0.5, 1.5),
+				color: k.rgb(k.rand(80, 120), k.rand(80, 120), k.rand(80, 120)),
+				parallaxLevel: k.rand(4, 10),
+				opacity: k.rand(0.3, 0.7),
+				rotation: k.rand(0, 360),
+				rotationSpeed: k.rand(-0.5, 0.5),
+			});
+		}
+	},
 	waves: [
 		{
 			timeStamp: 0,
 			begin: () => {
-				audioService.playMusic(level1.music, { volume: musicVolume });
+				audioService.playMusic(level1.song.music, { volume: musicVolume });
 			},
 			upd: () => {},
 		},
@@ -43,9 +93,9 @@ export const level1: Level = {
 			timeStamp: 3500,
 			begin: () => {
 				loadSongData(
-					level1.songTitle,
-					level1.songAuthor,
-					level1.songAlbumCover
+					level1.song.title,
+					level1.song.author,
+					level1.song.albumCover
 				);
 			},
 			upd: () => {},
@@ -78,7 +128,7 @@ export const level1: Level = {
 				timer = 0;
 			},
 			upd: (ld) => {
-				timer += dt();
+				timer += k.dt();
 
 				if (ld > 2000) {
 					k.shake(0.01 * (ld / 100));
@@ -134,23 +184,24 @@ export const level1: Level = {
 					});
 				}
 
-				k.add([
-					k.pos(100),
-					k.color(k.rgb(50, 50, 50)),
-					k.sprite("bg_moon1"),
-					k.scale(2),
-					k.layer(layers.bg),
-					tags.levelBg,
-				]);
+				spawnBackgroundObject({
+					parallaxLevel: 3,
+					pos: k.vec2(100),
+					sprite: "bg_moon1",
+					scale: 2,
+					opacity: 0.5,
+					rotation: 2,
+					color: k.rgb(50, 50, 50),
+				});
 
-				k.add([
-					k.pos(100, 400),
-					k.color(k.rgb(50, 50, 50)),
-					k.sprite("bg_building1"),
-					k.scale(2),
-					k.layer(layers.bg),
-					tags.levelBg,
-				]);
+				spawnBackgroundObject({
+					parallaxLevel: 2,
+					pos: k.vec2(100, 400),
+					sprite: "bg_building1",
+					scale: 3,
+					rotation: 0,
+					color: k.rgb(50, 50, 50),
+				});
 			},
 			upd: (ld) => {},
 		},
@@ -167,7 +218,7 @@ export const level1: Level = {
 
 				txt.animate("opacity", [1, 0], {
 					loops: 10,
-					duration: level1.bpm,
+					duration: level1.song.bpm,
 				});
 
 				lvlData["txt"] = txt;
@@ -191,7 +242,7 @@ export const level1: Level = {
 		{
 			timeStamp: 18790,
 			begin: () => {
-				k.flash(k.WHITE, level1.bpm);
+				k.flash(k.WHITE, level1.song.bpm);
 				const max = 12;
 
 				for (let i = 0; i < max; i++) {
@@ -212,7 +263,7 @@ export const level1: Level = {
 		{
 			timeStamp: 22790,
 			begin: () => {
-				k.flash(k.WHITE, level1.bpm);
+				k.flash(k.WHITE, level1.song.bpm);
 				const max = 12;
 
 				for (let i = 0; i < max; i++) {
@@ -237,7 +288,7 @@ export const level1: Level = {
 				k.shake(10);
 			},
 			upd: (ld) => {
-				timer += dt();
+				timer += k.dt();
 
 				if (timer >= 0.05) {
 					const rnd = k.rand(1);
@@ -255,7 +306,7 @@ export const level1: Level = {
 				toSpawn = 30;
 			},
 			upd: (ld) => {
-				timer += dt();
+				timer += k.dt();
 
 				if (timer >= 0.03 && spawned < toSpawn) {
 					const t = 0.25 + 0.25 * (spawned / toSpawn);
@@ -281,7 +332,7 @@ export const level1: Level = {
 				toSpawn = 30;
 			},
 			upd: (ld) => {
-				timer += dt();
+				timer += k.dt();
 
 				if (timer >= 0.03 && spawned < toSpawn) {
 					const t = 0.75 + 0.25 * (spawned / toSpawn);
@@ -314,7 +365,7 @@ export const level1: Level = {
 				}
 			},
 			upd: (ld) => {
-				timer += dt();
+				timer += k.dt();
 
 				if (timer >= 0.03 && spawned < toSpawn) {
 					for (let i = 0; i < 2; i++) {
@@ -341,9 +392,9 @@ export const level1: Level = {
 				timer = 0;
 			},
 			upd: (ld) => {
-				timer += dt();
+				timer += k.dt();
 
-				if (timer >= level1.bpm * 2) {
+				if (timer >= level1.song.bpm * 2) {
 					const rnd = k.rand(1);
 					spawnAssasin(getPosAtBorder(rnd), 2, 2, 1);
 					timer = 0;

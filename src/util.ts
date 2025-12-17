@@ -103,8 +103,11 @@ export async function init(k: KAPLAYCtx<{}, never>) {
 	await k.loadSound("purchase1", "sounds/purchase1.wav");
 	await k.loadSound("powerup1", "sounds/powerup1.wav");
 	await k.loadSound("crit1", "sounds/crit1.wav");
+	await k.loadSound("slowdown", "sounds/slowdown.wav");
+	await k.loadSound("swap_level", "sounds/swap_level.wav");
 
 	await k.loadMusic("arcadia", "songs/arcadia.mp3");
+	await k.loadMusic("hub", "songs/hub.mp3");
 
 	await k.loadSprite(
 		"enemy_ship1_left_wing",
@@ -122,6 +125,93 @@ export async function init(k: KAPLAYCtx<{}, never>) {
 	await k.loadSprite("boss1_body", "sprites/boss/boss1/boss1_body.png");
 	await k.loadSprite("boss1_blaster", "sprites/boss/boss1/boss1_blaster.png");
 	await k.loadSprite("boss1_head", "sprites/boss/boss1/boss1_head.png");
+
+	// Load timescale zone shader
+	k.loadShader(
+		"timescaleJitter",
+		null,
+		`
+		uniform float u_time;
+		uniform float u_intensity;
+		
+		vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
+			// Get base texture color
+			vec4 baseColor = def_frag();
+			
+			// Create subtle distortion effect
+			float distortionX = sin(pos.y * 0.1 + u_time * 8.0) * u_intensity * 2.0;
+			float distortionY = cos(pos.x * 0.1 + u_time * 6.0) * u_intensity * 2.0;
+			vec2 distortedUV = uv + vec2(distortionX, distortionY) * 0.01;
+			
+			// Sample with distorted coordinates
+			vec4 distortedColor = texture2D(tex, distortedUV);
+			
+			// Apply yellowish tint based on intensity
+			vec3 yellowTint = vec3(1.0, 0.9, 0.3);
+			vec3 tintedColor = mix(distortedColor.rgb, distortedColor.rgb * yellowTint, u_intensity * 0.5);
+			
+			// Mix between original and distorted/tinted
+			vec3 finalColor = mix(baseColor.rgb, tintedColor, u_intensity * 0.8);
+			
+			return vec4(finalColor, baseColor.a) * color;
+		}
+	`
+	);
+
+	// Load ring distortion shader
+	k.loadShader(
+		"ringDistortion",
+		null,
+		`
+		uniform float u_time;
+		uniform float u_intensity;
+		uniform vec2 u_ringCenter;
+		uniform float u_ringRadius;
+		
+		vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
+			// Calculate distance from ring center
+			float dist = distance(pos, u_ringCenter);
+			float ringDist = abs(dist - u_ringRadius);
+			
+			// Only apply effect near the ring (within threshold)
+			float threshold = 20.0 + u_intensity * 30.0;
+			if (ringDist < threshold) {
+				// Calculate effect strength based on distance to ring
+				float effectStrength = (1.0 - (ringDist / threshold)) * u_intensity;
+				
+				// Calculate angle and radial direction from ring center
+				float angle = atan(pos.y - u_ringCenter.y, pos.x - u_ringCenter.x);
+				
+				// Strong displacement amount for visible jitter
+				float displacementStrength = effectStrength * 15.0;
+				
+				// Create chaotic jitter displacement with multiple frequencies
+				float jitterX = sin(angle * 20.0 + u_time * 30.0) * sin(pos.y * 0.5 + u_time * 10.0);
+				float jitterY = cos(angle * 18.0 + u_time * 25.0) * cos(pos.x * 0.5 + u_time * 12.0);
+				
+				// Add higher frequency noise for more chaos
+				float noise1 = fract(sin(dot(pos, vec2(12.9898, 78.233))) * 43758.5453);
+				float noise2 = fract(sin(dot(pos, vec2(39.346, 11.135))) * 73156.3178);
+				
+				// Combine displacements
+				vec2 displacement = vec2(
+					(jitterX + (noise1 - 0.5) * 2.0) * displacementStrength,
+					(jitterY + (noise2 - 0.5) * 2.0) * displacementStrength
+				);
+				
+				// Convert pixel displacement to UV displacement (approximate texel size)
+				vec2 displacedUV = uv + displacement * 0.001;
+				
+				// Sample from displaced position
+				vec4 displacedColor = texture2D(tex, displacedUV);
+				
+				return displacedColor * color;
+			}
+			
+			return def_frag() * color;
+		}
+	`
+	);
 }
 
 const explArr = ["explosion1", "explosion2", "explosion3"];
@@ -131,11 +221,11 @@ export function randomExplosion() {
 	return explArr[r];
 }
 
-export function adjustedTarget(from, to) {
+export function adjustedTarget(from: number, to: number) {
 	return from + shortestAngleDelta(from, to);
 }
 
-export function shortestAngleDelta(from, to) {
+export function shortestAngleDelta(from: number, to: number) {
 	let delta = (to - from) % 360;
 	if (delta > 180) delta -= 360;
 	if (delta < -180) delta += 360;

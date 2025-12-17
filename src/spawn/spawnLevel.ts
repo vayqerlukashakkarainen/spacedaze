@@ -1,17 +1,24 @@
-import { playerObj, checkProjectileIntersection } from "../game";
+import { Vec2 } from "kaplay";
+import { checkProjectileIntersection, playerObj } from "../game";
 import { dt, dtScaled, k, mainSoundVolume } from "../main";
 import { audioService } from "../services/audioService";
 import { starsEmitter } from "../particles";
 import { player } from "../player";
-import { PowerupKey, powerups, powerupsSprites } from "../powerups";
 import { tags } from "../tags";
-import { Vec2 } from "kaplay";
 import { timescale } from "../comp/timescale";
+import { spawnRing } from "./spawnRing";
+import { LevelKey, loadLevel } from "../levels/levels";
 
-export function spawnPowerup(pos: Vec2, powerupKey: PowerupKey) {
+interface Props {
+	pos: Vec2;
+	levelName: LevelKey;
+	spriteName: string;
+}
+
+export function spawnLevel(props: Props) {
 	const m = k.add([
-		k.pos(pos),
-		k.sprite(powerupsSprites[powerupKey]),
+		k.pos(props.pos),
+		k.sprite(props.spriteName),
 		k.rotate(0),
 		k.anchor("center"),
 		timescale(),
@@ -20,6 +27,7 @@ export function spawnPowerup(pos: Vec2, powerupKey: PowerupKey) {
 			dir: k.rand(k.vec2(-1, -1), k.vec2(1, 1)),
 			speed: k.rand(40, 60),
 			lifeSpan: 0,
+			levelName: props.levelName,
 		},
 		tags.props,
 		tags.unit,
@@ -32,14 +40,33 @@ export function spawnPowerup(pos: Vec2, powerupKey: PowerupKey) {
 		k.opacity(0.2),
 	]);
 
-	// Helper function to collect the powerup
-	const collectPowerup = () => {
-		const powerupPos = m.pos.clone();
-		starsEmitter.emitter.position = powerupPos;
+	// Helper function to collect the level portal
+	const collectPortal = () => {
+		const portalPos = m.pos.clone();
+
+		// Visual effects (3A: Same as powerups)
+		starsEmitter.emitter.position = portalPos;
 		starsEmitter.emit(20);
-		audioService.playSound("powerup1", { volume: mainSoundVolume });
+
+		// Custom portal effect (3C: Ring effect)
+		spawnRing({
+			pos: portalPos,
+			speed: 300,
+			intensity: 0.8,
+			maxRadius: 500,
+			visualize: true,
+		});
+
+		// Play swap level sound (4C: New sound)
+		audioService.playSound("swap_level", { volume: mainSoundVolume });
+
+		// Destroy the portal
 		k.destroy(m);
-		powerups[powerupKey](powerupPos);
+
+		// Wait 3 seconds, then start the level (5a)
+		k.wait(3, () => {
+			loadLevel(props.levelName);
+		});
 	};
 
 	m.onUpdate(() => {
@@ -59,7 +86,7 @@ export function spawnPowerup(pos: Vec2, powerupKey: PowerupKey) {
 		// Check if hit by player projectiles
 		checkProjectileIntersection(m.pos, 16, tags.friendly, (p) => {
 			k.destroy(p);
-			collectPowerup();
+			collectPortal();
 		});
 
 		const dist = m.pos.dist(playerObj.pos);
@@ -74,7 +101,7 @@ export function spawnPowerup(pos: Vec2, powerupKey: PowerupKey) {
 			);
 
 			if (dist < player.debreePickupDistance) {
-				collectPowerup();
+				collectPortal();
 			}
 		}
 	});

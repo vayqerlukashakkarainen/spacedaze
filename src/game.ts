@@ -10,19 +10,15 @@ import {
 	Vec2,
 } from "kaplay";
 import {
-	dt,
 	k,
 	GameState,
 	changeGameState,
 	addScore,
 	mainSoundVolume,
-	dtScaled,
 } from "./main";
 import { player, resetSession, session } from "./player";
-import { explosionEmitter } from "./particles";
-import { activeLevel, loadLevel, resetCurrentLevel, updateLvl } from "./wave";
+
 import { clearPlayer, setupPlayer } from "./setupPlayer";
-import { level1 } from "./levels/level1";
 import { tags } from "./tags";
 import {
 	addHealthBar,
@@ -33,12 +29,16 @@ import {
 import { Component } from "./compose";
 import { spawnPowerup } from "./spawn/spawnPowerup";
 import { getDmg } from "./projectiles/shared";
-import { spawnExplosionEffect, spawnFlash } from "./spawn/spawnFlash";
-import { spawnBoss1 } from "./spawn/spawnBoss1";
+import { spawnExplosionEffect } from "./spawn/spawnFlash";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
-
-const lengthBetweenLevels = 1; // Seconds
+import { hub } from "./levels/hub";
+import {
+	activeLevel,
+	loadLevel,
+	updateLvl,
+	resetCurrentLevel,
+} from "./levels/levels";
 
 export let playerObj: GameObj<
 	PosComp | SpriteComp | RotateComp | AreaComp | AnchorComp | HealthComp
@@ -55,15 +55,11 @@ export function startGame() {
 }
 
 export function updateGameLoop() {
-	const deltaTime = dt();
+	const deltaTime = k.dt();
 	timeSinceLastLevel += deltaTime;
 
-	if (timeSinceLastLevel >= lengthBetweenLevels && !activeLevel()) {
-		loadLevel(level1);
-
-		spawnPowerup(k.center(), "addPlayerMaxHealth");
-
-		//spawnBoss1(k.center(), 10, 200, 3);
+	if (!activeLevel()) {
+		loadLevel("hub");
 	}
 
 	if (activeLevel()) {

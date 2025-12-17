@@ -2,6 +2,7 @@ import { GameObj, PosComp, Vec2 } from "kaplay";
 import { TimescaleComp } from "../comp/timescale";
 import { dt, k } from "../main";
 import { tags } from "../tags";
+import { spawnRing } from "./spawnRing";
 
 interface Props {
 	pos: Vec2;
@@ -30,6 +31,15 @@ export function spawnTimescaleZone(props: Props) {
 		tags.props,
 	]);
 
+	// Spawn visual ring effect when zone is created
+	spawnRing({
+		pos: props.pos,
+		speed: 100,
+		intensity: 0.1,
+		maxRadius: props.radius * 1.5,
+		visualize: true,
+	});
+
 	// Create visual circle outline
 	if (visualize) {
 		zone.add([
@@ -53,8 +63,6 @@ export function spawnTimescaleZone(props: Props) {
 			include: "timescale",
 		}) as GameObj<TimescaleComp & PosComp>[];
 
-		k.debug.log(`Objects in zone: ${objects.length}`);
-
 		// Track objects currently in range
 		const currentlyInRange = new Set<number>();
 
@@ -72,11 +80,30 @@ export function spawnTimescaleZone(props: Props) {
 					// Object just entered the zone
 					affectedObjects.add(objId);
 					obj.timescaleModifiers.set(zone.id!, zone.timescaleValue);
+
+					// Apply shader effect
+					try {
+						obj.use(
+							k.shader("timescaleJitter", () => ({
+								u_time: k.time(),
+								u_intensity: 1.0 - zone.timescaleValue, // More intense for slower zones
+							}))
+						);
+					} catch (e) {
+						// Shader already applied or object doesn't support shaders
+					}
 				}
 			} else if (affectedObjects.has(objId)) {
 				// Object just left the zone
 				affectedObjects.delete(objId);
 				obj.timescaleModifiers.delete(zone.id!);
+
+				// Remove shader effect
+				try {
+					obj.unuse("shader");
+				} catch (e) {
+					// Shader wasn't present
+				}
 			}
 		}
 
@@ -98,6 +125,13 @@ export function spawnTimescaleZone(props: Props) {
 
 			if (affectedObjects.has(objId)) {
 				obj.timescaleModifiers.delete(zone.id!);
+
+				// Remove shader effect
+				try {
+					obj.unuse("shader");
+				} catch (e) {
+					// Shader wasn't present
+				}
 			}
 		}
 

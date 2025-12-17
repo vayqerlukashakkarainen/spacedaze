@@ -8,6 +8,7 @@ import { initParticles } from "./particles";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
 import { spawnTimescaleZone } from "./spawn/spawnTimescaleZone";
+import { spawnRing } from "./spawn/spawnRing";
 
 export const layers = {
 	bg: "bg",
@@ -36,6 +37,10 @@ let gameState = GameState.Playing;
 let isPaused = false;
 let pauseText: GameObj<TextComp> | undefined;
 export let timeScale = 1;
+let targetTimeScale = 1;
+let startTimeScale = 1;
+let timescaleLerpDuration = 0.3; // seconds
+let timescaleLerpProgress = 0;
 
 export const k = kaplay({
 	background: "#000000",
@@ -52,6 +57,18 @@ export function dtScaled() {
 	return dt() * 100;
 }
 
+/**
+ * Set the target timescale with smooth lerping
+ * @param target - The target timescale value
+ * @param duration - Duration of the lerp in seconds (default: 0.3)
+ */
+export function setTimescale(target: number, duration: number = 0.3) {
+	startTimeScale = timeScale;
+	targetTimeScale = target;
+	timescaleLerpDuration = duration;
+	timescaleLerpProgress = 0;
+}
+
 init(k).then(() => {
 	initParticles();
 	loadGameSlot();
@@ -62,6 +79,14 @@ init(k).then(() => {
 	changeGameState(GameState.LevelUp);
 
 	k.onUpdate(() => {
+		// Lerp timescale towards target
+		if (timescaleLerpProgress < timescaleLerpDuration) {
+			timescaleLerpProgress += k.dt();
+			const t = Math.min(timescaleLerpProgress / timescaleLerpDuration, 1);
+			timeScale = startTimeScale + (targetTimeScale - startTimeScale) * t;
+			audioService.updateAudioSpeed(timeScale);
+		}
+
 		if (gameState == GameState.Playing && !isPaused) {
 			timeSeconds += dt();
 			updateGameLoop();
@@ -78,21 +103,23 @@ init(k).then(() => {
 
 	// Slow motion controls
 	k.onKeyPress("a", () => {
-		timeScale = 0.5;
-		audioService.setMusicSpeed(timeScale);
-		audioService.updateAudioSpeed(timeScale);
+		setTimescale(0.5);
+		audioService.playSound("slowdown", { volume: 1 });
+		spawnRing({
+			speed: 400,
+			intensity: 0.2,
+			maxRadius: Math.max(k.width(), k.height()),
+			visualize: true,
+			pos: k.center(),
+		});
 	});
 
 	k.onKeyPress("s", () => {
-		timeScale = 0.8;
-		audioService.setMusicSpeed(timeScale);
-		audioService.updateAudioSpeed(timeScale);
+		setTimescale(0.8);
 	});
 
 	k.onKeyPress("d", () => {
-		timeScale = 1;
-		audioService.setMusicSpeed(timeScale);
-		audioService.updateAudioSpeed(timeScale);
+		setTimescale(1);
 	});
 
 	// Temporary: Spawn timescale zone at mouse position (for testing)
