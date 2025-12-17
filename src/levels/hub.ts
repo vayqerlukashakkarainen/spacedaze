@@ -59,6 +59,14 @@ export const hub: Level = {
 			speed: 0,
 			splitOnDeath: 2,
 		});
+		spawnMeteorite({
+			pos: k.vec2(300, 200),
+			dir: k.DOWN,
+			scoreOnKill: 1,
+			hp: 10000,
+			speed: 0,
+			splitOnDeath: 2,
+		});
 	},
 	lvlUpd: () => {
 		// Continuously spawn background asteroids

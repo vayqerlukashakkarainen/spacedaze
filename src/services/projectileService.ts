@@ -11,6 +11,7 @@ import { timescale } from "../comp/timescale";
 import { createExplosion, pickUnitInDistance, projectiles } from "../game";
 import { tags } from "../tags";
 import { spawnFlash } from "../spawn/spawnFlash";
+import { spawnLink } from "../spawn/spawnLink";
 import {
 	debreeRocketEmitter,
 	dustTrailEmitter,
@@ -436,6 +437,17 @@ function handleChainLightning(target: GameObj, projectile: GameObj) {
 	for (const unit of units) {
 		if (config.chainedTargets.has(unit.id)) continue;
 		if (unit.pos.dist(target.pos) > config.chainDistance) continue;
+
+		// Spawn visual link between targets
+		spawnLink({
+			pos1: target.pos,
+			pos2: unit.pos,
+			decayTime: 0.2 * (2 - timeScale),
+			color: k.Color.fromHex("#00ffff"),
+			opacity: 0.8,
+			size: 2,
+			distortion: 0,
+		});
 
 		// Apply reduced damage
 		const chainDamage = projectile.impactDamage * config.damageReduction;

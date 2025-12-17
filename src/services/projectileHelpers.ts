@@ -49,6 +49,12 @@ export function spawnPlayerBlaster(pos: Vec2, dir: Vec2, rot: number) {
 		bounce: {
 			maxBounces: 3,
 		},
+		chain: {
+			maxChains: 3,
+			chainDistance: 200,
+			damageReduction: 0.7,
+			targetTags: [tags.enemy],
+		},
 		crit: {
 			chance: player.critChance,
 			multiplier: player.critMultiplier,

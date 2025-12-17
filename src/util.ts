@@ -212,6 +212,83 @@ export async function init(k: KAPLAYCtx<{}, never>) {
 		}
 	`
 	);
+
+	// Load lightning effect shader
+	k.loadShader(
+		"lightning",
+		`
+		uniform float u_time;
+		uniform float u_distortion;
+		
+		vec4 vert(vec2 pos, vec2 uv, vec4 color) {
+			// Create vertex displacement for lightning effect
+			float noise = fract(sin(dot(pos + u_time * 10.0, vec2(12.9898, 78.233))) * 43758.5453);
+			
+			// Oscillating displacement along edges
+			float displacement = sin(pos.x * 0.5 + u_time * 20.0) * cos(pos.y * 0.3 + u_time * 15.0);
+			displacement += (noise - 0.5) * 2.0;
+			displacement *= u_distortion * 3.0;
+			
+			// Apply displacement perpendicular to likely edge direction
+			vec2 offset = vec2(
+				sin(u_time * 30.0 + pos.y * 0.2) * displacement,
+				cos(u_time * 25.0 + pos.x * 0.2) * displacement
+			);
+			
+			return def_vert();
+		}
+		`,
+		`
+		uniform float u_time;
+		uniform float u_distortion;
+		
+		vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
+			// Create lightning-like distortion with unstable current jitter
+			float noise1 = fract(sin(dot(uv * 10.0 + u_time * 5.0, vec2(12.9898, 78.233))) * 43758.5453);
+			float noise2 = fract(sin(dot(uv * 15.0 + u_time * 8.0, vec2(39.346, 11.135))) * 73156.3178);
+			float noise3 = fract(sin(dot(pos + u_time * 20.0, vec2(54.321, 98.765))) * 12345.6789);
+			
+			// Pixel jitter for unstable current effect
+			float jitterStrength = u_distortion * 0.02;
+			vec2 jitter = vec2(
+				(noise1 - 0.5) * jitterStrength,
+				(noise2 - 0.5) * jitterStrength
+			);
+			
+			// Add rapid high-frequency jitter
+			jitter += vec2(
+				sin(u_time * 50.0 + pos.x * 0.1) * (noise3 - 0.5),
+				cos(u_time * 45.0 + pos.y * 0.1) * (noise3 - 0.5)
+			) * jitterStrength * 2.0;
+			
+			// Sample with jittered UV coordinates
+			vec2 jitteredUV = uv + jitter;
+			vec4 baseColor = texture2D(tex, jitteredUV);
+			
+			// Lightning bolt effect - jagged distortion
+			float lightning = sin(uv.x * 20.0 + u_time * 30.0 + noise1 * 10.0) * u_distortion;
+			lightning += cos(uv.y * 15.0 + u_time * 25.0 + noise2 * 8.0) * u_distortion * 0.5;
+			
+			// Add sharp peaks for electrical look
+			float peaks = step(0.8, noise1) * u_distortion * 2.0;
+			
+			// Brightness flicker (unstable power)
+			float flicker = 1.0 + (noise1 - 0.5) * u_distortion * 0.4;
+			flicker *= 1.0 + sin(u_time * 40.0) * u_distortion * 0.2;
+			
+			// Combine effects
+			vec3 glowColor = baseColor.rgb * flicker;
+			glowColor += vec3(peaks) * baseColor.rgb;
+			
+			// Edge glow based on UV distance from center
+			float edgeDist = abs(uv.y - 0.5) * 2.0;
+			float edgeGlow = (1.0 - edgeDist) * u_distortion * 0.5;
+			glowColor += vec3(edgeGlow) * baseColor.rgb;
+			
+			return vec4(glowColor, baseColor.a) * color;
+		}
+	`
+	);
 }
 
 const explArr = ["explosion1", "explosion2", "explosion3"];
