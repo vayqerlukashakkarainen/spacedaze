@@ -41,8 +41,6 @@ export function spawnCrate(props: Props) {
 		m.angle += m.rotVel * dtScaled() * m.getTimescale();
 
 		checkProjectileIntersection(m.pos, 12, tags.friendly, (p) => {
-			k.destroy(p);
-
 			m.hitAngle = p.angle;
 			onEnemyHit(m, p);
 		});

@@ -4,6 +4,7 @@ import { spawnLevel } from "../spawn/spawnLevel";
 import { k } from "../main";
 import { Level } from "./levels";
 import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject";
+import { spawnMeteorite } from "../spawn/spawnAsteroid";
 
 let lvlData: any = {};
 let bgAsteroidTimer = 0;
@@ -48,6 +49,15 @@ export const hub: Level = {
 			opacity: 1,
 			rotation: 120,
 			color: k.rgb(15, 15, 15),
+		});
+
+		spawnMeteorite({
+			pos: k.vec2(200, 200),
+			dir: k.DOWN,
+			scoreOnKill: 1,
+			hp: 10000,
+			speed: 0,
+			splitOnDeath: 2,
 		});
 	},
 	lvlUpd: () => {

@@ -48,8 +48,6 @@ export function spawnMeteorite(props: Props) {
 		m.angle += m.rotVel * dtScaled() * m.getTimescale();
 
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
-			k.destroy(p);
-
 			onEnemyHit(m, p);
 		});
 

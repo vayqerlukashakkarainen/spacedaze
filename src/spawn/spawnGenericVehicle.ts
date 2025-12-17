@@ -46,8 +46,6 @@ export function spawnGenericVehicle(
 		m.move(m.vel.scale(m.speed * dtScaled() * m.getTimescale()));
 
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
-			k.destroy(p);
-
 			onEnemyHit(m, p);
 		});
 

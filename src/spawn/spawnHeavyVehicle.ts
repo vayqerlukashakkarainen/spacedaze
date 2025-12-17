@@ -39,8 +39,6 @@ export function spawnHeavyVehicle(pos: Vec2, dir: Vec2, hp, sprite) {
 		m.move(m.vel.scale(m.speed * dtScaled()));
 
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
-			k.destroy(p);
-
 			onEnemyHit(m, p);
 		});
 

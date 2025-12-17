@@ -1,7 +1,7 @@
 import { checkProjectileIntersection, playerObj } from "../game";
 import { k, mainSoundVolume, subSoundVolume, timeScale } from "../main";
 import { audioService } from "../services/audioService";
-import { shootBlaster } from "../projectiles/blaster";
+import { spawnEnemyBlaster } from "../services/projectileHelpers";
 import {
 	lerpAngleBetweenPos,
 	lerpMoveRotateAndScale,
@@ -57,15 +57,7 @@ export function spawnAssasin(pos: Vec2, am: number, hp: number, scale: number) {
 			m.enterState("retreat");
 		} else if (dist > 50 && dist < 200) {
 			if (Math.floor(k.rand(0, 200)) == 1) {
-				shootBlaster(
-					m.pos,
-					k.Vec2.fromAngle(m.angle - 90),
-					m.angle,
-					2,
-					1,
-					[tags.enemy, tags.blaster],
-					true
-				);
+				spawnEnemyBlaster(m.pos, k.Vec2.fromAngle(m.angle - 90), m.angle, 2);
 			}
 		}
 	});
@@ -83,8 +75,6 @@ export function spawnAssasin(pos: Vec2, am: number, hp: number, scale: number) {
 
 		lerpMoveRotateAndScale(m, lerp, m.speed * m.getTimescale());
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
-			k.destroy(p);
-
 			onEnemyHit(m, p);
 		});
 	});

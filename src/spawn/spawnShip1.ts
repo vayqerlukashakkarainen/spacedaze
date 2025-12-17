@@ -2,7 +2,7 @@ import { Vec2 } from "kaplay";
 import { checkProjectileComponentIntersection } from "../game";
 import { dtScaled, k } from "../main";
 import { trailEmitter } from "../particles";
-import { shootBlaster } from "../projectiles/blaster";
+import { spawnEnemyBlaster } from "../services/projectileHelpers";
 import { tags } from "../tags";
 
 const components = {
@@ -95,14 +95,11 @@ export function spawnShip1(
 		);
 
 		if (Math.floor(k.rand(0, 500)) == 10) {
-			shootBlaster(
+			spawnEnemyBlaster(
 				m.pos,
 				k.Vec2.fromAngle(m.angle - 90),
 				m.angle,
-				1,
-				1,
-				[tags.enemy, tags.blaster],
-				true
+				1
 			);
 		}
 

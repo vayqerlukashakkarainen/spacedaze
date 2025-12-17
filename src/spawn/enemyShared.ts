@@ -1,42 +1,27 @@
 import { GameObj, Vec2 } from "kaplay";
-import { createExplosion } from "../game";
 import { k } from "../main";
 import { debreeRocketEmitter, starsEmitter } from "../particles";
-import { player } from "../player";
-import { getDmg } from "../projectiles/shared";
 import { tags } from "../tags";
 import { spawnDebree } from "./spawnDebree";
 import { trySpawnRandomizedPowerup } from "../powerups";
+import { applyProjectileDamage } from "../services/projectileService";
 
 export function onEnemyHit(m: GameObj, p: GameObj) {
-	if (p.tags.includes(tags.blaster)) {
-		const dmg = getDmg(player.critChance, p.dmg, player.critMultiplier, p.pos);
-		m.hurt(dmg);
+	// Use new projectile damage system
+	const shouldDestroy = applyProjectileDamage(m, p);
 
-		if (m.vel) {
-			const dir = p.pos.sub(m.pos).unit();
-			m.vel = m.vel.add(dir.scale(-1));
-		}
-	} else if (p.tags.includes(tags.rocket)) {
-		const dmg = getDmg(
-			player.critChance,
-			p.impactDmg,
-			player.critMultiplier,
-			m.pos
-		);
-		m.hurt(dmg);
-		createExplosion(
-			p.pos,
-			p.splashSize,
-			p.splashDmg,
-			p.splashDmgFallof,
-			p.splashDmgFallofDist
-		);
-		k.shake(3);
-		debreeRocketEmitter.emitter.position = m.pos;
-		debreeRocketEmitter.emitter.direction = p.angle - 90;
-		debreeRocketEmitter.emit(6);
+	// Apply knockback for blasters
+	if (p.tags.includes(tags.blaster) && m.vel) {
+		const dir = p.pos.sub(m.pos).unit();
+		m.vel = m.vel.add(dir.scale(-1));
 	}
+
+	// Shake on splash damage
+	if (p.splashDamage !== undefined) {
+		k.shake(3);
+	}
+
+	return shouldDestroy;
 }
 
 export function enemyOnDeath(

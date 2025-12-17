@@ -15,11 +15,13 @@ import {
 } from "../shared";
 import { tags } from "../tags";
 import { randomExplosion } from "../util";
-import { shootBlaster } from "../projectiles/blaster";
-import { target } from "../comp/target";
-import { shootRocket } from "../projectiles/rocket";
 import { player } from "../player";
+import {
+	spawnBasicBlaster,
+	spawnHomingRocket,
+} from "../services/projectileHelpers";
 import { timescale } from "../comp/timescale";
+import { target } from "../comp/target";
 
 interface Props {
 	pos: Vec2;
@@ -65,8 +67,6 @@ export function spawnFollower(props: Props) {
 		lerpMoveRotateAndScale(m, lerp, m.speed * m.getTimescale());
 
 		checkProjectileIntersection(m.pos, m.hb, tags.enemy, (p) => {
-			k.destroy(p);
-
 			if (p.tags.includes(tags.blaster)) {
 				m.hurt(p.dmg);
 			}
@@ -74,32 +74,28 @@ export function spawnFollower(props: Props) {
 
 		if (player.followerCanUseMissiles && m.hasTarget()) {
 			if (Math.floor(k.rand(0, 300)) == 1) {
-				shootRocket(
+				spawnHomingRocket(
 					m.pos,
 					k.Vec2.fromAngle(m.angle - 90),
 					m.angle,
 					player.rocketImpactDmg * player.rocketDmgMultiplier,
 					player.rocketSplashDmg * player.rocketDmgMultiplier,
 					player.rocketSplashSize * player.rocketSplashSizeMultiplier,
-					player.rocketSplashDmgFallDistanceValue,
-					player.rocketSplashDmgFallOverDistance,
-					0.8,
-					[tags.friendly, tags.rocket],
-					true
+					true,
+					[tags.friendly, tags.rocket]
 				);
 			}
 		}
 
 		if (Math.floor(k.rand(0, 150)) == 1) {
 			if (m.pickTarget(m.pos, 400, tags.enemy)) {
-				shootBlaster(
+				spawnBasicBlaster(
 					m.pos,
 					k.Vec2.fromAngle(m.targetAngle()),
 					m.targetAngle() + 90,
 					m.dmg,
 					2,
-					[tags.friendly, tags.blaster],
-					true
+					[tags.friendly, tags.blaster]
 				);
 			}
 		}

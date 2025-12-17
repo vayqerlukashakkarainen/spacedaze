@@ -58,7 +58,6 @@ export function spawnPowerup(pos: Vec2, powerupKey: PowerupKey) {
 
 		// Check if hit by player projectiles
 		checkProjectileIntersection(m.pos, 16, tags.friendly, (p) => {
-			k.destroy(p);
 			collectPowerup();
 		});
 

@@ -2,7 +2,7 @@ import { Vec2 } from "kaplay";
 import { checkProjectileComponentIntersection, playerObj } from "../game";
 import { k, layers } from "../main";
 import { trailEmitter } from "../particles";
-import { shootBlaster } from "../projectiles/blaster";
+import { spawnEnemyBlaster } from "../services/projectileHelpers";
 import { tags } from "../tags";
 
 const components = {
@@ -130,14 +130,11 @@ export function spawnBoss1(pos: Vec2, am, hp, scale) {
 			await loopService.loop(
 				0.1,
 				() => {
-					shootBlaster(
+					spawnEnemyBlaster(
 						blaster1.children[0].worldPos(),
 						k.Vec2.fromAngle(blaster1.angle - 90),
 						blaster1.angle,
-						1,
-						2,
-						[tags.enemy, tags.blaster],
-						true
+						1
 					);
 				},
 				10

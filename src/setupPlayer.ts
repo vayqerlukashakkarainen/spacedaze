@@ -7,8 +7,10 @@ import { updatePlayerHealthBar, updateSpecialBar } from "./gameUi";
 import { dt, k, mainSoundVolume, timeScale } from "./main";
 import { starsEmitter, trailEmitter } from "./particles";
 import { hasLvlValue, player, session } from "./player";
-import { shootBlaster } from "./projectiles/blaster";
-import { shootRocket } from "./projectiles/rocket";
+import {
+	spawnPlayerBlaster,
+	spawnPlayerRocket,
+} from "./services/projectileHelpers";
 import {
 	lerpAngleBetweenPos,
 	lerpMoveRotateAndScale,
@@ -68,10 +70,9 @@ export function setupPlayer() {
 			updateSpecialBar(specialTimer, rocketSpecialCooldown);
 		}
 
-		k.setCamPos(k.center().scale(0.7).add(playerObj.pos.scale(0.3)));
+		k.setCamPos(k.center().scale(0.5).add(playerObj.pos.scale(0.5)));
 
 		checkProjectileIntersection(playerObj.pos, 12, tags.enemy, (p) => {
-			k.destroy(p);
 			if (p.tags.includes(tags.blaster)) {
 				playerObj.hurt(p.dmg);
 			} else if (p.tags.includes(tags.rocket)) {
@@ -89,7 +90,8 @@ export function setupPlayer() {
 		});
 
 		// If rockets have a target for too long, find new target
-		const dist = playerObj.pos.dist(k.mousePos()) - 12;
+		const dist =
+			playerObj.pos.dist(k.mousePos().sub(k.center().sub(k.getCamPos()))) - 12;
 		const { dir, lerp } = lerpAngleBetweenPos(
 			playerObj.angle,
 			playerObj.pos,
@@ -131,28 +133,20 @@ export function setupPlayer() {
 		if (hasLvlValue(player.blasterParallel, 1)) {
 			for (let i = 0; i < blasters; i++) {
 				const gunPipe = playerObj.children[i];
-				shootBlaster(
+				spawnPlayerBlaster(
 					gunPipe.worldPos(),
 					k.Vec2.fromAngle(playerObj.angle - 90),
-					playerObj.angle,
-					player.blasterDmg * player.blasterDmgMultiplier,
-					player.blasterSpeedMultiplier,
-					[tags.friendly, tags.blaster],
-					true
+					playerObj.angle
 				);
 			}
 			return;
 		}
 
 		const gunPipe = playerObj.children[bulletIndex % blasters];
-		shootBlaster(
+		spawnPlayerBlaster(
 			gunPipe.worldPos(),
 			k.Vec2.fromAngle(playerObj.angle - 90),
-			playerObj.angle,
-			player.blasterDmg * player.blasterDmgMultiplier,
-			player.blasterSpeedMultiplier,
-			[tags.friendly, tags.blaster],
-			true
+			playerObj.angle
 		);
 		bulletIndex++;
 	});
@@ -168,18 +162,10 @@ export function setupPlayer() {
 		loopService.loop(
 			0.1,
 			() => {
-				shootRocket(
+				spawnPlayerRocket(
 					playerObj.pos,
 					k.Vec2.fromAngle(playerObj.angle - 90),
-					playerObj.angle,
-					player.rocketImpactDmg * player.rocketDmgMultiplier,
-					player.rocketSplashDmg * player.rocketDmgMultiplier,
-					player.rocketSplashSize * player.rocketSplashSizeMultiplier,
-					player.rocketSplashDmgFallDistanceValue,
-					player.rocketSplashDmgFallOverDistance,
-					1,
-					[tags.friendly, tags.rocket],
-					true
+					playerObj.angle
 				);
 			},
 			player.nrOfRockets + session.extraRockets

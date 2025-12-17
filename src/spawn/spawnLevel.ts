@@ -85,7 +85,6 @@ export function spawnLevel(props: Props) {
 
 		// Check if hit by player projectiles
 		checkProjectileIntersection(m.pos, 16, tags.friendly, (p) => {
-			k.destroy(p);
 			collectPortal();
 		});
 
