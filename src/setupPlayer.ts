@@ -26,6 +26,10 @@ let blasters = 0;
 let bulletIndex = 1;
 let specialTimer = 0;
 const rocketSpecialCooldown = 6;
+let movementMode: "mouse" | "wasd" = "mouse";
+let wasdFacingMode: "movement" | "mouse" = "movement";
+const targetOffset = 64;
+
 export function setupPlayer() {
 	const playerObj = k.add([
 		k.pos(k.center()),
@@ -38,7 +42,10 @@ export function setupPlayer() {
 		k.animate(),
 		timescale(),
 		tags.friendly,
+		tags.gameLoop,
 	]);
+
+	const targetObj = k.add([k.pos(k.center()), k.z(1000), tags.gameLoop]);
 
 	registerHitAnimation(playerObj);
 
@@ -62,6 +69,16 @@ export function setupPlayer() {
 		starsEmitter.emit(20);
 		audioService.playSound("explosion1", { volume: mainSoundVolume });
 		clearGame();
+	});
+
+	k.onKeyPress("tab", () => {
+		movementMode = movementMode === "mouse" ? "wasd" : "mouse";
+	});
+
+	k.onKeyPress("r", () => {
+		if (movementMode === "wasd") {
+			wasdFacingMode = wasdFacingMode === "movement" ? "mouse" : "movement";
+		}
 	});
 
 	playerObj.onUpdate(() => {
@@ -89,13 +106,33 @@ export function setupPlayer() {
 			}
 		});
 
-		// If rockets have a target for too long, find new target
-		const dist =
-			playerObj.pos.dist(k.mousePos().sub(k.center().sub(k.getCamPos()))) - 12;
+		if (movementMode === "mouse") {
+			const worldMousePos = k.mousePos().sub(k.center().sub(k.getCamPos()));
+			targetObj.pos = worldMousePos;
+		} else {
+			const wasdDir = k.vec2(
+				(k.isKeyDown("d") ? 1 : 0) - (k.isKeyDown("a") ? 1 : 0),
+				(k.isKeyDown("s") ? 1 : 0) - (k.isKeyDown("w") ? 1 : 0)
+			);
+
+			if (wasdDir.len() > 0) {
+				targetObj.pos = playerObj.pos.add(wasdDir.unit().scale(targetOffset));
+			} else {
+				targetObj.pos = playerObj.pos;
+			}
+		}
+
+		const dist = playerObj.pos.dist(targetObj.pos) - 12;
+
+		let facingTarget = targetObj.pos;
+		if (movementMode === "wasd" && wasdFacingMode === "mouse") {
+			facingTarget = k.mousePos().sub(k.center().sub(k.getCamPos()));
+		}
+
 		const { dir, lerp } = lerpAngleBetweenPos(
 			playerObj.angle,
 			playerObj.pos,
-			k.mousePos().sub(k.center().sub(k.getCamPos())),
+			facingTarget,
 			0.05 * timeScale * playerObj.getTimescale(),
 			-90
 		);
@@ -186,4 +223,6 @@ export function setupPlayer() {
 export function clearPlayer() {
 	bulletIndex = 0;
 	blasters = 0;
+	movementMode = "mouse";
+	wasdFacingMode = "movement";
 }

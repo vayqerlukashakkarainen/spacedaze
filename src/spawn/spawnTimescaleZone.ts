@@ -29,6 +29,7 @@ export function spawnTimescaleZone(props: Props) {
 			lifetime: 0,
 		},
 		tags.props,
+		tags.gameLoop,
 	]);
 
 	// Spawn visual ring effect when zone is created

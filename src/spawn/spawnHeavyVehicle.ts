@@ -31,6 +31,7 @@ export function spawnHeavyVehicle(pos: Vec2, dir: Vec2, hp, sprite) {
 		},
 		tags.enemy,
 		tags.unit,
+		tags.gameLoop,
 	]);
 
 	registerHitAnimation(m);

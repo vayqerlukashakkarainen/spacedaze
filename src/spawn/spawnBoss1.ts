@@ -48,6 +48,7 @@ export function spawnBoss1(pos: Vec2, am, hp, scale) {
 		},
 		tags.enemy,
 		tags.unit,
+		tags.gameLoop,
 	]);
 
 	const blaster1 = m.add([
@@ -59,6 +60,7 @@ export function spawnBoss1(pos: Vec2, am, hp, scale) {
 		k.rotate(0),
 		jitter(),
 		tags.part,
+		tags.gameLoop,
 		k.layer(layers.game2),
 		{
 			fireRate: 0.2,
@@ -77,6 +79,7 @@ export function spawnBoss1(pos: Vec2, am, hp, scale) {
 		jitter(),
 		k.layer(layers.game2),
 		tags.part,
+		tags.gameLoop,
 		{
 			fireRate: 0.2,
 			timer: 0,
@@ -92,6 +95,7 @@ export function spawnBoss1(pos: Vec2, am, hp, scale) {
 		k.rotate(0),
 		jitter(),
 		tags.part,
+		tags.gameLoop,
 	]);
 
 	unitComponents[m.id!] = compose({

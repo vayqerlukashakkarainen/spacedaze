@@ -22,16 +22,25 @@ import {
 import { lerpAngleBetweenPos, lerpMoveRotateAndScale } from "../shared";
 import { chance } from "../powerups";
 import type {
+	AccelerateModifier,
 	BounceModifier,
 	ChainModifier,
 	CritModifier,
+	CurveModifier,
+	DamageTickModifier,
+	DuplicateModifier,
+	GravityModifier,
 	ImpactModifier,
+	KnockbackModifier,
 	LifespanModifier,
 	OnDestroyModifier,
 	PiercingModifier,
 	ProjectileConfig,
 	SeekModifier,
+	SlowModifier,
 	SplashModifier,
+	SpiralModifier,
+	SplitModifier,
 	TrailModifier,
 } from "../projectiles/projectileConfig";
 
@@ -54,7 +63,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 			dir: config.dir,
 			lifetime: 0,
 		},
-		...[...config.tags, tags.gameLoopUi],
+		...[...config.tags, tags.gameLoop],
 	];
 
 	const proj = k.add(components);
@@ -70,6 +79,13 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	applyChainModifier(proj, config.chain);
 	applyLifespanModifier(proj, config.lifespan);
 	applyOnDestroyModifier(proj, config.onDestroy);
+	applySplitModifier(proj, config.split);
+	applyAccelerateModifier(proj, config.accelerate);
+	applyGravityModifier(proj, config.gravity);
+	applyCurveModifier(proj, config.curve);
+	applyDamageTickModifier(proj, config.damageTick);
+	applySlowModifier(proj, config.slow);
+	applyKnockbackModifier(proj, config.knockback);
 
 	// Play fire sound
 	if (config.fireSound) {
@@ -94,6 +110,44 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 		// Seeking behavior
 		if (proj.canSeek && proj.lifetime > proj.seekDelay) {
 			updateSeeking(proj);
+		}
+
+		// Split behavior
+		if (
+			proj.splitConfig &&
+			proj.lifetime > proj.splitConfig.splitDelay &&
+			!proj.hasSplit
+		) {
+			updateSplit(proj, config);
+		}
+
+		// Spiral behavior
+		if (proj.spiralConfig) {
+			updateSpiral(proj);
+		}
+
+		// Duplicate behavior
+		if (
+			proj.duplicateConfig &&
+			proj.lifetime > proj.duplicateConfig.delay &&
+			!proj.hasDuplicated
+		) {
+			updateDuplicate(proj, config);
+		}
+
+		// Accelerate behavior
+		if (proj.accelerateConfig) {
+			updateAccelerate(proj);
+		}
+
+		// Gravity behavior
+		if (proj.gravityConfig) {
+			updateGravity(proj);
+		}
+
+		// Curve behavior
+		if (proj.curveConfig) {
+			updateCurve(proj);
 		}
 
 		// Movement
@@ -206,6 +260,98 @@ function applyOnDestroyModifier(proj: GameObj, config?: OnDestroyModifier) {
 	proj.onDestroyConfig = config;
 }
 
+function applySplitModifier(proj: GameObj, config?: SplitModifier) {
+	if (!config) return;
+	proj.splitConfig = {
+		splitCount: config.splitCount,
+		splitAngle: config.splitAngle,
+		splitDelay: config.splitDelay ?? 0.5,
+		speedMultiplier: config.speedMultiplier ?? 0.8,
+		damageMultiplier: config.damageMultiplier ?? 0.6,
+	};
+	proj.hasSplit = false;
+}
+
+function applySpiralModifier(proj: GameObj, config?: SpiralModifier) {
+	if (!config) return;
+	proj.spiralConfig = {
+		rotationSpeed: config.rotationSpeed,
+		radius: config.radius,
+		expandSpeed: config.expandSpeed ?? 0,
+		currentRadius: 0,
+		currentAngle: 0,
+	};
+	proj.spiralCenter = proj.pos.clone();
+}
+
+function applyDuplicateModifier(proj: GameObj, config?: DuplicateModifier) {
+	if (!config) return;
+	proj.duplicateConfig = {
+		duplicateCount: config.duplicateCount,
+		offset: config.offset,
+		delay: config.delay ?? 0.3,
+	};
+	proj.hasDuplicated = false;
+}
+
+function applyAccelerateModifier(proj: GameObj, config?: AccelerateModifier) {
+	if (!config) return;
+	proj.accelerateConfig = {
+		acceleration: config.acceleration,
+		maxSpeed: config.maxSpeed ?? 1000,
+		minSpeed: config.minSpeed ?? 50,
+	};
+}
+
+function applyGravityModifier(proj: GameObj, config?: GravityModifier) {
+	if (!config) return;
+	proj.gravityConfig = {
+		strength: config.strength,
+		range: config.range,
+		falloff: config.falloff ?? 0.5,
+	};
+}
+
+function applyCurveModifier(proj: GameObj, config?: CurveModifier) {
+	if (!config) return;
+	const finalDirection =
+		config.direction === "random"
+			? Math.random() < 0.5
+				? "left"
+				: "right"
+			: config.direction;
+	proj.curveConfig = {
+		strength: config.strength,
+		direction: finalDirection,
+	};
+}
+
+function applyDamageTickModifier(proj: GameObj, config?: DamageTickModifier) {
+	if (!config) return;
+	proj.damageTickConfig = {
+		damagePerTick: config.damagePerTick,
+		tickInterval: config.tickInterval,
+		duration: config.duration,
+		effectType: config.effectType,
+		shader: config.shader,
+	};
+}
+
+function applySlowModifier(proj: GameObj, config?: SlowModifier) {
+	if (!config) return;
+	proj.slowConfig = {
+		duration: config.duration,
+		slowPercentage: config.slowPercentage,
+		effectType: config.effectType,
+		shader: config.shader,
+	};
+}
+
+function applyKnockbackModifier(proj: GameObj, config?: KnockbackModifier) {
+	if (!config) return;
+	proj.knockbackStrength = config.strength;
+}
+
 // Update Functions
 
 function updateTrail(proj: GameObj) {
@@ -271,6 +417,125 @@ function updateMovement(proj: GameObj) {
 				.scale(dtScaled() * proj.getTimescale())
 		);
 	}
+}
+
+function updateSplit(proj: GameObj, config: ProjectileConfig) {
+	proj.hasSplit = true;
+
+	const angleStep =
+		proj.splitConfig.splitAngle / (proj.splitConfig.splitCount - 1);
+	const startAngle = proj.angle - proj.splitConfig.splitAngle / 2;
+
+	for (let i = 0; i < proj.splitConfig.splitCount; i++) {
+		const angle = startAngle + i * angleStep;
+		const dir = k.Vec2.fromAngle(angle - 90);
+
+		const newConfig: ProjectileConfig = {
+			...config,
+			pos: proj.pos.clone(),
+			dir: dir,
+			rotation: angle,
+			speed: config.speed * proj.splitConfig.speedMultiplier,
+			split: undefined,
+		};
+
+		if (newConfig.impact) {
+			newConfig.impact.damage *= proj.splitConfig.damageMultiplier;
+		}
+
+		spawnProjectile(newConfig);
+	}
+
+	k.destroy(proj);
+}
+
+function updateSpiral(proj: GameObj) {
+	const config = proj.spiralConfig;
+	config.currentAngle +=
+		config.rotationSpeed * dtScaled() * proj.getTimescale();
+	config.currentRadius += config.expandSpeed * dtScaled() * proj.getTimescale();
+
+	const spiralOffset = k.Vec2.fromAngle(config.currentAngle).scale(
+		config.radius + config.currentRadius
+	);
+	const baseDir = k.Vec2.fromAngle(proj.angle - 90);
+	const baseMovement = baseDir.scale(
+		proj.speed * dtScaled() * proj.getTimescale()
+	);
+
+	proj.spiralCenter = proj.spiralCenter.add(baseMovement);
+	proj.pos = proj.spiralCenter.add(spiralOffset);
+}
+
+function updateDuplicate(proj: GameObj, config: ProjectileConfig) {
+	proj.hasDuplicated = true;
+
+	for (let i = 0; i < proj.duplicateConfig.duplicateCount; i++) {
+		const offsetAngle =
+			(i + 1) * (360 / (proj.duplicateConfig.duplicateCount + 1));
+		const offsetDir = k.Vec2.fromAngle(offsetAngle);
+		const offsetPos = proj.pos.add(
+			offsetDir.scale(proj.duplicateConfig.offset)
+		);
+
+		const newConfig: ProjectileConfig = {
+			...config,
+			pos: offsetPos,
+			duplicate: undefined,
+		};
+
+		spawnProjectile(newConfig);
+	}
+}
+
+function updateAccelerate(proj: GameObj) {
+	const config = proj.accelerateConfig;
+	proj.speed += config.acceleration * dtScaled() * proj.getTimescale();
+	proj.speed = Math.max(config.minSpeed, Math.min(config.maxSpeed, proj.speed));
+}
+
+function updateGravity(proj: GameObj) {
+	const config = proj.gravityConfig;
+	const massObjects = k.query({ include: ["mass"], includeOp: "and" });
+
+	for (const obj of massObjects) {
+		const distance = proj.pos.dist(obj.pos);
+		if (distance > config.range || distance < 1) continue;
+
+		// Calculate direction from mass object to projectile (pull towards projectile)
+		const direction = proj.pos.sub(obj.pos).unit();
+
+		// Calculate force with distance falloff (inverse square law approximation)
+		const normalizedDistance = distance / config.range;
+		const falloffMultiplier = Math.pow(1 - normalizedDistance, config.falloff);
+		const force =
+			config.strength * falloffMultiplier * dtScaled() * proj.getTimescale();
+
+		// Apply force to mass object's velocity (relative effect)
+		const acceleration = direction.scale(force / obj.mass);
+		obj.velocity.x += acceleration.x;
+		obj.velocity.y += acceleration.y;
+
+		// Apply velocity to position
+		obj.pos.x +=
+			obj.velocity.x * dtScaled() * (obj.getTimescale ? obj.getTimescale() : 1);
+		obj.pos.y +=
+			obj.velocity.y * dtScaled() * (obj.getTimescale ? obj.getTimescale() : 1);
+
+		// Apply damping to prevent infinite acceleration
+		const damping = 0.95;
+		obj.velocity.x *= damping;
+		obj.velocity.y *= damping;
+	}
+}
+
+function updateCurve(proj: GameObj) {
+	const config = proj.curveConfig;
+	const turnDirection = config.direction === "left" ? -1 : 1;
+	const angleChange =
+		config.strength * turnDirection * dtScaled() * proj.getTimescale();
+	proj.angle += angleChange;
+	proj.dir = k.Vec2.fromAngle(proj.angle - 90);
 }
 
 function handleBounce(target: GameObj, projectile: GameObj) {
@@ -421,6 +686,22 @@ export function applyProjectileDamage(
 		handleChainLightning(target, projectile);
 	}
 
+	// Apply damage tick effect
+	if (projectile.damageTickConfig) {
+		applyDamageTickEffect(target, projectile.damageTickConfig);
+	}
+
+	// Apply slow effect
+	if (projectile.slowConfig) {
+		applySlowEffect(target, projectile.slowConfig);
+	}
+
+	// Apply knockback
+	if (projectile.knockbackStrength !== undefined && target.vel) {
+		const dir = projectile.pos.sub(target.pos).unit();
+		target.vel = target.vel.add(dir.scale(projectile.knockbackStrength));
+	}
+
 	return shouldDestroy;
 }
 
@@ -461,5 +742,181 @@ function handleChainLightning(target: GameObj, projectile: GameObj) {
 			handleChainLightning(unit, projectile);
 		}
 		break;
+	}
+}
+
+function applyDamageTickEffect(target: GameObj, config: any) {
+	// Check if target already has damage tick effect
+	if (target.damageTickEffect) {
+		// Refresh duration if already applied
+		target.damageTickEffect.endTime = target.lifetime + config.duration;
+		return;
+	}
+
+	// Initialize target lifetime if not present
+	if (target.lifetime === undefined) {
+		target.lifetime = 0;
+	}
+
+	// Apply shader if specified
+	if (config.shader && !target.hasShader) {
+		target.use(k.shader(config.shader));
+		target.hasShader = true;
+	}
+
+	// Set up damage tick effect
+	target.damageTickEffect = {
+		damagePerTick: config.damagePerTick,
+		tickInterval: config.tickInterval,
+		duration: config.duration,
+		effectType: config.effectType,
+		nextTickTime: target.lifetime + config.tickInterval,
+		endTime: target.lifetime + config.duration,
+		shader: config.shader,
+	};
+
+	// Add update handler if not already present
+	if (!target.hasDamageTickUpdate) {
+		target.hasDamageTickUpdate = true;
+		target.onUpdate(() => {
+			if (!target.damageTickEffect) return;
+
+			target.lifetime += dtScaled();
+
+			// Check if effect has expired
+			if (target.lifetime >= target.damageTickEffect.endTime) {
+				// Remove shader if specified
+				if (target.damageTickEffect.shader && target.hasShader) {
+					target.unuse("shader");
+					target.hasShader = false;
+				}
+				target.damageTickEffect = null;
+				return;
+			}
+
+			// Check if it's time to tick
+			if (target.lifetime >= target.damageTickEffect.nextTickTime) {
+				target.hurt(target.damageTickEffect.damagePerTick);
+				target.damageTickEffect.nextTickTime =
+					target.lifetime + target.damageTickEffect.tickInterval;
+
+				// Spawn effect particles
+				if (target.damageTickEffect.effectType) {
+					let emitter: any;
+					switch (target.damageTickEffect.effectType) {
+						case "trail":
+							emitter = trailEmitter;
+							break;
+						case "spark":
+							emitter = sparkEmitter;
+							break;
+						case "dust":
+							emitter = dustTrailEmitter;
+							break;
+						case "stars":
+							emitter = starsEmitter;
+							break;
+					}
+					if (emitter) {
+						emitter.emitter.position = target.pos;
+						emitter.emit(3);
+					}
+				}
+			}
+		});
+	}
+}
+
+function applySlowEffect(target: GameObj, config: any) {
+	// Check if target already has slow effect
+	if (target.slowEffect) {
+		// Refresh duration if already applied
+		target.slowEffect.endTime = target.lifetime + config.duration;
+		return;
+	}
+
+	// Initialize target lifetime if not present
+	if (target.lifetime === undefined) {
+		target.lifetime = 0;
+	}
+
+	// Store original speed if not already stored
+	if (target.originalSpeed === undefined && target.speed !== undefined) {
+		target.originalSpeed = target.speed;
+	}
+
+	// Apply shader if specified
+	if (config.shader && !target.hasSlowShader) {
+		target.use(k.shader(config.shader));
+		target.hasSlowShader = true;
+	}
+
+	// Apply slow to speed
+	if (target.speed !== undefined) {
+		target.speed = target.originalSpeed * (1 - config.slowPercentage);
+	}
+
+	// Set up slow effect
+	target.slowEffect = {
+		duration: config.duration,
+		slowPercentage: config.slowPercentage,
+		effectType: config.effectType,
+		endTime: target.lifetime + config.duration,
+		shader: config.shader,
+		particleTimer: 0,
+	};
+
+	// Add update handler if not already present
+	if (!target.hasSlowUpdate) {
+		target.hasSlowUpdate = true;
+		target.onUpdate(() => {
+			if (!target.slowEffect) return;
+
+			target.lifetime += dtScaled();
+			target.slowEffect.particleTimer += dtScaled();
+
+			// Spawn effect particles periodically
+			if (
+				target.slowEffect.effectType &&
+				target.slowEffect.particleTimer >= 0.1
+			) {
+				target.slowEffect.particleTimer = 0;
+				let emitter: any;
+				switch (target.slowEffect.effectType) {
+					case "trail":
+						emitter = trailEmitter;
+						break;
+					case "spark":
+						emitter = sparkEmitter;
+						break;
+					case "dust":
+						emitter = dustTrailEmitter;
+						break;
+					case "stars":
+						emitter = starsEmitter;
+						break;
+				}
+				if (emitter) {
+					emitter.emitter.position = target.pos;
+					emitter.emit(1);
+				}
+			}
+
+			// Check if effect has expired
+			if (target.lifetime >= target.slowEffect.endTime) {
+				// Restore original speed
+				if (target.originalSpeed !== undefined) {
+					target.speed = target.originalSpeed;
+				}
+
+				// Remove shader if specified
+				if (target.slowEffect.shader && target.hasSlowShader) {
+					target.unuse("shader");
+					target.hasSlowShader = false;
+				}
+
+				target.slowEffect = null;
+			}
+		});
 	}
 }

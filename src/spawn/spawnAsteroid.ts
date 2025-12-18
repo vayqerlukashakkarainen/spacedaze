@@ -7,6 +7,7 @@ import { tags } from "../tags";
 import { randomExplosion } from "../util";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
 import { timescale } from "../comp/timescale";
+import { mass } from "../comp/mass";
 
 interface Props {
 	pos: Vec2;
@@ -29,6 +30,7 @@ export function spawnMeteorite(props: Props) {
 		k.health(props.hp),
 		k.animate(),
 		timescale(),
+		mass(1),
 		k.offscreen({ destroy: true }),
 		{
 			vel: props.dir,
@@ -39,6 +41,7 @@ export function spawnMeteorite(props: Props) {
 		},
 		tags.enemy,
 		tags.unit,
+		tags.gameLoop,
 	]);
 
 	registerHitAnimation(m);

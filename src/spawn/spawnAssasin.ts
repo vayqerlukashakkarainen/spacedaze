@@ -33,6 +33,7 @@ export function spawnAssasin(pos: Vec2, am: number, hp: number, scale: number) {
 		k.state("retreat", ["attack", "retreat"]),
 		tags.enemy,
 		tags.unit,
+		tags.gameLoop,
 	]);
 
 	m.onStateEnter("retreat", async () => {

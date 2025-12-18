@@ -23,6 +23,7 @@ export function spawnPowerup(pos: Vec2, powerupKey: PowerupKey) {
 		},
 		tags.props,
 		tags.unit,
+		tags.gameLoop,
 	]);
 
 	const c = m.add([

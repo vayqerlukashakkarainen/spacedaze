@@ -48,6 +48,7 @@ export function spawnBackgroundObject(props: BackgroundObjectProps): GameObj {
 		k.layer(layers.bg),
 		k.z(zIndex),
 		tags.levelBg,
+		tags.gameLoop,
 		{
 			parallaxLevel: props.parallaxLevel,
 			initialCamPos: initialCamPos,

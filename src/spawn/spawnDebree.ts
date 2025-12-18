@@ -18,6 +18,7 @@ export function spawnDebree(pos: Vec2, am: number) {
 				lifeSpan: 0,
 			},
 			tags.debree,
+			tags.gameLoop,
 		]);
 
 		d.onUpdate(() => {

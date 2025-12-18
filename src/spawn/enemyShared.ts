@@ -10,12 +10,6 @@ export function onEnemyHit(m: GameObj, p: GameObj) {
 	// Use new projectile damage system
 	const shouldDestroy = applyProjectileDamage(m, p);
 
-	// Apply knockback for blasters
-	if (p.tags.includes(tags.blaster) && m.vel) {
-		const dir = p.pos.sub(m.pos).unit();
-		m.vel = m.vel.add(dir.scale(-1));
-	}
-
 	// Shake on splash damage
 	if (p.splashDamage !== undefined) {
 		k.shake(3);

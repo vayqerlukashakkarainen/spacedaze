@@ -46,6 +46,7 @@ export function spawnShip1(
 		},
 		tags.enemy,
 		tags.unit,
+		tags.gameLoop,
 	]);
 
 	const wing1 = m.add([
@@ -58,6 +59,7 @@ export function spawnShip1(
 		timescale(),
 		jitter(),
 		tags.part,
+		tags.gameLoop,
 	]);
 	const wing2 = m.add([
 		k.pos(k.vec2(wingOffset[0], -wingOffset[1])),
@@ -69,6 +71,7 @@ export function spawnShip1(
 		timescale(),
 		jitter(),
 		tags.part,
+		tags.gameLoop,
 	]);
 
 	unitComponents[m.id!] = compose({

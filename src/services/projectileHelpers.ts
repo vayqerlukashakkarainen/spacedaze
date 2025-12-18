@@ -1,5 +1,5 @@
 import { Vec2 } from "kaplay";
-import { BULLET_SPEED, ROCKET_SPEED } from "../main";
+import { BULLET_SPEED, k, ROCKET_SPEED } from "../main";
 import { tags } from "../tags";
 import { ProjectileConfig } from "../projectiles/projectileConfig";
 import { spawnProjectile } from "./projectileService";
@@ -45,15 +45,6 @@ export function spawnPlayerBlaster(pos: Vec2, dir: Vec2, rot: number) {
 		impact: {
 			damage: player.blasterDmg,
 			damageMultiplier: player.blasterDmgMultiplier,
-		},
-		bounce: {
-			maxBounces: 3,
-		},
-		chain: {
-			maxChains: 3,
-			chainDistance: 200,
-			damageReduction: 0.7,
-			targetTags: [tags.enemy],
 		},
 		crit: {
 			chance: player.critChance,

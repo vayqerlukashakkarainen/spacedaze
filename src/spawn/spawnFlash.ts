@@ -3,6 +3,7 @@ import { k } from "../main";
 import { explosionEmitter } from "../particles";
 import { loopService } from "../services/loopService";
 import { spawnRing } from "./spawnRing";
+import { tags } from "../tags";
 
 export function spawnFlash(pos: Vec2, size: number) {
 	const crit = k.add([
@@ -12,6 +13,7 @@ export function spawnFlash(pos: Vec2, size: number) {
 		k.scale(1),
 		k.opacity(1),
 		k.lifespan(0.04),
+		tags.gameLoop,
 	]);
 }
 

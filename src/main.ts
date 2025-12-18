@@ -9,6 +9,8 @@ import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
 import { spawnTimescaleZone } from "./spawn/spawnTimescaleZone";
 import { spawnRing } from "./spawn/spawnRing";
+import { startChestOpeningSequence } from "./chestOpening";
+import { tags } from "./tags";
 
 export const layers = {
 	bg: "bg",
@@ -20,6 +22,7 @@ export const layers = {
 export const GameState = {
 	Playing: 1,
 	LevelUp: 2,
+	ChestOpening: 3,
 };
 
 const borderOffset = -22;
@@ -35,7 +38,6 @@ export const musicVolume = 0.6;
 
 let gameState = GameState.Playing;
 let isPaused = false;
-let pauseText: GameObj<TextComp> | undefined;
 export let timeScale = 1;
 let targetTimeScale = 1;
 let startTimeScale = 1;
@@ -45,9 +47,7 @@ let timescaleLerpProgress = 0;
 export const k = kaplay({
 	background: "#000000",
 	global: false,
-	scale: 1.2,
-	width: 700,
-	height: 700,
+	scale: 1,
 });
 
 export function dt() {
@@ -102,7 +102,7 @@ init(k).then(() => {
 	});
 
 	// Slow motion controls
-	k.onKeyPress("a", () => {
+	k.onKeyPress("q", () => {
 		setTimescale(0.5);
 		audioService.playSound("slowdown", { volume: 1 });
 		spawnRing({
@@ -114,11 +114,7 @@ init(k).then(() => {
 		});
 	});
 
-	k.onKeyPress("s", () => {
-		setTimescale(0.8);
-	});
-
-	k.onKeyPress("d", () => {
+	k.onKeyPress("e", () => {
 		setTimescale(1);
 	});
 
@@ -133,6 +129,13 @@ init(k).then(() => {
 			duration: 5,
 		});
 	});
+
+	// Temporary: Test chest opening sequence with K key
+	k.onKeyPress("k", () => {
+		if (gameState !== GameState.Playing) return;
+		changeGameState(GameState.ChestOpening);
+		togglePause();
+	});
 });
 
 export function changeGameState(state: number) {
@@ -143,6 +146,10 @@ export function changeGameState(state: number) {
 	} else if (gameState == GameState.LevelUp) {
 		saveGame("slot1");
 		enterLevelUp();
+	} else if (gameState == GameState.ChestOpening) {
+		startChestOpeningSequence(() => {
+			changeGameState(GameState.Playing);
+		});
 	}
 }
 
@@ -190,7 +197,7 @@ function togglePause() {
 
 	if (isPaused) {
 		// Show pause text
-		const objs = k.get<GameObj>("*");
+		const objs = k.get<GameObj>(tags.gameLoop);
 
 		objs.forEach((o) => {
 			if (!o.paused) {
@@ -198,24 +205,10 @@ function togglePause() {
 			}
 		});
 
-		pauseText = k.add([
-			k.text("PAUSED", { size: 32, font: "unscii" }),
-			k.pos(k.center()),
-			k.anchor("center"),
-			k.color(255, 255, 255),
-			k.layer(layers.ui),
-			k.z(1000),
-		]);
 		audioService.pauseMusic();
 		loopService.pauseAll();
 	} else {
-		// Remove pause text
-		if (pauseText) {
-			k.destroy(pauseText);
-			pauseText = undefined;
-		}
-
-		const objs = k.get<GameObj>("*");
+		const objs = k.get<GameObj>(tags.gameLoop);
 
 		objs.forEach((o) => {
 			if (o.paused) {

@@ -65,6 +65,7 @@ export function spawnLink(props: Props) {
 			distortion: distortion,
 		},
 		tags.props,
+		tags.gameLoop,
 	]);
 
 	// Apply lightning shader if distortion is enabled

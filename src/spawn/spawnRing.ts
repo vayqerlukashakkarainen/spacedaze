@@ -28,6 +28,7 @@ export function spawnRing(props: Props) {
 			maxRadius: maxRadius,
 		},
 		tags.props,
+		tags.gameLoop,
 	]);
 
 	// Create visual ring outline

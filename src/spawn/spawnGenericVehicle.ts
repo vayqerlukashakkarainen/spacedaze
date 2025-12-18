@@ -38,6 +38,7 @@ export function spawnGenericVehicle(
 		},
 		tags.enemy,
 		tags.unit,
+		tags.gameLoop,
 	]);
 
 	registerHitAnimation(m);

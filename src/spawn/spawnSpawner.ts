@@ -21,6 +21,7 @@ export function spawnSpawner(props: Props) {
 			maxSpawn: props.maxSpawns,
 		},
 		tags.enemy,
+		tags.gameLoop,
 	]);
 
 	m.onUpdate(() => {

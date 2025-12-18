@@ -32,6 +32,7 @@ export function spawnCrate(props: Props) {
 		},
 		tags.enemy,
 		tags.unit,
+		tags.gameLoop,
 	]);
 
 	registerHitAnimation(m);

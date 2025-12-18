@@ -51,6 +51,7 @@ export function spawnFollower(props: Props) {
 		},
 		tags.friendly,
 		tags.unit,
+		tags.gameLoop,
 	]);
 
 	registerHitAnimation(m);
