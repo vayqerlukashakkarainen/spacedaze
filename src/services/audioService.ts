@@ -11,7 +11,10 @@ let currentMusic: AudioPlay | null = null;
 let currentMusicId: string | null = null;
 
 export const audioService = {
-	playSound(soundId: string, options?: { volume?: number }): AudioPlay {
+	playSound(
+		soundId: string,
+		options?: { volume?: number; detune?: number }
+	): AudioPlay {
 		const audio = k.play(soundId, options);
 
 		// Track this sound

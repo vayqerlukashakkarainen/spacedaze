@@ -2,7 +2,14 @@ import { GameObj, PosComp } from "kaplay";
 import { k, layers, mainSoundVolume } from "./main";
 import { ChestReward, generateChestReward } from "./chestRewards";
 import { audioService } from "./services/audioService";
+import { shake } from "./comp/shake";
 import { powerups } from "./powerups";
+import {
+	explosionEmitter,
+	getUiEffects,
+	shineEmitter,
+	sparkEmitter,
+} from "./particles";
 
 interface TimingZone {
 	start: number; // 0-1
@@ -19,8 +26,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		k.pos(0, 0),
 		k.color(0, 0, 0),
 		k.opacity(0.8),
-		k.layer(layers.ui),
-		k.z(100),
+		k.layer(layers.game),
 		"chestUI",
 	]);
 
@@ -28,7 +34,6 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 	const chestController = k.add([
 		k.pos(center),
 		k.layer(layers.ui),
-		k.z(101),
 		{
 			onComplete: onSequenceComplete,
 			reward: null as ChestReward | null,
@@ -40,6 +45,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			passes: 0,
 			maxPasses: 3,
 			uiContainer: null as GameObj | null,
+			borderBox: null as GameObj | null,
 			crateSprite: null as GameObj | null,
 			timingBarObj: null as GameObj | null,
 			explosionStarted: false,
@@ -48,8 +54,16 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			spaceKeyHandler: undefined as any,
 			barScale: k.vec2(1, 1),
 			barTargetScale: k.vec2(1, 1),
+			multiplierText: null as GameObj | null,
+			rewardSprite: null as GameObj | null,
 		},
-		k.state("initial", ["initial", "timingGame", "explosion", "reveal"]),
+		k.state("initial", [
+			"initial",
+			"timingGame",
+			"explosion",
+			"reveal",
+			"showDetails",
+		]),
 		"chestUI",
 	]);
 
@@ -58,12 +72,32 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		// White border box
 		const boxWidth = 400;
 		const boxHeight = 400;
-		chestController.uiContainer = chestController.add([
+		chestController.borderBox = chestController.add([
 			k.rect(boxWidth, boxHeight),
 			k.anchor("center"),
 			k.color(0, 0, 0),
 			k.outline(4, new k.Color(255, 255, 255)),
+			k.scale(0.5),
+			k.opacity(0),
+			k.animate(),
 		]);
+
+		// Animate border box in
+		chestController.borderBox.animate(
+			"scale",
+			[k.vec2(0.5, 0.5), k.vec2(1, 1)],
+			{
+				duration: 0.2,
+				easing: k.easings.easeOutCubic,
+				loops: 1,
+			}
+		);
+		chestController.borderBox.animate("opacity", [0, 1], {
+			duration: 0.2,
+			loops: 1,
+		});
+
+		chestController.uiContainer = chestController.borderBox.add([k.pos(0, 0)]);
 
 		// Upscaled crate sprite
 		chestController.crateSprite = chestController.uiContainer.add([
@@ -71,15 +105,24 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			k.pos(0, 0),
 			k.anchor("center"),
 			k.scale(1),
+			shake(),
 		]);
 
-		// Wait briefly then transition to timing game
-		await k.wait(0.5);
+		// Multiplier text below crate
+		chestController.multiplierText = chestController.uiContainer.add([
+			k.text("x0", { size: 24, font: "unscii" }),
+			k.pos(0, 50),
+			k.anchor("center"),
+			k.scale(1),
+			k.opacity(0),
+			k.animate(),
+		]);
+
 		chestController.enterState("timingGame");
 	});
 
 	// State: Timing Game
-	chestController.onStateEnter("timingGame", () => {
+	chestController.onStateEnter("timingGame", async () => {
 		if (!chestController.uiContainer) return;
 
 		// Generate random timing zones
@@ -163,39 +206,55 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 					zone.hit = true;
 					chestController.successfulHits++;
 					hitZone = true;
-					audioService.playSound("explosion1", { volume: mainSoundVolume });
+					audioService.playSound("explosion1", {
+						volume: mainSoundVolume,
+						detune: chestController.successfulHits * 200,
+					});
 					k.shake(5);
 					// Scale up on hit
 					chestController.barTargetScale = k.vec2(6, 6);
 
+					// Shake the crate
+					if (
+						chestController.crateSprite &&
+						chestController.crateSprite.shake
+					) {
+						chestController.crateSprite.shake(10);
+					}
+
+					// Update multiplier text
+					if (chestController.multiplierText) {
+						chestController.multiplierText.text = `x${chestController.successfulHits}`;
+						chestController.multiplierText.opacity = 1;
+
+						// Calculate target scale: starts at 1, increases by 0.3 for each hit
+						const targetScale = 1 + (chestController.successfulHits - 1) * 0.3;
+						const popScale = targetScale * 1.5;
+
+						// Pop animation
+						chestController.multiplierText.animate(
+							"scale",
+							[
+								k.vec2(targetScale, targetScale),
+								k.vec2(popScale, popScale),
+								k.vec2(targetScale, targetScale),
+							],
+							{
+								loops: 1,
+								duration: 0.3,
+								timing: [0, 0.3, 1],
+							}
+						);
+					}
+
 					// Update zone opacity
 					if (chestController.zoneObjects[i]) {
 						chestController.zoneObjects[i].opacity = 0.3;
-					}
-
-					// Spawn particles at hit position
+					} // Spawn particles at hit position using emitter
 					const hitX = -barWidth / 2 + ((zone.start + zone.end) / 2) * barWidth;
-					const numParticles = 8;
-					for (let p = 0; p < numParticles; p++) {
-						const particle = chestController.uiContainer.add([
-							k.sprite("particle2"),
-							k.pos(hitX, barY),
-							k.anchor("center"),
-							k.rotate(k.rand(360)),
-							k.opacity(1),
-							{
-								vel: k.Vec2.fromAngle(k.rand(0, 360)).scale(k.rand(50, 150)),
-							},
-						]);
-
-						particle.onUpdate(() => {
-							particle.pos = particle.pos.add(particle.vel.scale(k.dt()));
-							particle.vel = particle.vel.scale(0.95);
-						});
-
-						particle.fadeOut(0.5);
-						k.wait(0.5, () => k.destroy(particle));
-					}
+					const hitWorldPos = chestController.worldPos().add(hitX, barY);
+					getUiEffects().explosionEmitter.pos = chestController.pos;
+					getUiEffects().explosionEmitter.emit(15);
 
 					break;
 				}
@@ -214,6 +273,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		};
 
 		chestController.spaceKeyHandler = k.onKeyPress("space", checkTimingHit);
+
+		// Wait briefly then transition to timing game
+		await k.wait(0.5);
 	});
 
 	chestController.onStateUpdate("timingGame", () => {
@@ -263,6 +325,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			chestController.timingBarObj.pos = k.vec2(newX, barY + barHeight / 2);
 			chestController.timingBarObj.scale = chestController.barScale;
 		}
+
+		getUiEffects().explosionEmitter.pos = k.vec2(200, 200);
+		getUiEffects().explosionEmitter.emit(15);
 	});
 
 	// State: Explosion
@@ -292,28 +357,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		if (t >= 1 && chestController.explosionStarted) {
 			chestController.explosionStarted = false;
 
-			// Spawn debris particles
-			const numParticles = 20;
-			for (let i = 0; i < numParticles; i++) {
-				const particle = chestController.add([
-					k.sprite("particle2"),
-					k.pos(0, 0),
-					k.anchor("center"),
-					k.rotate(k.rand(360)),
-					k.opacity(1),
-					{
-						vel: k.Vec2.fromAngle(k.rand(0, 360)).scale(k.rand(100, 200)),
-					},
-				]);
-
-				particle.onUpdate(() => {
-					particle.pos = particle.pos.add(particle.vel.scale(k.dt()));
-					particle.vel = particle.vel.scale(0.95);
-				});
-
-				particle.fadeOut(0.8);
-				k.wait(0.8, () => k.destroy(particle));
-			}
+			// Spawn debris particles using emitter
+			getUiEffects().explosionEmitter.pos = chestController.pos;
+			getUiEffects().explosionEmitter.emit(20);
 
 			// Play explosion sound
 			audioService.playSound("explosion4", { volume: mainSoundVolume });
@@ -324,10 +370,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				chestController.crateSprite = null;
 			}
 
-			// Wait briefly then show reward
-			k.wait(0.5, () => {
-				chestController.enterState("reveal");
-			});
+			chestController.enterState("reveal");
 		}
 	});
 
@@ -346,47 +389,101 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 
 		const reward = chestController.reward;
 
-		// Remove old UI container
+		// Clear old UI container content but keep the border box
 		if (chestController.uiContainer) {
-			k.destroy(chestController.uiContainer);
+			chestController.uiContainer.removeAll();
 		}
 
-		// Create new container for reward screen
-		const boxWidth = 400;
-		const boxHeight = 500;
-		const container = chestController.add([k.pos(0, 0)]);
-
-		// White border box
-		container.add([
-			k.rect(boxWidth, boxHeight),
-			k.anchor("center"),
-			k.color(0, 0, 0),
-			k.outline(4, new k.Color(255, 255, 255)),
-		]);
-
-		// Reward sprite
-		container.add([
+		// Reward sprite with animation
+		chestController.rewardSprite = chestController.uiContainer.add([
 			k.sprite(reward.sprite, { width: 64, height: 64 }),
-			k.pos(0, -140),
+			k.pos(0, 0),
 			k.anchor("center"),
+			k.scale(1),
+			k.animate(),
 		]);
+
+		// Add shine effect behind reward sprite that follows it
+		chestController.rewardSprite.onUpdate(() => {
+			const spriteWorldPos = chestController.rewardSprite.pos;
+			getUiEffects().shineEmitter.pos = spriteWorldPos;
+			getUiEffects().shineEmitter.emit(2);
+		});
+
+		// Animate position with ease out, then start bobbing animation
+		chestController.rewardSprite.animate(
+			"pos",
+			[k.vec2(0, 0), k.vec2(0, -100)],
+			{
+				duration: 1,
+				loops: 1,
+				easing: k.easings.easeOutCubic,
+			}
+		);
+
+		chestController.rewardSprite.onAnimateChannelFinished((anim) => {
+			if (anim === "pos") {
+				chestController.rewardSprite.animate(
+					"pos",
+					[k.vec2(0, -140), k.vec2(0, -130)],
+					{
+						duration: 1,
+						easing: k.easings.easeInOutCubic,
+						direction: "ping-pong",
+						timing: [0, 1],
+					}
+				);
+			}
+		});
+
+		// Animate scale with pop effect
+		chestController.rewardSprite.animate(
+			"scale",
+			[k.vec2(1, 1), k.vec2(1.4, 1.4), k.vec2(1, 1)],
+			{
+				loops: 1,
+				duration: 0.8,
+				timing: [0, 0.1, 1],
+			}
+		);
+
+		// Wait 1 second then show details
+		k.wait(1, () => {
+			chestController.enterState("showDetails");
+		});
+	});
+
+	// State: Show Details
+	chestController.onStateEnter("showDetails", () => {
+		if (!chestController.reward) return;
+
+		const reward = chestController.reward;
+		const boxWidth = chestController.borderBox.width;
 
 		// Rarity text
-		container.add([
-			k.text(reward.rarity, { size: 14, font: "unscii" }),
-			k.pos(0, -60),
-			k.anchor("center"),
-		]);
+		chestController.uiContainer
+			.add([
+				k.text(reward.rarity, { size: 14, font: "unscii" }),
+				k.pos(0, -60),
+				k.anchor("center"),
+				k.opacity(0),
+				k.animate(),
+			])
+			.animate("opacity", [0, 1], { duration: 0.3, loops: 1 });
 
 		// Reward name
-		container.add([
-			k.text(reward.name, { size: 18, font: "unscii" }),
-			k.pos(0, -30),
-			k.anchor("center"),
-		]);
+		chestController.uiContainer
+			.add([
+				k.text(reward.name, { size: 18, font: "unscii" }),
+				k.pos(0, -30),
+				k.anchor("center"),
+				k.opacity(0),
+				k.animate(),
+			])
+			.animate("opacity", [0, 1], { duration: 0.3, loops: 1, delay: 0.1 });
 
 		// Description
-		container.add([
+		chestController.uiContainer.add([
 			k.text(reward.description, {
 				size: 12,
 				font: "unscii",
@@ -399,9 +496,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		]);
 
 		// Accept button
-		const acceptBtn = container.add([
+		const acceptBtn = chestController.uiContainer.add([
 			k.rect(300, 50),
-			k.pos(0, 180),
+			k.pos(0, 140),
 			k.anchor("center"),
 			k.area(),
 			k.color(255, 255, 255),

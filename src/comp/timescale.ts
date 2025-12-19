@@ -1,5 +1,4 @@
 import { Comp } from "kaplay";
-import { k } from "../main";
 
 export interface TimescaleComp extends Comp {
 	timescale: number;

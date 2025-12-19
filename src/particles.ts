@@ -1,5 +1,6 @@
 import { GameObj, ParticlesComp, PosComp } from "kaplay";
-import { k } from "./main";
+import { k, layers } from "./main";
+import { tags } from "./tags";
 
 export let trailEmitter: GameObj<PosComp | ParticlesComp>;
 export let starsEmitter: GameObj<PosComp | ParticlesComp>;
@@ -9,6 +10,76 @@ export let debreeEmitter: GameObj<PosComp | ParticlesComp>;
 export let debreeRocketEmitter: GameObj<PosComp | ParticlesComp>;
 export let dustTrailEmitter: GameObj<PosComp | ParticlesComp>;
 export let sparkEmitter: GameObj<PosComp | ParticlesComp>;
+export let shineEmitter: GameObj<PosComp | ParticlesComp>;
+
+interface UiEffects {
+	shineEmitter: GameObj<PosComp | ParticlesComp>;
+	explosionEmitter: GameObj<PosComp | ParticlesComp>;
+}
+
+let uiEffects: UiEffects | null = null;
+
+export function getUiEffects() {
+	if (!uiEffects) {
+		throw new Error("UI Effects not initialized");
+	}
+	return uiEffects;
+}
+
+export function initUiEffects() {
+	uiEffects = {
+		shineEmitter: k.add([
+			k.pos(),
+			k.layer(layers.uiEffects),
+			k.particles(
+				{
+					max: 500,
+					speed: [100, 200],
+					angle: [0, 360],
+					lifeTime: [0.3, 2.5],
+					colors: [k.rgb(255, 255, 255)],
+					opacities: [0.6, 1, 0.8],
+					scales: [0.1, 5, 4],
+					damping: [3, 5],
+					texture: k.getSprite("particle4")!.data!.tex,
+					quads: [k.getSprite("particle4")!.data!.frames[0]],
+				},
+				{
+					rate: 0,
+					direction: 0,
+					spread: 360,
+					position: k.vec2(),
+				}
+			),
+		]),
+
+		explosionEmitter: k.add([
+			k.pos(),
+			k.particles(
+				{
+					max: 1000,
+					speed: [30, 80],
+					angle: [0, 360],
+					lifeTime: [0.5, 1.2],
+					colors: [k.rgb(255, 255, 255)],
+					opacities: [0.8, 0.5],
+					scales: [0.4, 2, 1.2, 0.4, 0.1],
+					damping: [1, 2],
+					texture: k.getSprite("particle3")!.data!.tex,
+					quads: [k.getSprite("particle3")!.data!.frames[0]],
+				},
+				{
+					rate: 0,
+					direction: -90,
+					spread: 360,
+					position: k.vec2(),
+				}
+			),
+
+			k.layer(layers.uiEffects),
+		]),
+	};
+}
 
 export function initParticles() {
 	trailEmitter = k.add([

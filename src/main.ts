@@ -4,7 +4,7 @@ import { startGame, updateGameLoop } from "./game";
 import { enterLevelUp, updateLevelUpLoop } from "./levelUp";
 import { setLoadout } from "./upg";
 import { loadPlayer } from "./player";
-import { initParticles } from "./particles";
+import { initParticles, initUiEffects } from "./particles";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
 import { spawnTimescaleZone } from "./spawn/spawnTimescaleZone";
@@ -17,6 +17,7 @@ export const layers = {
 	game2: "game2",
 	game: "game",
 	ui: "ui",
+	uiEffects: "uiEffects",
 };
 
 export const GameState = {
@@ -71,8 +72,12 @@ export function setTimescale(target: number, duration: number = 0.3) {
 
 init(k).then(() => {
 	initParticles();
+	initUiEffects();
 	loadGameSlot();
-	k.setLayers([layers.bg, layers.game2, layers.game, layers.ui], layers.game);
+	k.setLayers(
+		[layers.bg, layers.game2, layers.game, layers.ui, layers.uiEffects],
+		layers.game
+	);
 
 	addBorderOffsets();
 
