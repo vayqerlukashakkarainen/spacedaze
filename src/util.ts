@@ -8,7 +8,7 @@ interface SaveSlot {
 	loadout: Record<string, number | undefined>;
 }
 
-export async function init(k: KAPLAYCtx<{}, never>) {
+export async function init(k: KAPLAYCtx) {
 	await k.loadRoot("./"); // A good idea for Itch.io publishing later
 	await k.loadSprite("ship", "sprites/ship.png");
 	await k.loadSprite("crate1", "sprites/crate1.png");
@@ -217,8 +217,8 @@ export async function init(k: KAPLAYCtx<{}, never>) {
 	k.loadShader(
 		"lightning",
 		`
-		uniform float u_time;
-		uniform float u_distortion;
+		uniform highp float u_time;
+		uniform highp float u_distortion;
 		
 		vec4 vert(vec2 pos, vec2 uv, vec4 color) {
 			// Create vertex displacement for lightning effect
@@ -235,14 +235,12 @@ export async function init(k: KAPLAYCtx<{}, never>) {
 				cos(u_time * 25.0 + pos.x * 0.2) * displacement
 			);
 			
-			return def_vert();
-		}
-		`,
+		return def_vert();
+	}
+	`,
 		`
-		uniform float u_time;
-		uniform float u_distortion;
-		
-		vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
+	uniform highp float u_time;
+	uniform highp float u_distortion;		vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
 			// Create lightning-like distortion with unstable current jitter
 			float noise1 = fract(sin(dot(uv * 10.0 + u_time * 5.0, vec2(12.9898, 78.233))) * 43758.5453);
 			float noise2 = fract(sin(dot(uv * 15.0 + u_time * 8.0, vec2(39.346, 11.135))) * 73156.3178);

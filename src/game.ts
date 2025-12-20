@@ -25,14 +25,13 @@ import {
 	clearGameLoopUi,
 	setupGameLoopUi,
 	updatePlayerHealthBar,
-} from "./gameUi";
+} from "./ui/gameUi";
 import { Component } from "./compose";
-import { spawnPowerup } from "./spawn/spawnPowerup";
 import { getDmg } from "./projectiles/shared";
 import { spawnExplosionEffect } from "./spawn/spawnFlash";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
-import { hub } from "./levels/hub";
+import { InteractableComp } from "./comp/interactable";
 import {
 	activeLevel,
 	loadLevel,
@@ -92,6 +91,16 @@ export function updateGameLoop() {
 			}
 		}
 	}
+
+	// Check for nearby interactable buildings
+	const interactables = k.query({ include: ["interactable"] });
+	for (const obj of interactables) {
+		const interactable = obj as GameObj<InteractableComp | PosComp>;
+		if (!interactable.pos) continue;
+
+		const dist = interactable.pos.dist(playerObj.pos);
+		interactable.isInRange = dist < interactable.interactRadius;
+	}
 }
 
 export function clearGame() {
@@ -109,7 +118,7 @@ export function clearGame() {
 	k.destroyAll(tags.debree);
 	k.destroyAll(tags.props);
 	clearGameLoopUi();
-	changeGameState(GameState.LevelUp);
+	changeGameState(GameState.MainMenu);
 }
 
 export function createExplosion(
@@ -133,7 +142,7 @@ export function createExplosion(
 				player.critMultiplier,
 				enemies[i].pos
 			);
-			enemies[i].hurt(dmg);
+			enemies[i].hp -= dmg;
 		}
 	}
 }
@@ -205,8 +214,8 @@ export function addMaxHealth() {
 
 	session.extraHealth++;
 	const totalHealth = player.maxHealth + session.extraHealth;
-	playerObj.setMaxHP(totalHealth);
+	playerObj.maxHP = totalHealth;
 	addHealthBar(totalHealth - 1);
-	playerObj.heal();
-	updatePlayerHealthBar(playerObj.hp());
+	playerObj.hp += 1;
+	updatePlayerHealthBar(playerObj.hp);
 }

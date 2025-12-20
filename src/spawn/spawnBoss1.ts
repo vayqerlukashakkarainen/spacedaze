@@ -22,7 +22,7 @@ const headOffset = 25;
 const pipeOffset = 22;
 export const unitComponents: Record<number, Component[]> = {};
 
-export function spawnBoss1(pos: Vec2, am, hp, scale) {
+export function spawnBoss1(pos: Vec2, am: number, hp: number, scale: number) {
 	const angle = pos.angle(k.center());
 	const hb = 100 * scale;
 	const m = k.add([

@@ -645,7 +645,7 @@ export function applyProjectileDamage(
 			}
 		}
 
-		target.hurt(damage);
+		target.hp -= damage;
 	}
 
 	// Apply splash damage
@@ -732,7 +732,7 @@ function handleChainLightning(target: GameObj, projectile: GameObj) {
 
 		// Apply reduced damage
 		const chainDamage = projectile.impactDamage * config.damageReduction;
-		unit.hurt(chainDamage);
+		unit.hp -= chainDamage;
 
 		// Visual effect
 		spawnFlash(unit.pos, 1);
@@ -796,7 +796,7 @@ function applyDamageTickEffect(target: GameObj, config: any) {
 
 			// Check if it's time to tick
 			if (target.lifetime >= target.damageTickEffect.nextTickTime) {
-				target.hurt(target.damageTickEffect.damagePerTick);
+				target.hp -= target.damageTickEffect.damagePerTick;
 				target.damageTickEffect.nextTickTime =
 					target.lifetime + target.damageTickEffect.tickInterval;
 

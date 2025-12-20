@@ -43,7 +43,7 @@ export function lerpMoveRotateAndScale(
 	const y = Math.sin(lerpAngle);
 	m.move(k.vec2(x * speed * -1, y * speed * -1).scale(dtScaled()));
 	m.angle = lerp;
-	m.scale = k.vec2(1, Math.abs(y));
+	m.scale = k.vec2(Math.abs(y), 1);
 }
 
 export function sum(values: number[]) {

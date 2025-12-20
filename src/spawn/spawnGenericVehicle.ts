@@ -51,8 +51,8 @@ export function spawnGenericVehicle(
 		});
 
 		if (playerObj.pos.dist(m.pos) < m.hb) {
-			playerObj.hurt(1);
-			m.hurt(hp);
+			playerObj.hp -= 1;
+			m.hp -= hp;
 		}
 	});
 

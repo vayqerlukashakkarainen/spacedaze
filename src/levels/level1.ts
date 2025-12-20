@@ -9,7 +9,6 @@ import { endSong, loadSongData } from "../web";
 import { spawnCrate } from "../spawn/spawnCrate";
 import { spawnSpawner } from "../spawn/spawnSpawner";
 import { audioService } from "../services/audioService";
-import { hub } from "./hub";
 import { Level, loadLevel } from "./levels";
 import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject";
 

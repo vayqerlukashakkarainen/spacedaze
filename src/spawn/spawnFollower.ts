@@ -1,13 +1,8 @@
 import { GameObj, PosComp, Vec2 } from "kaplay";
-import {
-	checkProjectileIntersection,
-	clearGame,
-	createExplosion,
-	playerObj,
-} from "../game";
+import { checkProjectileIntersection } from "../game";
 import { k, mainSoundVolume, subSoundVolume, timeScale } from "../main";
 import { audioService } from "../services/audioService";
-import { debreeRocketEmitter, sparkEmitter, starsEmitter } from "../particles";
+import { starsEmitter } from "../particles";
 import {
 	lerpAngleBetweenPos,
 	lerpMoveRotateAndScale,
@@ -69,7 +64,7 @@ export function spawnFollower(props: Props) {
 
 		checkProjectileIntersection(m.pos, m.hb, tags.enemy, (p) => {
 			if (p.tags.includes(tags.blaster)) {
-				m.hurt(p.dmg);
+				m.hp -= p.dmg;
 			}
 		});
 

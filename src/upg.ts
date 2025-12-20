@@ -16,6 +16,8 @@ import {
 	sprintSpeed,
 } from "./upgrades/ship";
 import { saveGame } from "./util";
+import { upgradeService } from "./services/upgradeService";
+import { getUpgradeDefinition } from "./upgrades/upgradeRegistry";
 
 interface Upgrade {
 	name: string;
@@ -102,7 +104,15 @@ export function getToolUpgradeLvlValue(key: ToolKey) {
 }
 
 export function addLvl(key: ToolKey) {
-	loadout[key] = getNextLvl(key);
+	const nextLvl = getNextLvl(key);
+	loadout[key] = nextLvl;
+
+	// Apply upgrade through new system
+	const upgradeDef = getUpgradeDefinition(key);
+	if (upgradeDef && upgradeDef.levels[nextLvl]) {
+		upgradeService.purchaseUpgrade(key, upgradeDef.levels[nextLvl].effects);
+	}
+
 	saveGame("slot1");
 }
 

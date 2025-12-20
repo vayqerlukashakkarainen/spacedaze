@@ -14,7 +14,12 @@ import { spawnDebree } from "./spawnDebree";
 import { registerHitAnimation } from "../shared";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
 
-export function spawnHeavyVehicle(pos: Vec2, dir: Vec2, hp, sprite) {
+export function spawnHeavyVehicle(
+	pos: Vec2,
+	dir: Vec2,
+	hp: number,
+	sprite: string
+) {
 	const hb = 12;
 	const m = k.add([
 		k.pos(pos),
@@ -44,8 +49,8 @@ export function spawnHeavyVehicle(pos: Vec2, dir: Vec2, hp, sprite) {
 		});
 
 		if (playerObj.pos.dist(m.pos) < m.hb) {
-			playerObj.hurt(1);
-			m.hurt(hp);
+			playerObj.hp -= 1;
+			m.hp -= hp;
 		}
 	});
 

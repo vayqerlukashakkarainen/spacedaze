@@ -55,8 +55,8 @@ export function spawnMeteorite(props: Props) {
 		});
 
 		if (playerObj.pos.dist(m.pos) < m.hb) {
-			playerObj.hurt(1);
-			m.hurt(props.hp);
+			playerObj.hp -= 1;
+			m.hp -= props.hp;
 		}
 	});
 

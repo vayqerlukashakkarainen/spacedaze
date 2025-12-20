@@ -47,7 +47,7 @@ export function spawnCrate(props: Props) {
 		});
 
 		if (playerObj.pos.dist(m.pos) < 16) {
-			m.hurt(props.hp);
+			m.hp -= props.hp;
 		}
 	});
 

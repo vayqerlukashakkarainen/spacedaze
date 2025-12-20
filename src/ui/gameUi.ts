@@ -1,6 +1,6 @@
 import { AnimateComp, GameObj, OpacityComp, RectComp } from "kaplay";
-import { k } from "./main";
-import { tags } from "./tags";
+import { k } from "../main";
+import { tags } from "../tags";
 
 let healthBars: GameObj<OpacityComp>[] = [];
 let specialBar: GameObj<RectComp> | null = null;

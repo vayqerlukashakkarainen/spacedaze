@@ -1,16 +1,28 @@
 import kaplay, { GameObj, TextComp, Vec2 } from "kaplay";
 import { init, loadGame, saveGame } from "./util";
 import { startGame, updateGameLoop } from "./game";
-import { enterLevelUp, updateLevelUpLoop } from "./levelUp";
+import { enterMainMenu, updateMainMenuLoop } from "./ui/mainMenu";
 import { setLoadout } from "./upg";
 import { loadPlayer } from "./player";
 import { initParticles, initUiEffects } from "./particles";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
+import { upgradeService } from "./services/upgradeService";
 import { spawnTimescaleZone } from "./spawn/spawnTimescaleZone";
 import { spawnRing } from "./spawn/spawnRing";
-import { startChestOpeningSequence } from "./chestOpening";
+import { startChestOpeningSequence } from "./ui/chestOpening";
+import {
+	createTestHexGrid,
+	saveHexGrid,
+	loadHexGrid,
+	toggleGridDebug,
+	injectPatternToGrid,
+} from "./levels/testHexGrid";
+import { runHexGridTests } from "./grid/hexGrid.test";
 import { tags } from "./tags";
+import { enterLevelEditor, updateLevelEditor } from "./levelEditor/levelEditor";
+import { setupStatsWindow } from "./ui/statsWindow";
+import { initDebug, updateDebug } from "./levelEditor/debug";
 
 export const layers = {
 	bg: "bg",
@@ -21,8 +33,9 @@ export const layers = {
 };
 
 export const GameState = {
+	MainMenu: 0,
 	Playing: 1,
-	LevelUp: 2,
+	LevelEditor: 2,
 	ChestOpening: 3,
 };
 
@@ -73,7 +86,10 @@ export function setTimescale(target: number, duration: number = 0.3) {
 init(k).then(() => {
 	initParticles();
 	initUiEffects();
+	upgradeService.initialize();
 	loadGameSlot();
+	setupStatsWindow();
+	initDebug();
 	k.setLayers(
 		[layers.bg, layers.game2, layers.game, layers.ui, layers.uiEffects],
 		layers.game
@@ -81,9 +97,12 @@ init(k).then(() => {
 
 	addBorderOffsets();
 
-	changeGameState(GameState.LevelUp);
+	changeGameState(GameState.MainMenu);
 
 	k.onUpdate(() => {
+		// Update debug info
+		updateDebug();
+
 		// Lerp timescale towards target
 		if (timescaleLerpProgress < timescaleLerpDuration) {
 			timescaleLerpProgress += k.dt();
@@ -95,8 +114,10 @@ init(k).then(() => {
 		if (gameState == GameState.Playing && !isPaused) {
 			timeSeconds += dt();
 			updateGameLoop();
-		} else if (gameState == GameState.LevelUp) {
-			updateLevelUpLoop();
+		} else if (gameState == GameState.MainMenu) {
+			updateMainMenuLoop();
+		} else if (gameState == GameState.LevelEditor) {
+			updateLevelEditor();
 		}
 	});
 
@@ -139,7 +160,31 @@ init(k).then(() => {
 	k.onKeyPress("k", () => {
 		if (gameState !== GameState.Playing) return;
 		changeGameState(GameState.ChestOpening);
-		togglePause();
+	});
+
+	// Hex grid testing
+	k.onKeyPress("h", () => {
+		createTestHexGrid();
+	});
+
+	k.onKeyPress("g", () => {
+		toggleGridDebug();
+	});
+
+	k.onKeyPress("s", () => {
+		saveHexGrid();
+	});
+
+	k.onKeyPress("l", () => {
+		loadHexGrid();
+	});
+
+	k.onKeyPress("t", () => {
+		runHexGridTests();
+	});
+
+	k.onKeyPress("i", () => {
+		injectPatternToGrid();
 	});
 });
 
@@ -148,9 +193,10 @@ export function changeGameState(state: number) {
 
 	if (gameState == GameState.Playing) {
 		startGame();
-	} else if (gameState == GameState.LevelUp) {
-		saveGame("slot1");
-		enterLevelUp();
+	} else if (gameState == GameState.MainMenu) {
+		enterMainMenu();
+	} else if (gameState == GameState.LevelEditor) {
+		enterLevelEditor();
 	} else if (gameState == GameState.ChestOpening) {
 		startChestOpeningSequence(() => {
 			changeGameState(GameState.Playing);

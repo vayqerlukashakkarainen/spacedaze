@@ -1,0 +1,1110 @@
+import { Vec2 } from "kaplay";
+import { changeGameState, GameState, k, layers } from "../main";
+import { HexGrid, CellType } from "../grid/hexGrid";
+import { hexCoord, HexCoord } from "../grid/hexCoord";
+import { gridRegistry } from "../grid/gridRegistry";
+import {
+	gridToPattern,
+	serializePattern,
+	savePatternToStorage,
+	loadPatternFromStorage,
+	getAllPatternNames,
+} from "./editorPatterns";
+
+// Editor state
+let editorGrid: HexGrid | undefined;
+let currentTool: CellType = CellType.Wall;
+let gridWidth = 15;
+let gridHeight = 15;
+let hoveredCell: HexCoord | undefined;
+let isMouseDown = false;
+let isRightMouseDown = false;
+let cameraOffset: Vec2 | null;
+const cameraMoveSpeed = 300;
+let currentLayer = 0;
+let zoom = 1;
+let targetZoom = 1;
+let targetCameraOffset: Vec2 | null;
+let showOutlines = true;
+let layerState: { isVisible: boolean; brightness: number }[] = [
+	{ isVisible: true, brightness: 1.0 },
+];
+let layerToggleButtons: any[] = [];
+let brightnessSlider: any = undefined;
+
+/**
+ * Enter level editor mode
+ */
+export function enterLevelEditor() {
+	// Create editor grid with 1 layer by default
+	const center = k.center();
+	cameraOffset = k.vec2(0, 0);
+	targetCameraOffset = k.vec2(0, 0);
+	zoom = 1;
+	targetZoom = 1;
+	editorGrid = new HexGrid(
+		{
+			width: gridWidth,
+			height: gridHeight,
+			hexSize: 64,
+			offset: k.vec2(center.x - 300, center.y - 200),
+		},
+		1
+	);
+	currentLayer = 0;
+	layerState = [{ isVisible: true, brightness: 1.0 }];
+	layerToggleButtons = [];
+	gridRegistry.register("editor", editorGrid);
+
+	// Draw UI
+	drawEditorUI();
+	drawGrid();
+
+	// Setup controls
+	setupEditorControls();
+
+	// Setup scroll zoom
+	k.onScroll((delta) => {
+		const zoomSpeed = 0.1;
+		targetZoom *= 1 - delta.y * zoomSpeed;
+		targetZoom = Math.max(0.25, Math.min(4, targetZoom));
+	});
+}
+
+/**
+ * Exit level editor and cleanup
+ */
+export function exitLevelEditor() {
+	k.destroyAll("levelEditor");
+	gridRegistry.unregister("editor");
+	editorGrid = undefined;
+	hoveredCell = undefined;
+	isMouseDown = false;
+	cameraOffset = k.vec2(0, 0);
+	k.setCamPos(k.center());
+}
+
+/**
+ * Draw the editor UI (tool palette, buttons, etc.)
+ */
+function drawEditorUI() {
+	const screenWidth = k.width();
+	const screenHeight = k.height();
+
+	// ADD LAYER button
+	const addBtn = k.add([
+		k.pos(20, 20),
+		k.rect(100, 30),
+		k.area(),
+		k.color(0, 100, 0),
+		k.anchor("topleft"),
+		k.outline(2, new k.Color(255, 255, 255)),
+		k.fixed(),
+		k.layer(layers.ui),
+		"levelEditor",
+		"layerToggle",
+	]);
+
+	addBtn.add([
+		k.text("+ LAYER", { size: 10, font: "unscii" }),
+		k.anchor("center"),
+		k.color(255, 255, 255),
+	]);
+
+	addBtn.onClick(() => {
+		addLayer();
+		drawLayerToggles();
+		redrawGrid();
+	});
+
+	// Layer toggle buttons at top
+	drawLayerToggles();
+
+	// Tool palette (right side)
+	const paletteX = screenWidth - 150;
+	let paletteY = 80;
+
+	k.add([
+		k.text("TOOLS", { size: 16, font: "unscii" }),
+		k.pos(paletteX, paletteY),
+		k.anchor("center"),
+		k.color(255, 255, 255),
+		k.fixed(),
+		k.layer(layers.ui),
+		"levelEditor",
+	]);
+	paletteY += 40;
+
+	// Tool buttons
+	addToolButton("EMPTY (E)", k.vec2(paletteX, paletteY), CellType.Empty);
+	paletteY += 60;
+
+	addToolButton("WALL (W)", k.vec2(paletteX, paletteY), CellType.Wall);
+	paletteY += 60;
+
+	addToolButton("OBSTACLE (O)", k.vec2(paletteX, paletteY), CellType.Obstacle);
+	paletteY += 80;
+
+	// Action buttons
+	k.add([
+		k.text("ACTIONS", { size: 16, font: "unscii" }),
+		k.pos(paletteX, paletteY),
+		k.anchor("center"),
+		k.color(255, 255, 255),
+		k.fixed(),
+		k.layer(layers.ui),
+		"levelEditor",
+	]);
+	paletteY += 40;
+
+	addActionButton("CLEAR", k.vec2(paletteX, paletteY), clearGrid);
+	paletteY += 60;
+
+	addActionButton("SAVE", k.vec2(paletteX, paletteY), savePattern);
+	paletteY += 60;
+
+	addActionButton("LOAD", k.vec2(paletteX, paletteY), loadPattern);
+	paletteY += 60;
+
+	addActionButton("EXPORT JSON", k.vec2(paletteX, paletteY), exportPatternJSON);
+	paletteY += 60;
+
+	addActionButton("OUTLINES", k.vec2(paletteX, paletteY), toggleOutlines);
+	paletteY += 80;
+
+	// Exit button
+	addActionButton("EXIT", k.vec2(paletteX, screenHeight - 60), () => {
+		exitLevelEditor();
+		changeGameState(GameState.MainMenu);
+	});
+
+	// Brightness slider (below layer toggles)
+	const sliderY = 60;
+	const sliderX = 20;
+	const sliderWidth = 150;
+
+	k.add([
+		k.text("Brightness:", { size: 10, font: "unscii" }),
+		k.pos(sliderX, sliderY),
+		k.color(255, 255, 255),
+		k.fixed(),
+		k.layer(layers.ui),
+		"levelEditor",
+	]);
+
+	// Slider track
+	k.add([
+		k.rect(sliderWidth, 4),
+		k.pos(sliderX, sliderY + 15),
+		k.color(100, 100, 100),
+		k.fixed(),
+		k.layer(layers.ui),
+		"levelEditor",
+	]);
+
+	// Slider handle
+	brightnessSlider = k.add([
+		k.rect(8, 16),
+		k.pos(
+			sliderX + sliderWidth * layerState[currentLayer].brightness,
+			sliderY + 15 - 6
+		),
+		k.color(255, 255, 255),
+		k.anchor("center"),
+		k.area(),
+		k.fixed(),
+		k.layer(layers.ui),
+		"levelEditor",
+		"brightnessSlider",
+	]);
+
+	// Brightness value label
+	k.add([
+		k.text(`${Math.round(layerState[currentLayer].brightness * 100)}%`, {
+			size: 10,
+			font: "unscii",
+		}),
+		k.pos(sliderX + sliderWidth + 10, sliderY + 15),
+		k.color(255, 255, 255),
+		k.anchor("left"),
+		k.fixed(),
+		k.layer(layers.ui),
+		"levelEditor",
+		"brightnessLabel",
+	]);
+
+	// Grid size and layer info (bottom left)
+	k.add([
+		k.text(`Zoom: ${Math.round(zoom * 100)}%`, {
+			size: 12,
+			font: "unscii",
+		}),
+		k.pos(20, screenHeight - 120),
+		k.color(255, 255, 255),
+		k.fixed(),
+		k.layer(layers.ui),
+		"levelEditor",
+		"zoomLabel",
+	]);
+
+	k.add([
+		k.text(`Grid Size: ${gridWidth}x${gridHeight}`, {
+			size: 12,
+			font: "unscii",
+		}),
+		k.pos(20, screenHeight - 100),
+		k.color(255, 255, 255),
+		k.fixed(),
+		k.layer(layers.ui),
+		"levelEditor",
+		"sizeLabel",
+	]);
+
+	k.add([
+		k.text(`Layer: ${currentLayer + 1}/${editorGrid?.layers || 1}`, {
+			size: 12,
+			font: "unscii",
+		}),
+		k.pos(20, screenHeight - 80),
+		k.color(255, 255, 255),
+		k.fixed(),
+		k.layer(layers.ui),
+		"levelEditor",
+		"layerLabel",
+	]);
+
+	k.add([
+		k.text("Shift+Arrows: Resize  R: Apply  [/]: Switch Layer  WASD: Camera", {
+			size: 10,
+			font: "unscii",
+		}),
+		k.pos(20, screenHeight - 60),
+		k.color(200, 200, 200),
+		k.fixed(),
+		k.layer(layers.ui),
+		"levelEditor",
+	]);
+
+	// Current tool indicator (bottom center)
+	k.add([
+		k.text(`Tool: ${currentTool.toUpperCase()}`, { size: 12, font: "unscii" }),
+		k.pos(screenWidth / 2, screenHeight - 60),
+		k.anchor("center"),
+		k.color(255, 255, 255),
+		k.fixed(),
+		k.layer(layers.ui),
+		"levelEditor",
+		"toolLabel",
+	]);
+}
+
+/**
+ * Add tool selection button
+ */
+function addToolButton(txt: string, pos: Vec2, tool: CellType) {
+	const btn = k.add([
+		k.pos(pos),
+		k.rect(120, 40),
+		k.area(),
+		k.color(0, 0, 0),
+		k.anchor("center"),
+		k.outline(2, new k.Color(255, 255, 255)),
+		k.fixed(),
+		k.layer(layers.ui),
+		"levelEditor",
+		{ tool },
+	]);
+
+	btn.add([
+		k.text(txt, { size: 12, font: "unscii" }),
+		k.anchor("center"),
+		k.color(255, 255, 255),
+	]);
+
+	btn.onClick(() => {
+		currentTool = tool;
+		updateToolLabel();
+		highlightSelectedTool();
+	});
+
+	// Highlight if current tool
+	if (currentTool === tool) {
+		btn.outline.color = new k.Color(255, 255, 0);
+		btn.outline.width = 3;
+	}
+
+	return btn;
+}
+
+/**
+ * Add action button
+ */
+function addActionButton(txt: string, pos: Vec2, onClick: () => void) {
+	const btn = k.add([
+		k.pos(pos),
+		k.rect(120, 40),
+		k.area(),
+		k.color(0, 0, 0),
+		k.anchor("center"),
+		k.outline(2, new k.Color(255, 255, 255)),
+		k.fixed(),
+		k.layer(layers.ui),
+		"levelEditor",
+	]);
+
+	btn.add([
+		k.text(txt, { size: 12, font: "unscii" }),
+		k.anchor("center"),
+		k.color(255, 255, 255),
+	]);
+
+	btn.onClick(onClick);
+
+	return btn;
+}
+
+/**
+ * Draw the hex grid (all visible layers)
+ */
+function drawGrid() {
+	if (!editorGrid) return;
+
+	// Draw cells from all visible layers
+	for (const cell of editorGrid.cells.values()) {
+		// Skip if layer is not visible
+		if (!layerState[cell.layer].isVisible) continue;
+		const corners = editorGrid.getHexScreenCorners(cell.coord);
+
+		if (cell.type === CellType.Wall) {
+			// Wall cells - render as 3D boxes with neighbor-aware merging
+			drawWallCell(corners, cell, 1);
+		} else if (cell.type === CellType.Obstacle) {
+			// Obstacle cells - solid color
+			k.add([
+				k.polygon(corners),
+				k.color(cell.color.r, cell.color.g, cell.color.b),
+				k.opacity(1),
+				"levelEditor",
+				"gridCell",
+				{
+					hexCoord: cell.coord,
+					layer: cell.layer,
+				},
+			]);
+		}
+	}
+}
+
+/**
+ * Calculate the center point of a hexagon from its corners
+ */
+function getHexCenter(corners: Vec2[]): Vec2 {
+	let sumX = 0;
+	let sumY = 0;
+	for (const corner of corners) {
+		sumX += corner.x;
+		sumY += corner.y;
+	}
+	return k.vec2(sumX / corners.length, sumY / corners.length);
+}
+
+/**
+ * Draw a wall cell as a 3D box with shadows and neighbor-aware merging
+ */
+function drawWallCell(corners: Vec2[], cell: any, opacity: number) {
+	if (!editorGrid) return;
+
+	// Check neighbors on same layer
+	const neighbors = editorGrid.getNeighbors(cell.coord, cell.layer);
+	const hasWallSW = neighbors.some(
+		(n) =>
+			n.coord.q === cell.coord.q - 1 &&
+			n.coord.r === cell.coord.r + 1 &&
+			n.type === CellType.Wall
+	);
+	const hasWallSE = neighbors.some(
+		(n) =>
+			n.coord.q === cell.coord.q &&
+			n.coord.r === cell.coord.r + 1 &&
+			n.type === CellType.Wall
+	);
+
+	// For a pointy-top hexagon, corners are indexed:
+	// 0: right, 1: top-right, 2: top-left, 3: left, 4: bottom-left, 5: bottom-right
+
+	// Get brightness for this layer
+	const brightness = layerState[cell.layer].brightness || 1.0;
+	const topColor = Math.round(120 * brightness);
+	const swColor = Math.round(200 * brightness);
+	const seColor = Math.round(30 * brightness);
+
+	// Top face (white/light gray)
+	k.add([
+		k.polygon(corners),
+		k.color(topColor, topColor, topColor),
+		k.opacity(opacity),
+		"levelEditor",
+		"gridCell",
+		{
+			hexCoord: cell.coord,
+			layer: cell.layer,
+		},
+	]);
+
+	// Southwest face (darker - unless merged with neighbor)
+	if (!hasWallSW) {
+		const swFace = [corners[2], corners[3], corners[4], getHexCenter(corners)];
+		k.add([
+			k.polygon(swFace),
+			k.color(swColor, swColor, swColor),
+			k.opacity(opacity),
+			"levelEditor",
+			"gridCell",
+		]);
+	}
+
+	// Southeast face (darkest - unless merged with neighbor)
+	if (!hasWallSE) {
+		const seFace = [corners[0], corners[1], corners[2], getHexCenter(corners)];
+		k.add([
+			k.polygon(seFace),
+			k.color(seColor, seColor, seColor),
+			k.opacity(opacity),
+			"levelEditor",
+			"gridCell",
+		]);
+	}
+}
+
+/**
+ * Redraw the grid (after changes)
+ */
+function redrawGrid() {
+	k.destroyAll("gridCell");
+	drawGrid();
+}
+
+/**
+ * Setup editor keyboard and mouse controls
+ */
+function setupEditorControls() {
+	// Tool selection hotkeys
+	k.onKeyPress("e", () => {
+		currentTool = CellType.Empty;
+		updateToolLabel();
+		highlightSelectedTool();
+	});
+
+	k.onKeyPress("w", () => {
+		currentTool = CellType.Wall;
+		updateToolLabel();
+		highlightSelectedTool();
+	});
+
+	k.onKeyPress("o", () => {
+		currentTool = CellType.Obstacle;
+		updateToolLabel();
+		highlightSelectedTool();
+	});
+
+	// Layer switching with [ and ]
+	k.onKeyPress("[", () => {
+		if (editorGrid && currentLayer > 0) {
+			currentLayer--;
+			editorGrid.setCurrentLayer(currentLayer);
+			updateLayerLabel();
+			updateLayerToggles();
+			updateBrightnessSliderPosition();
+			redrawGrid();
+		}
+	});
+
+	k.onKeyPress("]", () => {
+		if (editorGrid && currentLayer < editorGrid.layers - 1) {
+			currentLayer++;
+			editorGrid.setCurrentLayer(currentLayer);
+			updateLayerLabel();
+			updateLayerToggles();
+			updateBrightnessSliderPosition();
+			redrawGrid();
+		}
+	});
+
+	// Layer switching with Tab (cycles through all layers)
+	k.onKeyPress("tab", () => {
+		if (!editorGrid) return;
+		currentLayer = (currentLayer + 1) % editorGrid.layers;
+		editorGrid.setCurrentLayer(currentLayer);
+		updateLayerLabel();
+		updateLayerToggles();
+		updateBrightnessSliderPosition();
+		redrawGrid();
+	});
+
+	// Grid size controls with shift+arrow keys
+	k.onKeyPress("left", () => {
+		if (k.isKeyDown("shift")) {
+			gridWidth = Math.max(5, gridWidth - 1);
+			updateSizeLabel();
+		}
+	});
+
+	k.onKeyPress("right", () => {
+		if (k.isKeyDown("shift")) {
+			gridWidth = Math.min(30, gridWidth + 1);
+			updateSizeLabel();
+		}
+	});
+
+	k.onKeyPress("up", () => {
+		if (k.isKeyDown("shift")) {
+			gridHeight = Math.max(5, gridHeight - 1);
+			updateSizeLabel();
+		} else if (k.isKeyDown("control") || k.isKeyDown("meta")) {
+			// Navigate to layer above
+			if (editorGrid && currentLayer < editorGrid.layers - 1) {
+				currentLayer++;
+				editorGrid.setCurrentLayer(currentLayer);
+				updateLayerLabel();
+				updateLayerToggles();
+				updateBrightnessSliderPosition();
+				redrawGrid();
+			}
+		}
+	});
+
+	k.onKeyPress("down", () => {
+		if (k.isKeyDown("shift")) {
+			gridHeight = Math.min(30, gridHeight + 1);
+			updateSizeLabel();
+		} else if (k.isKeyDown("control") || k.isKeyDown("meta")) {
+			// Navigate to layer below
+			if (editorGrid && currentLayer > 0) {
+				currentLayer--;
+				editorGrid.setCurrentLayer(currentLayer);
+				updateLayerLabel();
+				updateLayerToggles();
+				updateBrightnessSliderPosition();
+				redrawGrid();
+			}
+		}
+	});
+
+	k.onKeyPress("r", () => {
+		resizeGrid();
+	});
+
+	// Save/Load shortcuts
+	k.onKeyPress("s", () => {
+		if (k.isKeyDown("control") || k.isKeyDown("meta")) {
+			savePattern();
+		}
+	});
+
+	// Mouse controls for painting
+	k.onMousePress((btn) => {
+		if (btn === "left") {
+			isMouseDown = true;
+			paintCell();
+		} else if (btn === "right") {
+			isRightMouseDown = true;
+			clearCell();
+		}
+	});
+
+	k.onMouseRelease((btn) => {
+		if (btn === "left") {
+			isMouseDown = false;
+		} else if (btn === "right") {
+			isRightMouseDown = false;
+		}
+	});
+
+	k.onMouseMove(() => {
+		updateHoveredCell();
+		if (isMouseDown) {
+			paintCell();
+		} else if (isRightMouseDown) {
+			clearCell();
+		}
+		updateBrightnessSlider();
+	});
+
+	// Exit with Escape
+	k.onKeyPress("escape", () => {
+		exitLevelEditor();
+		changeGameState(GameState.MainMenu);
+	});
+}
+
+/**
+ * Update hovered cell based on mouse position
+ */
+function updateHoveredCell() {
+	if (!editorGrid) return;
+
+	// Convert mouse screen position to world position (accounting for camera offset and zoom)
+	const mouseScreenPos = k.mousePos();
+	const camPos = k.getCamPos();
+	const camScale = k.getCamScale();
+
+	// Account for zoom when converting screen to world coordinates
+	const worldPos = k.vec2(
+		(mouseScreenPos.x - k.width() / 2) / camScale.x + camPos.x,
+		(mouseScreenPos.y - k.height() / 2) / camScale.y + camPos.y
+	);
+	const hexCoord = editorGrid.screenToHex(worldPos);
+
+	if (editorGrid.inBounds(hexCoord)) {
+		hoveredCell = hexCoord;
+
+		// Highlight hovered cell
+		k.destroyAll("hover");
+		const corners = editorGrid.getHexScreenCorners(hexCoord);
+		k.add([
+			k.polygon(corners),
+			k.outline(2, new k.Color(255, 255, 0)),
+			k.opacity(0),
+			"levelEditor",
+			"hover",
+		]);
+	} else {
+		hoveredCell = undefined;
+		k.destroyAll("hover");
+	}
+}
+
+/**
+ * Paint current cell with selected tool
+ */
+function paintCell() {
+	if (!editorGrid || !hoveredCell) return;
+
+	editorGrid.setCell(hoveredCell, currentTool);
+	redrawGrid();
+}
+
+/**
+ * Clear current cell (right-click)
+ */
+function clearCell() {
+	if (!editorGrid || !hoveredCell) return;
+
+	editorGrid.setCell(hoveredCell, CellType.Empty);
+	redrawGrid();
+}
+
+/**
+ * Clear entire grid
+ */
+function clearGrid() {
+	if (!editorGrid) return;
+
+	editorGrid.generateEmpty();
+	redrawGrid();
+	console.log("Grid cleared");
+}
+
+/**
+ * Resize grid to new dimensions
+ */
+function resizeGrid() {
+	if (!editorGrid) return;
+
+	// Save current pattern
+	const oldPattern = gridToPattern(editorGrid, "temp");
+	const oldLayers = editorGrid.layers;
+
+	// Create new grid with same number of layers
+	const center = k.center();
+	editorGrid = new HexGrid(
+		{
+			width: gridWidth,
+			height: gridHeight,
+			hexSize: 30,
+			offset: k.vec2(center.x - 300, center.y - 200),
+		},
+		oldLayers
+	);
+	editorGrid.setCurrentLayer(currentLayer);
+	gridRegistry.register("editor", editorGrid);
+
+	// Try to restore pattern if it fits
+	if (oldPattern.width <= gridWidth && oldPattern.height <= gridHeight) {
+		for (const [coordStr, cellType] of Object.entries(oldPattern.cells)) {
+			const [q, r] = coordStr.split(",").map(Number);
+			editorGrid.setCell(hexCoord(q, r), cellType, currentLayer);
+		}
+	}
+
+	redrawGrid();
+	updateLayerLabel();
+	console.log(`Grid resized to ${gridWidth}x${gridHeight}`);
+}
+
+/**
+ * Save pattern to localStorage
+ */
+function savePattern() {
+	if (!editorGrid) return;
+
+	const name = prompt("Enter pattern name:", "my_pattern");
+	if (!name) return;
+
+	const pattern = gridToPattern(editorGrid, name);
+	savePatternToStorage(pattern);
+
+	console.log(`Pattern "${name}" saved!`);
+	console.log(`Size: ${pattern.width}x${pattern.height}`);
+	console.log(`Cells: ${Object.keys(pattern.cells).length}`);
+}
+
+/**
+ * Load pattern from localStorage
+ */
+function loadPattern() {
+	const names = getAllPatternNames();
+
+	if (names.length === 0) {
+		console.log("No saved patterns found");
+		alert("No saved patterns found");
+		return;
+	}
+
+	const name = prompt(
+		`Enter pattern name to load:\n\nAvailable: ${names.join(", ")}`,
+		names[0]
+	);
+	if (!name) return;
+
+	const pattern = loadPatternFromStorage(name);
+	if (!pattern) {
+		alert(`Pattern "${name}" not found`);
+		return;
+	}
+
+	// Load pattern into grid
+	if (!editorGrid) return;
+
+	clearGrid();
+
+	for (const [coordStr, cellType] of Object.entries(pattern.cells)) {
+		const [q, r] = coordStr.split(",").map(Number);
+		const coord = hexCoord(q, r);
+		if (editorGrid.inBounds(coord)) {
+			editorGrid.setCell(coord, cellType);
+		}
+	}
+
+	redrawGrid();
+	console.log(`Pattern "${name}" loaded!`);
+}
+
+/**
+ * Export pattern as JSON to clipboard
+ */
+function exportPatternJSON() {
+	if (!editorGrid) return;
+
+	const name = prompt("Enter pattern name for export:", "my_pattern");
+	if (!name) return;
+
+	const pattern = gridToPattern(editorGrid, name);
+	const json = serializePattern(pattern);
+
+	// Copy to clipboard
+	navigator.clipboard.writeText(json).then(
+		() => {
+			console.log("Pattern JSON copied to clipboard!");
+			alert("Pattern JSON copied to clipboard!");
+			console.log(json);
+		},
+		() => {
+			console.log("Failed to copy to clipboard, logging JSON:");
+			console.log(json);
+			alert("Check console for JSON output");
+		}
+	);
+}
+
+/**
+ * Update tool label
+ */
+function updateToolLabel() {
+	const label = k.get("toolLabel")[0];
+	if (label && "text" in label) {
+		label.text = `Tool: ${currentTool.toUpperCase()}`;
+	}
+}
+
+/**
+ * Update size label
+ */
+function updateSizeLabel() {
+	const label = k.get("sizeLabel")[0];
+	if (label && "text" in label) {
+		label.text = `Grid Size: ${gridWidth}x${gridHeight}`;
+	}
+}
+
+/**
+ * Update layer label
+ */
+function updateLayerLabel() {
+	const label = k.get("layerLabel")[0];
+	if (label && "text" in label && editorGrid) {
+		label.text = `Layer: ${currentLayer + 1}/${editorGrid.layers}`;
+	}
+}
+
+/**
+ * Update zoom label
+ */
+function updateZoomLabel() {
+	const label = k.get("zoomLabel")[0];
+	if (label && "text" in label) {
+		label.text = `Zoom: ${Math.round(zoom * 100)}%`;
+	}
+}
+
+/**
+ * Update brightness slider position and label
+ */
+function updateBrightnessSlider() {
+	const sliderY = 60 + 15;
+	const sliderX = 20;
+	const sliderWidth = 150;
+
+	// Check if mouse is dragging the slider
+	if (k.isMouseDown("left") && brightnessSlider) {
+		const mousePos = k.mousePos();
+		const sliderBounds = {
+			x: sliderX,
+			y: sliderY - 8,
+			width: sliderWidth,
+			height: 20,
+		};
+
+		// Check if mouse is near slider
+		if (
+			mousePos.x >= sliderBounds.x &&
+			mousePos.x <= sliderBounds.x + sliderBounds.width &&
+			mousePos.y >= sliderBounds.y &&
+			mousePos.y <= sliderBounds.y + sliderBounds.height
+		) {
+			// Update brightness based on mouse position
+			const newBrightness = k.clamp((mousePos.x - sliderX) / sliderWidth, 0, 1);
+			layerState[currentLayer].brightness = newBrightness;
+
+			// Update slider handle position
+			brightnessSlider.pos.x = sliderX + sliderWidth * newBrightness;
+
+			// Update brightness label
+			const brightnessLabel = k.get("brightnessLabel")[0];
+			if (brightnessLabel && "text" in brightnessLabel) {
+				brightnessLabel.text = `${Math.round(newBrightness * 100)}%`;
+			}
+
+			// Redraw grid with new brightness
+			redrawGrid();
+		}
+	}
+}
+
+/**
+ * Update brightness slider position when changing layers
+ */
+function updateBrightnessSliderPosition() {
+	const sliderY = 60 + 15;
+	const sliderX = 20;
+	const sliderWidth = 150;
+
+	if (brightnessSlider) {
+		brightnessSlider.pos.x =
+			sliderX + sliderWidth * layerState[currentLayer].brightness;
+	}
+
+	const brightnessLabel = k.get("brightnessLabel")[0];
+	if (brightnessLabel && "text" in brightnessLabel) {
+		brightnessLabel.text = `${Math.round(layerState[currentLayer].brightness * 100)}%`;
+	}
+}
+
+/**
+ * Create initial layer toggle buttons
+ */
+function drawLayerToggles() {
+	if (!editorGrid) return;
+
+	const buttonWidth = 80;
+	const buttonHeight = 30;
+	const spacing = 10;
+	const startX = 20;
+	const startY = 20;
+
+	// Add new layer toggle buttons for layers that don't have buttons yet
+	for (let i = layerToggleButtons.length; i < editorGrid.layers; i++) {
+		const x = startX + (buttonWidth + spacing) * (i + 1);
+
+		const btn = k.add([
+			k.pos(x, startY),
+			k.rect(buttonWidth, buttonHeight),
+			k.area(),
+			k.color(100, 100, 100),
+			k.anchor("topleft"),
+			k.outline(2, new k.Color(255, 255, 255)),
+			k.fixed(),
+			k.layer(layers.ui),
+			"levelEditor",
+			"layerToggle",
+		]);
+
+		const label = btn.add([
+			k.text(`L${i + 1}`, {
+				size: 10,
+				font: "unscii",
+			}),
+			k.anchor("center"),
+			k.color(255, 255, 255),
+		]);
+
+		btn.onClick(() => {
+			toggleLayerVisibility(i);
+		});
+
+		// Right click to set as active layer
+		btn.onMousePress((button) => {
+			if (button === "right") {
+				currentLayer = i;
+				if (editorGrid) editorGrid.setCurrentLayer(currentLayer);
+				updateLayerLabel();
+				updateLayerToggles();
+				updateBrightnessSliderPosition();
+			}
+		});
+
+		layerToggleButtons.push({ btn, label });
+	}
+
+	// Update existing buttons
+	updateLayerToggles();
+}
+
+/**
+ * Update layer toggle button appearance based on state
+ */
+function updateLayerToggles() {
+	for (let i = 0; i < layerToggleButtons.length; i++) {
+		const { btn, label } = layerToggleButtons[i];
+		const isVisible = layerState[i].isVisible;
+		const isActive = i === currentLayer;
+
+		// Update color
+		const colorValue = isVisible ? 100 : 30;
+		btn.color = k.rgb(colorValue, colorValue, colorValue);
+
+		// Update outline
+		btn.outline.width = isActive ? 3 : 2;
+		btn.outline.color = isActive
+			? new k.Color(255, 255, 0)
+			: new k.Color(255, 255, 255);
+
+		// Update text
+		label.text = `L${i + 1}${isVisible ? "" : " OFF"}`;
+	}
+}
+
+/**
+ * Toggle visibility of a layer
+ */
+function toggleLayerVisibility(layer: number) {
+	layerState[layer].isVisible = !layerState[layer].isVisible;
+	redrawGrid();
+	updateLayerToggles();
+}
+
+/**
+ * Add a new layer to the grid
+ */
+function addLayer() {
+	if (!editorGrid) return;
+
+	editorGrid.addLayer();
+	layerState.push({ isVisible: true, brightness: 1.0 });
+	updateLayerLabel();
+	console.log(`Layer added. Total layers: ${editorGrid.layers}`);
+}
+
+/**
+ * Toggle outline visibility
+ */
+function toggleOutlines() {
+	showOutlines = !showOutlines;
+	redrawGrid();
+	console.log(`Outlines: ${showOutlines ? "ON" : "OFF"}`);
+}
+
+/**
+ * Highlight the selected tool button
+ */
+function highlightSelectedTool() {
+	const buttons = k.get("levelEditor");
+
+	for (const btn of buttons) {
+		if ("tool" in btn && btn.outline) {
+			if (btn.tool === currentTool) {
+				btn.outline.color = new k.Color(255, 255, 0);
+				btn.outline.width = 3;
+			} else {
+				btn.outline.color = new k.Color(255, 255, 255);
+				btn.outline.width = 2;
+			}
+		}
+	}
+}
+
+/**
+ * Update loop for level editor
+ */
+export function updateLevelEditor() {
+	const dt = k.dt();
+	const moveSpeed = cameraMoveSpeed * dt;
+
+	// Update target camera position based on WASD input
+	if (k.isKeyDown("w")) {
+		targetCameraOffset!.y -= moveSpeed;
+	}
+	if (k.isKeyDown("s")) {
+		targetCameraOffset!.y += moveSpeed;
+	}
+	if (k.isKeyDown("a")) {
+		targetCameraOffset!.x -= moveSpeed;
+	}
+	if (k.isKeyDown("d")) {
+		targetCameraOffset!.x += moveSpeed;
+	}
+
+	// Smoothly interpolate camera position
+	const cameraLerpSpeed = 10 * dt;
+	cameraOffset!.x = k.lerp(
+		cameraOffset!.x,
+		targetCameraOffset!.x,
+		cameraLerpSpeed
+	);
+	cameraOffset!.y = k.lerp(
+		cameraOffset!.y,
+		targetCameraOffset!.y,
+		cameraLerpSpeed
+	);
+
+	// Smoothly interpolate zoom
+	const zoomLerpSpeed = 8 * dt;
+	zoom = k.lerp(zoom, targetZoom, zoomLerpSpeed);
+
+	// Update zoom label
+	updateZoomLabel();
+
+	// Apply camera position and zoom
+	k.setCamPos(k.center().add(cameraOffset!));
+	k.setCamScale(zoom);
+}

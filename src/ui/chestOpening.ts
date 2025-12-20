@@ -1,15 +1,10 @@
-import { GameObj, PosComp } from "kaplay";
-import { k, layers, mainSoundVolume } from "./main";
-import { ChestReward, generateChestReward } from "./chestRewards";
-import { audioService } from "./services/audioService";
-import { shake } from "./comp/shake";
-import { powerups } from "./powerups";
-import {
-	explosionEmitter,
-	getUiEffects,
-	shineEmitter,
-	sparkEmitter,
-} from "./particles";
+import { GameObj } from "kaplay";
+import { k, layers, mainSoundVolume } from "../main";
+import { ChestReward, generateChestReward } from "../chestRewards";
+import { audioService } from "../services/audioService";
+import { shake } from "../comp/shake";
+import { powerups } from "../powerups";
+import { getUiEffects } from "../particles";
 
 interface TimingZone {
 	start: number; // 0-1

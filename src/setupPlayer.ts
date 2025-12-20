@@ -3,7 +3,7 @@ import {
 	clearGame,
 	createExplosion,
 } from "./game";
-import { updatePlayerHealthBar, updateSpecialBar } from "./gameUi";
+import { updatePlayerHealthBar, updateSpecialBar } from "./ui/gameUi";
 import { dt, k, mainSoundVolume, timeScale } from "./main";
 import { starsEmitter, trailEmitter } from "./particles";
 import { hasLvlValue, player, session } from "./player";
@@ -45,21 +45,29 @@ export function setupPlayer() {
 		tags.gameLoop,
 	]);
 
+	const turretObj = playerObj.add([
+		k.sprite("ship"),
+		k.pos(0, 0),
+		k.rotate(0),
+		k.anchor("center"),
+		k.z(1),
+	]);
+
 	const targetObj = k.add([k.pos(k.center()), k.z(1000), tags.gameLoop]);
 
 	registerHitAnimation(playerObj);
 
 	if (hasLvlValue(player.blasterLvl, 1)) {
-		playerObj.add([k.anchor("center"), k.pos(10, 0)]);
+		turretObj.add([k.anchor("center"), k.pos(10, 0)]);
 		blasters++;
-		playerObj.add([k.anchor("center"), k.pos(-10, 0)]);
+		turretObj.add([k.anchor("center"), k.pos(-10, 0)]);
 		blasters++;
 	} else {
-		playerObj.add([k.anchor("center"), k.pos(0, -6)]);
+		turretObj.add([k.anchor("center"), k.pos(0, -6)]);
 		blasters++;
 	}
 	if (hasLvlValue(player.blasterLvl, 2)) {
-		playerObj.add([k.anchor("center"), k.pos(0, -6)]);
+		turretObj.add([k.anchor("center"), k.pos(0, -6)]);
 		blasters++;
 	}
 
@@ -91,9 +99,9 @@ export function setupPlayer() {
 
 		checkProjectileIntersection(playerObj.pos, 12, tags.enemy, (p) => {
 			if (p.tags.includes(tags.blaster)) {
-				playerObj.hurt(p.dmg);
+				playerObj.hp -= p.dmg;
 			} else if (p.tags.includes(tags.rocket)) {
-				playerObj.hurt(p.impactDmg);
+				playerObj.hp -= p.impactDmg;
 				createExplosion(
 					p.pos,
 					p.splashSize,
@@ -137,6 +145,21 @@ export function setupPlayer() {
 			-90
 		);
 
+		// Update turret rotation
+		if (movementMode === "wasd") {
+			const mouseWorldPos = k.mousePos().sub(k.center().sub(k.getCamPos()));
+			const turretLerp = lerpAngleBetweenPos(
+				turretObj.angle,
+				playerObj.pos,
+				mouseWorldPos,
+				0.1 * timeScale * playerObj.getTimescale(),
+				-90
+			);
+			turretObj.angle = turretLerp.lerp;
+		} else {
+			turretObj.angle = 0;
+		}
+
 		const maxSpeed =
 			player.speed * player.speedMultiplier * player.speedPwrUpMultiplier;
 		const speed = k.clamp(dist * 4, 0, maxSpeed) * playerObj.getTimescale();
@@ -163,27 +186,27 @@ export function setupPlayer() {
 		playerObj.animation.seek(0);
 		k.shake(20);
 		k.flash(k.RED, 0.4);
-		updatePlayerHealthBar(playerObj.hp());
+		updatePlayerHealthBar(playerObj.hp);
 	});
 
 	playerObj.onMousePress("left", () => {
 		if (hasLvlValue(player.blasterParallel, 1)) {
 			for (let i = 0; i < blasters; i++) {
-				const gunPipe = playerObj.children[i];
+				const gunPipe = turretObj.children[i];
 				spawnPlayerBlaster(
 					gunPipe.worldPos(),
-					k.Vec2.fromAngle(playerObj.angle - 90),
-					playerObj.angle
+					k.Vec2.fromAngle(turretObj.angle - 90),
+					turretObj.angle
 				);
 			}
 			return;
 		}
 
-		const gunPipe = playerObj.children[bulletIndex % blasters];
+		const gunPipe = turretObj.children[bulletIndex % blasters];
 		spawnPlayerBlaster(
 			gunPipe.worldPos(),
-			k.Vec2.fromAngle(playerObj.angle - 90),
-			playerObj.angle
+			k.Vec2.fromAngle(turretObj.angle - 90),
+			turretObj.angle
 		);
 		bulletIndex++;
 	});
@@ -215,6 +238,18 @@ export function setupPlayer() {
 	});
 	playerObj.onKeyRelease("shift", () => {
 		player.speedPwrUpMultiplier = 1;
+	});
+
+	playerObj.onKeyPress("space", () => {
+		// Check for nearby interactable objects
+		const interactables = k.query({ include: ["interactable"] });
+		for (const obj of interactables) {
+			const interactable = obj as any;
+			if (interactable.isInRange) {
+				interactable.onInteract();
+				break; // Only interact with one object at a time
+			}
+		}
 	});
 
 	return playerObj;

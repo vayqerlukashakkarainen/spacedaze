@@ -7,6 +7,7 @@ import { spawnFollower } from "./spawn/spawnFollower";
 import { spawnPowerup } from "./spawn/spawnPowerup";
 import { spawnRing } from "./spawn/spawnRing";
 import { audioService } from "./services/audioService";
+import { upgradeService } from "./services/upgradeService";
 
 // Track active slowdown timer and accumulated duration
 let activeSlowdownTimer: KEventController | undefined;
@@ -28,9 +29,16 @@ export const powerups = {
 	},
 	addExtraRockets: (pos: Vec2) => {
 		session.extraRockets += 1;
+		upgradeService.addModifier("extraRockets", 1, "additive", "powerup");
 	},
 	addSpaceDebree: (pos: Vec2) => {
 		session.extraSpaceDebreeInMissiles += 2;
+		upgradeService.addModifier(
+			"extraSpaceDebreeInMissiles",
+			2,
+			"additive",
+			"powerup"
+		);
 	},
 	slowdownTime: (pos: Vec2) => {
 		// Extend duration if already active (6B: Extend duration)
@@ -88,10 +96,14 @@ export const powerupReq: Record<PowerupKey, (() => boolean) | undefined> = {
 	addFollower: undefined,
 	addPlayerMaxHealth: undefined,
 	addExtraRockets: () => {
-		return player.rocketsLvl !== undefined;
+		return (
+			player.rocketsLvl !== undefined || upgradeService.hasUnlock("rockets")
+		);
 	},
 	addSpaceDebree: () => {
-		return player.rocketsLvl !== undefined;
+		return (
+			player.rocketsLvl !== undefined || upgradeService.hasUnlock("rockets")
+		);
 	},
 	slowdownTime: undefined, // No requirements
 };
