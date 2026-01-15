@@ -4,6 +4,7 @@ export const tags = {
 	props: "props",
 	gameLoopUi: "game_loop_ui",
 	gameLoop: "gameLoop",
+	mainMenu: "mainMenu",
 
 	blaster: "blaster",
 	rocket: "rocket",
@@ -12,4 +13,8 @@ export const tags = {
 	part: "part",
 
 	levelBg: "level_bg",
+
+	levelEditor: "levelEditor",
+	layerToggle: "layerToggle",
+	brightnessSlider: "brightnessSlider",
 };

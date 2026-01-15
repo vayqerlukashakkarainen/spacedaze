@@ -1,70 +1,141 @@
-import { Vec2 } from "kaplay"
-import { k, layers, changeGameState, GameState } from "../../main"
-import { clearGrid } from "../actions/gridActions"
-import { savePattern, loadPattern, exportPatternJSON } from "../actions/patternActions"
-import { toggleOutlines } from "../actions/layerActions"
+import { Vec2 } from "kaplay";
+import { k, layers, changeGameState, GameState } from "../../main";
+import { uiState } from "../../ui/uiState";
+import { createUiButton } from "../../ui/common/button";
+import { createUiLabel } from "../../ui/common/label";
+import {
+	clearGrid,
+	generateCave,
+	saveGridToFile,
+	loadGridFromFile,
+} from "../actions/gridActions";
+import {
+	savePattern,
+	loadPattern,
+	exportPatternJSON,
+} from "../actions/patternActions";
+import { toggleOutlines } from "../actions/layerActions";
+import { exitLevelEditor } from "../levelEditor";
 
 /**
  * Create action button bar (right side)
  */
-export function createActionBar(paletteX: number, startY: number, screenHeight: number): void {
-	let paletteY = startY
+export function createActionBar(
+	paletteX: number,
+	startY: number,
+	screenHeight: number
+): void {
+	let paletteY = startY;
 
-	k.add([
-		k.text("ACTIONS", { size: 16, font: "unscii" }),
+	createUiLabel({
+		pos: k.vec2(paletteX, paletteY),
+		txt: "ACTIONS",
+		color: k.Color.fromHex("#ffffff"),
+	});
+	paletteY += 40;
+
+	createUiButton({
+		pos: k.vec2(paletteX, paletteY),
+		txt: "CLEAR",
+		onClick: clearGrid,
+	});
+	paletteY += 60;
+
+	createUiButton({
+		pos: k.vec2(paletteX, paletteY),
+		txt: "SAVE",
+		onClick: saveGridToFile,
+	});
+	paletteY += 60;
+
+	createUiButton({
+		pos: k.vec2(paletteX, paletteY),
+		txt: "LOAD",
+		onClick: loadGridFromFile,
+	});
+	paletteY += 60;
+
+	createUiButton({
+		pos: k.vec2(paletteX, paletteY),
+		txt: "EXPORT JSON",
+		onClick: exportPatternJSON,
+	});
+	paletteY += 60;
+
+	createUiButton({
+		pos: k.vec2(paletteX, paletteY),
+		txt: "OUTLINES",
+		onClick: toggleOutlines,
+	});
+	paletteY += 80;
+
+	// Seed input for generation
+	let seedInputValue = "";
+	const seedInputBg = k.add([
 		k.pos(paletteX, paletteY),
+		k.rect(120, 30),
+		k.area(),
+		k.color(20, 20, 20),
 		k.anchor("center"),
-		k.color(255, 255, 255),
+		k.outline(1, new k.Color(100, 100, 100)),
 		k.fixed(),
 		k.layer(layers.ui),
 		"levelEditor",
-	])
-	paletteY += 40
+	]);
 
-	addActionButton("CLEAR", k.vec2(paletteX, paletteY), clearGrid)
-	paletteY += 60
+	seedInputBg.onHover(() => {
+		uiState.isOverUI = true;
+	});
 
-	addActionButton("SAVE", k.vec2(paletteX, paletteY), savePattern)
-	paletteY += 60
+	seedInputBg.onHoverEnd(() => {
+		uiState.isOverUI = false;
+	});
 
-	addActionButton("LOAD", k.vec2(paletteX, paletteY), loadPattern)
-	paletteY += 60
+	const seedInputText = seedInputBg.add([
+		k.text("seed: random", { size: 10, font: "unscii" }),
+		k.anchor("center"),
+		k.color(150, 150, 150),
+	]);
 
-	addActionButton("EXPORT JSON", k.vec2(paletteX, paletteY), exportPatternJSON)
-	paletteY += 60
+	// Handle text input
+	k.onCharInput((char) => {
+		if (char >= "0" && char <= "9") {
+			seedInputValue += char;
+			if (seedInputValue.length > 8)
+				seedInputValue = seedInputValue.slice(0, 8);
+			seedInputText.text = `seed: ${seedInputValue}`;
+		}
+	});
 
-	addActionButton("OUTLINES", k.vec2(paletteX, paletteY), toggleOutlines)
-	paletteY += 80
+	k.onKeyPress("backspace", () => {
+		if (seedInputValue.length > 0) {
+			seedInputValue = seedInputValue.slice(0, -1);
+			seedInputText.text =
+				seedInputValue.length > 0 ? `seed: ${seedInputValue}` : "seed: random";
+		}
+	});
+
+	paletteY += 50;
+
+	// Generate button
+	createUiButton({
+		pos: k.vec2(paletteX, paletteY),
+		txt: "GENERATE",
+		onClick: () => {
+			const seed =
+				seedInputValue.length > 0 ? parseInt(seedInputValue) : undefined;
+			generateCave(seed);
+		},
+	});
+	paletteY += 80;
 
 	// Exit button
-	addActionButton("EXIT", k.vec2(paletteX, screenHeight - 60), () => {
-		changeGameState(GameState.MainMenu)
-	})
-}
-
-/**
- * Add action button
- */
-function addActionButton(txt: string, pos: Vec2, onClick: () => void) {
-	const btn = k.add([
-		k.pos(pos),
-		k.rect(120, 40),
-		k.area(),
-		k.color(0, 0, 0),
-		k.anchor("center"),
-		k.outline(2, new k.Color(255, 255, 255)),
-		k.fixed(),
-		k.layer(layers.ui),
-		"levelEditor",
-	])
-
-	btn.add([
-		k.text(txt, { size: 12, font: "unscii" }),
-		k.anchor("center"),
-		k.color(255, 255, 255),
-	])
-
-	btn.onClick(onClick)
-
-	return btn
+	createUiButton({
+		pos: k.vec2(paletteX, screenHeight - 60),
+		txt: "EXIT",
+		onClick: () => {
+			exitLevelEditor();
+			changeGameState(GameState.MainMenu);
+		},
+	});
 }

@@ -5,13 +5,16 @@
 		"build": "vite build",
 		"dev": "vite",
 		"preview": "vite preview",
-		"zip": "npm run build && mkdir -p dist && zip -r dist/game.zip dist -x \"**/.DS_Store\""
+		"zip": "npm run build && mkdir -p dist && zip -r dist/game.zip dist -x \"**/.DS_Store\"",
+		"test:generation": "tsx src/generation/test/generation.test.ts",
+		"test:generator": "tsx src/generation/test/testGenerator.ts"
 	},
 	"dependencies": {
 		"kaplay": "4000.0.0-alpha.24"
 	},
 	"devDependencies": {
 		"@types/node": "^22.15.19",
+		"tsx": "^4.21.0",
 		"vite": "^6.3.5"
 	}
 }

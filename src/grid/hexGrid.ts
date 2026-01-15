@@ -62,11 +62,10 @@ export class HexGrid {
 	generateEmpty(): void {
 		this.cells.clear();
 
-		// Use offset coordinates for rectangular grid generation
-		for (let row = 0; row < this.config.height; row++) {
-			const rowOffset = Math.floor(row / 2);
-			for (let col = -rowOffset; col < this.config.width - rowOffset; col++) {
-				const coord: HexCoord = { q: col, r: row };
+		// Use axial coordinates - hexToPixel handles visual offset
+		for (let r = 0; r < this.config.height; r++) {
+			for (let q = 0; q < this.config.width; q++) {
+				const coord: HexCoord = { q, r };
 				// Generate cells for all layers
 				for (let layer = 0; layer < this.layers; layer++) {
 					this.setCell(coord, CellType.Empty, layer);
@@ -151,10 +150,9 @@ export class HexGrid {
 		this.layers++;
 
 		// Generate empty cells for the new layer
-		for (let row = 0; row < this.config.height; row++) {
-			const rowOffset = Math.floor(row / 2);
-			for (let col = -rowOffset; col < this.config.width - rowOffset; col++) {
-				const coord: HexCoord = { q: col, r: row };
+		for (let r = 0; r < this.config.height; r++) {
+			for (let q = 0; q < this.config.width; q++) {
+				const coord: HexCoord = { q, r };
 				this.setCell(coord, CellType.Empty, newLayer);
 			}
 		}

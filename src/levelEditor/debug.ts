@@ -1,10 +1,13 @@
 import { k, layers } from "../main";
+import { createUiLabel } from "../ui/common/label";
 import { GameObj, TextComp } from "kaplay";
+import { uiState } from "../ui/uiState";
 
 let debugVisible = true;
 let debugLabels: {
 	fps?: GameObj<TextComp>;
 	objects?: GameObj<TextComp>;
+	overUi?: GameObj<TextComp>;
 } = {};
 
 /**
@@ -29,25 +32,28 @@ function createDebugLabels() {
 	let startY = 20;
 
 	// FPS label
-	debugLabels.fps = k.add([
-		k.text("FPS: 0", { size: 12, font: "unscii" }),
-		k.pos(startX, startY),
-		k.color(255, 255, 255),
-		k.fixed(),
-		k.layer(layers.ui),
-		"debug",
-	]);
+	debugLabels.fps = createUiLabel({
+		pos: k.vec2(startX, startY),
+		txt: "FPS: 0",
+		color: k.Color.fromHex("#ffffff"),
+	});
 	startY += 20;
 
 	// Object count label
-	debugLabels.objects = k.add([
-		k.text("Objects: 0", { size: 12, font: "unscii" }),
-		k.pos(startX, startY),
-		k.color(255, 255, 255),
-		k.fixed(),
-		k.layer(layers.ui),
-		"debug",
-	]);
+	debugLabels.objects = createUiLabel({
+		pos: k.vec2(startX, startY),
+		txt: "Objects: 0",
+		color: k.Color.fromHex("#ffffff"),
+	});
+
+	startY += 20;
+
+	// Object count label
+	debugLabels.overUi = createUiLabel({
+		pos: k.vec2(startX, startY),
+		txt: "Over UI: 0",
+		color: k.Color.fromHex("#ffffff"),
+	});
 }
 
 /**
@@ -63,9 +69,13 @@ export function updateDebug() {
 	}
 
 	// Update object count
-	const objectCount = k.get("*").length;
+	const objectCount = k.debug.numObjects();
 	if (debugLabels.objects && "text" in debugLabels.objects) {
 		debugLabels.objects.text = `Objects: ${objectCount}`;
+	}
+
+	if (debugLabels.overUi && "text" in debugLabels.overUi) {
+		debugLabels.overUi.text = `Over UI: ${uiState.isOverUI}`;
 	}
 }
 
