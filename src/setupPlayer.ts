@@ -95,7 +95,7 @@ export function setupPlayer() {
 			updateSpecialBar(specialTimer, rocketSpecialCooldown);
 		}
 
-		k.setCamPos(k.center().scale(0.5).add(playerObj.pos.scale(0.5)));
+		k.setCamPos(playerObj.pos);
 
 		checkProjectileIntersection(playerObj.pos, 12, tags.enemy, (p) => {
 			if (p.tags.includes(tags.blaster)) {
@@ -157,7 +157,7 @@ export function setupPlayer() {
 			);
 			turretObj.angle = turretLerp.lerp;
 		} else {
-			turretObj.angle = 0;
+			turretObj.angle = playerObj.angle;
 		}
 
 		const maxSpeed =

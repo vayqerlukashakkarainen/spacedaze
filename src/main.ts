@@ -1,5 +1,5 @@
-import kaplay, { GameObj, TextComp, Vec2 } from "kaplay";
-import { init, loadGame, saveGame } from "./util";
+import kaplay, { GameObj, Vec2 } from "kaplay";
+import { init, loadGame } from "./util";
 import { startGame, updateGameLoop } from "./game";
 import { enterMainMenu, updateMainMenuLoop } from "./ui/mainMenu";
 import { setLoadout } from "./upg";
@@ -11,18 +11,14 @@ import { upgradeService } from "./services/upgradeService";
 import { spawnTimescaleZone } from "./spawn/spawnTimescaleZone";
 import { spawnRing } from "./spawn/spawnRing";
 import { startChestOpeningSequence } from "./ui/chestOpening";
-import {
-	createTestHexGrid,
-	saveHexGrid,
-	loadHexGrid,
-	toggleGridDebug,
-	injectPatternToGrid,
-} from "./levels/testHexGrid";
+import { generateCave } from "./generation/caveGenerator";
+import { generationMapToHexGrid } from "./generation/gridConversion";
 import { runHexGridTests } from "./grid/hexGrid.test";
 import { tags } from "./tags";
 import { enterLevelEditor, updateLevelEditor } from "./levelEditor/levelEditor";
 import { setupStatsWindow } from "./ui/statsWindow";
 import { initDebug, updateDebug } from "./levelEditor/debug";
+import { gridRegistry } from "./grid/gridRegistry";
 
 export const layers = {
 	bg: "bg",
@@ -119,6 +115,8 @@ init(k).then(() => {
 		} else if (gameState == GameState.LevelEditor) {
 			updateLevelEditor();
 		}
+
+		gridRegistry.updateVisibleCells();
 	});
 
 	// Pause toggle with Escape key
@@ -162,29 +160,21 @@ init(k).then(() => {
 		changeGameState(GameState.ChestOpening);
 	});
 
-	// Hex grid testing
+	// Hex grid testing - generate random cave
 	k.onKeyPress("h", () => {
-		createTestHexGrid();
-	});
+		// Generate random cave with random seed
+		const seed = Math.floor(Math.random() * 1000000);
+		console.log(`Generating cave with seed: ${seed}`);
 
-	k.onKeyPress("g", () => {
-		toggleGridDebug();
-	});
+		const generatedMap = generateCave(seed, 30, 20);
+		const hexGrid = generationMapToHexGrid(
+			generatedMap,
+			40, // hexSize
+			k.width() / 2 - 600, // offsetX
+			k.height() / 2 - 400 // offsetY
+		);
 
-	k.onKeyPress("s", () => {
-		saveHexGrid();
-	});
-
-	k.onKeyPress("l", () => {
-		loadHexGrid();
-	});
-
-	k.onKeyPress("t", () => {
-		runHexGridTests();
-	});
-
-	k.onKeyPress("i", () => {
-		injectPatternToGrid();
+		gridRegistry.register("caveGrid", hexGrid);
 	});
 });
 
