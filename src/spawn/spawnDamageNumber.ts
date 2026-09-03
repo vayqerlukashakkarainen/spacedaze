@@ -1,4 +1,4 @@
-import type { Vec2 } from "kaplay"
+import type { Color, Vec2 } from "kaplay"
 import { timescale } from "../comp/timescale"
 import { k, layers } from "../main"
 import { tags } from "../tags"
@@ -8,6 +8,8 @@ const DAMAGE_NUMBER_RISE_SPEED = 24
 
 interface DamageNumberOptions {
 	critical?: boolean
+	color?: Color
+	prefix?: string
 }
 
 export function spawnDamageNumber(
@@ -21,12 +23,12 @@ export function spawnDamageNumber(
 	const critical = options.critical === true
 	const number = k.add([
 		k.pos(pos.add(k.rand(-7, 7), k.rand(-7, -3))),
-		k.text(`${roundedDamage}${critical ? "!" : ""}`, {
+		k.text(`${options.prefix ?? ""}${roundedDamage}${critical ? "!" : ""}`, {
 			size: critical ? 11 : 9,
 			font: "unscii",
 		}),
 		k.anchor("center"),
-		k.color(critical ? k.RED : k.WHITE),
+		k.color(options.color ?? (critical ? k.RED : k.WHITE)),
 		k.opacity(1),
 		k.scale(critical ? 1.15 : 1),
 		k.z(100),

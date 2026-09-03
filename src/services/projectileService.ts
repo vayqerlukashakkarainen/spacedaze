@@ -68,6 +68,7 @@ import {
 import { applyRadialGravity } from "./radialGravityService";
 
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
+const PLAYER_PROJECTILE_SCALE = 0.7;
 
 interface ChainLightningRuntime extends ChainModifier {
 	chainedTargets: Set<number>;
@@ -79,6 +80,9 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	// Calculate final speed
 	const finalSpeed = config.speed * (config.speedMultiplier ?? 1);
 	const damagesDestructibleWalls = config.tags.includes(tags.friendly);
+	const projectileScale = damagesDestructibleWalls
+		? PLAYER_PROJECTILE_SCALE
+		: 1;
 
 	// Build component list
 	const components: any[] = [
@@ -93,7 +97,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 			config.tint ??
 				(config.tags.includes(tags.enemy) ? k.rgb(255, 150, 150) : k.WHITE)
 		),
-		k.scale(1),
+		k.scale(projectileScale),
 		{
 			speed: finalSpeed,
 			dir: config.dir,
@@ -217,16 +221,29 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 		if (!proj.spiralConfig) updateMovement(proj);
 		const wallCollision = findSolidCellCollision(previousPos, proj.pos);
 		if (wallCollision) {
+			let hitDestructibleWall = false;
 			if (damagesDestructibleWalls) {
-					damageDestructibleWall(
+				hitDestructibleWall = damageDestructibleWall(
 						ACTIVE_RUN_GRID_KEY,
 						wallCollision.coord,
 						Math.max(proj.impactDamage ?? proj.splashDamage ?? 1, 1),
 						wallCollision.safePos
-					);
+					) !== undefined;
 			}
 			proj.pos = wallCollision.safePos;
-			if (!tryBounceProjectile(proj, undefined, wallCollision.normal)) {
+			if (
+				!tryBounceProjectile(
+					proj,
+					undefined,
+					wallCollision.normal,
+					false,
+					hitDestructibleWall
+				)
+			) {
+				if (!hitDestructibleWall) {
+					proj.suppressDestroyFlash = true;
+					proj.suppressOnDestroyEffects = true;
+				}
 				k.destroy(proj);
 			}
 		}
@@ -255,7 +272,9 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 		}
 
 		// Flash effect
-		spawnFlash(proj.pos, 5, proj.didCrit ? k.RED : k.WHITE);
+		if (!proj.suppressDestroyFlash) {
+			spawnFlash(proj.pos, 5, proj.didCrit ? k.RED : k.WHITE);
+		}
 
 		// OnDestroy effects
 		if (proj.onDestroyConfig && !proj.suppressOnDestroyEffects) {
@@ -353,7 +372,7 @@ function applyTrailModifier(proj: GameObj, config?: TrailModifier) {
 	if (!config) return;
 	proj.trail = {
 		type: config.emitterType,
-		offset: config.offset ?? 12,
+		offset: (config.offset ?? 12) * proj.scale.x,
 		count: config.particleCount ?? 1,
 	};
 }
@@ -543,6 +562,7 @@ function applyGrowthModifier(proj: GameObj, config?: GrowthModifier) {
 		origin: proj.pos.clone(),
 		baseDamage: proj.impactDamage,
 		baseScale: proj.scale.x,
+		maxScale: proj.scale.x * config.maxScale,
 		particleTimer: 0,
 	};
 }
@@ -954,7 +974,7 @@ function deployMine(proj: GameObj, config: ProjectileConfig) {
 	const mineObj = spawnProjectile(mineConfig);
 	mineObj.isDeployedMine = true;
 	mineObj.mineArmDelay = mine.armDelay;
-	mineObj.scale = k.vec2(1.35);
+	mineObj.scale = mineObj.scale.scale(1.35);
 	mineObj.color = k.rgb(105, 105, 105);
 	mineObj.onUpdate(() => {
 		if (mineObj.mineArmed || mineObj.lifetime < mineObj.mineArmDelay) return;
@@ -974,7 +994,7 @@ function handleFragmentation(proj: GameObj, config: ProjectileConfig) {
 	for (let index = 0; index < count; index++) {
 		const angle = proj.angle - fragment.spreadAngle / 2 +
 			fragment.spreadAngle * ((index + 0.5) / count);
-		spawnProjectile({
+		const shard = spawnProjectile({
 			...config,
 			pos: proj.pos.clone(),
 			dir: k.Vec2.fromAngle(angle - 90),
@@ -990,6 +1010,7 @@ function handleFragmentation(proj: GameObj, config: ProjectileConfig) {
 			},
 			lifespan: { duration: 0.7 },
 		});
+		ignoreSourceTarget(shard, proj.lastHitTargetId);
 	}
 }
 
@@ -1003,7 +1024,7 @@ function spawnCriticalShards(proj: GameObj) {
 	for (let index = 0; index < count; index++) {
 		const angle = proj.angle - config.spreadAngle / 2 +
 			config.spreadAngle * ((index + 0.5) / count);
-		spawnProjectile({
+		const shard = spawnProjectile({
 			...sourceConfig,
 			pos: proj.pos.clone(),
 			dir: k.Vec2.fromAngle(angle - 90),
@@ -1018,7 +1039,14 @@ function spawnCriticalShards(proj: GameObj) {
 			impact: { damage: damage * config.damageMultiplier },
 			lifespan: { duration: 0.65 },
 		});
+		ignoreSourceTarget(shard, proj.lastHitTargetId);
 	}
+}
+
+function ignoreSourceTarget(projectile: GameObj, sourceTargetId?: number) {
+	if (sourceTargetId === undefined) return;
+	projectile.hitTargets ??= new Set<number>();
+	projectile.hitTargets.add(sourceTargetId);
 }
 
 function consumeProcBudget(config: ProjectileConfig, amount: number) {
@@ -1038,7 +1066,8 @@ export function tryBounceProjectile(
 	projectile: GameObj,
 	target?: GameObj,
 	explicitNormal?: Vec2,
-	deferModifierCleanup: boolean = false
+	deferModifierCleanup: boolean = false,
+	showImpactEffect: boolean = true
 ) {
 	if (
 		projectile.bouncesRemaining === undefined ||
@@ -1076,7 +1105,7 @@ export function tryBounceProjectile(
 	// Decrement bounces
 	projectile.bouncesRemaining--;
 	projectile.pos = projectile.pos.add(projectile.dir.scale(3));
-	spawnFlash(projectile.pos, 2, k.WHITE);
+	if (showImpactEffect) spawnFlash(projectile.pos, 2, k.WHITE);
 
 	// Mark target as hit to prevent immediate re-collision
 	if (target && !projectile.hitTargets) {
@@ -1236,6 +1265,7 @@ export function applyProjectileDamage(
 	if (projectile.hitTargets && projectile.hitTargets.has(target.id)) {
 		return false;
 	}
+	projectile.lastHitTargetId = target.id;
 
 	let shouldDestroy = true;
 	let directTargetChainedByExplosion = false;

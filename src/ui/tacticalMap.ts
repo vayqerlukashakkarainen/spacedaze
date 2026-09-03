@@ -301,7 +301,7 @@ function rasterizeMap(
 
 	for (const cell of geometry.cells) {
 		if (!cell.revealed) continue
-		if (!cell.solid && !cell.role) continue
+		if (!cell.solid && !cell.role && !cell.volatileCargoObjective) continue
 		const roleColor = cell.role ? getRoomColor(cell.role) : undefined
 		const color = cell.solid
 			? cell.destructible
@@ -326,6 +326,13 @@ function rasterizeMap(
 		context.stroke()
 		if (cell.destructible) {
 			drawDestructibleMapMark(
+				context,
+				toRasterPosition(cell.center),
+				pixelsPerUnit
+			)
+		}
+		if (cell.volatileCargoObjective) {
+			drawVolatileCargoMapMark(
 				context,
 				toRasterPosition(cell.center),
 				pixelsPerUnit
@@ -398,6 +405,25 @@ function drawDestructibleMapMark(
 	context.stroke()
 }
 
+function drawVolatileCargoMapMark(
+	context: CanvasRenderingContext2D,
+	center: Vec2,
+	pixelsPerUnit: number
+) {
+	const radius = pixelsPerUnit * 0.32
+	context.beginPath()
+	context.moveTo(center.x, center.y - radius)
+	context.lineTo(center.x + radius, center.y)
+	context.lineTo(center.x, center.y + radius)
+	context.lineTo(center.x - radius, center.y)
+	context.closePath()
+	context.fillStyle = canvasColor(k.rgb(255, 145, 45), 0.95)
+	context.fill()
+	context.lineWidth = 2
+	context.strokeStyle = canvasColor(k.WHITE)
+	context.stroke()
+}
+
 function canvasColor(color: Color, opacity = 1) {
 	return `rgba(${color.r}, ${color.g}, ${color.b}, ${opacity})`
 }
@@ -410,7 +436,7 @@ function addZoneSidebar(
 	height: number
 ) {
 	k.add([
-		k.text("ZONES", { size: 12, font: "unscii" }),
+		k.text("OBJECTIVES // ZONES", { size: 12, font: "unscii" }),
 		k.pos(x, y),
 		k.color(...UI_COLORS.accent),
 		k.fixed(),
@@ -422,23 +448,54 @@ function addZoneSidebar(
 	const zones = cells
 		.filter((cell) => cell.revealed && cell.roomAnchor && cell.role)
 		.sort((a, b) => a.r - b.r || a.q - b.q)
+	const cargoObjective = cells.find(
+		(cell) => cell.revealed && cell.volatileCargoObjective
+	)
 	const scrollY = y + 24
 	const scrollHeight = height - 24
 	const rowHeight = 42
+	const objectiveRows = cargoObjective ? 1 : 0
 	zoneScroll = createUiScrollable({
 		pos: k.vec2(x, scrollY),
 		width,
 		height: scrollHeight,
-		contentHeight: Math.max(scrollHeight, zones.length * rowHeight + 12),
+		contentHeight: Math.max(
+			scrollHeight,
+			(zones.length + objectiveRows) * rowHeight + 12
+		),
 		scrollStep: rowHeight,
 		layer: layers.uiEffects,
 		zIndex: 302,
 		tags: [tags.tacticalMap],
 	})
+	if (cargoObjective) {
+		zoneScroll.content.add([
+			k.rect(6, 28),
+			k.pos(7, 8),
+			k.color(255, 145, 45),
+		])
+		zoneScroll.content.add([
+			k.text("OBJ  VOLATILE CARGO", {
+				size: 9,
+				font: "unscii",
+				width: width - 24,
+			}),
+			k.pos(19, 8),
+			k.color(255, 175, 75),
+		])
+		zoneScroll.content.add([
+			k.text(`HEX ${cargoObjective.q},${cargoObjective.r}`, {
+				size: 7,
+				font: "unscii",
+			}),
+			k.pos(19, 23),
+			k.color(...UI_COLORS.muted),
+		])
+	}
 
 	zones.forEach((zone, index) => {
 		const role = zone.role!
-		const yPos = 8 + index * rowHeight
+		const yPos = 8 + (index + objectiveRows) * rowHeight
 		zoneScroll!.content.add([
 			k.rect(6, 28),
 			k.pos(7, yPos),

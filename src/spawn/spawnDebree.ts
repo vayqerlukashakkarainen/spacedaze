@@ -75,6 +75,10 @@ export function spawnDebreeValues(pos: Vec2, values: DebreeValue[]) {
 		});
 
 		debrees.push(d);
+		d.onDestroy(() => {
+			const index = debrees.findIndex((debris) => debris.id === d.id);
+			if (index >= 0) debrees.splice(index, 1);
+		});
 	}
 }
 

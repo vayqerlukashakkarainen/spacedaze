@@ -11,6 +11,7 @@ import {
 	type EnemySpawnOptions,
 } from "../services/threatService";
 import { applyDamage } from "../services/damageService";
+import { isPlayerDamageInvulnerable } from "../services/playerDamageState";
 
 export function spawnHeavyVehicle(
 	pos: Vec2,
@@ -54,7 +55,10 @@ export function spawnHeavyVehicle(
 			onEnemyHit(m, p);
 		});
 
-		if (playerObj.pos.dist(m.pos) < m.hb) {
+		if (
+			!isPlayerDamageInvulnerable() &&
+			playerObj.pos.dist(m.pos) < m.hb
+		) {
 			applyDamage(playerObj, m.damage);
 			applyDamage(m, profile.hp);
 		}

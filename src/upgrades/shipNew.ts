@@ -198,6 +198,25 @@ export const spaceJumpUpgrades: UpgradeDefinition = {
 	],
 };
 
+export const phaseRam: UpgradeDefinition = {
+	toolKey: "phaseRam",
+	toolName: "Phase Ram",
+	category: "movement",
+	type: "passive",
+	requirements: { allOf: [{ toolKey: "spaceJump" }] },
+	levels: [3, 5, 8].map((damage, index) => ({
+		name: `Level ${index + 1}`,
+		desc: `Space Jump deals ${damage} damage to each enemy passed through`,
+		sprite: "space_jump_upg1",
+		price: [36, 48, 62][index],
+		effects: {
+			modifiers: [
+				{ stat: "spaceJumpDamage", value: damage, type: "base" },
+			],
+		},
+	})),
+};
+
 export const movespeed: UpgradeDefinition = {
 	toolKey: "movespeed",
 	toolName: "Improved thrusters",

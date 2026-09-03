@@ -283,7 +283,13 @@ function tagRoomRoles(
 
 	const shuffled = rng.shuffle([...roomCandidates]);
 	placeRoom(map, shuffled, anchors, "reward", spacing);
+	placeRoom(map, shuffled, anchors, "repair", spacing);
+	placeRoom(map, shuffled, anchors, "relay", spacing);
 	placeRoom(map, shuffled, anchors, "shrine", spacing);
+	placeRoom(map, shuffled, anchors, "rift", spacing);
+	placeRoom(map, shuffled, anchors, "anomaly", spacing, 3);
+	placeRoom(map, shuffled, anchors, "minefield", spacing, 3);
+	placeRoom(map, shuffled, anchors, "convoy", spacing);
 	placeRoom(map, shuffled, anchors, "asteroid", spacing, 3);
 	placeRoom(map, shuffled, anchors, "combat", spacing);
 	placeRoom(map, shuffled, anchors, "combat", spacing);

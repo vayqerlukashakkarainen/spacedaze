@@ -18,7 +18,13 @@ import {
 	mainSoundVolume,
 	setTimescale,
 } from "./main";
-import { loadPlayer, player, resetSession, session } from "./player";
+import {
+	addScrapArmorProgress,
+	loadPlayer,
+	player,
+	resetSession,
+	session,
+} from "./player";
 
 import { clearPlayer, setupPlayer } from "./setupPlayer";
 import { tags } from "./tags";
@@ -94,6 +100,11 @@ export function updateGameLoop() {
 
 	for (let i = 0; i < debrees.length; i++) {
 		const d = debrees[i];
+		if (!d.exists()) {
+			debrees.splice(i, 1);
+			i--;
+			continue;
+		}
 		const collectible = d as typeof d & {
 			collection?: DebreeCollectionState;
 			scale: Vec2;
@@ -109,20 +120,7 @@ export function updateGameLoop() {
 				deltaTime
 			);
 			if (completed) {
-				k.destroy(d);
-				debrees.splice(i, 1);
-				recordDebreeCollected();
-				audioService.playSound("collect1", { volume: mainSoundVolume });
-				const salvageGained = addScore(
-					player.scorePerPickup *
-						collectible.salvageValue *
-						player.debreeValueMultiplier
-				);
-				showSalvageGain(
-					salvageGained,
-					collectible.color,
-					playerObj.pos.clone()
-				);
+				collectDebreeImmediately(collectible, playerObj.pos.clone());
 				i--;
 			}
 			continue;
@@ -147,6 +145,27 @@ export function updateGameLoop() {
 		const dist = interactable.pos.dist(playerObj.pos);
 		interactable.isInRange = dist < interactable.interactRadius;
 	}
+}
+
+export function collectDebreeImmediately(
+	debris: GameObj & {
+		salvageValue?: number;
+		color?: Color;
+	},
+	collectionPos: Vec2
+) {
+	if (!debris.exists()) return 0;
+	const salvageValue = debris.salvageValue ?? 1;
+	const color = debris.color ?? k.WHITE;
+	k.destroy(debris);
+	recordDebreeCollected();
+	audioService.playSound("collect1", { volume: mainSoundVolume });
+	const salvageGained = addScore(
+		player.scorePerPickup * salvageValue * player.debreeValueMultiplier
+	);
+	addScrapArmorProgress(salvageGained);
+	showSalvageGain(salvageGained, color, collectionPos);
+	return salvageGained;
 }
 
 function beginDebreeCollection(

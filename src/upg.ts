@@ -7,8 +7,12 @@ import {
 } from "./upgrades/blasters";
 import {
 	followerBlasterDmg,
+	followerGunship,
+	followerInterceptorProtocol,
+	followerMedic,
 	followerMissiles,
 	followerProjectileLink,
+	followerSalvager,
 } from "./upgrades/follower";
 import { increaseRockets, rocket, rocketShards } from "./upgrades/rockets";
 import {
@@ -20,6 +24,7 @@ import {
 	sprintSpeed,
 	spaceJump,
 	spaceJumpUpgrades,
+	phaseRam,
 } from "./upgrades/ship";
 import { saveGame } from "./util";
 import { upgradeService } from "./services/upgradeService";
@@ -62,6 +67,12 @@ import {
 	voidLance,
 	volatileCorrosion,
 } from "./upgrades/projectileBehaviorsNew"
+import {
+	afterburnerWake,
+	enemyHacker,
+	sacrificialProtocol,
+	scrapArmor,
+} from "./upgrades/systems"
 
 interface Upgrade {
 	name: string;
@@ -97,6 +108,7 @@ export const upgrades = {
 	sprintSpeed: sprintSpeed,
 	spaceJump: spaceJump,
 	spaceJumpUpgrades: spaceJumpUpgrades,
+	phaseRam,
 
 	movespeed: movespeed,
 	maxHealth: maxHealth,
@@ -104,6 +116,14 @@ export const upgrades = {
 	followerBlasterDmg: followerBlasterDmg,
 	followerMissiles: followerMissiles,
 	followerProjectileLink: followerProjectileLink,
+	followerInterceptorProtocol: followerInterceptorProtocol,
+	followerGunship,
+	followerMedic,
+	followerSalvager,
+	scrapArmor,
+	afterburnerWake,
+	sacrificialProtocol,
+	enemyHacker,
 
 	armorPiercing,
 	cryoRounds,
@@ -147,10 +167,19 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	followerBlasterDmg: undefined,
 	followerMissiles: undefined,
 	followerProjectileLink: undefined,
+	followerInterceptorProtocol: undefined,
+	followerGunship: undefined,
+	followerMedic: undefined,
+	followerSalvager: undefined,
+	scrapArmor: undefined,
+	afterburnerWake: undefined,
+	sacrificialProtocol: undefined,
+	enemyHacker: undefined,
 	rocketShards: undefined,
 	sprintSpeed: undefined,
 	spaceJump: undefined,
 	spaceJumpUpgrades: undefined,
+	phaseRam: undefined,
 	blasterParallel: undefined,
 	mouseAim: undefined,
 	armorPiercing: undefined,
@@ -195,10 +224,19 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	followerBlasterDmg: undefined,
 	followerMissiles: undefined,
 	followerProjectileLink: undefined,
+	followerInterceptorProtocol: undefined,
+	followerGunship: undefined,
+	followerMedic: undefined,
+	followerSalvager: undefined,
+	scrapArmor: undefined,
+	afterburnerWake: undefined,
+	sacrificialProtocol: undefined,
+	enemyHacker: undefined,
 	rocketShards: undefined,
 	sprintSpeed: undefined,
 	spaceJump: undefined,
 	spaceJumpUpgrades: undefined,
+	phaseRam: undefined,
 	blasterParallel: undefined,
 	mouseAim: undefined,
 	armorPiercing: undefined,
@@ -285,6 +323,7 @@ const playerStatByTool: Partial<Record<ToolKey, string>> = {
 	sprint: "sprintSpeedMultiplier",
 	sprintSpeed: "sprintSpeedMultiplier",
 	movespeed: "speedMultiplier",
+	phaseRam: "spaceJumpDamage",
 	maxHealth: "maxHealth",
 	followerBlasterDmg: "followerBlasterDmg",
 	armorPiercing: "projectilePierces",
@@ -414,10 +453,19 @@ export function resetLevelLoadout() {
 		followerBlasterDmg: undefined,
 		followerMissiles: undefined,
 		followerProjectileLink: undefined,
+		followerInterceptorProtocol: undefined,
+		followerGunship: undefined,
+		followerMedic: undefined,
+		followerSalvager: undefined,
+		scrapArmor: undefined,
+		afterburnerWake: undefined,
+		sacrificialProtocol: undefined,
+		enemyHacker: undefined,
 		rocketShards: undefined,
 		sprintSpeed: undefined,
 		spaceJump: undefined,
 		spaceJumpUpgrades: undefined,
+		phaseRam: undefined,
 		blasterParallel: undefined,
 		mouseAim: undefined,
 		armorPiercing: undefined,
@@ -447,4 +495,15 @@ export function resetLevelLoadout() {
 		mineLayer: undefined,
 		voidLance: undefined,
 	};
+}
+
+export function clearAllUpgrades() {
+	const clearedUpgradeCount = (Object.keys(upgrades) as ToolKey[]).filter(
+		(key) => loadout[key] !== undefined || levelLoadout[key] !== undefined
+	).length
+
+	setLoadout({})
+	resetLevelLoadout()
+	upgradeService.reset()
+	return clearedUpgradeCount
 }

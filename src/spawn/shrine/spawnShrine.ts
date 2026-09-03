@@ -4,26 +4,37 @@ import { dt, k, mainSoundVolume } from "../../main";
 import { audioService } from "../../services/audioService";
 import { explosionEmitter } from "../../particles";
 import { tags } from "../../tags";
+import { spawnThreatEncounter } from "../../services/enemyEncounterService";
+
+const SHRINE_VISUAL_SCALE = 1.5;
 
 interface ShrineProps {
 	pos: Vec2;
 	radius: number;
 	captureTime: number;
+	level?: number;
+	enemySpawnDelay?: number;
+	enemySpawnInterval?: number;
+	enemySpawnDistance?: number;
+	enemySpawnSpacing?: number;
 	onComplete?: (pos: Vec2) => void;
 	tags?: string[];
 }
 
 export function spawnShrine(props: ShrineProps) {
+	const shrineLevel = Math.max(1, Math.floor(props.level ?? 1));
 	const shrine = k.add([
 		k.pos(props.pos),
 		k.sprite("crate1"), // Using crate as placeholder sprite
 		k.anchor("center"),
-		k.scale(1.5),
+		k.scale(SHRINE_VISUAL_SCALE),
 		k.opacity(1),
 		{
 			timer: 0,
 			maxTimer: props.captureTime,
 			isPlayerInside: false,
+			enemySpawnTimer: props.enemySpawnDelay ?? 1.5,
+			wavesSpawned: 0,
 		},
 		tags.props,
 		tags.gameLoop,
@@ -32,11 +43,18 @@ export function spawnShrine(props: ShrineProps) {
 
 	// Create circle to show radius
 	const circle = shrine.add([
-		k.circle(props.radius),
+		k.circle(props.radius / SHRINE_VISUAL_SCALE),
 		k.anchor("center"),
 		k.outline(3, k.rgb(255, 255, 255)),
 		k.opacity(0.3),
 		k.color(255, 255, 255),
+	]);
+	shrine.add([
+		k.text(`SHRINE LVL ${shrineLevel}`, { size: 7, font: "unscii" }),
+		k.pos(0, 27),
+		k.anchor("center"),
+		k.color(100, 200, 255),
+		k.z(2),
 	]);
 
 	// Add timer bar above shrine
@@ -66,6 +84,14 @@ export function spawnShrine(props: ShrineProps) {
 		if (shrine.isPlayerInside) {
 			// Player inside: increase timer
 			shrine.timer += dt();
+			shrine.enemySpawnTimer -= dt();
+			if (
+				props.enemySpawnInterval !== undefined &&
+				shrine.enemySpawnTimer <= 0
+			) {
+				spawnShrineEnemyWave();
+				shrine.enemySpawnTimer += props.enemySpawnInterval;
+			}
 			// Increase circle opacity
 			circle.opacity = k.lerp(circle.opacity, 0.8, 5 * dt());
 		} else {
@@ -94,6 +120,28 @@ export function spawnShrine(props: ShrineProps) {
 			k.destroy(shrine);
 		}
 	});
+
+	function spawnShrineEnemyWave() {
+		const spawnDistance = props.enemySpawnDistance ?? props.radius + 120;
+		const angle = k.rand(0, 360);
+		const spawnPos = shrine.pos.add(
+			k.Vec2.fromAngle(angle).scale(spawnDistance)
+		);
+		shrine.wavesSpawned++;
+
+		k.add([
+			k.pos(spawnPos),
+			k.circle((props.enemySpawnSpacing ?? 48) * 0.55, { fill: false }),
+			k.outline(3, k.rgb(255, 70, 70)),
+			k.anchor("center"),
+			k.opacity(0.9),
+			k.lifespan(0.8, { fade: 0.55 }),
+			tags.gameLoop,
+			...(props.tags ?? []),
+		]);
+
+		spawnThreatEncounter(spawnPos, props.enemySpawnSpacing ?? 48);
+	}
 
 	return shrine;
 }

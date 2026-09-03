@@ -59,7 +59,7 @@ export function spawnCrate(props: Props) {
 	});
 
 	m.onDeath(() => {
-		enemyOnDeath(m.pos, props.am, props.powerupMultiplier);
+		enemyOnDeath(m.pos, props.am, props.powerupMultiplier, "enemy", false);
 		audioService.playSound("explosion4", { volume: mainSoundVolume });
 		k.destroy(m);
 	});

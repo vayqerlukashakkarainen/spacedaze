@@ -14,7 +14,7 @@ export const WARP_ZONES: readonly WarpZoneDefinition[] = [
 		name: "ZONE 1",
 		description: "THE FIRST CHARTED EXPEDITION ZONE",
 		poolId: "zone1",
-		finaleId: "level1Ending",
+		finaleId: "level2Ending",
 	},
 ]
 

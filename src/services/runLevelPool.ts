@@ -11,7 +11,7 @@ export interface RunLevelPoolDefinition {
 export const RUN_LEVEL_POOLS: readonly RunLevelPoolDefinition[] = [
 	{
 		id: "zone1",
-		levelKeys: ["level1"],
+		levelKeys: ["level2"],
 		allowReuseWhenExhausted: true,
 	},
 ]

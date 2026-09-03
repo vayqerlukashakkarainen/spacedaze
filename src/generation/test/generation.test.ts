@@ -548,6 +548,36 @@ test("Generated runs include a shrine room", () => {
 	assertFalse(shrineAnchors[0].solid, "Shrine room should be navigable");
 });
 
+test("Large generated runs include all special room starters", () => {
+	const generator = new CaveGenerator(1142);
+	const map = generator.generate(60, 45);
+	const rooms = [
+		["rift", "rift_junction"],
+		["repair", "repair_station"],
+		["anomaly", "gravity_anomaly"],
+		["minefield", "minefield"],
+		["convoy", "lost_convoy"],
+		["relay", "signal_relay"],
+	] as const;
+
+	for (const [role, contentId] of rooms) {
+		const anchors = map
+			.getAllCells()
+			.filter(
+				(cell) =>
+					cell.tags.has("room_anchor") &&
+					cell.tags.has(roomRoleTag(role))
+			);
+		assertEqual(anchors.length, 1, `Should have one ${role} room anchor`);
+		assertFalse(anchors[0].solid, `${role} room should be navigable`);
+		assertEqual(
+			selectGeneratedContent(role, 1142, anchors[0].coord, 1)?.id,
+			contentId,
+			`${role} room should resolve its registered content`
+		);
+	}
+});
+
 test("Generated room content selection is deterministic", () => {
 	const coord = { q: 12, r: 8 };
 	const first = selectGeneratedContent("shrine", 7712, coord, 2);

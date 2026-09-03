@@ -1,5 +1,5 @@
 import kaplay, { GameObj, Vec2 } from "kaplay";
-import { init, loadGame } from "./util";
+import { init, loadGame, saveGame } from "./util";
 import {
 	clearGame,
 	playerDeathSequenceActive,
@@ -7,8 +7,15 @@ import {
 	updateGameLoop,
 } from "./game";
 import { enterMainMenu, updateMainMenuLoop } from "./ui/mainMenu";
-import { setLoadout } from "./upg";
-import { loadPlayer } from "./player";
+import {
+	clearAllUpgrades,
+	getEffectiveUpgradeLevel,
+	getNextRunUpgradeLevel,
+	grantRunUpgrade,
+	isToolKey,
+	setLoadout,
+} from "./upg";
+import { loadPlayer, player, resetSession, session } from "./player";
 import { initParticles, initUiEffects } from "./particles";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
@@ -64,10 +71,12 @@ import {
 } from "./levels/runMap";
 import {
 	canReceiveReward,
+	applyReward,
 	getRewardLockReason,
 	createReward,
 	getAllRewardDefinitions,
 	getRewardDefinition,
+	createDirectUpgradeReward,
 	RewardSource,
 } from "./services/rewardService";
 import { spawnRewardPickup } from "./spawn/spawnPowerup";
@@ -89,6 +98,32 @@ import {
 	setThreatTier,
 } from "./services/threatService";
 import { spawnThreatEncounter } from "./services/enemyEncounterService";
+import {
+	formatPlaytestBuildList,
+	getPlaytestBuild,
+} from "./services/buildService";
+import type { PlaytestBuild } from "./services/buildPresets";
+import {
+	addCollectedPowerup,
+	clearGameLoopUi,
+	setupGameLoopUi,
+	updatePlayerHealthBar,
+} from "./ui/gameUi";
+import {
+	clearRecoveryOffers,
+	clearRunInventory,
+} from "./services/runInventoryService";
+import { resetPowerupRuntime } from "./powerups";
+import {
+	getDebugEnemyTypes,
+	isDebugEnemyType,
+	spawnDebugEnemies,
+} from "./services/debugEnemySpawnService";
+import {
+	profileSection,
+	recordFrameTime,
+	resetFrameProfiler,
+} from "./services/frameProfilerService";
 
 export const layers = {
 	bg: "bg",
@@ -192,6 +227,7 @@ init(k).then(() => {
 	changeGameState(GameState.MainMenu);
 
 	k.onUpdate(() => {
+		recordFrameTime(k.dt() * 1000);
 		// Update debug info
 		updateDebug();
 
@@ -214,14 +250,14 @@ init(k).then(() => {
 		) {
 			timeSeconds += dt();
 			recordPlaytime(k.dt());
-			updateGameLoop();
+			profileSection("gameLoop", updateGameLoop);
 		} else if (gameState == GameState.MainMenu) {
 			updateMainMenuLoop();
 		} else if (gameState == GameState.LevelEditor) {
 			updateLevelEditor();
 		}
 
-		gridRegistry.updateVisibleCells();
+		profileSection("gridVisibility", () => gridRegistry.updateVisibleCells());
 	});
 
 	// Pause toggle with Escape key
@@ -412,6 +448,56 @@ function registerDebugCommands() {
 		return commandService.list().join("\n");
 	});
 
+	commandService.register("builds", "List curated playtest builds", () => {
+		return formatPlaytestBuildList();
+	});
+
+	commandService.register(
+		"upgrades",
+		"upgrades clear - Remove all player upgrades and run reward effects",
+		(args) => {
+			if (args[0]?.toLowerCase() !== "clear") {
+				return "Usage: upgrades clear";
+			}
+			if (!playerObj || !playerObj.exists()) return "No active player";
+
+			const clearedUpgradeCount = clearAllUpgrades();
+			resetSession();
+			resetPowerupRuntime();
+			clearRunInventory();
+			clearRecoveryOffers();
+			k.destroyAll(tags.follower);
+			setTimescale(1, 0.2);
+			loadPlayer();
+			saveGame("slot1");
+
+			playerObj.setMaxHP(player.maxHealth);
+			clearGameLoopUi();
+			setupGameLoopUi(player.maxHealth, false);
+			updatePlayerHealthBar(playerObj.hp());
+
+			return clearedUpgradeCount > 0
+				? `Cleared ${clearedUpgradeCount} upgrade types and all run reward effects`
+				: "Upgrades were already clear; run reward effects were reset";
+		}
+	);
+
+	commandService.register(
+		"build",
+		"build <id> - Add a playtest build to the current upgrade arsenal",
+		(args) => {
+			if (!args[0]) return formatPlaytestBuildList();
+			if (!playerObj || !playerObj.exists()) return "No active player";
+			const build = getPlaytestBuild(args.join("-"));
+			if (!build) return `Unknown build: ${args.join(" ")}. Type builds.`;
+			const additions = addPlaytestBuildToArsenal(build);
+			hideCommandConsole();
+			return additions.length > 0
+				? `Added ${build.name}: ${additions.join(", ")}`
+				: `${build.name} is already in the arsenal`;
+		}
+	);
+
 	commandService.register(
 		"debug",
 		"debug [on|off|toggle] - Show or hide the diagnostics HUD",
@@ -424,6 +510,23 @@ function registerDebugCommands() {
 			if (mode === "toggle") toggleDebug();
 			else setDebugVisible(mode === "on");
 			return `Debug HUD ${debugIsVisible() ? "shown" : "hidden"}`;
+		}
+	);
+
+	commandService.register(
+		"profiler",
+		"profiler [show|hide|reset] - Control performance diagnostics",
+		(args) => {
+			const mode = args[0]?.toLowerCase() ?? "show";
+			if (mode === "reset") {
+				resetFrameProfiler();
+				return "Profiler samples reset";
+			}
+			if (mode !== "show" && mode !== "hide") {
+				return "Usage: profiler [show|hide|reset]";
+			}
+			setDebugVisible(mode === "show");
+			return `Profiler ${mode === "show" ? "shown" : "hidden"}`;
 		}
 	);
 
@@ -510,6 +613,31 @@ function registerDebugCommands() {
 		return "Spawned threat encounter";
 	});
 
+	commandService.register(
+		"spawn",
+		"spawn <count> <type> - Spawn enemies near the player",
+		(args) => {
+			const count = Number(args[0]);
+			const type = args[1]?.toLowerCase() ?? "";
+			const availableTypes = getDebugEnemyTypes().join(", ");
+			if (!Number.isInteger(count) || count < 1 || count > 100) {
+				return `Usage: spawn <count 1-100> <type>. Types: ${availableTypes}`;
+			}
+			if (!isDebugEnemyType(type)) {
+				return `Unknown enemy type: ${type || "(missing)"}. Types: ${availableTypes}`;
+			}
+			if (!playerObj || !playerObj.exists()) return "No active player";
+
+			spawnDebugEnemies(count, type, playerObj.pos);
+			const label = count === 1
+				? type
+				: type === "boss"
+					? "bosses"
+					: `${type}s`;
+			return `Spawned ${count} ${label}`;
+		}
+	);
+
 	commandService.register("exit", "Jump to the current run exit", () => {
 		if (!teleportPlayerToGeneratedRunExit()) {
 			return "No run exit is currently available";
@@ -590,6 +718,81 @@ function registerDebugCommands() {
 		spawnRewardPickup(playerObj.pos.clone(), reward);
 		return `Spawned ${reward.name}`;
 	});
+}
+
+function addPlaytestBuildToArsenal(build: PlaytestBuild) {
+	const additions: string[] = [];
+	for (const [toolKey, level] of Object.entries(build.upgrades)) {
+		if (level === undefined || !isToolKey(toolKey)) continue;
+		while ((getEffectiveUpgradeLevel(toolKey) ?? -1) < level) {
+			const nextLevel = getNextRunUpgradeLevel(toolKey);
+			if (nextLevel === undefined) break;
+			const reward = createDirectUpgradeReward(toolKey, nextLevel);
+			if (!reward || grantRunUpgrade(toolKey) === undefined) break;
+			loadPlayer();
+			addCollectedPowerup(reward);
+			additions.push(reward.name);
+		}
+	}
+
+	addBuildPowerups(
+		"addFollower",
+		build.followers ?? 0,
+		k.get(tags.follower).length,
+		1,
+		additions
+	);
+	addBuildPowerups(
+		"addPlayerMaxHealth",
+		build.extraHealth ?? 0,
+		session.extraHealth,
+		1,
+		additions
+	);
+	addBuildPowerups(
+		"addExtraRockets",
+		build.extraRockets ?? 0,
+		session.extraRockets,
+		1,
+		additions
+	);
+	addBuildPowerups(
+		"addSpaceDebree",
+		build.extraMissileShards ?? 0,
+		session.extraSpaceDebreeInMissiles,
+		2,
+		additions
+	);
+	addBuildPowerups(
+		"addPrimaryRocketChance",
+		build.primaryRocketChance ?? 0,
+		session.primaryRocketChance,
+		0.1,
+		additions
+	);
+	const armorLimit = player.salvageSetBonus ? 4 : 3;
+	session.scrapArmorCharges = Math.max(
+		session.scrapArmorCharges,
+		Math.min(build.initialScrapArmor ?? 0, armorLimit)
+	);
+	return additions;
+}
+
+function addBuildPowerups(
+	id: string,
+	target: number,
+	current: number,
+	step: number,
+	additions: string[]
+) {
+	const reward = createReward(id);
+	if (!reward) return;
+	const count = Math.max(0, Math.ceil((target - current) / step));
+	for (let index = 0; index < count; index++) {
+		if (!applyReward(reward, playerObj.pos.clone())) break;
+		addCollectedPowerup(reward);
+		additions.push(reward.name);
+	}
 }
 
 function loadGameSlot() {

@@ -1,0 +1,106 @@
+import type { Vec2 } from "kaplay"
+import { playerObj } from "../../game"
+import { k, mainSoundVolume, spendScore } from "../../main"
+import { addThreatTime } from "../../services/threatService"
+import { spawnThreatEncounter } from "../../services/enemyEncounterService"
+import { audioService } from "../../services/audioService"
+import { updatePlayerHealthBar } from "../../ui/gameUi"
+import { tags } from "../../tags"
+import { spawnBuilding } from "../spawnBuilding"
+import { spawnDamageNumber } from "../spawnDamageNumber"
+import { spawnRing } from "../spawnRing"
+
+interface RepairStationProps {
+	pos: Vec2
+	cost: number
+	repairTime: number
+	defendRadius: number
+	enemySpacing: number
+	tags?: string[]
+}
+
+export function spawnRepairStation(props: RepairStationProps) {
+	let repairing = false
+	let repaired = false
+	let progress = 0
+	const station = spawnBuilding({
+		pos: props.pos,
+		sprite: "room_repair_station",
+		scale: 0.62,
+		interactRadius: 75,
+		interactPromptOffset: k.vec2(0, -82),
+		onInteract: beginRepair,
+	})
+	station.tag(props.tags ?? [])
+	const status = station.add([
+		k.text(`REPAIR ${props.cost}`, { size: 12, font: "unscii" }),
+		k.pos(0, 80),
+		k.anchor("center"),
+		k.color(90, 255, 135),
+	])
+	const barBg = station.add([
+		k.rect(76, 5),
+		k.pos(-38, 66),
+		k.anchor("left"),
+		k.color(45, 65, 50),
+	])
+	const bar = station.add([
+		k.rect(0, 5),
+		k.pos(-38, 66),
+		k.anchor("left"),
+		k.color(90, 255, 135),
+	])
+
+	station.onUpdate(() => {
+		if (!repairing || repaired) return
+		const inside = playerObj.pos.dist(station.pos) <= props.defendRadius
+		status.text = inside ? "REPAIRING" : "RETURN TO STATION"
+		if (!inside) return
+		progress += k.dt()
+		bar.width = 76 * k.clamp(progress / props.repairTime, 0, 1)
+		if (progress < props.repairTime) return
+
+		repairing = false
+		repaired = true
+		const restored = Math.max(0, playerObj.maxHP - playerObj.hp())
+		playerObj.heal(playerObj.maxHP)
+		updatePlayerHealthBar(playerObj.hp())
+		if (restored > 0) {
+			spawnDamageNumber(playerObj.pos.clone(), restored, {
+				color: k.rgb(90, 255, 135),
+				prefix: "+",
+			})
+		}
+		status.text = "REPAIR COMPLETE"
+		station.setInteractRadius(0)
+		spawnRing({
+			pos: station.pos,
+			speed: 180,
+			intensity: 0.25,
+			maxRadius: props.defendRadius,
+			color: k.rgb(90, 255, 135),
+		})
+		audioService.playSound("powerup1", { volume: mainSoundVolume })
+	})
+
+	function beginRepair() {
+		if (repairing || repaired) return
+		if (playerObj.hp() >= playerObj.maxHP) {
+			status.text = "HULL FULL"
+			return
+		}
+		if (!spendScore(props.cost)) {
+			status.text = `NEED ${props.cost} SALVAGE`
+			return
+		}
+		repairing = true
+		status.text = "REPAIRING"
+		addThreatTime(8)
+		spawnThreatEncounter(
+			station.pos.add(k.Vec2.fromAngle(k.rand(360)).scale(props.defendRadius + 90)),
+			props.enemySpacing
+		)
+	}
+
+	return station
+}

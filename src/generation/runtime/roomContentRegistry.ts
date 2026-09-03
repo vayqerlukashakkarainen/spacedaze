@@ -9,6 +9,12 @@ export type GeneratedContentId =
 	| "asteroid_field"
 	| "capture_shrine"
 	| "damage_shrine"
+	| "rift_junction"
+	| "repair_station"
+	| "gravity_anomaly"
+	| "minefield"
+	| "lost_convoy"
+	| "signal_relay"
 	| "salvage_crate"
 	| "slow_field"
 	| "floor_exit"
@@ -27,6 +33,12 @@ export const GENERATED_CONTENT_REGISTRY: readonly GeneratedContentDefinition[] =
 	{ id: "asteroid_field", slot: "asteroid", weight: 1 },
 	{ id: "capture_shrine", slot: "shrine", weight: 1 },
 	{ id: "damage_shrine", slot: "shrine", weight: 1, minDepth: 2 },
+	{ id: "rift_junction", slot: "rift", weight: 1 },
+	{ id: "repair_station", slot: "repair", weight: 1 },
+	{ id: "gravity_anomaly", slot: "anomaly", weight: 1 },
+	{ id: "minefield", slot: "minefield", weight: 1 },
+	{ id: "lost_convoy", slot: "convoy", weight: 1 },
+	{ id: "signal_relay", slot: "relay", weight: 1 },
 	{ id: "salvage_crate", slot: "resource_node", weight: 1 },
 	{ id: "slow_field", slot: "hazard", weight: 1 },
 	{ id: "floor_exit", slot: "exit", weight: 1 },

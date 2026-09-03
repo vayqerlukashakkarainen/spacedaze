@@ -35,6 +35,7 @@ import { phaseJumpActive } from "../setupPlayer";
 import { tryBounceProjectile } from "../services/projectileService";
 import { applyDamage } from "../services/damageService";
 import { spawnGravityPull } from "../spawn/spawnGravityPull";
+import { spawnHealthOrb } from "../spawn/spawnHealthOrb";
 
 let lvlData: any = {};
 let bgAsteroidTimer = 0;
@@ -46,6 +47,7 @@ const phaseFieldOffsetX = 720;
 const phaseFieldOffsetY = 80;
 const phaseFieldInnerRadius = 162;
 const phaseFieldOuterRadius = 220;
+const trainingDummyRespawnDelay = 1.5;
 const hubFacilitySprites: Record<
 	HubFacilityId,
 	{ built: string; destroyed: string }
@@ -123,6 +125,8 @@ export const hub: Level = {
 			if (wormholeGravity.exists()) k.destroy(wormholeGravity);
 		});
 		spawnChest(k.center().add(-50, 0));
+		const healthOrb = spawnHealthOrb(k.center().add(-220, 80));
+		healthOrb.speed = 0;
 		spawnRecoveryShop(k.center().add(-410, -170));
 		spawnDebreeValues(k.center().add(90, 55), [1, 2, 3, 4, 5]);
 		spawnHubFacilities();
@@ -494,19 +498,34 @@ function openHubFacility(id: HubFacilityId) {
 }
 
 function spawnTrainingDummies(facilityPos: ReturnType<typeof k.vec2>) {
+	const hubSession = lvlData;
 	for (const offsetX of [-60, 0, 60]) {
-		spawnMeteorite({
-			pos: facilityPos.add(offsetX, 90),
-			dir: k.vec2(0, 0),
-			scoreOnKill: 0,
-			hp: 10000,
-			speed: 0,
-			splitOnDeath: 0,
-			destroyOffscreen: false,
-			powerupMultiplier: 0,
-			tags: [tags.trainingTarget],
-		});
+		spawnTrainingDummy(facilityPos, offsetX, hubSession);
 	}
+}
+
+function spawnTrainingDummy(
+	facilityPos: ReturnType<typeof k.vec2>,
+	offsetX: number,
+	hubSession: typeof lvlData
+) {
+	spawnMeteorite({
+		pos: facilityPos.add(offsetX, 90),
+		dir: k.vec2(0, 0),
+		scoreOnKill: 0,
+		hp: 10000,
+		speed: 0,
+		splitOnDeath: 0,
+		destroyOffscreen: false,
+		powerupMultiplier: 0,
+		tags: [tags.trainingTarget],
+		onDeath: () => {
+			k.wait(trainingDummyRespawnDelay, () => {
+				if (lvlData !== hubSession) return;
+				spawnTrainingDummy(facilityPos, offsetX, hubSession);
+			});
+		},
+	});
 }
 
 function spawnHubBoundaries() {

@@ -27,6 +27,8 @@ export const tags = {
 	threatEnemy: "threatEnemy",
 	part: "part",
 	follower: "follower",
+	player: "player",
+	hackedAlly: "hackedAlly",
 
 	levelBg: "level_bg",
 

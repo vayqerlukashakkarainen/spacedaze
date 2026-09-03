@@ -33,11 +33,21 @@ import { tags } from "./tags";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
 import { applyProjectileDamage } from "./services/projectileService";
+import { applyDamage } from "./services/damageService";
 import { timescale } from "./comp/timescale";
 import { levelTransitionActive } from "./services/levelTransitionService";
 import type { InteractableComp } from "./comp/interactable";
-import { getEquippedWeapon } from "./services/weaponService";
+import {
+	getEquippedWeapon,
+	getWeaponTriggerModifier,
+} from "./services/weaponService";
 import { spawnPlayerDeathDebris } from "./spawn/spawnPlayerDeathDebris";
+import { spawnAfterburnerWake } from "./spawn/spawnAfterburnerWake";
+import { spawnFlash } from "./spawn/spawnFlash";
+import {
+	resetPlayerDamageState,
+	setPlayerDamageInvulnerable,
+} from "./services/playerDamageState";
 
 let blasters = 0;
 let bulletIndex = 1;
@@ -49,6 +59,7 @@ const playerDeceleration = 560;
 const cameraZoomLerpSpeed = 5;
 const overclockShakeInterval = 0.12;
 const overclockShakeIntensity = 0.25;
+const afterburnerWakeInterval = 0.14;
 const phaseJumpInvulnerability = 0.18;
 const phaseJumpDuration = 0.12;
 const phaseJumpCooldownBarWidth = 22;
@@ -67,9 +78,11 @@ let phaseJumpInvulnerableUntil = 0;
 let phaseJumpStart: Vec2 | undefined;
 let phaseJumpEnd: Vec2 | undefined;
 let phaseJumpElapsed = 0;
+const phaseJumpHitTargets = new Set<number>();
 let nextPrimaryFireTime = 0;
 let configuredWeaponId = "";
 let overclockShakeTimer = 0;
+let afterburnerWakeTimer = 0;
 
 interface PhaseJumpConfig {
 	distance: number;
@@ -95,8 +108,11 @@ export function setupPlayer() {
 			gravitySteeringMultiplier: 0.35,
 		},
 		tags.friendly,
+		tags.player,
 		tags.gameLoop,
 	]);
+	const scrapArmorPlates: GameObj[] = [];
+	let cargoObj: GameObj | undefined;
 	const phaseJumpCooldownTrack = k.add([
 		k.pos(playerObj.pos),
 		k.rect(phaseJumpCooldownBarWidth, 3),
@@ -156,6 +172,11 @@ export function setupPlayer() {
 	});
 
 	playerObj.onUpdate(() => {
+		cargoObj = updateShipRewardVisuals(
+			playerObj,
+			scrapArmorPlates,
+			cargoObj
+		);
 		const currentWeapon = getEquippedWeapon();
 		if (configuredWeaponId !== currentWeapon.id) {
 			weaponVisual.use(k.sprite(currentWeapon.icon));
@@ -221,6 +242,9 @@ export function setupPlayer() {
 		}
 
 		const isPhaseJumping = updatePhaseJump(playerObj);
+		setPlayerDamageInvulnerable(
+			isPhaseJumping || k.time() < phaseJumpInvulnerableUntil
+		);
 		playerObj.opacity = isPhaseJumping ? 0.35 : 1;
 		const cameraFollowSpeed = isPhaseJumping
 			? phaseCameraFollowSpeed
@@ -311,6 +335,20 @@ export function setupPlayer() {
 		} else {
 			overclockShakeTimer = 0;
 		}
+		if (isBoosting && player.afterburnerWake !== undefined) {
+			afterburnerWakeTimer -= dt();
+			if (afterburnerWakeTimer <= 0) {
+				spawnAfterburnerWake({
+					pos: playerObj.pos.add(
+						k.Vec2.fromAngle(playerObj.angle + 90).scale(14)
+					),
+					enhanced: player.mobilitySetBonus,
+				});
+				afterburnerWakeTimer = afterburnerWakeInterval;
+			}
+		} else {
+			afterburnerWakeTimer = 0;
+		}
 		const targetCameraScale = isBoosting
 			? WORLD_CAMERA_SCALE * 0.9
 			: WORLD_CAMERA_SCALE;
@@ -386,8 +424,11 @@ export function setupPlayer() {
 	const firePrimaryWeapon = () => {
 		if (levelTransitionActive()) return;
 		const weapon = getEquippedWeapon();
-		if (k.time() < nextPrimaryFireTime) return;
-		nextPrimaryFireTime = k.time() + weapon.fireCooldown;
+		const triggerModifier = getWeaponTriggerModifier(weapon);
+		if (triggerModifier.usesCooldown) {
+			if (k.time() < nextPrimaryFireTime) return;
+			nextPrimaryFireTime = k.time() + weapon.fireCooldown;
+		}
 		if (
 			session.primaryRocketChance > 0 &&
 			k.chance(k.clamp(session.primaryRocketChance, 0, 1))
@@ -421,6 +462,12 @@ export function setupPlayer() {
 
 	playerObj.onUpdate(() => {
 		if (!k.isMouseDown("left")) return;
+		if (getWeaponTriggerModifier(getEquippedWeapon()).mode !== "hold") return;
+		firePrimaryWeapon();
+	});
+
+	playerObj.onMousePress("left", () => {
+		if (getWeaponTriggerModifier(getEquippedWeapon()).mode !== "press") return;
 		firePrimaryWeapon();
 	});
 
@@ -459,14 +506,7 @@ export function setupPlayer() {
 		const config = getPhaseJumpConfig();
 		if (!config || phaseJumpCharges <= 0 || phaseJumpEnd) return;
 
-		const inputDirection = k.vec2(
-			(k.isKeyDown("d") ? 1 : 0) - (k.isKeyDown("a") ? 1 : 0),
-			(k.isKeyDown("s") ? 1 : 0) - (k.isKeyDown("w") ? 1 : 0)
-		);
-		const jumpDirection =
-			inputDirection.len() > 0
-				? inputDirection.unit()
-				: k.Vec2.fromAngle(playerObj.angle - 90);
+		const jumpDirection = k.Vec2.fromAngle(playerObj.angle - 90);
 		const startPos = playerObj.pos.clone();
 		const destination = startPos.add(jumpDirection.scale(config.distance));
 
@@ -475,9 +515,11 @@ export function setupPlayer() {
 			phaseJumpRechargeTimer = 0;
 		}
 		phaseJumpInvulnerableUntil = k.time() + phaseJumpInvulnerability;
+		setPlayerDamageInvulnerable(true);
 		phaseJumpStart = startPos;
 		phaseJumpEnd = destination;
 		phaseJumpElapsed = 0;
+		phaseJumpHitTargets.clear();
 		spawnPhaseJumpEffect(startPos, destination, playerObj.angle);
 	});
 
@@ -531,8 +573,59 @@ export function clearPlayer() {
 	phaseJumpStart = undefined;
 	phaseJumpEnd = undefined;
 	phaseJumpElapsed = 0;
+	phaseJumpHitTargets.clear();
+	resetPlayerDamageState();
 	nextPrimaryFireTime = 0;
 	configuredWeaponId = "";
+	afterburnerWakeTimer = 0;
+}
+
+function updateShipRewardVisuals(
+	playerObj: GameObj<PosComp>,
+	plates: GameObj[],
+	cargo: GameObj | undefined
+) {
+	while (plates.length < session.scrapArmorCharges) {
+		plates.push(
+			playerObj.add([
+				k.sprite("particle2"),
+				k.anchor("center"),
+				k.scale(1.05),
+				k.color(90, 210, 255),
+				k.z(2),
+			])
+		);
+	}
+	while (plates.length > session.scrapArmorCharges) {
+		const plate = plates.pop();
+		if (plate) k.destroy(plate);
+	}
+	for (let index = 0; index < plates.length; index++) {
+		const angle = k.time() * 70 + index * (360 / plates.length);
+		plates[index].pos = k.Vec2.fromAngle(angle).scale(18 / PLAYER_SCALE);
+	}
+
+	const shouldShowCargo =
+		session.volatileCargoActive &&
+		session.volatileCargoIntact &&
+		!session.volatileCargoDelivered;
+	if (shouldShowCargo && !cargo) {
+		cargo = playerObj.add([
+			k.pos(0, 19 / PLAYER_SCALE),
+			k.sprite("crate1"),
+			k.anchor("center"),
+			k.rotate(0),
+			k.scale(0.38 / PLAYER_SCALE),
+			k.color(255, 145, 45),
+			k.z(-2),
+		]);
+	}
+	if (!shouldShowCargo && cargo) {
+		k.destroy(cargo);
+		cargo = undefined;
+	}
+	if (cargo) cargo.angle = -playerObj.angle + k.wave(-4, 4, k.time() * 2);
+	return cargo;
 }
 
 function configureBlasters(muzzleObj: GameObj<PosComp>) {
@@ -639,7 +732,9 @@ function updatePhaseJump(playerObj: GameObj<PosComp>): boolean {
 	phaseJumpElapsed += dt();
 	const progress = k.clamp(phaseJumpElapsed / phaseJumpDuration, 0, 1);
 	const easedProgress = 1 - Math.pow(1 - progress, 3);
+	const previousPos = playerObj.pos.clone();
 	playerObj.pos = phaseJumpStart.lerp(phaseJumpEnd, easedProgress);
+	applyPhaseRamDamage(previousPos, playerObj.pos);
 	boostTrailEmitter.emitter.position = playerObj.pos;
 	boostTrailEmitter.emitter.direction = k.Vec2.toAngle(
 		phaseJumpEnd.sub(phaseJumpStart)
@@ -650,9 +745,48 @@ function updatePhaseJump(playerObj: GameObj<PosComp>): boolean {
 		phaseJumpStart = undefined;
 		phaseJumpEnd = undefined;
 		phaseJumpElapsed = 0;
+		phaseJumpHitTargets.clear();
 	}
 
 	return true;
+}
+
+function applyPhaseRamDamage(start: Vec2, end: Vec2) {
+	if (player.spaceJumpDamage <= 0) return;
+
+	for (const target of k.get(tags.unit) as GameObj[]) {
+		if (
+			!target.exists() ||
+			!target.tags.includes(tags.enemy) ||
+			phaseJumpHitTargets.has(target.id) ||
+			typeof target.hurt !== "function"
+		) continue;
+
+		const hitRadius = Math.max(10, Number(target.hb) || 0) + 8;
+		if (distanceToSegment(target.pos, start, end) > hitRadius) continue;
+		if (!applyDamage(target, player.spaceJumpDamage)) continue;
+
+		phaseJumpHitTargets.add(target.id);
+		spawnFlash(target.pos.clone(), 7, k.rgb(80, 180, 255));
+	}
+}
+
+function distanceToSegment(point: Vec2, start: Vec2, end: Vec2) {
+	const deltaX = end.x - start.x;
+	const deltaY = end.y - start.y;
+	const lengthSquared = deltaX * deltaX + deltaY * deltaY;
+	if (lengthSquared <= 0) return point.dist(start);
+
+	const projection = k.clamp(
+		((point.x - start.x) * deltaX + (point.y - start.y) * deltaY) /
+			lengthSquared,
+		0,
+		1
+	);
+	return point.dist(k.vec2(
+		start.x + deltaX * projection,
+		start.y + deltaY * projection
+	));
 }
 
 export function phaseJumpActive() {

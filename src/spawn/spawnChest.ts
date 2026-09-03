@@ -4,13 +4,15 @@ import { starsEmitter } from "../particles";
 import { spawnBuilding } from "./spawnBuilding";
 import { setNextChestDifficulty } from "../ui/chestChallenge";
 
+const CHEST_SCALE = 0.75;
+
 export function spawnChest(pos: Vec2, difficulty: number = 1) {
 	let opened = false;
 	const chest = spawnBuilding({
 		pos,
 		sprite: "crate1",
 		interactRadius: 60,
-		scale: 1.5,
+		scale: CHEST_SCALE,
 		onInteract: () => {
 			if (opened) return;
 			opened = true;

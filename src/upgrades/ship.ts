@@ -116,6 +116,34 @@ export const spaceJumpUpgrades: Tool = {
 	],
 };
 
+export const phaseRam: Tool = {
+	toolName: "Phase Ram",
+	requirements: { allOf: [{ toolKey: "spaceJump" }] },
+	upgrades: [
+		{
+			name: "Level 1",
+			desc: "Space Jump damages enemies passed through",
+			sprite: "space_jump_upg1",
+			price: 36,
+			value: 3,
+		},
+		{
+			name: "Level 2",
+			desc: "Increase Space Jump impact damage",
+			sprite: "space_jump_upg1",
+			price: 48,
+			value: 5,
+		},
+		{
+			name: "Level 3",
+			desc: "Further increase Space Jump impact damage",
+			sprite: "space_jump_upg1",
+			price: 62,
+			value: 8,
+		},
+	],
+};
+
 export const movespeed: Tool = {
 	toolName: "Improved thrusters",
 	upgrades: [

@@ -10,6 +10,7 @@ import { timescale } from "../comp/timescale";
 import { mass } from "../comp/mass";
 import { ASTEROID_SPRITES } from "../asteroidSprites";
 import { applyDamage } from "../services/damageService";
+import { isPlayerDamageInvulnerable } from "../services/playerDamageState";
 import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
@@ -26,6 +27,7 @@ interface Props {
 	powerupMultiplier?: number;
 	tags?: string[];
 	enemyOptions?: EnemySpawnOptions;
+	onDeath?: (pos: Vec2) => void;
 }
 
 export function spawnMeteorite(props: Props) {
@@ -82,20 +84,25 @@ export function spawnMeteorite(props: Props) {
 			onEnemyHit(m, p);
 		});
 
-		if (playerObj.pos.dist(m.pos) < m.hb) {
+		if (
+			!isPlayerDamageInvulnerable() &&
+			playerObj.pos.dist(m.pos) < m.hb
+		) {
 			applyDamage(playerObj, m.damage);
 			applyDamage(m, profile.hp);
 		}
 	});
 
 	m.onDeath(() => {
+		const deathPos = m.pos.clone();
 		enemyOnDeath(
-			m.pos,
+			deathPos,
 			props.scoreOnKill * profile.rewardMultiplier,
 			(props.powerupMultiplier ?? 1) * profile.rewardMultiplier
 		);
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume });
 		k.destroy(m);
+		props.onDeath?.(deathPos);
 
 		if (props.splitOnDeath) {
 			for (let i = 0; i < props.splitOnDeath; i++) {

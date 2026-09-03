@@ -15,6 +15,8 @@ import {
 	runStatsActive,
 } from "../services/runStatsService";
 import { trySpawnHealthOrb } from "./spawnHealthOrb";
+import { trySpawnHackedAlly } from "./spawnHackedAlly";
+import { tags } from "../tags";
 
 export function onEnemyHit(m: GameObj, p: GameObj) {
 	// Use new projectile damage system
@@ -36,9 +38,17 @@ export function enemyOnDeath(
 	pos: Vec2,
 	score: number,
 	powerupMultiplier: number,
-	rewardSource: Exclude<RewardSource, "crate"> = "enemy"
+	rewardSource: Exclude<RewardSource, "crate"> = "enemy",
+	allowHack: boolean = true
 ) {
 	if (runStatsActive()) recordRunKill();
+	for (const follower of k.get(tags.follower) as GameObj[]) {
+		if (!follower.exists() || follower.droneType !== "medic") continue;
+		follower.medicKillCharge = Math.min(
+			8,
+			(follower.medicKillCharge ?? 0) + 1
+		);
+	}
 	starsEmitter.emitter.position = pos;
 	starsEmitter.emit(20);
 	spawnDebree(pos, score);
@@ -53,4 +63,5 @@ export function enemyOnDeath(
 		dropMultiplier
 	);
 	if (reward) spawnRewardPickup(pos, reward);
+	if (allowHack) trySpawnHackedAlly(pos);
 }

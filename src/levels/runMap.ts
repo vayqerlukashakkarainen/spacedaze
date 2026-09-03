@@ -14,6 +14,7 @@ import { gridRegistry } from "../grid/gridRegistry";
 import { ACTIVE_RUN_GRID_KEY } from "../grid/gridKeys";
 import { CellType, HexGrid } from "../grid/hexGrid";
 import { playerObj } from "../game";
+import { resetVolatileCargoObjective, session } from "../player";
 import { k, layers, subSoundVolume, velocityScale } from "../main";
 import { tags } from "../tags";
 import { ASTEROID_SPRITES } from "../asteroidSprites";
@@ -24,6 +25,7 @@ import { spawnCrate } from "../spawn/spawnCrate";
 import { spawnBoss1 } from "../spawn/spawnBoss1";
 import { spawnShrine } from "../spawn/shrine/spawnShrine";
 import { spawnDamageShrine } from "../spawn/shrine/spawnDamageShrine";
+import { getShrineLevelConfig } from "../spawn/shrine/shrineLevel";
 import { spawnTimescaleZone } from "../spawn/spawnTimescaleZone";
 import { spawnRewardPickup } from "../spawn/spawnPowerup";
 import { rollCrateReward } from "../services/rewardService";
@@ -66,6 +68,13 @@ import { audioService } from "../services/audioService";
 import { randomExplosion } from "../util";
 import { spawnThreatEncounter } from "../services/enemyEncounterService";
 import { spawnGravityPull } from "../spawn/spawnGravityPull";
+import { spawnRiftJunction } from "../spawn/rooms/spawnRiftJunction";
+import { spawnRepairStation } from "../spawn/rooms/spawnRepairStation";
+import { spawnGravityAnomaly } from "../spawn/rooms/spawnGravityAnomaly";
+import { spawnMinefield } from "../spawn/rooms/spawnMinefield";
+import { spawnLostConvoy } from "../spawn/rooms/spawnLostConvoy";
+import { spawnSignalRelay } from "../spawn/rooms/spawnSignalRelay";
+import { spawnVolatileCargoObjective } from "../spawn/spawnVolatileCargoObjective";
 import {
 	addThreatTime,
 	getThreatRomanNumeral,
@@ -84,6 +93,7 @@ const WALL_EXPLOSION_SOUND_REPEAT_CHANCE = 0.25;
 let currentRunSeed: number | undefined;
 let currentGeneratedMap: GenerationMap | undefined;
 let currentFloorExitPosition: Vec2 | undefined;
+let currentVolatileCargoCoord: { q: number; r: number } | undefined;
 let revealedRunMapCells = new Set<string>();
 let currentHiddenCaverns: HiddenCavern[] = [];
 let currentRewardWalls: RewardWall[] = [];
@@ -112,6 +122,7 @@ export interface GeneratedRunMapCell {
 	roomAnchor: boolean;
 	revealed: boolean;
 	destructible: boolean;
+	volatileCargoObjective: boolean;
 }
 
 export interface GeneratedRunMapSnapshot {
@@ -143,6 +154,7 @@ export function startGeneratedRunMap(
 		config.generator
 	);
 	const depth = getCurrentRunFloor()?.depth ?? 1;
+	if (depth === 1) resetVolatileCargoObjective();
 	if (isMilestoneBossFloor(depth)) promoteExitToBossRoom(generatedMap);
 	const spawnCoord = getPlayerSpawn(generatedMap);
 	currentHiddenCaverns = createHiddenCaverns(
@@ -201,6 +213,7 @@ export function clearGeneratedRunMap() {
 	k.destroyAll(tags.runMap);
 	currentGeneratedMap = undefined;
 	currentFloorExitPosition = undefined;
+	currentVolatileCargoCoord = undefined;
 	revealedRunMapCells.clear();
 	currentHiddenCaverns = [];
 	currentRewardWalls = [];
@@ -268,6 +281,9 @@ export function getGeneratedRunMapSnapshot(): GeneratedRunMapSnapshot | undefine
 			revealed: revealedRunMapCells.has(runMapCellKey(cell.coord)),
 			destructible:
 				cell.solid && cell.tags.has("destructible_wall"),
+			volatileCargoObjective:
+				currentVolatileCargoCoord !== undefined &&
+				runMapCellKey(cell.coord) === runMapCellKey(currentVolatileCargoCoord),
 		})),
 		playerCoord: grid.screenToHex(playerObj.pos),
 		playerPosition: toRunMapPosition(grid, playerObj.pos),
@@ -1146,6 +1162,53 @@ function populateRunMap(
 			);
 		}
 	}
+
+	if (depth === 1 && !session.volatileCargoActive) {
+		const cargoCell = selectVolatileCargoCell(map, seed);
+		if (cargoCell) {
+			currentVolatileCargoCoord = { ...cargoCell.coord };
+			spawnVolatileCargoObjective({
+				pos: getDisplacedContentPosition(
+					grid.hexToScreen(cargoCell.coord),
+					cargoCell.coord,
+					hexSize,
+					seed,
+					"volatile_cargo_objective"
+				),
+				onCollect: () => {
+					currentVolatileCargoCoord = undefined;
+				},
+				tags: [tags.runMap],
+			});
+		}
+	}
+}
+
+function selectVolatileCargoCell(map: GenerationMap, seed: number) {
+	const spawnCell = map
+		.getAllCells()
+		.find((cell) => cell.tags.has("player_spawn"));
+	const exitCell = map
+		.getAllCells()
+		.find((cell) => cell.tags.has(roomRoleTag("exit")));
+	if (!spawnCell) return undefined;
+
+	return map
+		.getAllCells()
+		.filter((cell) => {
+			if (cell.solid || cell.locked || getRoomRole(cell)) return false;
+			if (cell.tags.has("resource_node") || cell.tags.has("hazard")) {
+				return false;
+			}
+			if (hexDistance(cell.coord, spawnCell.coord) < 10) return false;
+			if (exitCell && hexDistance(cell.coord, exitCell.coord) < 7) return false;
+			return true;
+		})
+		.sort(
+			(a, b) =>
+				cavernHash(seed, a.coord, 7127) -
+				cavernHash(seed, b.coord, 7127)
+		)[0];
 }
 
 function getDisplacedContentPosition(
@@ -1153,7 +1216,7 @@ function getDisplacedContentPosition(
 	coord: { q: number; r: number },
 	hexSize: number,
 	seed: number,
-	contentId: GeneratedContentId
+	contentId: GeneratedContentId | "volatile_cargo_objective"
 ) {
 	let contentSalt = 0;
 	for (let index = 0; index < contentId.length; index++) {
@@ -1187,10 +1250,16 @@ function spawnGeneratedContent(
 			spawnAsteroidFieldTrigger(grid, map, coord, pos, hexSize);
 			return;
 		case "capture_shrine":
+			const shrineConfig = getShrineLevelConfig(depth, hexSize);
 			spawnShrine({
 				pos,
-				radius: hexSize * 0.72,
-				captureTime: 4 + depth * 0.25,
+				radius: shrineConfig.radius,
+				captureTime: shrineConfig.captureTime,
+				level: shrineConfig.level,
+				enemySpawnDelay: shrineConfig.enemySpawnDelay,
+				enemySpawnInterval: shrineConfig.enemySpawnInterval,
+				enemySpawnDistance: shrineConfig.enemySpawnDistance,
+				enemySpawnSpacing: shrineConfig.enemySpawnSpacing,
 				onComplete: spawnShrineReward,
 				tags: [tags.runMap],
 			});
@@ -1201,6 +1270,64 @@ function spawnGeneratedContent(
 				health: 18 + depth * 5,
 				depleteRate: 2 + depth * 0.25,
 				onComplete: spawnShrineReward,
+				tags: [tags.runMap],
+			});
+			return;
+		case "rift_junction":
+			spawnRiftJunction({
+				pos,
+				destinations: selectRiftDestinations(grid, map, coord),
+				tags: [tags.runMap],
+			});
+			return;
+		case "repair_station":
+			spawnRepairStation({
+				pos,
+				cost: 8 + depth * 3,
+				repairTime: 3 + depth * 0.35,
+				defendRadius: hexSize * 2.3,
+				enemySpacing: hexSize,
+				tags: [tags.runMap],
+			});
+			return;
+		case "gravity_anomaly":
+			spawnGravityAnomaly({
+				pos,
+				radius: hexSize * 4,
+				strength: 58 + depth * 7,
+				tags: [tags.runMap],
+			});
+			return;
+		case "minefield":
+			spawnMinefield({
+				pos,
+				radius: hexSize * 3.2,
+				count: 9 + depth * 2,
+				damage: 1 + Math.floor((depth - 1) / 3),
+				seed: cavernHash(currentRunSeed ?? depth, coord, 9191),
+				tags: [tags.runMap],
+			});
+			return;
+		case "lost_convoy":
+			spawnLostConvoy({
+				pos,
+				health: 6 + depth * 2,
+				enemySpacing: hexSize,
+				getDestination: () => currentFloorExitPosition?.clone(),
+				onComplete: spawnShrineReward,
+				tags: [tags.runMap],
+			});
+			return;
+		case "signal_relay":
+			spawnSignalRelay({
+				pos,
+				nodeRadius: hexSize * 0.8,
+				nodeCaptureTime: 1.8 + depth * 0.2,
+				enemySpacing: hexSize,
+				onComplete: (relayPos) => {
+					revealEntireGeneratedRunMap();
+					spawnShrineReward(relayPos);
+				},
 				tags: [tags.runMap],
 			});
 			return;
@@ -1238,6 +1365,28 @@ function spawnShrineReward(pos: Vec2) {
 		stationary: true,
 		armWhenPlayerLeaves: true,
 	});
+}
+
+function selectRiftDestinations(
+	grid: HexGrid,
+	map: GenerationMap,
+	origin: { q: number; r: number }
+) {
+	const seed = currentRunSeed ?? 1;
+	return map
+		.getAllCells()
+		.filter(
+			(cell) =>
+				!cell.solid &&
+				!cell.tags.has("room_anchor") &&
+				hexDistance(origin, cell.coord) >= 12
+		)
+		.sort(
+			(a, b) =>
+				cavernHash(seed, a.coord, 4817) - cavernHash(seed, b.coord, 4817)
+		)
+		.slice(0, 3)
+		.map((cell) => grid.hexToScreen(cell.coord));
 }
 
 function spawnFloorExit(pos: Vec2) {
@@ -1522,6 +1671,18 @@ export function getRoomColor(role: RoomRole) {
 			return k.rgb(165, 185, 210);
 		case "shrine":
 			return k.rgb(190, 90, 255);
+		case "rift":
+			return k.rgb(80, 190, 255);
+		case "repair":
+			return k.rgb(80, 255, 135);
+		case "anomaly":
+			return k.rgb(155, 105, 255);
+		case "minefield":
+			return k.rgb(255, 105, 65);
+		case "convoy":
+			return k.rgb(125, 205, 255);
+		case "relay":
+			return k.rgb(80, 235, 225);
 		case "boss":
 			return k.rgb(255, 90, 190);
 		case "exit":
@@ -1532,6 +1693,12 @@ export function getRoomColor(role: RoomRole) {
 export function getRoomLabel(role: RoomRole) {
 	if (role === "asteroid") return "ASTEROID FIELD";
 	if (role === "shrine") return "SHRINE";
+	if (role === "rift") return "RIFT JUNCTION";
+	if (role === "repair") return "REPAIR STATION";
+	if (role === "anomaly") return "GRAVITY ANOMALY";
+	if (role === "minefield") return "MINEFIELD";
+	if (role === "convoy") return "LOST CONVOY";
+	if (role === "relay") return "SIGNAL RELAY";
 	if (role === "boss") return "BOSS ARENA";
 	return role.toUpperCase();
 }

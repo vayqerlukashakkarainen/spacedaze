@@ -78,7 +78,12 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSprite("bullet1", "sprites/bullet1.png");
 	await k.loadSprite("rocket1", "sprites/rocket1.png");
-	await k.loadSprite("follower", "sprites/follower.png");
+	await k.loadSprite("drone_combat", "sprites/drone-combat.png");
+	await k.loadSprite("drone_missile", "sprites/drone-missile.png");
+	await k.loadSprite("drone_gunship", "sprites/drone-gunship.png");
+	await k.loadSprite("drone_interceptor", "sprites/drone-interceptor.png");
+	await k.loadSprite("drone_medic", "sprites/drone-medic.png");
+	await k.loadSprite("drone_salvager", "sprites/drone-salvager.png");
 
 	await k.loadSprite("asteroid1", "sprites/asteroid1.png");
 	for (let index = 1; index <= 8; index++) {
@@ -113,6 +118,12 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("spark1", "sprites/spark1.png");
 
 	await k.loadSprite("debree_part1", "sprites/debree_part1.png");
+	await k.loadSprite("room_rift_anchor", "sprites/rooms/rift-anchor.png");
+	await k.loadSprite("room_repair_station", "sprites/rooms/repair-station.png");
+	await k.loadSprite("room_gravity_core", "sprites/rooms/gravity-core.png");
+	await k.loadSprite("room_proximity_mine", "sprites/rooms/proximity-mine.png");
+	await k.loadSprite("room_convoy_drone", "sprites/rooms/convoy-drone.png");
+	await k.loadSprite("room_signal_relay", "sprites/rooms/signal-relay.png");
 
 	await k.loadSprite("blaster1", "sprites/upgrades/laser_cannon1.png");
 	await k.loadSprite(
@@ -270,6 +281,10 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound("swap_level", "sounds/swap_level.wav");
 
 	await k.loadMusic("arcadia", "songs/arcadia.mp3");
+	await k.loadMusic(
+		"flirtFlirtOhItHurts",
+		"songs/flirt-flirt-oh-it-hurts.mp3"
+	);
 	await k.loadMusic("hub", "songs/hub.mp3");
 
 	k.loadShader(

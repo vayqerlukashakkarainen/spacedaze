@@ -24,6 +24,7 @@ import { getUnlockedWarpZones, WARP_ZONES } from "../services/warpZoneService"
 import {
 	equipWeapon,
 	getEquippedWeaponId,
+	getWeaponTriggerModifier,
 	isWeaponOwned,
 	WEAPONS,
 } from "../services/weaponService"
@@ -268,10 +269,13 @@ export function showArsenal() {
 			: weapon.chain
 				? `CHAIN +${weapon.chain.maxChains}`
 				: "NO PRESET MODIFIER"
-		const roundsPerSecond = 1 / weapon.fireCooldown
+		const triggerModifier = getWeaponTriggerModifier(weapon)
+		const fireRate = triggerModifier.usesCooldown
+			? `${(1 / weapon.fireCooldown).toFixed(1)}/S`
+			: "PER CLICK"
 		card.add([
 			k.text(
-				`DAMAGE  ${formatMultiplier(weapon.damageMultiplier)}\nRATE    ${roundsPerSecond.toFixed(1)}/S\nSPEED   ${formatMultiplier(weapon.projectileSpeedMultiplier)}\n\n${modifier}`,
+				`DAMAGE  ${formatMultiplier(weapon.damageMultiplier)}\nRATE    ${fireRate}\nSPEED   ${formatMultiplier(weapon.projectileSpeedMultiplier)}\n\n${modifier}`,
 				{ size: 9, font: "unscii", width: 170, align: "left" }
 			),
 			k.pos(-76, 37),

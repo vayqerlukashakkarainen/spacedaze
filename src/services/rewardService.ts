@@ -229,6 +229,17 @@ export function createReward(id: string): Reward | undefined {
 	return toReward(getRewardDefinition(id))
 }
 
+export function createDirectUpgradeReward(
+	toolKey: string,
+	levelIndex: number
+): Reward | undefined {
+	const definition = getAllUpgradeDefinitions().find(
+		(candidate) => candidate.toolKey === toolKey
+	)
+	if (!definition) return undefined
+	return toReward(buildUpgradeReward(definition, levelIndex, true))
+}
+
 export function rollCrateReward(successfulHits: number): Reward | undefined {
 	return rollCrateRewardForQuality(successfulHits, [])
 }
@@ -313,9 +324,16 @@ function buildCurrentUpgradeReward(
 
 function buildUpgradeReward(
 	definition: UpgradeDefinition,
-	levelIndex: number
+	levelIndex: number,
+	allowWithoutRewardPolicy: boolean = false
 ): RewardDefinition | undefined {
-	const policy = definition.reward
+	const policy = definition.reward ?? (allowWithoutRewardPolicy
+		? {
+			rarity: RewardRarity.Common,
+			allowedSources: [],
+			weights: {},
+		}
+		: undefined)
 	const level = definition.levels[levelIndex]
 	const toolKey = definition.toolKey
 	if (!policy || !level || !isToolKey(toolKey)) return undefined

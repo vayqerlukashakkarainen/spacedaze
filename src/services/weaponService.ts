@@ -1,5 +1,10 @@
 export type WeaponId = "standardBlaster" | "breachCannon" | "arcCarbine"
 
+export interface WeaponTriggerModifier {
+	mode: "press" | "hold"
+	usesCooldown: boolean
+}
+
 export interface WeaponDefinition {
 	id: WeaponId
 	name: string
@@ -8,6 +13,7 @@ export interface WeaponDefinition {
 	damageMultiplier: number
 	projectileSpeedMultiplier: number
 	fireCooldown: number
+	triggerModifier?: WeaponTriggerModifier
 	spreadDegrees: number
 	mountScale: number
 	mountOffsetY: number
@@ -32,6 +38,10 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		damageMultiplier: 1,
 		projectileSpeedMultiplier: 1,
 		fireCooldown: 0.18,
+		triggerModifier: {
+			mode: "press",
+			usesCooldown: false,
+		},
 		spreadDegrees: 1.5,
 		mountScale: 0.45,
 		mountOffsetY: -4,
@@ -86,6 +96,15 @@ export function getWeaponDefinition(id: WeaponId) {
 
 export function getEquippedWeapon() {
 	return getWeaponDefinition(equippedWeaponId)
+}
+
+export function getWeaponTriggerModifier(
+	weapon: WeaponDefinition
+): WeaponTriggerModifier {
+	return weapon.triggerModifier ?? {
+		mode: "hold",
+		usesCooldown: true,
+	}
 }
 
 export function getEquippedWeaponId() {

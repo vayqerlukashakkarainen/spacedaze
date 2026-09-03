@@ -13,14 +13,19 @@ import {
 	sprintSpeed,
 	spaceJump,
 	spaceJumpUpgrades,
+	phaseRam,
 	movespeed,
 	debreeValue,
 	maxHealth,
 } from "./shipNew";
 import {
 	followerBlasterDmg,
+	followerGunship,
+	followerInterceptorProtocol,
+	followerMedic,
 	followerMissiles,
 	followerProjectileLink,
+	followerSalvager,
 } from "./followerNew";
 import { RewardRarity, UpgradeRewardPolicy } from "../types/rewardTypes";
 import {
@@ -53,6 +58,12 @@ import {
 	voidLance,
 	volatileCorrosion,
 } from "./projectileBehaviorsNew"
+import {
+	afterburnerWake,
+	enemyHacker,
+	sacrificialProtocol,
+	scrapArmor,
+} from "./systemsNew"
 
 const definitions: Record<string, UpgradeDefinition> = {
 	// Blasters
@@ -72,6 +83,7 @@ const definitions: Record<string, UpgradeDefinition> = {
 	sprintSpeed,
 	spaceJump,
 	spaceJumpUpgrades,
+	phaseRam,
 	movespeed,
 
 	// Ship - Resources
@@ -85,6 +97,14 @@ const definitions: Record<string, UpgradeDefinition> = {
 	followerBlasterDmg,
 	followerMissiles,
 	followerProjectileLink,
+	followerInterceptorProtocol,
+	followerGunship,
+	followerMedic,
+	followerSalvager,
+	scrapArmor,
+	afterburnerWake,
+	sacrificialProtocol,
+	enemyHacker,
 
 	// Projectile modifiers
 	armorPiercing,
@@ -127,6 +147,7 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	sprint: policy(RewardRarity.Uncommon, ["crate", "boss"], 100, 0, 100),
 	sprintSpeed: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 25, 80),
 	spaceJumpUpgrades: policy(RewardRarity.Rare, ["crate", "boss"], 70, 0, 130),
+	phaseRam: policy(RewardRarity.Rare, ["crate", "boss"], 55, 0, 120),
 	movespeed: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 140, 35, 90),
 	debreeDist: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 130, 35, 80),
 	debreeValue: policy(RewardRarity.Uncommon, ["crate", "boss"], 90, 0, 80),
@@ -134,6 +155,14 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	followerBlasterDmg: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 110, 25, 100),
 	followerMissiles: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 160),
 	followerProjectileLink: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 150),
+	followerInterceptorProtocol: policy(RewardRarity.Rare, ["crate", "boss"], 48, 0, 130),
+	followerGunship: policy(RewardRarity.Rare, ["crate", "boss"], 44, 0, 125),
+	followerMedic: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 145),
+	followerSalvager: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 72, 12, 90),
+	scrapArmor: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 88, 16, 100),
+	afterburnerWake: policy(RewardRarity.Rare, ["crate", "boss"], 46, 0, 115),
+	sacrificialProtocol: policy(RewardRarity.Epic, ["crate", "boss"], 22, 0, 145),
+	enemyHacker: policy(RewardRarity.Epic, ["crate", "boss"], 18, 0, 135),
 	armorPiercing: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 130, 35, 90),
 	cryoRounds: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 30, 80),
 	corrosivePayload: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 100, 20, 100),

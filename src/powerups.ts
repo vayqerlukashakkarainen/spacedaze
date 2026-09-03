@@ -1,8 +1,16 @@
 import { KEventController, Vec2 } from "kaplay";
 import { addMaxHealth, playerObj } from "./game";
 import { k, mainSoundVolume, setTimescale } from "./main";
-import { hasLvlValue, player, session } from "./player";
-import { spawnFollower } from "./spawn/spawnFollower";
+import {
+	getActiveTechnologySetNames,
+	hasLvlValue,
+	player,
+	session,
+} from "./player";
+import {
+	getDroneTypeCounts,
+	spawnFollower,
+} from "./spawn/spawnFollower";
 import { spawnRing } from "./spawn/spawnRing";
 import { audioService } from "./services/audioService";
 import { upgradeService } from "./services/upgradeService";
@@ -101,8 +109,27 @@ export function resetPowerupRuntime() {
 }
 
 export function getPlayerPowerupStatus(): [string, string][] {
+	const technologySets = getActiveTechnologySetNames();
+	const droneCounts = getDroneTypeCounts();
 	return [
-		["Combat Drones", String(k.get(tags.follower).length)],
+		["Combat Drones", String(droneCounts.combat)],
+		["Missile Drones", String(droneCounts.missile)],
+		["Interceptor Drones", String(droneCounts.interceptor)],
+		["Gunship Drones", String(droneCounts.gunship)],
+		["Medic Drones", String(droneCounts.medic)],
+		["Salvager Drones", String(droneCounts.salvager)],
+		["Scrap Armor", String(session.scrapArmorCharges)],
+		[
+			"Volatile Cargo",
+			!session.volatileCargoActive
+				? "NONE"
+				: session.volatileCargoIntact && !session.volatileCargoDelivered
+					? "INTACT"
+					: session.volatileCargoDelivered
+						? "DELIVERED"
+						: "LOST",
+		],
+		["Technology Sets", technologySets.join(" / ") || "NONE"],
 		["Hull Reinforcement", formatBonus(session.extraHealth)],
 		["Missile Cache", formatBonus(session.extraRockets)],
 		["Shrapnel Payload", formatBonus(session.extraSpaceDebreeInMissiles)],
@@ -120,7 +147,7 @@ function formatPercentage(value: number): string {
 }
 
 export const powerupsSprites: Record<PowerupKey, string> = {
-	addFollower: "follower_upg1",
+	addFollower: "drone_combat",
 	addPlayerMaxHealth: "hull_upg1",
 	addExtraRockets: "more_missiles_upg1",
 	addSpaceDebree: "missile_shards_upg1",

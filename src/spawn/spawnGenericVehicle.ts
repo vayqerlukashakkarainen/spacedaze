@@ -9,6 +9,7 @@ import { registerHitAnimation } from "../shared";
 import { onEnemyHit } from "./enemyShared";
 import { timescale } from "../comp/timescale";
 import { applyDamage } from "../services/damageService";
+import { isPlayerDamageInvulnerable } from "../services/playerDamageState";
 import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
@@ -58,7 +59,10 @@ export function spawnGenericVehicle(
 			onEnemyHit(m, p);
 		});
 
-		if (playerObj.pos.dist(m.pos) < m.hb) {
+		if (
+			!isPlayerDamageInvulnerable() &&
+			playerObj.pos.dist(m.pos) < m.hb
+		) {
 			applyDamage(playerObj, m.damage);
 			applyDamage(m, profile.hp);
 		}

@@ -19,6 +19,12 @@ export const ROOM_ROLES = [
 	"reward",
 	"asteroid",
 	"shrine",
+	"rift",
+	"repair",
+	"anomaly",
+	"minefield",
+	"convoy",
+	"relay",
 	"boss",
 	"exit",
 ] as const;

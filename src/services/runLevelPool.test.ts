@@ -17,21 +17,21 @@ const firstSelection = selectNextRunLevel(
 	new Set(),
 	deriveLevelSelectionSeed(12345, 1)
 )
-assert(firstSelection === "level1", "Zone 1 should initially select level1")
+assert(firstSelection === "level2", "Zone 1 should initially select level2")
 
 const reusedSelection = selectNextRunLevel(
 	pool!,
-	new Set(["level1"]),
+	new Set(["level2"]),
 	deriveLevelSelectionSeed(12345, 2)
 )
 assert(
-	reusedSelection === "level1",
-	"A fully visited one-level pool should reuse level1"
+	reusedSelection === "level2",
+	"A fully visited one-level pool should reuse level2"
 )
 
-const firstSeed = deriveRunFloorSeed(12345, 1, "level1")
-const repeatedFirstSeed = deriveRunFloorSeed(12345, 1, "level1")
-const secondSeed = deriveRunFloorSeed(12345, 2, "level1")
+const firstSeed = deriveRunFloorSeed(12345, 1, "level2")
+const repeatedFirstSeed = deriveRunFloorSeed(12345, 1, "level2")
+const secondSeed = deriveRunFloorSeed(12345, 2, "level2")
 assert(firstSeed === repeatedFirstSeed, "Floor seeds should be deterministic")
 assert(firstSeed !== secondSeed, "Reused levels should receive a new floor seed")
 

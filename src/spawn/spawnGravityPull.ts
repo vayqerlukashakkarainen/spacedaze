@@ -11,6 +11,7 @@ interface GravityPullProps {
 	targetTags: string[]
 	tagStrengthMultipliers?: Record<string, number>
 	visualizePull?: boolean
+	tags?: string[]
 }
 
 const PULL_STREAK_LIFETIME = 0.2
@@ -27,6 +28,7 @@ export function spawnGravityPull(props: GravityPullProps) {
 		},
 		tags.props,
 		tags.gameLoop,
+		...(props.tags ?? []),
 	])
 
 	gravity.onUpdate(() => {

@@ -1,5 +1,7 @@
+import type { GameObj } from "kaplay";
 import { hub } from "./hub";
 import { level1 } from "./level1";
+import { level2 } from "./level2";
 import { k } from "../main";
 import { tags } from "../tags";
 import { clearRecoveryOffers } from "../services/runInventoryService";
@@ -19,10 +21,12 @@ import {
 	resetRunFinale,
 	updateRunFinale,
 } from "../services/runFinaleService";
+import { extractVolatileCargo } from "../services/shipUpgradeService";
 
 const levels = {
 	hub,
 	level1,
+	level2,
 } as const;
 
 export type LevelKey = keyof typeof levels;
@@ -57,6 +61,10 @@ export function loadLevel(levelKey: LevelKey) {
 
 export function transitionToLevel(levelKey: LevelKey) {
 	if (levelKey === "hub" && runSessionActive()) {
+		const cargoReward = extractVolatileCargo();
+		if (cargoReward > 0) {
+			console.log(`Volatile cargo delivered for ${cargoReward} salvage`);
+		}
 		finishRunStats("EXTRACTED");
 		endRunSession();
 	}
@@ -71,15 +79,34 @@ export function transitionToLevel(levelKey: LevelKey) {
 		currentLevelKey = null;
 	}
 
-	k.destroyAll(tags.enemy);
-	k.destroyAll(tags.props);
-	k.destroyAll(tags.levelBg);
-	k.destroyAll(tags.debree);
-	k.destroyAll(tags.blaster);
-	k.destroyAll(tags.rocket);
-	k.destroyAll(tags.damageNumber);
+	destroyTaggedObjects(tags.enemy);
+	destroyTaggedObjects(tags.props);
+	destroyTaggedObjects(tags.levelBg);
+	destroyTaggedObjects(tags.debree);
+	destroyTaggedObjects(tags.blaster);
+	destroyTaggedObjects(tags.rocket);
+	destroyTaggedObjects(tags.damageNumber);
 
 	loadLevel(levelKey);
+}
+
+function destroyTaggedObjects(tag: string) {
+	const objects = (k.get(tag) as GameObj[]).sort(
+		(a, b) => objectDepth(b) - objectDepth(a)
+	);
+	for (const obj of objects) {
+		if (obj.exists()) k.destroy(obj);
+	}
+}
+
+function objectDepth(obj: GameObj) {
+	let depth = 0;
+	let parent = obj.parent;
+	while (parent) {
+		depth++;
+		parent = parent.parent;
+	}
+	return depth;
 }
 
 export function updateLvl() {

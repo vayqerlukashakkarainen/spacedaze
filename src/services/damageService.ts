@@ -1,5 +1,8 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { spawnDamageNumber } from "../spawn/spawnDamageNumber"
+import { tags } from "../tags"
+import { isPlayerDamageInvulnerable } from "./playerDamageState"
+import { tryBlockPlayerDamage } from "./shipUpgradeService"
 
 export interface DamageOptions {
 	critical?: boolean
@@ -14,6 +17,11 @@ export function applyDamage(
 ) {
 	if (!target.exists() || typeof target.hurt !== "function") return false
 	if (!Number.isFinite(damage) || damage <= 0) return false
+	if (
+		target.tags.includes(tags.player) &&
+		isPlayerDamageInvulnerable()
+	) return false
+	if (tryBlockPlayerDamage(target, damage)) return false
 
 	const numberPos = options.position?.clone() ?? target.pos?.clone()
 	target.hurt(damage)

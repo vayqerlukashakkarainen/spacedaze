@@ -2,6 +2,7 @@ import { escape } from "querystring";
 import {
 	getToolUpgradeLvlValue,
 	getToolUpgradeStatValue,
+	getEffectiveUpgradeLevel,
 	ToolKey,
 } from "./upg";
 
@@ -14,6 +15,7 @@ interface Ship {
 	sprintSpeedMultiplier: number;
 	spaceJumpLvl: number | undefined;
 	spaceJumpUpgradeLvl: number | undefined;
+	spaceJumpDamage: number;
 
 	maxHealth: number;
 	scorePerPickup: number;
@@ -46,8 +48,20 @@ interface Ship {
 
 	followerBlasterDmg: number;
 	followerBlasterDmgMultiplier: number;
-	followerCanUseMissiles: number | undefined;
+	missileDroneSlots: number;
 	followerProjectileLink: number | undefined;
+	followerInterceptorProtocol: number | undefined;
+	gunshipDroneSlots: number;
+	medicDroneSlots: number;
+	salvagerDroneSlots: number;
+	scrapArmor: number | undefined;
+	afterburnerWake: number | undefined;
+	sacrificialProtocol: number | undefined;
+	enemyHacker: number | undefined;
+	droneSetBonus: boolean;
+	mobilitySetBonus: boolean;
+	ordnanceSetBonus: boolean;
+	salvageSetBonus: boolean;
 
 	critChance: number;
 	critMultiplier: number;
@@ -96,6 +110,11 @@ interface Session {
 	extraRockets: number;
 	extraSpaceDebreeInMissiles: number;
 	primaryRocketChance: number;
+	scrapArmorCharges: number;
+	scrapArmorProgress: number;
+	volatileCargoActive: boolean;
+	volatileCargoIntact: boolean;
+	volatileCargoDelivered: boolean;
 }
 
 export const PLAYER_SCALE = 1.2;
@@ -105,6 +124,11 @@ export const session: Session = {
 	extraRockets: 0,
 	extraSpaceDebreeInMissiles: 0,
 	primaryRocketChance: 0,
+	scrapArmorCharges: 0,
+	scrapArmorProgress: 0,
+	volatileCargoActive: false,
+	volatileCargoIntact: false,
+	volatileCargoDelivered: false,
 };
 
 export function resetSession() {
@@ -112,6 +136,15 @@ export function resetSession() {
 	session.extraRockets = 0;
 	session.extraSpaceDebreeInMissiles = 0;
 	session.primaryRocketChance = 0;
+	session.scrapArmorCharges = 0;
+	session.scrapArmorProgress = 0;
+	resetVolatileCargoObjective();
+}
+
+export function resetVolatileCargoObjective() {
+	session.volatileCargoActive = false;
+	session.volatileCargoIntact = false;
+	session.volatileCargoDelivered = false;
 }
 
 export const player: Ship = {
@@ -142,12 +175,25 @@ export const player: Ship = {
 	sprintSpeedMultiplier: 1,
 	spaceJumpLvl: undefined,
 	spaceJumpUpgradeLvl: undefined,
+	spaceJumpDamage: 0,
 	speedMultiplier: 1,
 	speedPwrUpMultiplier: 1,
 	followerBlasterDmg: 1,
 	followerBlasterDmgMultiplier: 1,
-	followerCanUseMissiles: undefined,
+	missileDroneSlots: 0,
 	followerProjectileLink: undefined,
+	followerInterceptorProtocol: undefined,
+	gunshipDroneSlots: 0,
+	medicDroneSlots: 0,
+	salvagerDroneSlots: 0,
+	scrapArmor: undefined,
+	afterburnerWake: undefined,
+	sacrificialProtocol: undefined,
+	enemyHacker: undefined,
+	droneSetBonus: false,
+	mobilitySetBonus: false,
+	ordnanceSetBonus: false,
+	salvageSetBonus: false,
 	critChance: 5,
 	critMultiplier: 1.5,
 	explosionPulseStrength: 0,
@@ -211,13 +257,66 @@ export function loadPlayer() {
 		(overclockSpeedMultiplier ?? 1) * coolingSpeedMultiplier;
 	player.spaceJumpLvl = getToolUpgradeLvlValue("spaceJump");
 	player.spaceJumpUpgradeLvl = getToolUpgradeLvlValue("spaceJumpUpgrades");
+	player.spaceJumpDamage = getToolUpgradeLvlValue("phaseRam") ?? 0;
 
 	player.speedMultiplier = getToolUpgradeLvlValue("movespeed") ?? 1;
 	player.maxHealth = getToolUpgradeLvlValue("maxHealth") ?? 2;
 
 	player.followerBlasterDmg = getToolUpgradeLvlValue("followerBlasterDmg") ?? 1;
-	player.followerCanUseMissiles = getToolUpgradeLvlValue("followerMissiles");
+	player.missileDroneSlots = getToolUpgradeLvlValue("followerMissiles") ?? 0;
 	player.followerProjectileLink = getToolUpgradeLvlValue("followerProjectileLink");
+	player.followerInterceptorProtocol = getToolUpgradeLvlValue(
+		"followerInterceptorProtocol"
+	);
+	player.gunshipDroneSlots = getToolUpgradeLvlValue("followerGunship") ?? 0;
+	player.medicDroneSlots = getToolUpgradeLvlValue("followerMedic") ?? 0;
+	player.salvagerDroneSlots = getToolUpgradeLvlValue("followerSalvager") ?? 0;
+	player.scrapArmor = getToolUpgradeLvlValue("scrapArmor");
+	player.afterburnerWake = getToolUpgradeLvlValue("afterburnerWake");
+	player.sacrificialProtocol = getToolUpgradeLvlValue("sacrificialProtocol");
+	player.enemyHacker = getToolUpgradeLvlValue("enemyHacker");
+	player.droneSetBonus = hasTechnologySet([
+		"followerBlasterDmg",
+		"followerMissiles",
+		"followerProjectileLink",
+		"followerInterceptorProtocol",
+		"followerGunship",
+		"followerMedic",
+		"followerSalvager",
+		"sacrificialProtocol",
+		"enemyHacker",
+	]);
+	player.mobilitySetBonus = hasTechnologySet([
+		"sprint",
+		"sprintSpeed",
+		"spaceJump",
+		"spaceJumpUpgrades",
+		"movespeed",
+		"afterburnerWake",
+	]);
+	player.ordnanceSetBonus = hasTechnologySet([
+		"blasterDmg",
+		"blasterSpeed",
+		"armorPiercing",
+		"cryoRounds",
+		"corrosivePayload",
+		"arcCapacitor",
+		"splitChamber",
+		"ricochetRounds",
+	]);
+	player.salvageSetBonus = hasTechnologySet([
+		"debreeDist",
+		"debreeValue",
+		"scrapArmor",
+		"maxHealth",
+	]);
+	if (player.mobilitySetBonus) player.speedMultiplier *= 1.08;
+	if (player.ordnanceSetBonus) {
+		player.blasterDmgMultiplier *= 1.12;
+		player.rocketDmgMultiplier = 1.12;
+	} else {
+		player.rocketDmgMultiplier = 1;
+	}
 
 	player.projectilePierces = getToolUpgradeLvlValue("armorPiercing") ?? 0;
 	player.projectileSlowPercentage = getToolUpgradeLvlValue("cryoRounds") ?? 0;
@@ -297,6 +396,35 @@ export function loadPlayer() {
 	player.projectileMineDamage =
 		getToolUpgradeStatValue("mineLayer", "projectileMineDamage") ?? 0;
 	player.projectilePhasePierces = getToolUpgradeLvlValue("voidLance") ?? 0;
+}
+
+export function addScrapArmorProgress(value: number) {
+	if (player.scrapArmor === undefined || !Number.isFinite(value) || value <= 0) {
+		return;
+	}
+	const maxCharges = player.salvageSetBonus ? 4 : 3;
+	if (session.scrapArmorCharges >= maxCharges) return;
+	session.scrapArmorProgress += value;
+	while (
+		session.scrapArmorProgress >= 8 &&
+		session.scrapArmorCharges < maxCharges
+	) {
+		session.scrapArmorProgress -= 8;
+		session.scrapArmorCharges++;
+	}
+}
+
+export function getActiveTechnologySetNames() {
+	const names: string[] = [];
+	if (player.droneSetBonus) names.push("SWARM INTELLIGENCE");
+	if (player.mobilitySetBonus) names.push("OVERDRIVE ARRAY");
+	if (player.ordnanceSetBonus) names.push("MUNITIONS CASCADE");
+	if (player.salvageSetBonus) names.push("SALVAGE ENGINE");
+	return names;
+}
+
+function hasTechnologySet(keys: readonly ToolKey[]) {
+	return keys.filter((key) => getEffectiveUpgradeLevel(key) !== undefined).length >= 3;
 }
 
 export function hasLvlValue(value: number | undefined, lvl: number) {

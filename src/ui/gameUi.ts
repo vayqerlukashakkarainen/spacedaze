@@ -282,6 +282,7 @@ export function addCollectedPowerup(rewardOrId: Reward | string) {
 	if (existing) {
 		existing.count++;
 		existing.reward = reward;
+		existing.icon.color = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
 		existing.countLabel.text = `x${existing.count}`;
 		if (existing.icon.isHovering()) {
 			showRewardTooltip(
@@ -309,6 +310,7 @@ export function addCollectedPowerup(rewardOrId: Reward | string) {
 	const rarityColor = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
 	const icon = runLoadoutPanel.add([
 		k.sprite(reward.sprite, { width: 22 * HUD_SCALE, height: 22 * HUD_SCALE }),
+		k.color(rarityColor),
 		k.outline(1, rarityColor),
 		k.pos(
 			(18 + column * 29) * HUD_SCALE,
