@@ -5,6 +5,7 @@ import { ProjectileConfig } from "../projectiles/projectileConfig";
 import { spawnProjectile } from "./projectileService";
 import { player, session } from "../player";
 import { getEquippedWeapon } from "./weaponService";
+import { spawnFlash } from "../spawn/spawnFlash";
 
 // Basic Blaster
 export function spawnBasicBlaster(
@@ -71,6 +72,7 @@ export function spawnPlayerBlaster(pos: Vec2, dir: Vec2, rot: number) {
 		};
 	}
 	applyPlayerProjectileModifiers(config, true);
+	spawnFlash(pos, 3);
 
 	return spawnProjectile(config);
 }
@@ -475,7 +477,11 @@ export function spawnEnemyBlaster(
 	pos: Vec2,
 	dir: Vec2,
 	rot: number,
-	damage: number
+	damage: number,
+	damageSource: { name: string; sprite?: string } = {
+		name: "ENEMY SHIP",
+		sprite: "enemy_ship1_body",
+	}
 ) {
 	const config: ProjectileConfig = {
 		pos,
@@ -484,6 +490,7 @@ export function spawnEnemyBlaster(
 		sprite: "bullet1",
 		speed: BULLET_SPEED,
 		speedMultiplier: 0.8,
+		damageSource,
 		tags: [tags.enemy, tags.blaster],
 		impact: {
 			damage,

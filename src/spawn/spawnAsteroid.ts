@@ -15,6 +15,7 @@ import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
 } from "../services/threatService";
+import { gridRegistry } from "../grid/gridRegistry";
 
 interface Props {
 	pos: Vec2;
@@ -27,6 +28,7 @@ interface Props {
 	powerupMultiplier?: number;
 	tags?: string[];
 	enemyOptions?: EnemySpawnOptions;
+	bounceGridKey?: string;
 	onDeath?: (pos: Vec2) => void;
 }
 
@@ -61,11 +63,12 @@ export function spawnMeteorite(props: Props) {
 		{
 			vel: props.dir,
 			rotVel: k.rand(-4, 4),
-			speed: props.speed,
+			speed: props.speed * profile.speedMultiplier,
 			initScale,
 			hb,
 			elite: profile.elite,
 			damage: profile.damage,
+			bounceGridKey: props.bounceGridKey,
 		},
 		tags.enemy,
 		tags.unit,
@@ -77,7 +80,12 @@ export function spawnMeteorite(props: Props) {
 	registerHitAnimation(m);
 
 	m.onUpdate(() => {
-		m.move(m.vel.scale(m.speed * velocityScale() * m.getTimescale()));
+		const moveVelocity = m.vel.scale(
+			m.speed * velocityScale() * m.getTimescale()
+		);
+		if (!bounceOffGridCell(m, moveVelocity)) {
+			m.move(moveVelocity);
+		}
 		m.angle += m.rotVel * dtScaled() * m.getTimescale();
 
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
@@ -88,7 +96,12 @@ export function spawnMeteorite(props: Props) {
 			!isPlayerDamageInvulnerable() &&
 			playerObj.pos.dist(m.pos) < m.hb
 		) {
-			applyDamage(playerObj, m.damage);
+			applyDamage(playerObj, m.damage, {
+				source: {
+					name: profile.elite ? "ELITE ASTEROID" : "ASTEROID",
+					sprite: spriteName,
+				},
+			});
 			applyDamage(m, profile.hp);
 		}
 	});
@@ -115,6 +128,7 @@ export function spawnMeteorite(props: Props) {
 					splitOnDeath: 0,
 					destroyOffscreen: props.destroyOffscreen,
 					tags: props.tags,
+					bounceGridKey: props.bounceGridKey,
 					enemyOptions: {
 						...props.enemyOptions,
 						elite: profile.elite,
@@ -127,4 +141,41 @@ export function spawnMeteorite(props: Props) {
 	m.onHurt(() => {
 		m.animation.seek(0);
 	});
+}
+
+function bounceOffGridCell(
+	meteorite: {
+		pos: Vec2;
+		vel: Vec2;
+		hb: number;
+		bounceGridKey?: string;
+	},
+	moveVelocity: Vec2
+) {
+	if (!meteorite.bounceGridKey || moveVelocity.len() <= 0) return false;
+	const grid = gridRegistry.get(meteorite.bounceGridKey);
+	if (!grid) return false;
+
+	const movement = moveVelocity.scale(k.dt());
+	const direction = movement.unit();
+	const probePos = meteorite.pos
+		.add(movement)
+		.add(direction.scale(meteorite.hb));
+	const blockedCoord = grid.screenToHex(probePos);
+	if (grid.inBounds(blockedCoord) && grid.isWalkable(blockedCoord)) {
+		return false;
+	}
+
+	const blockedCenter = grid.hexToScreen(blockedCoord);
+	const awayFromCell = meteorite.pos.sub(blockedCenter);
+	const normal = awayFromCell.len() > 0
+		? awayFromCell.unit()
+		: direction.scale(-1);
+	const reflected = meteorite.vel.sub(
+		normal.scale(2 * meteorite.vel.dot(normal))
+	);
+	meteorite.vel = reflected.len() > 0
+		? reflected.unit()
+		: direction.scale(-1);
+	return true;
 }

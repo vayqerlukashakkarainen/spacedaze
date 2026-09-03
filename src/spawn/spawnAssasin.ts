@@ -4,7 +4,7 @@ import { audioService } from "../services/audioService";
 import { spawnEnemyBlaster } from "../services/projectileHelpers";
 import {
 	lerpAngleBetweenPos,
-	lerpMoveRotateAndScale,
+	steerMoveRotateAndLean,
 	registerHitAnimation,
 } from "../shared";
 import { tags } from "../tags";
@@ -78,7 +78,11 @@ export function spawnAssasin(
 					m.pos,
 					k.Vec2.fromAngle(m.angle - 90),
 					m.angle,
-					m.damage
+					m.damage,
+					{
+						name: profile.elite ? "ELITE ASSASSIN" : "ASSASSIN",
+						sprite: "enemy_ship1",
+					}
 				);
 			}
 		}
@@ -95,7 +99,7 @@ export function spawnAssasin(
 			-90
 		);
 
-		lerpMoveRotateAndScale(
+		steerMoveRotateAndLean(
 			m,
 			lerp,
 			m.speed * m.getTimescale(),

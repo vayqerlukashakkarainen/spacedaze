@@ -1,4 +1,4 @@
-import { AudioPlay } from "kaplay";
+import { AudioPlay, KEventController } from "kaplay";
 import { audioPlaybackSpeed, k } from "../main";
 
 interface PlayingSound {
@@ -18,6 +18,8 @@ const playingSounds: PlayingSound[] = [];
 let currentMusic: AudioPlay | null = null;
 let currentMusicId: string | null = null;
 let currentMusicBaseVolume = 1;
+let currentMusicFade: KEventController | null = null;
+let optionalMusicRequest = 0;
 let audioSettings = loadAudioSettings();
 
 function clampVolume(value: number) {
@@ -47,6 +49,12 @@ function syncMasterVolume() {
 
 function saveAudioSettings() {
 	localStorage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify(audioSettings));
+}
+
+function cancelMusicFade() {
+	if (!currentMusicFade) return;
+	currentMusicFade.cancel();
+	currentMusicFade = null;
 }
 
 export const audioService = {
@@ -82,6 +90,8 @@ export const audioService = {
 		options?: { volume?: number; loop?: boolean }
 	): AudioPlay {
 		syncMasterVolume();
+		cancelMusicFade();
+		optionalMusicRequest++;
 		// Stop current music if playing
 		if (currentMusic) {
 			currentMusic.stop();
@@ -99,7 +109,60 @@ export const audioService = {
 		return currentMusic;
 	},
 
+	async playOptionalMusic(
+		musicId: string,
+		path: string,
+		options?: { volume?: number; loop?: boolean }
+	): Promise<boolean> {
+		const request = ++optionalMusicRequest;
+		try {
+			const response = await fetch(path, { method: "HEAD" });
+			const contentType = response.headers.get("content-type") ?? "";
+			if (!response.ok || !contentType.startsWith("audio/")) return false;
+			if (request !== optionalMusicRequest) return false;
+			k.loadMusic(musicId, path);
+			audioService.playMusic(musicId, options);
+			return true;
+		} catch {
+			return false;
+		}
+	},
+
+	fadeOutMusic(durationSeconds: number) {
+		cancelMusicFade();
+		if (!currentMusic) return;
+		if (durationSeconds <= 0) {
+			audioService.stopMusic();
+			return;
+		}
+
+		const fadingMusic = currentMusic;
+		const startVolume = fadingMusic.volume;
+		let elapsedSeconds = 0;
+		let fadeController: KEventController;
+		fadeController = k.onUpdate(() => {
+			if (currentMusic !== fadingMusic) {
+				fadeController.cancel();
+				if (currentMusicFade === fadeController) currentMusicFade = null;
+				return;
+			}
+			elapsedSeconds += k.dt();
+			const progress = clampVolume(elapsedSeconds / durationSeconds);
+			fadingMusic.volume = startVolume * (1 - progress);
+			if (progress < 1) return;
+
+			fadingMusic.stop();
+			currentMusic = null;
+			currentMusicId = null;
+			fadeController.cancel();
+			if (currentMusicFade === fadeController) currentMusicFade = null;
+		});
+		currentMusicFade = fadeController;
+	},
+
 	stopMusic() {
+		optionalMusicRequest++;
+		cancelMusicFade();
 		if (currentMusic) {
 			currentMusic.stop();
 			currentMusic = null;

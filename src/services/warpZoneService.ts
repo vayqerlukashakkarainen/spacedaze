@@ -6,6 +6,14 @@ export interface WarpZoneDefinition {
 	description: string
 	poolId: string
 	finaleId: FinaleId
+	explorationMusic?: {
+		music: string
+		path: string
+		title: string
+		author: string
+		albumCover?: string
+	}
+	finaleTransitionSeconds: number
 }
 
 export const WARP_ZONES: readonly WarpZoneDefinition[] = [
@@ -14,7 +22,14 @@ export const WARP_ZONES: readonly WarpZoneDefinition[] = [
 		name: "ZONE 1",
 		description: "THE FIRST CHARTED EXPEDITION ZONE",
 		poolId: "zone1",
-		finaleId: "level2Ending",
+		finaleId: "level1Ending",
+		explorationMusic: {
+			music: "katanaBlaster",
+			path: "songs/katana-blaster.mp3",
+			title: "Katana Blaster",
+			author: "Big Giant Circles",
+		},
+		finaleTransitionSeconds: 5,
 	},
 ]
 

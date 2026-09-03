@@ -1,11 +1,12 @@
 import { endSong } from "../web";
+import type { Color, Vec2 } from "kaplay";
 import { audioService } from "../services/audioService";
 import { spawnLevel } from "../spawn/spawnLevel";
 import { getScore, k, spendScore } from "../main";
 import { Level } from "./levels";
 import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject";
 import { spawnChest } from "../spawn/spawnChest";
-import { checkProjectileIntersection, playerObj } from "../game";
+import { playerObj, projectiles } from "../game";
 import { tags } from "../tags";
 import { spawnRecoveryShop } from "../spawn/spawnRecoveryShop";
 import { interactable } from "../comp/interactable";
@@ -92,7 +93,7 @@ export const hub: Level = {
 			pos: wormholePos,
 			levelName: "level1",
 			visual: "wormhole",
-			label: "ENTER WORMHOLE",
+			label: "",
 			onEnter: (_portal, selectLevel, cancel) => {
 				showWarpZoneSelector((zoneId) => {
 					const firstFloor = beginRunSession(zoneId);
@@ -298,54 +299,100 @@ function spawnHubBackgroundDepth() {
 
 function spawnPhaseShiftAsteroidField() {
 	const fieldCenter = getPhaseFieldCenter();
-	spawnAsteroidRing(fieldCenter, 177, 46, 0);
-	spawnAsteroidRing(fieldCenter, 207, 54, 0.5);
+	const asteroids: PhaseFieldAsteroid[] = [];
+	spawnAsteroidRing(177, 46, 0, asteroids);
+	spawnAsteroidRing(207, 54, 0.5, asteroids);
+	const collisionInnerRadius = 150;
+	const collisionOuterRadius = 235;
+	const controller = k.add([
+		k.pos(fieldCenter),
+		k.z(2),
+		{
+			draw() {
+				for (const asteroid of asteroids) {
+					k.drawSprite({
+						sprite: asteroid.sprite,
+						pos: asteroid.offset,
+						anchor: "center",
+						angle: asteroid.angle,
+						scale: k.vec2(asteroid.scale),
+						color: asteroid.color,
+					});
+				}
+			},
+		},
+		tags.hubPhaseField,
+		tags.props,
+		tags.gameLoop,
+	]);
+
+	controller.onUpdate(() => {
+		for (const asteroid of asteroids) {
+			asteroid.angle += asteroid.rotationSpeed * k.dt();
+		}
+
+		for (const projectile of projectiles) {
+			if (
+				!projectile.exists() ||
+				!projectile.tags.includes(tags.friendly)
+			) continue;
+			const fieldDistance = projectile.pos.dist(fieldCenter);
+			if (
+				fieldDistance < collisionInnerRadius ||
+				fieldDistance > collisionOuterRadius
+			) continue;
+
+			for (const asteroid of asteroids) {
+				const asteroidPos = fieldCenter.add(asteroid.offset);
+				if (
+					projectile.pos.dist(asteroidPos) >= asteroid.hitRadius
+				) continue;
+				const normal = projectile.pos.sub(asteroidPos);
+				if (!tryBounceProjectile(
+					projectile,
+					undefined,
+					normal.len() > 0 ? normal.unit() : undefined
+				)) {
+					k.destroy(projectile);
+				}
+				break;
+			}
+		}
+	});
+}
+
+interface PhaseFieldAsteroid {
+	offset: Vec2;
+	sprite: string;
+	angle: number;
+	scale: number;
+	color: Color;
+	hitRadius: number;
+	rotationSpeed: number;
 }
 
 function spawnAsteroidRing(
-	center: ReturnType<typeof k.vec2>,
 	radius: number,
 	count: number,
-	angleOffset: number
+	angleOffset: number,
+	asteroids: PhaseFieldAsteroid[]
 ) {
 	for (let index = 0; index < count; index++) {
 		const angle = ((index + angleOffset) / count) * 360;
 		const radialJitter = k.rand(-5, 5);
 		const asteroidScale = k.rand(1.35, 1.9);
 		const shade = k.rand(220, 256);
-		const asteroid = k.add([
-			k.pos(center.add(k.Vec2.fromAngle(angle).scale(radius + radialJitter))),
-			k.sprite(
+		asteroids.push({
+			offset: k.Vec2.fromAngle(angle).scale(radius + radialJitter),
+			sprite:
 				ASTEROID_SPRITES[
 					Math.floor(k.rand(0, ASTEROID_SPRITES.length))
-				]
-			),
-			k.anchor("center"),
-			k.rotate(k.rand(0, 360)),
-			k.scale(asteroidScale),
-			k.color(shade, shade, shade),
-			k.z(2),
-			{
-				hitRadius: 8 * asteroidScale,
-				rotationSpeed: k.chance(0.65) ? k.rand(-5, 5) : 0,
-			},
-			tags.hubPhaseField,
-			tags.props,
-			tags.gameLoop,
-		]);
-
-		asteroid.onUpdate(() => {
-			asteroid.angle += asteroid.rotationSpeed * k.dt();
-			checkProjectileIntersection(
-				asteroid.pos,
-				asteroid.hitRadius,
-				tags.friendly,
-				(projectile) => {
-					if (!tryBounceProjectile(projectile, asteroid)) {
-						k.destroy(projectile);
-					}
-				}
-			);
+				],
+			angle: k.rand(0, 360),
+			scale: asteroidScale,
+			color: k.rgb(shade, shade, shade),
+			hitRadius: 8 * asteroidScale,
+			rotationSpeed: k.chance(0.65) ? k.rand(-5, 5) : 0,
 		});
 	}
 }
@@ -363,7 +410,12 @@ function damagePlayerInPhaseField() {
 	) return;
 
 	phaseFieldDamageCooldown = 0.3;
-	applyDamage(playerObj, 99);
+	applyDamage(playerObj, 99, {
+		source: {
+			name: "PHASE-FIELD ASTEROID",
+			sprite: "asteroid1",
+		},
+	});
 }
 
 function getPhaseFieldCenter() {
@@ -379,28 +431,40 @@ function spawnHubStarLayer(
 	z: number
 ) {
 	const initialCameraPos = k.getCamPos().clone();
-	const layer = k.add([
-		k.pos(center),
-		k.layer("bg"),
-		k.z(z),
-		tags.levelBg,
-		tags.gameLoop,
-	]);
-
-	for (let index = 0; index < count; index++) {
+	const stars = Array.from({ length: count }, () => {
 		const bright = k.rand(0.55, 1);
-		const size = k.chance(0.16) ? 2 : 1;
-		layer.add([
-			k.rect(size, size),
-			k.pos(k.rand(-radius, radius), k.rand(-radius * 0.65, radius * 0.65)),
-			k.color(
+		return {
+			pos: k.vec2(
+				k.rand(-radius, radius),
+				k.rand(-radius * 0.65, radius * 0.65)
+			),
+			size: k.chance(0.16) ? 2 : 1,
+			color: k.rgb(
 				120 * bright * brightness,
 				190 * bright * brightness,
 				220 * bright * brightness
 			),
-			k.opacity(1),
-		]);
-	}
+		};
+	});
+	const layer = k.add([
+		k.pos(center),
+		k.layer("bg"),
+		k.z(z),
+		{
+			draw() {
+				for (const star of stars) {
+					k.drawRect({
+						pos: star.pos,
+						width: star.size,
+						height: star.size,
+						color: star.color,
+					});
+				}
+			},
+		},
+		tags.levelBg,
+		tags.gameLoop,
+	]);
 
 	layer.onUpdate(() => {
 		const cameraDelta = k.getCamPos().sub(initialCameraPos);

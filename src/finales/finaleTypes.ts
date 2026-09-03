@@ -21,4 +21,4 @@ export interface FinaleDefinition {
 	reset: () => void
 }
 
-export type RunPhase = "exploration" | "finale" | "exitReady"
+export type RunPhase = "exploration" | "transition" | "finale" | "exitReady"

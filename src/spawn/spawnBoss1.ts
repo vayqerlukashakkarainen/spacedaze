@@ -158,7 +158,8 @@ export function spawnBoss1(
 						blaster1.children[0].worldPos(),
 						k.Vec2.fromAngle(blaster1.angle - 90),
 						blaster1.angle,
-						1
+						1,
+						{ name: "BOSS", sprite: "boss1_body" }
 					);
 				},
 				10

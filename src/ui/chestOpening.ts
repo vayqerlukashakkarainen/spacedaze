@@ -1,6 +1,10 @@
 import { GameObj, Vec2 } from "kaplay";
 import { k, layers, mainSoundVolume } from "../main";
-import { ChestReward, generateChestRewardChoices } from "../chestRewards";
+import {
+	ChestReward,
+	generateChestRewardChoices,
+	Rarity,
+} from "../chestRewards";
 import { audioService } from "../services/audioService";
 import { shake } from "../comp/shake";
 import { applyReward, REWARD_RARITY_COLORS } from "../services/rewardService";
@@ -12,11 +16,78 @@ import {
 	normalizeChestChallengeHits,
 	type ChestChallengeType,
 } from "./chestChallenge";
+import { addThemedText } from "./common/text";
 
 interface TimingZone {
 	start: number; // 0-1
 	end: number; // 0-1
 	hit: boolean;
+}
+
+interface RewardRevealProfile {
+	suspense: number;
+	postRevealHold: number;
+	riserSound?: string;
+	popScale: number;
+	duration: number;
+	particleCount: number;
+	detune: number;
+	shake: number;
+}
+
+const REWARD_REVEAL_PROFILES: Record<Rarity, RewardRevealProfile> = {
+	[Rarity.Common]: {
+		suspense: 0.04,
+		postRevealHold: 0.02,
+		popScale: 1.18,
+		duration: 0.26,
+		particleCount: 14,
+		detune: 0,
+		shake: 0,
+	},
+	[Rarity.Uncommon]: {
+		suspense: 0.07,
+		postRevealHold: 0.06,
+		popScale: 1.32,
+		duration: 0.3,
+		particleCount: 24,
+		detune: 120,
+		shake: 1,
+	},
+	[Rarity.Rare]: {
+		suspense: 0.12,
+		postRevealHold: 0.14,
+		popScale: 1.52,
+		duration: 0.38,
+		particleCount: 42,
+		detune: 260,
+		shake: 3,
+	},
+	[Rarity.Epic]: {
+		suspense: 0.5,
+		postRevealHold: 0.3,
+		riserSound: "reward_riser_epic",
+		popScale: 1.85,
+		duration: 0.5,
+		particleCount: 84,
+		detune: 420,
+		shake: 4,
+	},
+	[Rarity.Legendary]: {
+		suspense: 1.3,
+		postRevealHold: 0.5,
+		riserSound: "reward_riser_legendary",
+		popScale: 2.2,
+		duration: 0.7,
+		particleCount: 130,
+		detune: 650,
+		shake: 9,
+	},
+};
+
+function isRarityAtLeast(rarity: Rarity, minimum: Rarity) {
+	const rarityOrder = Object.values(Rarity);
+	return rarityOrder.indexOf(rarity) >= rarityOrder.indexOf(minimum);
 }
 
 export function startChestOpeningSequence(onSequenceComplete?: () => void) {
@@ -510,7 +581,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 	});
 
 	// State: Reveal
-	chestController.onStateEnter("reveal", () => {
+	chestController.onStateEnter("reveal", async () => {
 		const normalizedHits = normalizeChestChallengeHits(
 			challengeConfig.type,
 			chestController.successfulHits
@@ -541,38 +612,135 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			k.anchor("center"),
 		]);
 
-		const revealStagger = 0.14;
 		const layout = getRewardCardLayout(
 			chestController.borderBox?.width ?? 840,
 			chestController.rewards.length
 		);
-		chestController.rewards.forEach((reward, index) => {
+		const concealedSlots = chestController.rewards.map((_, index) => {
+			const slot = chestController.uiContainer!.add([
+				k.rect(82, 98),
+				k.pos(layout.cardX(index), layout.iconY),
+				k.anchor("center"),
+				k.color(6, 6, 10),
+				k.outline(2, k.rgb(70, 70, 80)),
+				k.opacity(0.85),
+			]);
+			slot.add([
+				k.text("?", { size: 30, font: "unscii" }),
+				k.anchor("center"),
+				k.color(100, 100, 110),
+			]);
+			return slot;
+		});
+		const firstLegendaryIndex = chestController.rewards.findIndex(
+			(reward) => reward.rarity === Rarity.Legendary
+		);
+		let legendaryShakeRamp = firstLegendaryIndex >= 0
+			? startRevealShakeRamp(
+					getRewardRevealLeadTime(
+						chestController.rewards,
+						firstLegendaryIndex
+					),
+					7.5
+				)
+			: undefined;
+
+		for (let index = 0; index < chestController.rewards.length; index++) {
+			const reward = chestController.rewards[index];
+			const profile = REWARD_REVEAL_PROFILES[reward.rarity];
 			const target = k.vec2(layout.cardX(index), layout.iconY);
-			const revealOrigin = k.vec2(0, 20);
+			const epicShakeRamp = reward.rarity === Rarity.Epic
+				? startRevealShakeRamp(profile.suspense, 2.4)
+				: undefined;
+			if (profile.riserSound) {
+				const riser = audioService.playSound(profile.riserSound, {
+					volume: mainSoundVolume * 0.85,
+				});
+				if (reward.rarity === Rarity.Epic) riser.speed = 0.62;
+				if (reward.rarity === Rarity.Legendary) riser.speed = 0.5;
+			}
+			await k.wait(profile.suspense);
+			if (!chestController.uiContainer?.exists()) return;
+			epicShakeRamp?.cancel();
+			if (reward.rarity === Rarity.Legendary && legendaryShakeRamp) {
+				legendaryShakeRamp.cancel();
+				legendaryShakeRamp = undefined;
+			}
+
+			const concealedSlot = concealedSlots[index];
+			if (concealedSlot.exists()) {
+				concealedSlot.removeAll();
+				concealedSlot.opacity = 1;
+			}
+
 			const rewardSprite = chestController.uiContainer.add([
 				k.sprite(reward.sprite, { width: 64, height: 64 }),
-				k.pos(revealOrigin),
+				k.pos(target),
 				k.anchor("center"),
-				k.scale(0.1),
+				k.scale(0.05),
+				k.opacity(0),
 				k.animate(),
 			]);
-			rewardSprite.animate("pos", [revealOrigin, target], {
-				duration: 0.55,
-				delay: index * revealStagger,
+			rewardSprite.animate("opacity", [0, 1], {
+				duration: 0.1,
 				loops: 1,
-				easing: k.easings.easeOutCubic,
 			});
-			rewardSprite.animate("scale", [k.vec2(0.1), k.vec2(1.3), k.vec2(1)], {
-				duration: 0.65,
-				delay: index * revealStagger,
+			rewardSprite.animate(
+				"scale",
+				[k.vec2(0.05), k.vec2(profile.popScale), k.vec2(1)],
+				{
+					duration: profile.duration,
+					loops: 1,
+					timing: [0, 0.42, 1],
+					easing: k.easings.easeOutCubic,
+				}
+			);
+			const rarityColor = REWARD_RARITY_COLORS[reward.rarity];
+			chestController.uiContainer.add([
+				k.text(reward.rarity, { size: 9, font: "unscii" }),
+				k.pos(target.x, target.y + 52),
+				k.anchor("center"),
+				k.color(...rarityColor),
+				k.opacity(0),
+				k.animate(),
+			]).animate("opacity", [0, 1], {
+				duration: 0.18,
 				loops: 1,
-				timing: [0, 0.55, 1],
 			});
-		});
 
-		k.wait(0.8 + (chestController.rewards.length - 1) * revealStagger, () => {
+			audioService.playSound("powerup1", {
+				volume: mainSoundVolume,
+				detune: profile.detune,
+			});
+			if (isRarityAtLeast(reward.rarity, Rarity.Epic)) {
+				audioService.playSound("explosion2", {
+					volume:
+						mainSoundVolume *
+						(reward.rarity === Rarity.Legendary ? 0.75 : 0.45),
+					detune: reward.rarity === Rarity.Legendary ? 320 : 180,
+				});
+			}
+			if (reward.rarity === Rarity.Legendary) {
+				audioService.playSound("reward_shine_legendary", {
+					volume: mainSoundVolume * 0.9,
+				});
+			}
+			if (profile.shake > 0) k.shake(profile.shake);
+			spawnRewardRevealBurst(
+				k.center().add(target),
+				rarityColor,
+				profile
+			);
+
+			await k.wait(
+				profile.duration * 0.35 + profile.postRevealHold
+			);
+		}
+
+		await k.wait(0.15);
+		if (chestController.exists()) {
 			chestController.enterState("showDetails");
-		});
+		}
 	});
 
 	// State: Show Details
@@ -599,7 +767,16 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			choiceCount
 		);
 		const { cardWidth, cardHeight } = layout;
-		const cardStagger = 0.16;
+		const cardStagger = 0.03;
+		chestController.rewards.forEach((reward, index) => {
+			if (!isRarityAtLeast(reward.rarity, Rarity.Epic)) return;
+			addEpicRewardShine(
+				chestController.uiContainer!,
+				k.vec2(layout.cardX(index), 5),
+				REWARD_RARITY_COLORS[reward.rarity],
+				index * cardStagger
+			);
+		});
 
 		let accepted = false;
 		const acceptControllers: { cancel: () => void }[] = [];
@@ -633,6 +810,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		chestController.rewards.forEach((reward, index) => {
 			const rarityColor = REWARD_RARITY_COLORS[reward.rarity];
 			const cardX = layout.cardX(index);
+			const animationDelay = index * cardStagger;
 			const card = chestController.uiContainer.add([
 				k.rect(cardWidth, cardHeight),
 				k.pos(cardX, 5),
@@ -644,7 +822,6 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				k.opacity(0),
 				k.animate(),
 			]);
-			const animationDelay = index * cardStagger;
 			card.animate("opacity", [0, 1], {
 				duration: 0.24,
 				delay: animationDelay,
@@ -663,51 +840,54 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				k.pos(0, -125),
 				k.anchor("center"),
 			]);
-			card.add([
-				k.text(`${reward.rarity.toUpperCase()} ${reward.kind.toUpperCase()}`, {
-					size: 10,
-					font: "unscii",
-				}),
-				k.pos(0, -86),
-				k.anchor("center"),
-				k.color(...rarityColor),
-			]);
-			card.add([
-				k.text(reward.name, {
-					size: 13,
-					font: "unscii",
-					width: cardWidth - 20,
-					align: "center",
-				}),
-				k.pos(0, -53),
-				k.anchor("center"),
-			]);
-			card.add([
-				k.text(reward.description, {
-					size: 9,
-					font: "unscii",
-					width: cardWidth - 24,
-					align: "center",
-					lineSpacing: 4,
-				}),
-				k.pos(0, 15),
-				k.anchor("center"),
-			]);
+			addThemedText(card, {
+				text: `${reward.rarity.toUpperCase()} ${reward.kind.toUpperCase()}`,
+				pos: k.vec2(-(cardWidth - 20) / 2, -92),
+				variant: "caption",
+				size: 10,
+				width: cardWidth - 20,
+				align: "center",
+				color: k.rgb(...rarityColor),
+			});
+			addThemedText(card, {
+				text: reward.name,
+				pos: k.vec2(-(cardWidth - 20) / 2, -66),
+				variant: "heading",
+				size: 13,
+				width: cardWidth - 20,
+				align: "center",
+				lineHeight: 1.45,
+				color: k.WHITE,
+			});
+			addThemedText(card, {
+				text: reward.description,
+				pos: k.vec2(-(cardWidth - 24) / 2, 3),
+				variant: "body",
+				size: 9,
+				width: cardWidth - 24,
+				align: "center",
+				lineHeight: 1.4,
+			});
 			const rewardStats = Object.entries(reward.stats)
 				.map(([stat, value]) => `${stat}: ${value}`)
 				.join("\n");
-			card.add([
-				k.text(rewardStats, {
-					size: 9,
-					font: "unscii",
-					width: cardWidth - 24,
-					align: "center",
-					lineSpacing: 3,
-				}),
-				k.pos(0, 83),
-				k.anchor("center"),
-				k.color(100, 200, 255),
-			]);
+			addThemedText(card, {
+				text: rewardStats,
+				pos: k.vec2(-(cardWidth - 24) / 2, 73),
+				variant: "stat",
+				size: 9,
+				width: cardWidth - 24,
+				align: "center",
+				color: k.rgb(100, 200, 255),
+			});
+			if (reward.rarity === Rarity.Legendary) {
+				addLegendaryCardSweep(
+					card,
+					cardWidth,
+					cardHeight,
+					animationDelay + 0.18
+				);
+			}
 			// Keep pointer input on a direct child of the fixed controller. The
 			// animated cards are nested inside the scaling border, which makes their
 			// transformed areas unreliable for mouse hit-testing.
@@ -750,6 +930,242 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 	chestController.enterState("initial");
 }
 
+function addLegendaryCardSweep(
+	card: GameObj,
+	cardWidth: number,
+	cardHeight: number,
+	delay: number
+) {
+	const startX = -cardWidth / 2 - 54;
+	const endX = cardWidth / 2 + 54;
+	const sweepDuration = 0.72;
+	const sweepMask = card.add([
+		k.rect(cardWidth - 6, cardHeight - 6),
+		k.anchor("center"),
+		k.mask("intersect"),
+	]);
+	const glow = sweepMask.add([
+		k.rect(48, cardHeight * 1.35),
+		k.pos(startX, 0),
+		k.anchor("center"),
+		k.rotate(-12),
+		k.color(255, 205, 90),
+		k.opacity(0),
+		k.animate(),
+		k.z(20),
+	]);
+	const core = sweepMask.add([
+		k.rect(10, cardHeight * 1.35),
+		k.pos(startX, 0),
+		k.anchor("center"),
+		k.rotate(-12),
+		k.color(k.WHITE),
+		k.opacity(0),
+		k.animate(),
+		k.z(21),
+	]);
+
+	for (const light of [glow, core]) {
+		light.animate("pos", [k.vec2(startX, 0), k.vec2(endX, 0)], {
+			duration: sweepDuration,
+			delay,
+			loops: 1,
+			easing: k.easings.easeInOutCubic,
+		});
+	}
+	glow.animate("opacity", [0, 0.34, 0.34, 0], {
+		duration: sweepDuration,
+		delay,
+		loops: 1,
+		timing: [0, 0.22, 0.72, 1],
+	});
+	core.animate("opacity", [0, 0.88, 0.88, 0], {
+		duration: sweepDuration,
+		delay,
+		loops: 1,
+		timing: [0, 0.2, 0.76, 1],
+	});
+}
+
+function addEpicRewardShine(
+	container: GameObj,
+	pos: Vec2,
+	colorValues: readonly [number, number, number],
+	animationDelay: number
+) {
+	const rayColor = new k.Color(...colorValues);
+	const rayCount = 16;
+	const rays = container.add([
+		k.pos(pos),
+		k.rotate(0),
+		k.scale(0.68, 0.84),
+		k.opacity(0),
+		k.animate(),
+		k.z(-10),
+		{
+			burstElapsed: -animationDelay,
+		},
+		{
+			update() {
+				this.angle += 14 * k.dt();
+				this.burstElapsed += k.dt();
+			},
+			draw() {
+				const reveal = this.opacity;
+				if (reveal <= 0) return;
+				const pulse = k.wave(0.86, 1.12, k.time() * 2.5);
+				const burstProgress = k.clamp(this.burstElapsed / 0.55, 0, 1);
+				const burstOpacity = Math.sin(burstProgress * Math.PI) * reveal;
+
+				k.drawCircle({
+					pos: k.vec2(0),
+					radius: 215 * pulse,
+					color: rayColor,
+					opacity: 0.035 * reveal,
+					anchor: "center",
+				});
+				k.drawCircle({
+					pos: k.vec2(0),
+					radius: k.lerp(80, 255, burstProgress),
+					color: k.WHITE,
+					opacity: 0,
+					anchor: "center",
+					fill: false,
+					outline: {
+						width: 7,
+						color: k.WHITE,
+						opacity: 0.8 * burstOpacity,
+					},
+				});
+				k.drawCircle({
+					pos: k.vec2(0),
+					radius: 192 * pulse,
+					color: rayColor,
+					opacity: 0,
+					anchor: "center",
+					fill: false,
+					outline: {
+						width: 3,
+						color: rayColor,
+						opacity: 0.7 * reveal,
+					},
+				});
+				k.drawCircle({
+					pos: k.vec2(0),
+					radius: 212 / pulse,
+					color: k.WHITE,
+					opacity: 0,
+					anchor: "center",
+					fill: false,
+					outline: {
+						width: 1,
+						color: k.WHITE,
+						opacity: 0.38 * reveal,
+					},
+				});
+
+				for (let index = 0; index < rayCount; index++) {
+					const angle = index * (360 / rayCount);
+					const halfWidth = index % 2 === 0 ? 8 : 4;
+					const innerRadius = index % 2 === 0 ? 62 : 78;
+					const outerRadius = (index % 3 === 0 ? 240 : 218) * pulse;
+					k.drawPolygon({
+						pts: [
+							k.Vec2.fromAngle(angle - halfWidth).scale(innerRadius),
+							k.Vec2.fromAngle(angle).scale(outerRadius),
+							k.Vec2.fromAngle(angle + halfWidth).scale(innerRadius),
+						],
+						color: index % 2 === 0 ? rayColor : k.WHITE,
+						opacity: (index % 2 === 0 ? 0.46 : 0.28) * reveal,
+						opacities: [1, 0.82, 1],
+					});
+				}
+
+				for (let index = 0; index < 10; index++) {
+					const angle = index * 36 - this.angle * 2 + 12;
+					const halfWidth = index % 2 === 0 ? 4 : 2;
+					const outerRadius = (index % 2 === 0 ? 236 : 205) * pulse;
+					k.drawPolygon({
+						pts: [
+							k.Vec2.fromAngle(angle - halfWidth).scale(88),
+							k.Vec2.fromAngle(angle).scale(outerRadius),
+							k.Vec2.fromAngle(angle + halfWidth).scale(88),
+						],
+						color: index % 3 === 0 ? k.WHITE : rayColor,
+						opacity: (index % 3 === 0 ? 0.25 : 0.32) * reveal,
+						opacities: [1, 0.65, 1],
+					});
+				}
+
+				for (let index = 0; index < 12; index++) {
+					const sparklePhase = k.time() * 2.8 + index * 0.7;
+					const angle = index * 30 - this.angle * 1.5;
+					const radius = 195 + Math.sin(sparklePhase) * 24;
+					k.drawCircle({
+						pos: k.Vec2.fromAngle(angle).scale(radius),
+						radius: index % 3 === 0 ? 4 : 2,
+						color: k.WHITE,
+						opacity:
+							(0.4 + (Math.sin(sparklePhase) + 1) * 0.3) * reveal,
+						anchor: "center",
+					});
+				}
+			},
+		},
+	]);
+	rays.animate("opacity", [0, 1], {
+		duration: 0.42,
+		delay: animationDelay,
+		loops: 1,
+	});
+	rays.animate(
+		"scale",
+		[k.vec2(0.68, 0.84), k.vec2(1.08, 1.32), k.vec2(0.96, 1.18)],
+		{
+			duration: 0.65,
+			delay: animationDelay,
+			loops: 1,
+			timing: [0, 0.7, 1],
+			easing: k.easings.easeOutCubic,
+		}
+	);
+
+	return rays;
+}
+
+function getRewardRevealLeadTime(
+	rewards: ChestReward[],
+	targetIndex: number
+) {
+	let duration = 0;
+	for (let index = 0; index <= targetIndex; index++) {
+		const profile = REWARD_REVEAL_PROFILES[rewards[index].rarity];
+		duration += profile.suspense;
+		if (index < targetIndex) {
+			duration += profile.duration * 0.35 + profile.postRevealHold;
+		}
+	}
+	return duration;
+}
+
+function startRevealShakeRamp(duration: number, maxIntensity: number) {
+	let elapsed = 0;
+	let shakeCooldown = 0;
+	let controller: ReturnType<typeof k.onUpdate>;
+	controller = k.onUpdate(() => {
+		elapsed += k.dt();
+		shakeCooldown -= k.dt();
+		if (shakeCooldown > 0) return;
+
+		const progress = k.clamp(elapsed / Math.max(duration, 0.01), 0, 1);
+		const intensity = k.lerp(0.2, maxIntensity, progress * progress);
+		k.shake(intensity);
+		shakeCooldown = k.lerp(0.16, 0.035, progress);
+		if (progress >= 1) controller.cancel();
+	});
+	return controller;
+}
+
 function getRewardCardLayout(boxWidth: number, choiceCount: number) {
 	const gap = 18;
 	const cardWidth = Math.min(
@@ -781,6 +1197,67 @@ function cubicBezierPoint(
 		.add(p1.scale(3 * inverse * inverse * t))
 		.add(p2.scale(3 * inverse * t * t))
 		.add(p3.scale(t * t * t));
+}
+
+function spawnRewardRevealBurst(
+	pos: Vec2,
+	colorValues: readonly [number, number, number],
+	profile: RewardRevealProfile
+) {
+	const rarityColor = new k.Color(...colorValues);
+	const burst = k.add([
+		k.pos(pos),
+		k.fixed(),
+		k.layer(layers.uiEffects),
+		k.opacity(1),
+		k.lifespan(1.4),
+		k.particles(
+			{
+				max: profile.particleCount,
+				speed: [70 + profile.shake * 12, 150 + profile.shake * 28],
+				angle: [0, 360],
+				angularVelocity: [-220, 220],
+				lifeTime: [0.35, 0.85 + profile.shake * 0.04],
+				colors: [k.WHITE, rarityColor],
+				opacities: [1, 0.9, 0],
+				scales: [0.5, 2 + profile.shake * 0.2, 0.1],
+				damping: [2, 4],
+				texture: k.getSprite("particle4")!.data!.tex,
+				quads: [k.getSprite("particle4")!.data!.frames[0]],
+			},
+			{
+				rate: 0,
+				direction: 0,
+				spread: 360,
+				position: k.vec2(0),
+			}
+		),
+		"chestUI",
+	]);
+	burst.emit(profile.particleCount);
+
+	const flash = k.add([
+		k.pos(pos),
+		k.circle(18 + profile.shake * 2),
+		k.anchor("center"),
+		k.color(rarityColor),
+		k.opacity(0.8),
+		k.scale(0.25),
+		k.animate(),
+		k.fixed(),
+		k.layer(layers.uiEffects),
+		k.lifespan(0.35, { fade: 0.25 }),
+		"chestUI",
+	]);
+	flash.animate(
+		"scale",
+		[k.vec2(0.25), k.vec2(2.2 + profile.shake * 0.16)],
+		{
+			duration: 0.32,
+			loops: 1,
+			easing: k.easings.easeOutCubic,
+		}
+	);
 }
 
 function spawnChestGravityBurst(pos: Vec2) {

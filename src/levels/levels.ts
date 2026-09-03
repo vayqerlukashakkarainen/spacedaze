@@ -16,6 +16,9 @@ import {
 	runSessionActive,
 } from "../services/runDirectorService";
 import { getWarpZone } from "../services/warpZoneService";
+import { audioService } from "../services/audioService";
+import { musicVolume } from "../main";
+import { loadSongData } from "../web";
 import {
 	prepareRunFinale,
 	resetRunFinale,
@@ -51,12 +54,27 @@ export function loadLevel(levelKey: LevelKey) {
 	const lvl = levels[levelKey];
 	currentLvl = lvl;
 	currentLevelKey = levelKey;
+	const zoneId = getRunRouteSnapshot()?.zoneId;
+	const zone = zoneId ? getWarpZone(zoneId) : undefined;
+	prepareRunFinale(
+		currentLvl.mapGeneration ? zone?.finaleId : undefined,
+		zone?.finaleTransitionSeconds
+	);
 	if (currentLvl.onStart) {
 		currentLvl.onStart();
 	}
-	const zoneId = getRunRouteSnapshot()?.zoneId;
-	const finaleId = zoneId ? getWarpZone(zoneId)?.finaleId : undefined;
-	prepareRunFinale(currentLvl.mapGeneration ? finaleId : undefined);
+	if (currentLvl.mapGeneration && zone?.explorationMusic) {
+		const song = zone.explorationMusic;
+		void audioService
+			.playOptionalMusic(song.music, song.path, {
+				volume: musicVolume,
+				loop: true,
+			})
+			.then((started) => {
+				if (!started) return;
+				loadSongData(song.title, song.author, song.albumCover ?? "");
+			});
+	}
 }
 
 export function transitionToLevel(levelKey: LevelKey) {

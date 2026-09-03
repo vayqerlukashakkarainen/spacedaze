@@ -23,6 +23,15 @@ interface SaveSlot {
 	equippedWeaponId: string;
 }
 
+function atlasEntry(index: number) {
+	return {
+		x: index % 4 * 16,
+		y: Math.floor(index / 4) * 16,
+		width: 16,
+		height: 16,
+	};
+}
+
 export async function init(k: KAPLAYCtx) {
 	await k.loadRoot("./"); // A good idea for Itch.io publishing later
 	await k.loadSprite("ship", "sprites/ship-v2.png");
@@ -78,12 +87,19 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSprite("bullet1", "sprites/bullet1.png");
 	await k.loadSprite("rocket1", "sprites/rocket1.png");
-	await k.loadSprite("drone_combat", "sprites/drone-combat.png");
-	await k.loadSprite("drone_missile", "sprites/drone-missile.png");
-	await k.loadSprite("drone_gunship", "sprites/drone-gunship.png");
-	await k.loadSprite("drone_interceptor", "sprites/drone-interceptor.png");
-	await k.loadSprite("drone_medic", "sprites/drone-medic.png");
-	await k.loadSprite("drone_salvager", "sprites/drone-salvager.png");
+	await k.loadSpriteAtlas("sprites/swarm-atlas.png", {
+		drone_combat: atlasEntry(0),
+		drone_gunship: atlasEntry(1),
+		drone_interceptor: atlasEntry(2),
+		drone_medic: atlasEntry(3),
+		drone_missile: atlasEntry(4),
+		drone_salvager: atlasEntry(5),
+		arc_capacitor_upg1: atlasEntry(6),
+		follower_blaster_dmg_upg1: atlasEntry(7),
+		follower_upg1: atlasEntry(8),
+		blaster1: atlasEntry(9),
+		parallel_blasters_upg1: atlasEntry(10),
+	});
 
 	await k.loadSprite("asteroid1", "sprites/asteroid1.png");
 	for (let index = 1; index <= 8; index++) {
@@ -125,7 +141,6 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("room_convoy_drone", "sprites/rooms/convoy-drone.png");
 	await k.loadSprite("room_signal_relay", "sprites/rooms/signal-relay.png");
 
-	await k.loadSprite("blaster1", "sprites/upgrades/laser_cannon1.png");
 	await k.loadSprite(
 		"weapon_standard_blaster",
 		"sprites/weapons/standard-blaster.png"
@@ -185,17 +200,8 @@ export async function init(k: KAPLAYCtx) {
 		"sprites/upgrades/twin_capacitor_upg1.png"
 	);
 	await k.loadSprite(
-		"parallel_blasters_upg1",
-		"sprites/upgrades/parallel_blasters_upg1.png"
-	);
-	await k.loadSprite("follower_upg1", "sprites/upgrades/follower_upg1.png");
-	await k.loadSprite(
 		"follower_missiles_upg1",
 		"sprites/upgrades/follower_missiles_upg1.png"
-	);
-	await k.loadSprite(
-		"follower_blaster_dmg_upg1",
-		"sprites/upgrades/follower_blaster_dmg_upg1.png"
 	);
 	await k.loadSprite(
 		"armor_piercing_upg1",
@@ -208,10 +214,6 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite(
 		"corrosive_payload_upg1",
 		"sprites/upgrades/corrosive_payload_upg1.png"
-	);
-	await k.loadSprite(
-		"arc_capacitor_upg1",
-		"sprites/upgrades/arc_capacitor_upg1.png"
 	);
 	await k.loadSprite(
 		"split_chamber_upg1",
@@ -279,6 +281,20 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound("crit1", "sounds/crit1.wav");
 	await k.loadSound("slowdown", "sounds/slowdown.wav");
 	await k.loadSound("swap_level", "sounds/swap_level.wav");
+	await k.loadSound("wormhole_rampup", "sounds/wormhole-rampup.mp3");
+	await k.loadSound(
+		"secret_cavern_reveal",
+		"sounds/secret-cavern-reveal.mp3"
+	);
+	await k.loadSound("reward_riser_epic", "sounds/reward-riser-epic.mp3");
+	await k.loadSound(
+		"reward_riser_legendary",
+		"sounds/reward-riser-legendary.mp3"
+	);
+	await k.loadSound(
+		"reward_shine_legendary",
+		"sounds/reward-shine-legendary.mp3"
+	);
 
 	await k.loadMusic("arcadia", "songs/arcadia.mp3");
 	await k.loadMusic(

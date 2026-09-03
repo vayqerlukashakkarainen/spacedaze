@@ -26,15 +26,19 @@ import {
 } from "./services/projectileHelpers";
 import {
 	lerpAngleBetweenPos,
-	lerpMoveRotateAndScale,
+	steerMoveRotateAndLean,
 	registerHitAnimation,
 } from "./shared";
 import { tags } from "./tags";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
 import { applyProjectileDamage } from "./services/projectileService";
-import { applyDamage } from "./services/damageService";
+import {
+	applyDamage,
+	resetPlayerDeathCause,
+} from "./services/damageService";
 import { timescale } from "./comp/timescale";
+import type { GridCollisionComp } from "./comp/gridCollision";
 import { levelTransitionActive } from "./services/levelTransitionService";
 import type { InteractableComp } from "./comp/interactable";
 import {
@@ -66,6 +70,9 @@ const phaseJumpCooldownBarWidth = 22;
 const phaseJumpCooldownBarOffset = -22;
 const normalCameraFollowSpeed = 16;
 const phaseCameraFollowSpeed = 6;
+const respawnTransitionDuration = 0.42;
+const respawnArrivalInvulnerability = 0.35;
+const respawnEntryStretch = 1.7;
 let currentMoveSpeed = 0;
 let currentCameraScale = 1;
 let currentCameraPos: Vec2 | undefined;
@@ -90,16 +97,34 @@ interface PhaseJumpConfig {
 	charges: number;
 }
 
-export function setupPlayer() {
+interface SetupPlayerOptions {
+	respawnTransition?: boolean;
+}
+
+export function setupPlayer(options: SetupPlayerOptions = {}) {
+	resetPlayerDeathCause();
+	const respawnTarget = k.center();
+	const respawnStart = respawnTarget.add(
+		-k.width() / (WORLD_CAMERA_SCALE * 2) - 48,
+		k.rand(-36, 36)
+	);
+	const respawnDirection = respawnTarget.sub(respawnStart);
+	const respawnAngle = k.Vec2.toAngle(respawnDirection) + 90;
+	let respawnTransitionActive = options.respawnTransition === true;
+	let respawnTransitionElapsed = 0;
 	const playerObj = k.add([
-		k.pos(k.center()),
+		k.pos(respawnTransitionActive ? respawnStart : respawnTarget),
 		k.sprite("ship"),
-		k.rotate(0),
-		k.scale(PLAYER_SCALE),
+		k.rotate(respawnTransitionActive ? respawnAngle : 0),
+		k.scale(
+			respawnTransitionActive
+				? k.vec2(PLAYER_SCALE * 0.65, PLAYER_SCALE * respawnEntryStretch)
+				: PLAYER_SCALE
+		),
 		k.health(player.maxHealth + session.extraHealth),
 		k.area(),
 		k.anchor("center"),
-		k.opacity(1),
+		k.opacity(respawnTransitionActive ? 0.3 : 1),
 		k.animate(),
 		timescale(),
 		{
@@ -150,9 +175,14 @@ export function setupPlayer() {
 	let turretWorldAngle = playerObj.angle;
 
 	const targetObj = k.add([k.pos(k.center()), k.z(1000), tags.gameLoop]);
-	currentCameraPos = playerObj.pos.clone();
+	currentCameraPos = respawnTarget.clone();
 	currentCameraScale = WORLD_CAMERA_SCALE;
+	k.setCamPos(respawnTarget);
 	k.setCamScale(WORLD_CAMERA_SCALE);
+	if (respawnTransitionActive) {
+		setPlayerDamageInvulnerable(true);
+		spawnRespawnJumpEffect(respawnStart, respawnTarget, respawnAngle);
+	}
 
 	registerHitAnimation(playerObj);
 
@@ -220,8 +250,8 @@ export function setupPlayer() {
 		}
 
 		const desiredMaxHealth = player.maxHealth + session.extraHealth;
-		if (playerObj.maxHP !== desiredMaxHealth) {
-			const addedHealth = Math.max(0, desiredMaxHealth - playerObj.maxHP);
+		if (playerObj.maxHP() !== desiredMaxHealth) {
+			const addedHealth = Math.max(0, desiredMaxHealth - playerObj.maxHP());
 			playerObj.setMaxHP(desiredMaxHealth);
 			if (addedHealth > 0) playerObj.heal(addedHealth);
 			syncPlayerHealthBarCapacity(desiredMaxHealth);
@@ -238,6 +268,45 @@ export function setupPlayer() {
 		);
 		if (levelTransitionActive()) {
 			currentCameraPos = k.getCamPos().clone();
+			return;
+		}
+		if (respawnTransitionActive) {
+			respawnTransitionElapsed += k.dt();
+			const progress = k.clamp(
+				respawnTransitionElapsed / respawnTransitionDuration,
+				0,
+				1
+			);
+			const easedProgress = 1 - Math.pow(1 - progress, 3);
+			playerObj.pos = respawnStart.lerp(respawnTarget, easedProgress);
+			playerObj.angle = respawnAngle;
+			playerObj.opacity = k.lerp(0.3, 1, progress);
+			playerObj.scale = k.vec2(
+				PLAYER_SCALE * k.lerp(0.65, 1, easedProgress),
+				PLAYER_SCALE * k.lerp(respawnEntryStretch, 1, easedProgress)
+			);
+			currentCameraPos = respawnTarget.clone();
+			currentCameraScale = WORLD_CAMERA_SCALE;
+			k.setCamPos(respawnTarget);
+			k.setCamScale(WORLD_CAMERA_SCALE);
+			setPlayerDamageInvulnerable(true);
+
+			boostTrailEmitter.emitter.position = playerObj.pos;
+			boostTrailEmitter.emitter.direction = k.Vec2.toAngle(respawnDirection);
+			boostTrailEmitter.emit(3);
+
+			if (progress >= 1) {
+				respawnTransitionActive = false;
+				playerObj.pos = respawnTarget.clone();
+				playerObj.scale = k.vec2(PLAYER_SCALE);
+				playerObj.opacity = 1;
+				phaseJumpInvulnerableUntil =
+					k.time() + respawnArrivalInvulnerability;
+				starsEmitter.emitter.position = respawnTarget;
+				starsEmitter.emit(24);
+				spawnFlash(respawnTarget, 10, k.rgb(80, 180, 255));
+				k.shake(3);
+			}
 			return;
 		}
 
@@ -390,7 +459,7 @@ export function setupPlayer() {
 		}
 
 		if (!isPhaseJumping) {
-			lerpMoveRotateAndScale(
+			steerMoveRotateAndLean(
 				playerObj,
 				nextPlayerAngle,
 				speed,
@@ -422,7 +491,7 @@ export function setupPlayer() {
 	});
 
 	const firePrimaryWeapon = () => {
-		if (levelTransitionActive()) return;
+		if (levelTransitionActive() || respawnTransitionActive) return;
 		const weapon = getEquippedWeapon();
 		const triggerModifier = getWeaponTriggerModifier(weapon);
 		if (triggerModifier.usesCooldown) {
@@ -472,7 +541,7 @@ export function setupPlayer() {
 	});
 
 	playerObj.onMousePress("right", () => {
-		if (levelTransitionActive()) return;
+		if (levelTransitionActive() || respawnTransitionActive) return;
 		if (player.rocketsLvl === undefined) return;
 
 		if (specialTimer < rocketSpecialCooldown) {
@@ -494,6 +563,7 @@ export function setupPlayer() {
 	});
 
 	playerObj.onKeyDown("shift", () => {
+		if (respawnTransitionActive) return;
 		if (player.canSprint === undefined) return;
 		player.speedPwrUpMultiplier = player.sprintSpeedMultiplier;
 	});
@@ -502,13 +572,21 @@ export function setupPlayer() {
 	});
 
 	playerObj.onKeyPress("space", () => {
-		if (levelTransitionActive()) return;
+		if (levelTransitionActive() || respawnTransitionActive) return;
 		const config = getPhaseJumpConfig();
 		if (!config || phaseJumpCharges <= 0 || phaseJumpEnd) return;
 
 		const jumpDirection = k.Vec2.fromAngle(playerObj.angle - 90);
 		const startPos = playerObj.pos.clone();
 		const destination = startPos.add(jumpDirection.scale(config.distance));
+		const gridCollision = playerObj.has("gridCollision")
+			? (playerObj.c("gridCollision") as GridCollisionComp)
+			: undefined;
+		if (gridCollision && !gridCollision.canMoveTo(destination)) {
+			spawnFlash(destination, 6, k.rgb(255, 70, 70));
+			audioService.playSound("error", { volume: mainSoundVolume * 0.35 });
+			return;
+		}
 
 		phaseJumpCharges--;
 		if (phaseJumpCharges === phaseJumpMaxCharges - 1) {
@@ -524,7 +602,7 @@ export function setupPlayer() {
 	});
 
 	playerObj.onKeyPress("f", () => {
-		if (levelTransitionActive()) return;
+		if (levelTransitionActive() || respawnTransitionActive) return;
 		let closestInteractable:
 			| GameObj<InteractableComp | PosComp>
 			| undefined;
@@ -723,6 +801,53 @@ function spawnPhaseJumpEffect(start: Vec2, end: Vec2, angle: number) {
 	audioService.playSound("swap_level", {
 		volume: 0.25,
 		detune: 500,
+	});
+}
+
+function spawnRespawnJumpEffect(start: Vec2, end: Vec2, angle: number) {
+	const delta = end.sub(start);
+	const afterimageCount = 6;
+
+	boostTrailEmitter.emitter.position = start;
+	boostTrailEmitter.emitter.direction = k.Vec2.toAngle(delta);
+	boostTrailEmitter.emit(16);
+
+	k.add([
+		k.pos(start),
+		k.opacity(0.75),
+		k.lifespan(respawnTransitionDuration, { fade: 0.28 }),
+		{
+			draw() {
+				k.drawLine({
+					p1: k.vec2(),
+					p2: delta,
+					width: 3,
+					color: k.rgb(80, 180, 255),
+					opacity: this.opacity,
+				});
+			},
+		},
+		tags.gameLoop,
+	]);
+
+	for (let index = 0; index < afterimageCount; index++) {
+		const progress = (index + 1) / (afterimageCount + 1);
+		k.add([
+			k.pos(start.lerp(end, progress)),
+			k.sprite("ship"),
+			k.anchor("center"),
+			k.rotate(angle),
+			k.scale(PLAYER_SCALE * k.lerp(0.7, 1, progress)),
+			k.color(80, 180, 255),
+			k.opacity(k.lerp(0.16, 0.48, progress)),
+			k.lifespan(respawnTransitionDuration, { fade: 0.25 }),
+			tags.gameLoop,
+		]);
+	}
+
+	audioService.playSound("swap_level", {
+		volume: 0.45,
+		detune: 350,
 	});
 }
 

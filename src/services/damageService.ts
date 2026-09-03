@@ -8,6 +8,26 @@ export interface DamageOptions {
 	critical?: boolean
 	position?: Vec2
 	showNumber?: boolean
+	source?: PlayerDeathCause
+}
+
+export interface PlayerDeathCause {
+	name: string
+	sprite?: string
+}
+
+const UNKNOWN_DEATH_CAUSE: PlayerDeathCause = {
+	name: "UNKNOWN HAZARD",
+	sprite: "bullet1",
+}
+let playerDeathCause: PlayerDeathCause = { ...UNKNOWN_DEATH_CAUSE }
+
+export function getPlayerDeathCause(): PlayerDeathCause {
+	return { ...playerDeathCause }
+}
+
+export function resetPlayerDeathCause() {
+	playerDeathCause = { ...UNKNOWN_DEATH_CAUSE }
 }
 
 export function applyDamage(
@@ -24,6 +44,9 @@ export function applyDamage(
 	if (tryBlockPlayerDamage(target, damage)) return false
 
 	const numberPos = options.position?.clone() ?? target.pos?.clone()
+	if (target.tags.includes(tags.player) && options.source) {
+		playerDeathCause = { ...options.source }
+	}
 	target.hurt(damage)
 	if (options.showNumber !== false && numberPos) {
 		spawnDamageNumber(numberPos, damage, {

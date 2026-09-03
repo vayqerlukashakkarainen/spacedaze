@@ -45,9 +45,9 @@ export function spawnShrine(props: ShrineProps) {
 	const circle = shrine.add([
 		k.circle(props.radius / SHRINE_VISUAL_SCALE),
 		k.anchor("center"),
-		k.outline(3, k.rgb(255, 255, 255)),
-		k.opacity(0.3),
-		k.color(255, 255, 255),
+		k.outline(2, k.rgb(120, 155, 175)),
+		k.opacity(0.18),
+		k.color(45, 60, 72),
 	]);
 	shrine.add([
 		k.text(`SHRINE LVL ${shrineLevel}`, { size: 7, font: "unscii" }),
@@ -93,13 +93,13 @@ export function spawnShrine(props: ShrineProps) {
 				shrine.enemySpawnTimer += props.enemySpawnInterval;
 			}
 			// Increase circle opacity
-			circle.opacity = k.lerp(circle.opacity, 0.8, 5 * dt());
+			circle.opacity = k.lerp(circle.opacity, 0.42, 5 * dt());
 		} else {
 			// Player outside: decrease timer quickly
 			shrine.timer -= dt() * 3;
 			if (shrine.timer < 0) shrine.timer = 0;
 			// Decrease circle opacity
-			circle.opacity = k.lerp(circle.opacity, 0.3, 5 * dt());
+			circle.opacity = k.lerp(circle.opacity, 0.18, 5 * dt());
 		}
 
 		// Update timer bar

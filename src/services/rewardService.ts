@@ -36,6 +36,7 @@ export const REWARD_RARITY_COLORS: Readonly<
 	[RewardRarity.Uncommon]: [80, 220, 120],
 	[RewardRarity.Rare]: [70, 150, 255],
 	[RewardRarity.Epic]: [190, 90, 255],
+	[RewardRarity.Legendary]: [255, 185, 45],
 }
 
 export interface RewardDefinition {
@@ -78,13 +79,14 @@ interface RarityWeights {
 	uncommon: number
 	rare: number
 	epic: number
+	legendary: number
 }
 
 const CRATE_RARITY_WEIGHTS: RarityWeights[] = [
-	{ common: 600, uncommon: 300, rare: 80, epic: 20 },
-	{ common: 450, uncommon: 350, rare: 150, epic: 50 },
-	{ common: 300, uncommon: 350, rare: 250, epic: 100 },
-	{ common: 150, uncommon: 300, rare: 350, epic: 200 },
+	{ common: 600, uncommon: 300, rare: 80, epic: 20, legendary: 0 },
+	{ common: 450, uncommon: 350, rare: 150, epic: 45, legendary: 5 },
+	{ common: 300, uncommon: 350, rare: 250, epic: 85, legendary: 15 },
+	{ common: 150, uncommon: 300, rare: 350, epic: 160, legendary: 40 },
 ]
 
 const ENEMY_EMPTY_WEIGHT = 45000
@@ -385,7 +387,12 @@ function formatUpgradeStats(
 function rollCrateRarity(successfulHits: number): RewardRarity {
 	const hitIndex = k.clamp(Math.floor(successfulHits), 0, 3)
 	const weights = CRATE_RARITY_WEIGHTS[hitIndex]
-	const total = weights.common + weights.uncommon + weights.rare + weights.epic
+	const total =
+		weights.common +
+		weights.uncommon +
+		weights.rare +
+		weights.epic +
+		weights.legendary
 	const roll = k.rand(0, total)
 
 	if (roll < weights.common) return RewardRarity.Common
@@ -393,7 +400,13 @@ function rollCrateRarity(successfulHits: number): RewardRarity {
 	if (roll < weights.common + weights.uncommon + weights.rare) {
 		return RewardRarity.Rare
 	}
-	return RewardRarity.Epic
+	if (
+		roll <
+		weights.common + weights.uncommon + weights.rare + weights.epic
+	) {
+		return RewardRarity.Epic
+	}
+	return RewardRarity.Legendary
 }
 
 function rollCrateRewardForQuality(
@@ -420,6 +433,7 @@ function getNearestRarityPool(
 		RewardRarity.Uncommon,
 		RewardRarity.Rare,
 		RewardRarity.Epic,
+		RewardRarity.Legendary,
 	]
 	const targetIndex = order.indexOf(target)
 	for (let distance = 1; distance < order.length; distance++) {

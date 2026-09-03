@@ -39,11 +39,11 @@ export function lerpAngleBetweenPos(
 	};
 }
 
-export function lerpMoveRotateAndScale(
+export function steerMoveRotateAndLean(
 	m: GameObj<PosComp | RotateComp | ScaleComp | any>,
 	lerp: number,
 	speed: number,
-	desiredAngle?: number,
+	desiredAngle: number,
 	baseScale = 1
 ) {
 	const lerpAngle = k.deg2rad(lerp + 90);
@@ -51,12 +51,20 @@ export function lerpMoveRotateAndScale(
 	const y = Math.sin(lerpAngle);
 	m.move(k.vec2(x * speed * -1, y * speed * -1).scale(velocityScale()));
 	m.angle = lerp;
-	if (desiredAngle === undefined) {
-		m.scale = k.vec2(Math.abs(y) * baseScale, baseScale);
-		return;
-	}
+	applySteeringLean(m, lerp, desiredAngle, baseScale);
+}
 
-	const steeringAmount = k.clamp(Math.abs(lerp - desiredAngle) / 100, 0, 1);
+export function applySteeringLean(
+	m: GameObj<ScaleComp | any>,
+	currentAngle: number,
+	desiredAngle: number,
+	baseScale = 1
+) {
+	const steeringAmount = k.clamp(
+		Math.abs(currentAngle - desiredAngle) / 100,
+		0,
+		1
+	);
 	const targetScaleX = (1 - steeringAmount * MAX_STEERING_LEAN) * baseScale;
 	const targetScaleY = (1 - steeringAmount / 40) * baseScale;
 	const bankLerp = k.clamp(12 * k.dt(), 0, 1);

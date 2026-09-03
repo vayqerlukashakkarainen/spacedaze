@@ -19,7 +19,11 @@ import {
 	starsEmitter,
 	trailEmitter,
 } from "../particles";
-import { lerpAngleBetweenPos, lerpMoveRotateAndScale } from "../shared";
+import {
+	applySteeringLean,
+	lerpAngleBetweenPos,
+	steerMoveRotateAndLean,
+} from "../shared";
 import { resolveCriticalDamage } from "../projectiles/shared";
 import type {
 	AccelerateModifier,
@@ -69,6 +73,7 @@ import { applyRadialGravity } from "./radialGravityService";
 
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
 const PLAYER_PROJECTILE_SCALE = 0.7;
+let projectileUpdateController: GameObj | undefined;
 
 interface ChainLightningRuntime extends ChainModifier {
 	chainedTargets: Set<number>;
@@ -140,120 +145,13 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	applyMineModifier(proj, config.mine);
 	proj.projectileConfig = config;
 	proj.procState = config.procState;
+	proj.damagesDestructibleWalls = damagesDestructibleWalls;
+	proj.projectileVisualScale = projectileScale;
 
 	// Play fire sound
 	if (config.fireSound) {
 		audioService.playSound(config.fireSound, { volume: mainSoundVolume });
 	}
-
-	// Update loop
-	proj.onUpdate(() => {
-		const previousPos = proj.pos.clone();
-		proj.lifetime += k.dt() * proj.getTimescale();
-
-		// Check lifespan
-		if (proj.lifespanDuration && proj.lifetime > proj.lifespanDuration) {
-			proj.destroyCause = "lifespan";
-			if (proj.isDeployedMine) proj.suppressOnDestroyEffects = true;
-			k.destroy(proj);
-			return;
-		}
-
-		if (proj.proximityConfig && updateProximityFuse(proj)) return;
-		if (proj.echoConfig) updateEcho(proj, config);
-		if (proj.returnConfig) updateReturning(proj);
-		if (proj.growthConfig) updateGrowth(proj);
-
-		// Trail rendering
-		if (proj.trail) {
-			updateTrail(proj);
-		}
-
-		// Seeking behavior
-		if (
-			proj.canSeek &&
-			proj.lifetime > proj.seekDelay &&
-			!proj.returnConfig?.returning
-		) {
-			updateSeeking(proj);
-		}
-
-		// Split behavior
-		if (
-			proj.splitConfig &&
-			proj.lifetime > proj.splitConfig.splitDelay &&
-			!proj.hasSplit
-		) {
-			updateSplit(proj, config);
-			if (!proj.exists()) return;
-		}
-
-		// Spiral behavior
-		if (proj.spiralConfig) {
-			updateSpiral(proj);
-		}
-
-		// Duplicate behavior
-		if (
-			proj.duplicateConfig &&
-			proj.lifetime > proj.duplicateConfig.delay &&
-			!proj.hasDuplicated
-		) {
-			updateDuplicate(proj, config);
-		}
-
-		// Accelerate behavior
-		if (proj.accelerateConfig) {
-			updateAccelerate(proj);
-		}
-
-		// Gravity behavior
-		if (proj.gravityConfig) {
-			updateGravity(proj);
-		}
-
-		// Curve behavior
-		if (proj.curveConfig) {
-			updateCurve(proj);
-		}
-
-		// Spiral movement advances its own center point.
-		if (!proj.spiralConfig) updateMovement(proj);
-		const wallCollision = findSolidCellCollision(previousPos, proj.pos);
-		if (wallCollision) {
-			let hitDestructibleWall = false;
-			if (damagesDestructibleWalls) {
-				hitDestructibleWall = damageDestructibleWall(
-						ACTIVE_RUN_GRID_KEY,
-						wallCollision.coord,
-						Math.max(proj.impactDamage ?? proj.splashDamage ?? 1, 1),
-						wallCollision.safePos
-					) !== undefined;
-			}
-			proj.pos = wallCollision.safePos;
-			if (
-				!tryBounceProjectile(
-					proj,
-					undefined,
-					wallCollision.normal,
-					false,
-					hitDestructibleWall
-				)
-			) {
-				if (!hitDestructibleWall) {
-					proj.suppressDestroyFlash = true;
-					proj.suppressOnDestroyEffects = true;
-				}
-				k.destroy(proj);
-			}
-		}
-		if (!proj.exists()) return;
-		if (
-			proj.mineConfig &&
-			!proj.isDeployedMine &&
-			updateMinePlacement(proj, config)
-		) return;
-	});
 
 	// On destroy
 	proj.onDestroy(() => {
@@ -287,8 +185,116 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 
 	// Add to projectiles array
 	projectiles.push(proj);
+	ensureProjectileUpdateController();
 
 	return proj;
+}
+
+function ensureProjectileUpdateController() {
+	if (projectileUpdateController?.exists()) return;
+	const controller = k.add([
+		tags.props,
+		tags.gameLoop,
+	]);
+	projectileUpdateController = controller;
+
+	controller.onUpdate(() => {
+		const lastProjectileIndex = projectiles.length - 1;
+		for (let index = lastProjectileIndex; index >= 0; index--) {
+			const proj = projectiles[index];
+			if (!proj?.exists() || proj.paused) continue;
+			updateProjectile(proj);
+		}
+	});
+	controller.onDestroy(() => {
+		if (projectileUpdateController?.id === controller.id) {
+			projectileUpdateController = undefined;
+		}
+	});
+}
+
+function updateProjectile(proj: GameObj) {
+	const config = proj.projectileConfig as ProjectileConfig;
+	const previousPos = proj.pos.clone();
+	proj.lifetime += k.dt() * proj.getTimescale();
+
+	if (proj.lifespanDuration && proj.lifetime > proj.lifespanDuration) {
+		proj.destroyCause = "lifespan";
+		if (proj.isDeployedMine) proj.suppressOnDestroyEffects = true;
+		k.destroy(proj);
+		return;
+	}
+
+	if (proj.proximityConfig && updateProximityFuse(proj)) return;
+	if (proj.echoConfig) updateEcho(proj, config);
+	if (proj.returnConfig) updateReturning(proj);
+	if (proj.growthConfig) updateGrowth(proj);
+	if (proj.trail) updateTrail(proj);
+
+	if (
+		proj.canSeek &&
+		proj.lifetime > proj.seekDelay &&
+		!proj.returnConfig?.returning
+	) {
+		updateSeeking(proj);
+	}
+
+	if (
+		proj.splitConfig &&
+		proj.lifetime > proj.splitConfig.splitDelay &&
+		!proj.hasSplit
+	) {
+		updateSplit(proj, config);
+		if (!proj.exists()) return;
+	}
+
+	if (proj.spiralConfig) updateSpiral(proj);
+	if (
+		proj.duplicateConfig &&
+		proj.lifetime > proj.duplicateConfig.delay &&
+		!proj.hasDuplicated
+	) {
+		updateDuplicate(proj, config);
+	}
+	if (proj.accelerateConfig) updateAccelerate(proj);
+	if (proj.gravityConfig) updateGravity(proj);
+	if (proj.curveConfig) updateCurve(proj);
+
+	if (!proj.spiralConfig) updateMovement(proj);
+	const wallCollision = findSolidCellCollision(previousPos, proj.pos);
+	if (wallCollision) {
+		let hitDestructibleWall = false;
+		if (proj.damagesDestructibleWalls) {
+			hitDestructibleWall = damageDestructibleWall(
+				ACTIVE_RUN_GRID_KEY,
+				wallCollision.coord,
+				Math.max(proj.impactDamage ?? proj.splashDamage ?? 1, 1),
+				wallCollision.safePos
+			) !== undefined;
+		}
+		proj.pos = wallCollision.safePos;
+		if (
+			!tryBounceProjectile(
+				proj,
+				undefined,
+				wallCollision.normal,
+				false,
+				hitDestructibleWall
+			)
+		) {
+			if (!hitDestructibleWall) {
+				proj.suppressDestroyFlash = true;
+				proj.suppressOnDestroyEffects = true;
+			}
+			k.destroy(proj);
+		}
+	}
+	if (!proj.exists()) return;
+	if (
+		proj.mineConfig &&
+		!proj.isDeployedMine &&
+		updateMinePlacement(proj, config)
+	) return;
 }
 
 interface SolidCellCollision {
@@ -647,14 +653,20 @@ function updateMovement(proj: GameObj) {
 
 	if (proj.targetUnit) {
 		// Homing movement
-		const { lerp } = lerpAngleBetweenPos(
+		const { lerp, correctedDesiredRot } = lerpAngleBetweenPos(
 			proj.angle,
 			proj.pos,
 			proj.targetUnit.pos,
 			proj.turnSpeed * timeScale * proj.getTimescale(),
 			-90
 		);
-		lerpMoveRotateAndScale(proj, lerp, speed);
+		steerMoveRotateAndLean(
+			proj,
+			lerp,
+			speed,
+			correctedDesiredRot,
+			proj.projectileVisualScale
+		);
 	} else {
 		// Straight movement
 		const currentDir = k.Vec2.fromAngle(proj.angle - 90);
@@ -662,6 +674,12 @@ function updateMovement(proj: GameObj) {
 			k
 				.vec2(currentDir.x * speed, currentDir.y * speed)
 				.scale(velocityScale())
+		);
+		applySteeringLean(
+			proj,
+			proj.angle,
+			proj.angle,
+			proj.projectileVisualScale
 		);
 	}
 }
@@ -908,6 +926,7 @@ function updateGrowth(proj: GameObj) {
 		1
 	);
 	const scale = k.lerp(config.baseScale, config.maxScale, progress);
+	proj.projectileVisualScale = scale;
 	proj.scale = k.vec2(scale);
 	if (config.baseDamage !== undefined) {
 		const damageMultiplier = k.lerp(
@@ -1323,7 +1342,10 @@ export function applyProjectileDamage(
 			}
 		}
 
-		applyDamage(target, damage, { critical });
+		applyDamage(target, damage, {
+			critical,
+			source: projectile.projectileConfig?.damageSource,
+		});
 		if (critical && projectile.criticalShatterConfig) {
 			spawnCriticalShards(projectile);
 		}

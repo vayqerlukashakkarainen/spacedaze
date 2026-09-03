@@ -63,7 +63,12 @@ export function spawnGenericVehicle(
 			!isPlayerDamageInvulnerable() &&
 			playerObj.pos.dist(m.pos) < m.hb
 		) {
-			applyDamage(playerObj, m.damage);
+			applyDamage(playerObj, m.damage, {
+				source: {
+					name: sprite === "bike1" ? "RAIDER BIKE" : "ENEMY SHIP",
+					sprite,
+				},
+			});
 			applyDamage(m, profile.hp);
 		}
 	});

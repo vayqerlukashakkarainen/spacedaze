@@ -35,6 +35,7 @@ const rarityRanks: Record<string, number> = {
 	UNCOMMON: 2,
 	RARE: 3,
 	EPIC: 4,
+	LEGENDARY: 5,
 }
 
 let activeRun: ActiveRunStats | undefined

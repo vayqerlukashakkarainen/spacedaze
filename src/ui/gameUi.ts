@@ -17,6 +17,7 @@ import { uiState } from "./uiState";
 import { recordRunReward } from "../services/runInventoryService";
 import { discoverBlueprint } from "../services/hubProgressService";
 import { recordRunReward as recordRunRewardStat } from "../services/runStatsService";
+import { showCollectedRewardPopover } from "../services/popoverService";
 import { createUiPanel } from "./common/panel";
 import { UI_COLORS } from "./common/theme";
 
@@ -27,8 +28,11 @@ let phaseJumpIcon: GameObj<OpacityComp> | null = null;
 let phaseJumpCooldownBar: GameObj<RectComp> | null = null;
 let phaseJumpChargeLabel: GameObj | null = null;
 let shipStatusPanel: GameObj | null = null;
+let salvageDisplay: GameObj | null = null;
 let systemsPanel: GameObj | null = null;
 let runLoadoutPanel: GameObj | null = null;
+let loadoutIconsContainer: GameObj | null = null;
+let loadoutLabelsContainer: GameObj | null = null;
 const collectedItems = new Map<
 	string,
 	{
@@ -67,14 +71,34 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		k.pos(8, 25),
 		k.color(k.WHITE),
 	]);
-	const salvageLabel = shipStatusPanel.add([
-		k.text("", { size: 9, font: "unscii" }),
+	salvageDisplay = shipStatusPanel.add([
 		k.pos(statusPanelWidth - 8, 27),
+		k.scale(1),
+		{
+			pulseScale: 1,
+		},
+	]);
+	const salvageIcon = salvageDisplay.add([
+		k.sprite("debree_part1", { width: 18, height: 18 }),
+		k.pos(-36, 0),
+		k.anchor("center"),
+		k.color(...UI_COLORS.accent),
+	]);
+	const salvageLabel = salvageDisplay.add([
+		k.text("", { size: 9, font: "unscii" }),
+		k.pos(0, 0),
 		k.anchor("right"),
 		k.color(...UI_COLORS.accent),
 	]);
-	salvageLabel.onUpdate(() => {
-		salvageLabel.text = `SALVAGE ${getScore()}`;
+	salvageDisplay.onUpdate(() => {
+		salvageLabel.text = `${getScore()}`;
+		salvageIcon.pos.x = salvageLabel.pos.x - salvageLabel.width - 12;
+		salvageDisplay!.pulseScale = k.lerp(
+			salvageDisplay!.pulseScale,
+			1,
+			k.clamp(14 * k.dt(), 0, 1)
+		);
+		salvageDisplay!.scale = k.vec2(salvageDisplay!.pulseScale);
 	});
 
 	systemsPanel = createUiPanel({
@@ -126,6 +150,8 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		tags: [tags.gameLoopUi],
 		frameless: true,
 	});
+	loadoutIconsContainer = runLoadoutPanel.add([k.pos(0, 0)]);
+	loadoutLabelsContainer = runLoadoutPanel.add([k.pos(0, 0), k.z(1)]);
 
 	for (let i = 0; i < health; i++) {
 		addHealthBar(i);
@@ -138,9 +164,15 @@ export function showSalvageGain(
 	pos: Vec2 = k.center()
 ) {
 	if (!Number.isFinite(amount) || amount <= 0) return;
+	if (salvageDisplay?.exists()) {
+		salvageDisplay.pulseScale = Math.min(
+			1.6,
+			salvageDisplay.pulseScale + 0.32
+		);
+	}
 
 	const gain = k.add([
-		k.text(`+${amount}`, { size: 11, font: "unscii" }),
+		k.text(`+${amount}`, { size: 6, font: "unscii" }),
 		k.pos(pos.add(k.rand(-7, 7), k.rand(-25, -19))),
 		k.anchor("center"),
 		k.color(color),
@@ -272,6 +304,7 @@ export function addCollectedPowerup(rewardOrId: Reward | string) {
 		? getRewardDefinition(rewardOrId)
 		: rewardOrId;
 	if (!reward) return;
+	showCollectedRewardPopover(reward);
 	recordRunReward(reward);
 	const blueprintKey = reward.upgradeKey ?? reward.powerupKey ?? reward.id;
 	discoverBlueprint(blueprintKey);
@@ -294,7 +327,9 @@ export function addCollectedPowerup(rewardOrId: Reward | string) {
 		return;
 	}
 
-	if (!runLoadoutPanel) return;
+	if (!runLoadoutPanel || !loadoutIconsContainer || !loadoutLabelsContainer) {
+		return;
+	}
 	const index = collectedItems.size;
 	const panelWidth = Math.min(
 		runLoadoutPanelWidth * HUD_SCALE,
@@ -308,7 +343,7 @@ export function addCollectedPowerup(rewardOrId: Reward | string) {
 	const column = index % columns;
 	const row = Math.floor(index / columns);
 	const rarityColor = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
-	const icon = runLoadoutPanel.add([
+	const icon = loadoutIconsContainer.add([
 		k.sprite(reward.sprite, { width: 22 * HUD_SCALE, height: 22 * HUD_SCALE }),
 		k.color(rarityColor),
 		k.outline(1, rarityColor),
@@ -319,9 +354,12 @@ export function addCollectedPowerup(rewardOrId: Reward | string) {
 		k.anchor("center"),
 		k.area(),
 	]);
-	const countLabel = icon.add([
+	const countLabel = loadoutLabelsContainer.add([
 		k.text("x1", { size: 7 * HUD_SCALE, font: "unscii" }),
-		k.pos(10 * HUD_SCALE, 10 * HUD_SCALE),
+		k.pos(
+			icon.pos.x + 10 * HUD_SCALE,
+			icon.pos.y + 10 * HUD_SCALE
+		),
 		k.anchor("center"),
 		k.color(rarityColor),
 	]);
@@ -464,7 +502,10 @@ export function clearGameLoopUi() {
 	phaseJumpCooldownBar = null;
 	phaseJumpChargeLabel = null;
 	shipStatusPanel = null;
+	salvageDisplay = null;
 	systemsPanel = null;
 	runLoadoutPanel = null;
+	loadoutIconsContainer = null;
+	loadoutLabelsContainer = null;
 	collectedItems.clear();
 }

@@ -6,6 +6,7 @@ export enum RewardRarity {
 	Uncommon = "UNCOMMON",
 	Rare = "RARE",
 	Epic = "EPIC",
+	Legendary = "LEGENDARY",
 }
 
 export interface UpgradeRewardPolicy {

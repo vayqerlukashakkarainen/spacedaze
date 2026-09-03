@@ -119,7 +119,11 @@ export function spawnShip1(
 				m.pos,
 				k.Vec2.fromAngle(m.angle - 90),
 				m.angle,
-				m.damage
+				m.damage,
+				{
+					name: profile.elite ? "ELITE FIGHTER" : "FIGHTER",
+					sprite: "enemy_ship1_body",
+				}
 			);
 		}
 

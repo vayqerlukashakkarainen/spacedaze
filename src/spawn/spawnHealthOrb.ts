@@ -100,7 +100,7 @@ export function spawnHealthOrb(pos: Vec2) {
 			orb.lifeSpan += dt() * 45
 		}
 
-		if (playerObj.hp() >= playerObj.maxHP) return
+		if (playerObj.hp() >= playerObj.maxHP()) return
 		const pickupDistance =
 			player.debreeSeekDistance * player.debreeSeekDistanceMultiplier
 		if (orb.pos.dist(playerObj.pos) >= pickupDistance) return
@@ -145,7 +145,8 @@ function playerCanReceiveHealth() {
 			playerObj.exists() &&
 			typeof playerObj.hp === "function" &&
 			typeof playerObj.heal === "function" &&
-			playerObj.hp() < playerObj.maxHP
+			typeof playerObj.maxHP === "function" &&
+			playerObj.hp() < playerObj.maxHP()
 	)
 }
 

@@ -227,6 +227,10 @@ export interface ProjectileConfig {
 	speed: number;
 	tags: string[];
 	speedMultiplier?: number;
+	damageSource?: {
+		name: string;
+		sprite?: string;
+	};
 	damageTick?: DamageTickModifier;
 	slow?: SlowModifier;
 

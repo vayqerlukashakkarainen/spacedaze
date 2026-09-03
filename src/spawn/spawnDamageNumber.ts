@@ -24,7 +24,7 @@ export function spawnDamageNumber(
 	const number = k.add([
 		k.pos(pos.add(k.rand(-7, 7), k.rand(-7, -3))),
 		k.text(`${options.prefix ?? ""}${roundedDamage}${critical ? "!" : ""}`, {
-			size: critical ? 11 : 9,
+			size: critical ? 9 : 7,
 			font: "unscii",
 		}),
 		k.anchor("center"),

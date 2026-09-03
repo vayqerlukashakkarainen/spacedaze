@@ -59,7 +59,9 @@ export function spawnHeavyVehicle(
 			!isPlayerDamageInvulnerable() &&
 			playerObj.pos.dist(m.pos) < m.hb
 		) {
-			applyDamage(playerObj, m.damage);
+			applyDamage(playerObj, m.damage, {
+				source: { name: "HEAVY SHIP", sprite },
+			});
 			applyDamage(m, profile.hp);
 		}
 	});

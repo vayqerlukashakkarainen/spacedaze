@@ -36,6 +36,7 @@ const rarityPrices: Record<string, number> = {
 	UNCOMMON: 18,
 	RARE: 30,
 	EPIC: 48,
+	LEGENDARY: 80,
 }
 
 export function recordRunReward(reward: InventoryReward) {

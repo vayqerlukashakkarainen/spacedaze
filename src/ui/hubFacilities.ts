@@ -28,6 +28,16 @@ import {
 	isWeaponOwned,
 	WEAPONS,
 } from "../services/weaponService"
+import {
+	addLvl,
+	getPermanentUpgradeLevel,
+	PERMANENT_UPGRADE_KEYS,
+	type PermanentUpgradeKey,
+} from "../upg"
+import { getUpgradeDefinition } from "../upgrades/upgradeRegistry"
+import { loadPlayer } from "../player"
+import { addThemedText } from "./common/text"
+import { createUiVerticalFlow } from "./common/flow"
 
 let panelOpen = false
 let panelCloseHandler: (() => void) | undefined
@@ -213,22 +223,20 @@ export function showArsenal() {
 	if (!panel) return
 	const equippedWeaponId = getEquippedWeaponId()
 
-	panel.add([
-		k.text("SELECT A PERMANENT PRIMARY WEAPON", {
-			size: 10,
-			font: "unscii",
-		}),
-		k.pos(0, -170),
-		k.anchor("center"),
-		k.color(...UI_COLORS.accent),
-	])
+	addThemedText(panel, {
+		text: "PRIMARY WEAPONS",
+		pos: k.vec2(-100, -179),
+		variant: "heading",
+		width: 200,
+		align: "center",
+	})
 
 	WEAPONS.forEach((weapon, index) => {
 		const owned = isWeaponOwned(weapon.id)
 		const equipped = weapon.id === equippedWeaponId
 		const card = panel.add([
-			k.rect(205, 286),
-			k.pos((index - 1) * 225, -2),
+			k.rect(205, 218),
+			k.pos((index - 1) * 225, -47),
 			k.anchor("center"),
 			k.area(),
 			k.color(...(equipped ? UI_COLORS.panelHover : UI_COLORS.panel)),
@@ -237,31 +245,9 @@ export function showArsenal() {
 
 		card.add([
 			k.sprite(weapon.icon),
-			k.pos(0, -102),
+			k.pos(0, -82),
 			k.anchor("center"),
-			k.scale(1.75),
-		])
-		card.add([
-			k.text(weapon.name, {
-				size: 11,
-				font: "unscii",
-				width: 185,
-				align: "center",
-			}),
-			k.pos(0, -57),
-			k.anchor("center"),
-			k.color(...UI_COLORS.accent),
-		])
-		card.add([
-			k.text(weapon.description, {
-				size: 8,
-				font: "unscii",
-				width: 175,
-				align: "center",
-			}),
-			k.pos(0, -17),
-			k.anchor("center"),
-			k.color(...UI_COLORS.muted),
+			k.scale(1.5),
 		])
 
 		const modifier = weapon.piercing
@@ -273,23 +259,42 @@ export function showArsenal() {
 		const fireRate = triggerModifier.usesCooldown
 			? `${(1 / weapon.fireCooldown).toFixed(1)}/S`
 			: "PER CLICK"
-		card.add([
-			k.text(
-				`DAMAGE  ${formatMultiplier(weapon.damageMultiplier)}\nRATE    ${fireRate}\nSPEED   ${formatMultiplier(weapon.projectileSpeedMultiplier)}\n\n${modifier}`,
-				{ size: 9, font: "unscii", width: 170, align: "left" }
-			),
-			k.pos(-76, 37),
-			k.color(k.WHITE),
-		])
-		card.add([
-			k.text(equipped ? "EQUIPPED" : owned ? "CLICK TO EQUIP" : "LOCKED", {
-				size: 9,
-				font: "unscii",
-			}),
-			k.pos(0, 119),
-			k.anchor("center"),
-			k.color(...(equipped ? UI_COLORS.accent : UI_COLORS.muted)),
-		])
+		const content = createUiVerticalFlow(card, {
+			pos: k.vec2(-87, -50),
+			width: 174,
+			gap: 4,
+		})
+		content.addText({
+			text: weapon.name,
+			variant: "heading",
+			align: "center",
+			minHeight: 12,
+			gapAfter: 6,
+		})
+		content.addText({
+			text: weapon.description,
+			variant: "muted",
+			align: "center",
+			minHeight: 30,
+			gapAfter: 7,
+		})
+		content.addRows([
+			`DAMAGE  ${formatMultiplier(weapon.damageMultiplier)}`,
+			`RATE    ${fireRate}`,
+			`SPEED   ${formatMultiplier(weapon.projectileSpeedMultiplier)}`,
+		], {
+			variant: "stat",
+			rowHeight: 11,
+			gapAfter: 6,
+		})
+		content.addText({ text: modifier, variant: "body" })
+		addThemedText(card, {
+			text: equipped ? "EQUIPPED" : owned ? "CLICK TO EQUIP" : "LOCKED",
+			pos: k.vec2(-87, 84),
+			variant: equipped ? "caption" : "muted",
+			width: 174,
+			align: "center",
+		})
 
 		if (!owned || equipped) return
 		card.onHover(() => {
@@ -305,6 +310,77 @@ export function showArsenal() {
 			showArsenal()
 		})
 	})
+
+	PERMANENT_UPGRADE_KEYS.forEach((key, index) => {
+		addPermanentUpgradeCard(panel, key, index)
+	})
+}
+
+function addPermanentUpgradeCard(
+	panel: GameObj,
+	key: PermanentUpgradeKey,
+	index: number
+) {
+	const definition = getUpgradeDefinition(key)
+	if (!definition) return
+	const currentLevel = getPermanentUpgradeLevel(key) ?? -1
+	const nextLevel = definition.levels[currentLevel + 1]
+	const displayedLevel = nextLevel ?? definition.levels[currentLevel]
+	const card = panel.add([
+		k.rect(320, 88),
+		k.pos(index === 0 ? -167 : 167, 106),
+		k.anchor("center"),
+		k.color(...UI_COLORS.panel),
+		k.outline(2, k.rgb(...UI_COLORS.muted)),
+	])
+
+	card.add([
+		k.sprite(definition.levels[0].sprite),
+		k.pos(-140, 0),
+		k.anchor("center"),
+		k.scale(1.25),
+	])
+	const content = createUiVerticalFlow(card, {
+		pos: k.vec2(-118, -32),
+		width: 155,
+		gap: 4,
+	})
+	content.addText({
+		text: definition.toolName.toUpperCase(),
+		variant: "heading",
+		minHeight: 10,
+		gapAfter: 5,
+	})
+	content.addText({
+		text: nextLevel
+			? `LEVEL ${currentLevel + 1} / ${definition.levels.length}`
+			: `LEVEL ${definition.levels.length} / ${definition.levels.length}  //  OWNED`,
+		variant: "muted",
+		minHeight: 8,
+		gapAfter: 4,
+	})
+	if (displayedLevel) {
+		content.addText({ text: displayedLevel.desc, variant: "body" })
+	}
+
+	if (!nextLevel) {
+		addThemedText(card, {
+			text: "MAX LEVEL",
+			pos: k.vec2(55, -5),
+			variant: "caption",
+			width: 90,
+			align: "center",
+		})
+		return
+	}
+
+	addButton(card, k.vec2(100, 0), `BUY ${nextLevel.price}`, () => {
+		if (!spendScore(nextLevel.price)) return
+		if (addLvl(key) === undefined) return
+		loadPlayer()
+		hideHubFacilityPanel()
+		showArsenal()
+	}, 105)
 }
 
 export function showWarpZoneRegistry() {
@@ -420,10 +496,11 @@ function addButton(
 	parent: GameObj,
 	pos: Vec2,
 	text: string,
-	onClick: () => void
+	onClick: () => void,
+	width: number = 180
 ) {
 	const button = parent.add([
-		k.rect(180, 38),
+		k.rect(width, 38),
 		k.pos(pos),
 		k.anchor("center"),
 		k.area(),

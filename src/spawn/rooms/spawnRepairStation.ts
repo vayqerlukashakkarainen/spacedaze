@@ -28,25 +28,25 @@ export function spawnRepairStation(props: RepairStationProps) {
 		sprite: "room_repair_station",
 		scale: 0.62,
 		interactRadius: 75,
-		interactPromptOffset: k.vec2(0, -82),
+		interactPromptOffset: k.vec2(0, -108),
 		onInteract: beginRepair,
 	})
 	station.tag(props.tags ?? [])
 	const status = station.add([
 		k.text(`REPAIR ${props.cost}`, { size: 12, font: "unscii" }),
-		k.pos(0, 80),
+		k.pos(0, -86),
 		k.anchor("center"),
 		k.color(90, 255, 135),
 	])
 	const barBg = station.add([
 		k.rect(76, 5),
-		k.pos(-38, 66),
+		k.pos(-38, -72),
 		k.anchor("left"),
 		k.color(45, 65, 50),
 	])
 	const bar = station.add([
 		k.rect(0, 5),
-		k.pos(-38, 66),
+		k.pos(-38, -72),
 		k.anchor("left"),
 		k.color(90, 255, 135),
 	])
@@ -62,8 +62,8 @@ export function spawnRepairStation(props: RepairStationProps) {
 
 		repairing = false
 		repaired = true
-		const restored = Math.max(0, playerObj.maxHP - playerObj.hp())
-		playerObj.heal(playerObj.maxHP)
+		const restored = Math.max(0, playerObj.maxHP() - playerObj.hp())
+		playerObj.heal(playerObj.maxHP())
 		updatePlayerHealthBar(playerObj.hp())
 		if (restored > 0) {
 			spawnDamageNumber(playerObj.pos.clone(), restored, {
@@ -85,7 +85,7 @@ export function spawnRepairStation(props: RepairStationProps) {
 
 	function beginRepair() {
 		if (repairing || repaired) return
-		if (playerObj.hp() >= playerObj.maxHP) {
+		if (playerObj.hp() >= playerObj.maxHP()) {
 			status.text = "HULL FULL"
 			return
 		}

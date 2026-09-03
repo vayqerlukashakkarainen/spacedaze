@@ -84,6 +84,9 @@ interface Upgrade {
 
 export type ToolKey = keyof typeof upgrades;
 
+export const PERMANENT_UPGRADE_KEYS = ["blaster", "spaceJump"] as const;
+export type PermanentUpgradeKey = typeof PERMANENT_UPGRADE_KEYS[number];
+
 export interface Tool {
 	toolName: string;
 	requirements?: UpgradeRequirements;
@@ -360,12 +363,18 @@ export function isToolKey(key: string): key is ToolKey {
 export function getEffectiveUpgradeLevel(
 	key: ToolKey
 ): number | undefined {
-	const permanentLevel = key === "blaster" ? loadout[key] : undefined;
+	const permanentLevel = isPermanentUpgradeKey(key) ? loadout[key] : undefined;
 	return levelLoadout[key] ?? permanentLevel;
 }
 
 export function getPermanentUpgradeLevel(key: ToolKey): number | undefined {
-	return key === "blaster" ? loadout[key] : undefined;
+	return isPermanentUpgradeKey(key) ? loadout[key] : undefined;
+}
+
+export function isPermanentUpgradeKey(
+	key: ToolKey
+): key is PermanentUpgradeKey {
+	return PERMANENT_UPGRADE_KEYS.includes(key as PermanentUpgradeKey);
 }
 
 export function evaluateUpgradeRequirements(
@@ -412,19 +421,19 @@ export function grantRunUpgrade(key: ToolKey): number | undefined {
 }
 
 export function addLvl(key: ToolKey) {
-	if (key !== "blaster") {
+	if (!isPermanentUpgradeKey(key)) {
 		return grantRunUpgrade(key);
 	}
 	const nextLvl = getNextLvl(key);
+	const upgradeDef = getUpgradeDefinition(key);
+	if (!upgradeDef?.levels[nextLvl]) return undefined;
 	loadout[key] = nextLvl;
 
 	// Apply upgrade through new system
-	const upgradeDef = getUpgradeDefinition(key);
-	if (upgradeDef && upgradeDef.levels[nextLvl]) {
-		upgradeService.purchaseUpgrade(key, upgradeDef.levels[nextLvl].effects);
-	}
+	upgradeService.purchaseUpgrade(key, upgradeDef.levels[nextLvl].effects);
 
 	saveGame("slot1");
+	return nextLvl;
 }
 
 export function getNextLvl(key: ToolKey) {

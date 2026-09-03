@@ -83,7 +83,13 @@ function detonateMine(mine: GameObj, damage: number) {
 	}) as GameObj[]
 	for (const target of [playerObj, ...enemies]) {
 		if (!target.exists() || target.pos.dist(mine.pos) > 52) continue
-		applyDamage(target, damage, { position: mine.pos })
+		applyDamage(target, damage, {
+			position: mine.pos,
+			source: {
+				name: "PROXIMITY MINE",
+				sprite: "room_proximity_mine",
+			},
+		})
 	}
 	spawnExplosionEffect(mine.pos, 52)
 	k.destroy(mine)

@@ -124,6 +124,11 @@ import {
 	recordFrameTime,
 	resetFrameProfiler,
 } from "./services/frameProfilerService";
+import {
+	clearProjectileStressTest,
+	countStressProjectiles,
+	spawnProjectileStressTest,
+} from "./services/performanceStressService";
 
 export const layers = {
 	bg: "bg",
@@ -530,20 +535,65 @@ function registerDebugCommands() {
 		}
 	);
 
+	commandService.register(
+		"stress",
+		"stress projectiles [1-5000] | stress clear - Run a projectile load test",
+		(args) => {
+			const mode = args[0]?.toLowerCase() ?? "projectiles";
+			if (mode === "clear") {
+				const removed = clearProjectileStressTest();
+				return `Removed ${removed} stress projectiles`;
+			}
+			if (mode === "status") {
+				return `${countStressProjectiles()} stress projectiles active`;
+			}
+			if (mode !== "projectiles") {
+				return "Usage: stress projectiles [1-5000] | stress clear";
+			}
+			if (!playerObj || !playerObj.exists()) return "No active player";
+
+			const count = Number(args[1] ?? 1000);
+			if (!Number.isInteger(count) || count < 1 || count > 5000) {
+				return "Projectile count must be an integer between 1 and 5000";
+			}
+
+			resetFrameProfiler();
+			setDebugVisible(true);
+			const result = spawnProjectileStressTest(
+				count,
+				playerObj.pos.clone(),
+				commandConsoleOpen()
+			);
+			if (commandConsoleOpen()) {
+				for (const obj of k.get<GameObj>(tags.gameLoop)) {
+					obj.paused = true;
+				}
+			}
+			const replacement = result.removed > 0
+				? ` Replaced ${result.removed} from the previous test.`
+				: "";
+			return `Spawned ${result.spawned} stress projectiles for ${result.lifetime}s.${replacement}\nClose the console to begin; use stress clear to stop early.`;
+		}
+	);
+
 	commandService.register("kill", "Kill the player", () => {
 		hideCommandConsole();
-		applyDamage(playerObj, playerObj.hp());
+		applyDamage(playerObj, playerObj.hp(), {
+			source: { name: "DEBUG COMMAND", sprite: "bullet1" },
+		});
 	});
 
 	commandService.register("damage", "damage [amount]", (args) => {
 		const amount = Number(args[0] ?? 1);
 		if (!Number.isFinite(amount) || amount <= 0) return "Invalid damage amount";
-		applyDamage(playerObj, amount);
+		applyDamage(playerObj, amount, {
+			source: { name: "DEBUG COMMAND", sprite: "bullet1" },
+		});
 		return `Dealt ${amount} damage`;
 	});
 
 	commandService.register("heal", "heal [amount]", (args) => {
-		const amount = Number(args[0] ?? playerObj.maxHP);
+		const amount = Number(args[0] ?? playerObj.maxHP());
 		if (!Number.isFinite(amount) || amount <= 0) return "Invalid heal amount";
 		playerObj.heal(amount);
 		return `Healed ${amount}`;

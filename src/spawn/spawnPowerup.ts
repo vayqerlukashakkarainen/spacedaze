@@ -70,6 +70,16 @@ const RARITY_FEEDBACK: Record<RewardRarity, RarityFeedback> = {
 		pickupShake: 4,
 		soundDetune: 450,
 	},
+	[RewardRarity.Legendary]: {
+		tier: 5,
+		auraRadius: 39,
+		auraOpacity: 0.44,
+		pulseAmount: 0.14,
+		pulseSpeed: 4,
+		pickupParticles: 72,
+		pickupShake: 7,
+		soundDetune: 650,
+	},
 };
 
 export function spawnPowerup(pos: Vec2, powerupKey: PowerupKey) {

@@ -5,7 +5,7 @@ import { tags } from "../tags";
 import { createVolumeControls } from "./volumeControls";
 import { compactUi, fitUiWidth } from "./common/layout";
 import { createUiPanel } from "./common/panel";
-import { UI_COLORS } from "./common/theme";
+import { createUiStatList } from "./common/statList";
 import { getLifetimeStats } from "../services/runStatsService";
 
 export function enterMainMenu() {
@@ -82,26 +82,16 @@ function createLifetimeStats(compact: boolean) {
 		anchor: "center",
 	});
 	const rows = [
-		["PLAYTIME", formatPlaytime(stats.playtimeSeconds)],
-		["ENEMIES KILLED", formatStat(stats.enemiesKilled)],
-		["RUNS", formatStat(stats.runs)],
-		["DEBREE COLLECTED", formatStat(stats.debreeCollected)],
+		{ label: "PLAYTIME", value: formatPlaytime(stats.playtimeSeconds) },
+		{ label: "ENEMIES KILLED", value: formatStat(stats.enemiesKilled) },
+		{ label: "RUNS", value: formatStat(stats.runs) },
+		{ label: "DEBREE COLLECTED", value: formatStat(stats.debreeCollected) },
 	];
-	const left = -panelWidth / 2 + 12;
-	const right = panelWidth / 2 - 12;
-	rows.forEach(([label, value], index) => {
-		const y = -39 + index * 28;
-		panel.add([
-			k.text(label, { size: 8, font: "unscii" }),
-			k.pos(left, y),
-			k.color(...UI_COLORS.muted),
-		]);
-		panel.add([
-			k.text(value, { size: 9, font: "unscii" }),
-			k.pos(right, y),
-			k.anchor("right"),
-			k.color(...UI_COLORS.accent),
-		]);
+	createUiStatList(panel, {
+		pos: k.vec2(-panelWidth / 2 + 12, -39),
+		width: panelWidth - 24,
+		rows,
+		rowHeight: 28,
 	});
 }
 

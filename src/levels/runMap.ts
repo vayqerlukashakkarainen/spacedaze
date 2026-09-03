@@ -1,4 +1,4 @@
-import type { Color, Vec2 } from "kaplay";
+import type { Vec2 } from "kaplay";
 import { generateCave } from "../generation/caveGenerator";
 import { generationMapToHexGrid } from "../generation/gridConversion";
 import {
@@ -15,7 +15,13 @@ import { ACTIVE_RUN_GRID_KEY } from "../grid/gridKeys";
 import { CellType, HexGrid } from "../grid/hexGrid";
 import { playerObj } from "../game";
 import { resetVolatileCargoObjective, session } from "../player";
-import { k, layers, subSoundVolume, velocityScale } from "../main";
+import {
+	k,
+	layers,
+	mainSoundVolume,
+	subSoundVolume,
+	velocityScale,
+} from "../main";
 import { tags } from "../tags";
 import { ASTEROID_SPRITES } from "../asteroidSprites";
 import { spawnMeteorite } from "../spawn/spawnAsteroid";
@@ -32,7 +38,8 @@ import { rollCrateReward } from "../services/rewardService";
 import type { GeneratedMapConfig } from "./levels";
 import {
 	activateRunFinale,
-	getRunFinaleProgress,
+	getRunFinaleRampProgress,
+	getRunFinaleTransitionSecondsRemaining,
 	getRunPhase,
 } from "../services/runFinaleService";
 import { getHexWallTopology } from "./hexWallTiles";
@@ -69,7 +76,7 @@ import { randomExplosion } from "../util";
 import { spawnThreatEncounter } from "../services/enemyEncounterService";
 import { spawnGravityPull } from "../spawn/spawnGravityPull";
 import { spawnRiftJunction } from "../spawn/rooms/spawnRiftJunction";
-import { spawnRepairStation } from "../spawn/rooms/spawnRepairStation";
+import { spawnDroneRepairZone } from "../spawn/rooms/spawnDroneRepairZone";
 import { spawnGravityAnomaly } from "../spawn/rooms/spawnGravityAnomaly";
 import { spawnMinefield } from "../spawn/rooms/spawnMinefield";
 import { spawnLostConvoy } from "../spawn/rooms/spawnLostConvoy";
@@ -79,6 +86,7 @@ import {
 	addThreatTime,
 	getThreatRomanNumeral,
 	getThreatSnapshot,
+	scaleThreatSpawnCount,
 	startThreatLevel,
 	stopThreatLevel,
 	updateThreatLevel,
@@ -196,6 +204,7 @@ export function startGeneratedRunMap(
 		selectedSeed,
 		depth
 	);
+	spawnCargoDeliveryIndicator();
 	spawnThreatDirector(grid, generatedMap, config.hexSize);
 
 	console.log(`Started generated run with seed ${selectedSeed}`);
@@ -503,6 +512,9 @@ function setupDestructibleWalls(
 				grid.setCell(cavern.entrance, CellType.Empty);
 				refreshRunMapWallTopology?.(cavern.entrance);
 				spawnDestructibleWallBreakEffects(grid, cavern.entrance, seed);
+				audioService.playSound("secret_cavern_reveal", {
+					volume: mainSoundVolume,
+				});
 				spawnHiddenCavernLoot(grid, cavern, seed);
 			},
 		});
@@ -717,12 +729,6 @@ function getPlayerSpawn(map: GenerationMap) {
 }
 
 function renderRunMap(grid: HexGrid, map: GenerationMap) {
-	interface CellVisual {
-		corners: Vec2[];
-		color: Color;
-		opacity: number;
-		outlineColor: Color;
-	}
 	interface RockWallTile {
 		center: Vec2;
 		corners: Vec2[];
@@ -737,7 +743,6 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 	}
 
 	interface RenderChunk {
-		floors: CellVisual[];
 		walls: RockWallTile[];
 		cavernCovers: Array<{ corners: Vec2[]; cavern: HiddenCavern }>;
 	}
@@ -753,13 +758,11 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 	];
 
 	for (const genCell of map.getAllCells()) {
-		const role = getRoomRole(genCell);
 		const corners = grid.getHexScreenCorners(genCell.coord);
-		const center = grid.hexToScreen(genCell.coord);
 		const chunkKey = getRunRenderChunkKey(genCell.coord.q, genCell.coord.r);
 		let chunk = chunks.get(chunkKey);
 		if (!chunk) {
-			chunk = { floors: [], walls: [], cavernCovers: [] };
+			chunk = { walls: [], cavernCovers: [] };
 			chunks.set(chunkKey, chunk);
 		}
 		const hiddenCavern = currentHiddenCaverns.find((cavern) =>
@@ -769,30 +772,6 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		);
 		if (hiddenCavern) {
 			chunk.cavernCovers.push({ corners, cavern: hiddenCavern });
-		}
-
-		if (!genCell.solid && role) {
-			const color = getRoomColor(role);
-			chunk.floors.push({
-				corners,
-				color,
-				opacity: 0.32,
-				outlineColor: color,
-			});
-		}
-
-		if (role && !genCell.solid && genCell.tags.has("room_anchor")) {
-			const color = getRoomColor(role);
-			k.add([
-				k.pos(center),
-				k.text(getRoomLabel(role), { size: 8, font: "unscii" }),
-				k.anchor("center"),
-				k.color(color.r, color.g, color.b),
-				k.z(5),
-				k.layer(layers.game),
-				tags.runMap,
-				tags.gameLoop,
-			]);
 		}
 	}
 
@@ -865,33 +844,12 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		}
 	};
 
-	let visibleFloors: CellVisual[] = [];
 	let visibleWalls: RockWallTile[] = [];
 	let visibleCavernCovers: Array<{
 		corners: Vec2[];
 		cavern: HiddenCavern;
 	}> = [];
 	let visibleChunkSignature = "";
-
-	k.add([
-		k.pos(0, 0),
-		k.z(-10),
-		k.layer(layers.game2),
-		{
-			draw() {
-				for (const visual of visibleFloors) {
-					k.drawPolygon({
-						pts: visual.corners,
-						color: visual.color,
-						opacity: visual.opacity,
-						outline: { width: 1, color: visual.outlineColor },
-					});
-				}
-			},
-		},
-		tags.runMap,
-		tags.gameLoop,
-	]);
 
 	k.add([
 		k.pos(0, 0),
@@ -945,7 +903,6 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		if (signature === visibleChunkSignature) return;
 		visibleChunkSignature = signature;
 
-		visibleFloors = [];
 		visibleWalls = [];
 		visibleCavernCovers = [];
 		for (
@@ -960,7 +917,6 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 			) {
 				const chunk = chunks.get(`${chunkQ},${chunkR}`);
 				if (!chunk) continue;
-				visibleFloors.push(...chunk.floors);
 				visibleWalls.push(...chunk.walls);
 				visibleCavernCovers.push(...chunk.cavernCovers);
 			}
@@ -1022,15 +978,14 @@ function createRockWallEdge(
 }
 
 function drawRockPolyline(points: Vec2[], width: number, opacity: number) {
-	for (let index = 1; index < points.length; index++) {
-		k.drawLine({
-			p1: points[index - 1],
-			p2: points[index],
-			width,
-			color: k.WHITE,
-			opacity,
-		});
-	}
+	if (points.length < 2) return;
+	k.drawLines({
+		pts: points,
+		width,
+		color: k.WHITE,
+		opacity,
+		join: "miter",
+	});
 }
 
 function drawDestructibleWallCracks(visual: {
@@ -1281,12 +1236,10 @@ function spawnGeneratedContent(
 			});
 			return;
 		case "repair_station":
-			spawnRepairStation({
+			spawnDroneRepairZone({
 				pos,
-				cost: 8 + depth * 3,
-				repairTime: 3 + depth * 0.35,
-				defendRadius: hexSize * 2.3,
-				enemySpacing: hexSize,
+				depth,
+				hexSize,
 				tags: [tags.runMap],
 			});
 			return;
@@ -1392,6 +1345,8 @@ function selectRiftDestinations(
 function spawnFloorExit(pos: Vec2) {
 	currentFloorExitPosition = pos.clone();
 	let portalReady = false;
+	let previousPhase = getRunPhase();
+	let rampShakeCooldown = 0;
 	const gravity = spawnGravityPull({
 		pos,
 		falloff: 1,
@@ -1413,10 +1368,18 @@ function spawnFloorExit(pos: Vec2) {
 		visual: "wormhole",
 		label: "ACTIVATE EXIT",
 		portalState: "dormant",
-			onEnter: (_portal, selectLevel, cancel) => {
+		onEnter: (_portal, selectLevel, cancel) => {
 			if (getRunPhase() !== "exitReady") {
 				if (activateRunFinale()) {
-					portal.setPortalState("charging", "SURVIVE");
+					const transitionSeconds = Math.ceil(
+						getRunFinaleTransitionSecondsRemaining()
+					);
+					portal.setPortalState(
+						"charging",
+						transitionSeconds > 0
+							? `WARP CHARGING ${transitionSeconds}`
+							: "SURVIVE"
+					);
 					k.flash(k.WHITE, 0.22);
 					explosionEmitter.emitter.position = portal.pos.clone();
 					explosionEmitter.emit(44);
@@ -1433,13 +1396,39 @@ function spawnFloorExit(pos: Vec2) {
 
 	portal.onUpdate(() => {
 		const phase = getRunPhase();
-		if (phase === "finale" || phase === "exitReady") {
-			const progress = getRunFinaleProgress();
+		if (phase === "transition") {
+			const progress = getRunFinaleRampProgress();
 			const easedProgress = progress * progress * (3 - 2 * progress);
 			portal.setPortalProgress(progress);
 			gravity.radius = k.lerp(36, 280, easedProgress);
 			gravity.strength = k.lerp(8, 125, easedProgress);
+			rampShakeCooldown -= k.dt();
+			if (progress > 0 && rampShakeCooldown <= 0) {
+				k.shake(k.lerp(0.25, 6, progress * progress));
+				rampShakeCooldown = k.lerp(0.16, 0.035, progress);
+			}
+			portal.setPortalState(
+				"charging",
+				`WARP CHARGING ${Math.max(
+					1,
+					Math.ceil(getRunFinaleTransitionSecondsRemaining())
+				)}`
+			);
 		}
+		if (phase === "finale") {
+			if (previousPhase === "transition") {
+				k.shake(9);
+				k.flash(k.WHITE, 0.85);
+			}
+			portal.setPortalProgress(0);
+			portal.setPortalState("dormant", "SURVIVE");
+			gravity.radius = 36;
+			gravity.strength = 8;
+		}
+		if (phase === "exitReady") {
+			portal.setPortalProgress(1);
+		}
+		previousPhase = phase;
 		if (portalReady || phase !== "exitReady") return;
 		portalReady = true;
 		portal.setPortalProgress(1);
@@ -1449,6 +1438,73 @@ function spawnFloorExit(pos: Vec2) {
 	});
 	portal.onDestroy(() => {
 		if (gravity.exists()) k.destroy(gravity);
+	});
+}
+
+function spawnCargoDeliveryIndicator() {
+	const indicator = k.add([
+		k.pos(playerObj.pos.clone()),
+		k.rotate(0),
+		k.opacity(0),
+		k.z(40),
+		k.layer(layers.game),
+		{
+			draw() {
+				const pulse = k.wave(0.92, 1.08, k.time() * 5);
+				const color = k.rgb(255, 155, 55);
+				k.drawCircle({
+					pos: k.vec2(0),
+					radius: 11 * pulse,
+					color,
+					opacity: this.opacity * 0.14,
+					anchor: "center",
+				});
+				k.drawPolygon({
+					pts: [
+						k.vec2(-8, -5),
+						k.vec2(2, -5),
+						k.vec2(2, -9),
+						k.vec2(13, 0),
+						k.vec2(2, 9),
+						k.vec2(2, 5),
+						k.vec2(-8, 5),
+					],
+					color,
+					opacity: this.opacity,
+					outline: {
+						width: 1,
+						color: k.WHITE,
+						opacity: this.opacity * 0.8,
+					},
+				});
+			},
+		},
+		tags.runMap,
+		tags.gameLoop,
+	]);
+
+	indicator.onUpdate(() => {
+		const shouldShow =
+			session.volatileCargoActive &&
+			session.volatileCargoIntact &&
+			!session.volatileCargoDelivered &&
+			currentFloorExitPosition !== undefined;
+		if (!shouldShow || !currentFloorExitPosition) {
+			indicator.opacity = 0;
+			return;
+		}
+
+		const towardExit = currentFloorExitPosition.sub(playerObj.pos);
+		if (towardExit.len() <= 24) {
+			indicator.opacity = 0;
+			return;
+		}
+
+		const direction = towardExit.unit();
+		const orbitRadius = k.wave(42, 46, k.time() * 3.5);
+		indicator.pos = playerObj.pos.add(direction.scale(orbitRadius));
+		indicator.angle = direction.angle();
+		indicator.opacity = k.wave(0.72, 1, k.time() * 4.5);
 	});
 }
 
@@ -1517,23 +1573,41 @@ function spawnAsteroidFieldTrigger(
 					cell.tags.has(roomRoleTag("asteroid")) &&
 					(cell.coord.q !== anchorCoord.q || cell.coord.r !== anchorCoord.r)
 			)
-			.sort((a, b) => a.coord.q - b.coord.q || a.coord.r - b.coord.r)
-			.filter((_, index) => index % 3 === 0)
-			.slice(0, 10);
+			.sort((a, b) => a.coord.q - b.coord.q || a.coord.r - b.coord.r);
+		const threat = getThreatSnapshot();
+		const baseAsteroidCount = Math.max(24, fieldCells.length);
+		const asteroidCount = Math.min(
+			64,
+			scaleThreatSpawnCount(baseAsteroidCount)
+		);
+		const movingChance = 0.22 + (threat.tier - 1) * 0.07;
 
-		for (const cell of fieldCells) {
-			const hash = Math.abs(cell.coord.q * 73 + cell.coord.r * 151);
+		for (let index = 0; index < asteroidCount; index++) {
+			const cell = fieldCells[index % fieldCells.length];
+			if (!cell) break;
+			const hash = Math.abs(
+				cell.coord.q * 73 + cell.coord.r * 151 + index * 379
+			);
 			const angle = ((hash % 360) * Math.PI) / 180;
-			const offset = k.vec2(Math.cos(angle), Math.sin(angle)).scale(hash % 7);
+			const offsetDistance = 4 + ((hash >>> 3) % 100) / 100 * hexSize * 0.3;
+			const offset = k.vec2(Math.cos(angle), Math.sin(angle)).scale(
+				offsetDistance
+			);
+			const isMoving = ((hash >>> 7) % 1000) / 1000 < movingChance;
+			const moveAngle = (hash * 47) % 360;
+			const moveSpeed = isMoving
+				? 12 + ((hash >>> 5) % 17) + (threat.tier - 1) * 5
+				: 0;
 			spawnMeteorite({
 				pos: grid.hexToScreen(cell.coord).add(offset),
-				dir: k.vec2(0, 0),
+				dir: isMoving ? k.Vec2.fromAngle(moveAngle) : k.vec2(0, 0),
 				scoreOnKill: 1,
 				hp: 3 + (hash % 3),
-				speed: 0,
+				speed: moveSpeed,
 				splitOnDeath: 0,
 				destroyOffscreen: false,
 				tags: [tags.runMap],
+				bounceGridKey: isMoving ? RUN_GRID_KEY : undefined,
 			});
 		}
 

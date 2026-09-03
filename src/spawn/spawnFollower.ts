@@ -15,8 +15,8 @@ import {
 import { audioService } from "../services/audioService";
 import { starsEmitter } from "../particles";
 import {
+	applySteeringLean,
 	lerpAngleBetweenPos,
-	lerpMoveRotateAndScale,
 } from "../shared";
 import { tags } from "../tags";
 import { randomExplosion } from "../util";
@@ -40,6 +40,7 @@ interface Props {
 	blasterDmg: number;
 	speed: number;
 	follow: GameObj<PosComp>;
+	deploymentStart?: Vec2;
 }
 
 const deploymentDuration = 0.7;
@@ -51,14 +52,19 @@ const interceptorRange = 150;
 const interceptorCooldown = 0.85;
 const interceptorSearchDelay = 0.08;
 const missileDroneCooldown = 2.2;
-const missileDroneOrbitRadius = 58;
-const missileDroneOrbitSpeed = 42;
 const gunshipCooldown = 1.55;
 const medicKillsPerRepair = 8;
 const salvagerSeekRange = 320;
+const swarmRadius = 54;
+const swarmSeparationRadius = 30;
+const swarmSeparationStrength = 38;
+const swarmAlignmentLead = 0.08;
+const droneTargetEase = 5;
+const droneVelocityEase = 7;
+const droneArrivalEase = 4;
+const droneTurnEase = 9;
 type DroneMovementType =
-	| "escort"
-	| "orbit"
+	| "swarm"
 	| "intercept"
 	| "rearGuard"
 	| "salvage";
@@ -75,13 +81,13 @@ const droneProfiles: Record<
 > = {
 	combat: {
 		sprite: "drone_combat",
-		movementType: "escort",
+		movementType: "swarm",
 		scale: 1,
 		speedMultiplier: 1,
 	},
 	missile: {
 		sprite: "drone_missile",
-		movementType: "orbit",
+		movementType: "swarm",
 		scale: 1,
 		speedMultiplier: 1.25,
 	},
@@ -93,7 +99,7 @@ const droneProfiles: Record<
 	},
 	gunship: {
 		sprite: "drone_gunship",
-		movementType: "escort",
+		movementType: "swarm",
 		scale: 1.12,
 		speedMultiplier: 0.68,
 	},
@@ -125,14 +131,15 @@ export function spawnFollower(props: Props) {
 		deploymentScreenMargin,
 		k.height() - deploymentScreenMargin
 	);
-	const deploymentStart = k.toWorld(
-		k.vec2(
-			entersFromLeft
-				? -deploymentScreenMargin
-				: k.width() + deploymentScreenMargin,
-			deploymentScreenY
-		)
-	);
+	const deploymentStart = props.deploymentStart?.clone() ??
+		k.toWorld(
+			k.vec2(
+				entersFromLeft
+					? -deploymentScreenMargin
+					: k.width() + deploymentScreenMargin,
+				deploymentScreenY
+			)
+		);
 	const deploymentDirection = deploymentTarget.sub(deploymentStart);
 	const deploymentFacingAngle = k.Vec2.toAngle(deploymentDirection) + 90;
 	const m = k.add([
@@ -141,7 +148,7 @@ export function spawnFollower(props: Props) {
 		k.rotate(deploymentFacingAngle),
 		k.anchor("center"),
 		k.scale(1.35, 0.72),
-		k.color(getDroneColor("combat")),
+		k.color(k.WHITE),
 		k.opacity(1),
 		k.health(props.hp),
 		target(),
@@ -158,16 +165,18 @@ export function spawnFollower(props: Props) {
 			lastDeploymentPos: deploymentStart.clone(),
 			entryVelocity: k.vec2(0),
 			formationOffset,
+			easedTargetPos: deploymentTarget.clone(),
+			movementVelocity: k.vec2(0),
+			swarmPhase: followerIndex * 2.399,
+			swarmDriftScale: 0.82 + (followerIndex % 4) * 0.1,
 			deploymentFacingAngle,
 			interceptorCooldown: k.rand(0.1, interceptorCooldown),
 			missileCooldown: k.rand(0.35, missileDroneCooldown),
 			gunshipCooldown: k.rand(0.2, gunshipCooldown),
 			medicKillCharge: 0,
 			droneType: "combat" as DroneType,
-			movementType: "escort" as DroneMovementType,
+			movementType: "swarm" as DroneMovementType,
 			droneScale: droneProfiles.combat.scale,
-			orbitAngle: deploymentAngle,
-			orbitDirection: followerIndex % 2 === 0 ? 1 : -1,
 		},
 		tags.friendly,
 		tags.follower,
@@ -365,19 +374,10 @@ export function refreshFollowerTypes() {
 		follower.droneScale = profile.scale;
 		follower.use(k.sprite(profile.sprite));
 		follower.scale = k.vec2(profile.scale);
-		follower.color = getDroneColor(droneType);
+		follower.color = k.WHITE;
 		starsEmitter.emitter.position = follower.pos;
 		starsEmitter.emit(8);
 	});
-}
-
-function getDroneColor(droneType: DroneType) {
-	if (droneType === "missile") return k.rgb(255, 145, 45);
-	if (droneType === "interceptor") return k.rgb(80, 200, 255);
-	if (droneType === "gunship") return k.rgb(255, 90, 80);
-	if (droneType === "medic") return k.rgb(100, 255, 145);
-	if (droneType === "salvager") return k.rgb(255, 220, 80);
-	return k.WHITE;
 }
 
 function getDroneSlotSignature() {
@@ -391,10 +391,6 @@ function getDroneSlotSignature() {
 }
 
 function updateDroneMovement(drone: GameObj, follow: GameObj<PosComp>) {
-	if (drone.movementType === "orbit") {
-		updateOrbitMovement(drone, follow);
-		return;
-	}
 	if (drone.movementType === "intercept") {
 		updateInterceptorMovement(drone, follow);
 		return;
@@ -407,33 +403,68 @@ function updateDroneMovement(drone: GameObj, follow: GameObj<PosComp>) {
 		updateSalvagerMovement(drone, follow);
 		return;
 	}
-	updateEscortMovement(drone, follow);
+	updateSwarmMovement(drone, follow);
 }
 
-function updateEscortMovement(drone: GameObj, follow: GameObj<PosComp>) {
-	const { lerp, correctedDesiredRot } = lerpAngleBetweenPos(
-		drone.angle,
-		drone.pos,
-		follow.pos,
-		0.015 * timeScale * drone.getTimescale(),
-		-90
+function updateSwarmMovement(
+	drone: GameObj,
+	follow: GameObj<PosComp>,
+	centerOffset = k.vec2(0),
+	driftScale = 1
+) {
+	const phase = drone.swarmPhase ?? 0;
+	const time = k.time();
+	const personalDriftScale = (drone.swarmDriftScale ?? 1) * driftScale;
+	const drift = k.vec2(
+		Math.sin(time * 0.83 + phase) * swarmRadius * personalDriftScale,
+		Math.sin(time * 1.17 + phase * 1.73) *
+			swarmRadius *
+			0.62 *
+			personalDriftScale
 	);
+	let separation = k.vec2(0);
+	let alignedVelocity = k.vec2(0);
+	let neighborCount = 0;
 
-	lerpMoveRotateAndScale(
+	for (const neighbor of k.get(tags.follower) as GameObj[]) {
+		if (neighbor === drone || !neighbor.exists()) continue;
+		const away = drone.pos.sub(neighbor.pos);
+		const distance = away.len();
+		if (distance > 0.001 && distance < swarmSeparationRadius) {
+			separation = separation.add(
+				away
+					.unit()
+					.scale(1 - distance / swarmSeparationRadius)
+			);
+		}
+		if (neighbor.movementVelocity) {
+			alignedVelocity = alignedVelocity.add(neighbor.movementVelocity);
+			neighborCount++;
+		}
+	}
+
+	const alignment =
+		neighborCount > 0
+			? alignedVelocity.scale(swarmAlignmentLead / neighborCount)
+			: k.vec2(0);
+	const targetPos = follow.pos
+		.add(centerOffset)
+		.add(drift)
+		.add(separation.scale(swarmSeparationStrength))
+		.add(alignment);
+	moveDroneToward(
 		drone,
-		lerp,
+		targetPos,
 		drone.speed *
 			droneProfiles[drone.droneType as DroneType].speedMultiplier *
-			drone.getTimescale(),
-		correctedDesiredRot,
-		drone.droneScale
+			2.2
 	);
 }
 
 function updateInterceptorMovement(drone: GameObj, follow: GameObj<PosComp>) {
 	const projectile = findClosestHostileProjectile(drone.pos, 320);
 	if (!projectile) {
-		updateEscortMovement(drone, follow);
+		updateSwarmMovement(drone, follow);
 		return;
 	}
 	moveDroneToward(
@@ -444,21 +475,21 @@ function updateInterceptorMovement(drone: GameObj, follow: GameObj<PosComp>) {
 }
 
 function updateRearGuardMovement(drone: GameObj, follow: GameObj<PosComp>) {
-	const rearGuardPos = follow.pos.add(
-		k.Vec2.fromAngle((follow.angle ?? 0) + 90).scale(66)
-	);
-	moveDroneToward(
+	const rearGuardOffset = k.Vec2.fromAngle(
+		(follow.angle ?? 0) + 90
+	).scale(52);
+	updateSwarmMovement(
 		drone,
-		rearGuardPos,
-		drone.speed * droneProfiles.medic.speedMultiplier
+		follow,
+		rearGuardOffset,
+		0.55
 	);
-	drone.angle += 30 * k.dt() * drone.getTimescale();
 }
 
 function updateSalvagerMovement(drone: GameObj, follow: GameObj<PosComp>) {
 	const debris = findClosestDebree(drone.pos, salvagerSeekRange);
 	if (!debris) {
-		updateOrbitMovement(drone, follow);
+		updateSwarmMovement(drone, follow);
 		return;
 	}
 	if (drone.pos.dist(debris.pos) <= 13) {
@@ -473,38 +504,52 @@ function updateSalvagerMovement(drone: GameObj, follow: GameObj<PosComp>) {
 }
 
 function moveDroneToward(drone: GameObj, targetPos: Vec2, speed: number) {
-	const delta = targetPos.sub(drone.pos);
-	if (delta.len() <= 1) return;
-	drone.move(
-		delta.unit().scale(speed * velocityScale() * drone.getTimescale())
+	const scaledDt = Math.max(
+		0,
+		k.dt() * drone.getTimescale() * velocityScale()
 	);
-	drone.angle = k.Vec2.toAngle(delta) + 90;
-	drone.scale = k.vec2(drone.droneScale);
-}
+	if (scaledDt <= 0) return;
 
-function updateOrbitMovement(drone: GameObj, follow: GameObj<PosComp>) {
-	drone.orbitAngle +=
-		missileDroneOrbitSpeed *
-		drone.orbitDirection *
-		k.dt() *
-		drone.getTimescale();
-	const orbitTarget = follow.pos.add(
-		k.Vec2.fromAngle(drone.orbitAngle).scale(missileDroneOrbitRadius)
+	if (!drone.easedTargetPos) drone.easedTargetPos = drone.pos.clone();
+	if (!drone.movementVelocity) drone.movementVelocity = k.vec2(0);
+
+	const targetBlend = 1 - Math.exp(-droneTargetEase * scaledDt);
+	drone.easedTargetPos = drone.easedTargetPos.lerp(targetPos, targetBlend);
+	const delta = drone.easedTargetPos.sub(drone.pos);
+	const distance = delta.len();
+	const desiredSpeed = Math.min(speed, distance * droneArrivalEase);
+	const desiredVelocity =
+		distance > 0.001
+			? delta.unit().scale(desiredSpeed)
+			: k.vec2(0);
+	const velocityBlend = 1 - Math.exp(-droneVelocityEase * scaledDt);
+	drone.movementVelocity = drone.movementVelocity.lerp(
+		desiredVelocity,
+		velocityBlend
 	);
-	const delta = orbitTarget.sub(drone.pos);
-	if (delta.len() > 1) {
-		const catchUpSpeed = Math.min(
-			Math.max(drone.speed * 1.25, delta.len() * 5),
-			260
-		);
-		drone.move(
-			delta.unit().scale(
-				catchUpSpeed * velocityScale() * drone.getTimescale()
-			)
-		);
+
+	let movement = drone.movementVelocity.scale(scaledDt);
+	if (movement.len() > distance) movement = delta;
+	if (movement.len() <= 0.001) {
+		drone.movementVelocity = k.vec2(0);
+		return;
 	}
-	drone.angle += 55 * drone.orbitDirection * k.dt() * drone.getTimescale();
-	drone.scale = k.vec2(drone.droneScale);
+
+	const { lerp, correctedDesiredRot } = lerpAngleBetweenPos(
+		drone.angle,
+		drone.pos,
+		drone.pos.add(movement),
+		1 - Math.exp(-droneTurnEase * scaledDt * timeScale),
+		-90
+	);
+	drone.pos = drone.pos.add(movement);
+	drone.angle = lerp;
+	applySteeringLean(
+		drone,
+		lerp,
+		correctedDesiredRot,
+		drone.droneScale
+	);
 }
 
 export function getMissileDroneCount(): number {
@@ -530,11 +575,11 @@ export function getDroneTypeCounts(): Record<DroneType, number> {
 
 function updateMedicBehavior(medic: GameObj) {
 	if ((medic.medicKillCharge ?? 0) < medicKillsPerRepair) return;
-	if (!playerObj.exists() || playerObj.hp() >= playerObj.maxHP) return;
+	if (!playerObj.exists() || playerObj.hp() >= playerObj.maxHP()) return;
 	medic.medicKillCharge = 0;
 	playerObj.heal(1);
 	updatePlayerHealthBar(playerObj.hp());
-	spawnFlash(playerObj.pos.clone(), 10, getDroneColor("medic"));
+	spawnFlash(playerObj.pos.clone(), 10, k.WHITE);
 	audioService.playSound("collect1", { volume: subSoundVolume });
 }
 

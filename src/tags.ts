@@ -21,6 +21,7 @@ export const tags = {
 	blaster: "blaster",
 	rocket: "rocket",
 	projectile: "projectile",
+	stressProjectile: "stressProjectile",
 	debree: "debree",
 	unit: "unit",
 	elite: "elite",

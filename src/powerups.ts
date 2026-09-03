@@ -90,13 +90,18 @@ export function respawnCombatDrones(count: number) {
 	}
 }
 
-function spawnCombatDrone() {
+export function spawnRepairedCombatDrone(deploymentStart: Vec2) {
+	spawnCombatDrone(deploymentStart);
+}
+
+function spawnCombatDrone(deploymentStart?: Vec2) {
 	spawnFollower({
 		follow: playerObj,
 		hp: 6,
 		speed: k.rand(80, 110),
 		blasterDmg:
 			player.followerBlasterDmg * player.followerBlasterDmgMultiplier,
+		deploymentStart,
 	});
 }
 

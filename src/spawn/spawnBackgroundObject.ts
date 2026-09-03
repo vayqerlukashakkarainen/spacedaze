@@ -16,6 +16,10 @@ interface BackgroundObjectProps {
 	speed?: number;
 }
 
+const backgroundObjects = new Map<number, GameObj>();
+let backgroundUpdateController: GameObj | undefined;
+let lastCameraPos: Vec2 | undefined;
+
 export function spawnBackgroundObject(props: BackgroundObjectProps): GameObj {
 	// Capture initial camera position and world position as reference points
 	const initialCamPos = k.getCamPos().clone();
@@ -72,31 +76,54 @@ export function spawnBackgroundObject(props: BackgroundObjectProps): GameObj {
 	}
 
 	const obj = k.add(components);
+	backgroundObjects.set(obj.id, obj);
+	obj.onDestroy(() => backgroundObjects.delete(obj.id));
+	ensureBackgroundUpdateController();
 
-	// Update position based on parallax effect and movement
-	obj.onUpdate(() => {
-		// Calculate parallax offset from camera movement
-		const cameraDelta = k.getCamPos().sub(obj.initialCamPos);
-		// Compensate for most of the camera movement on distant layers. After the
-		// camera transform, the object only drifts by 1 / parallaxLevel on screen.
-		const parallaxOffset = cameraDelta.scale(1 - 1 / obj.parallaxLevel);
+	return obj;
+}
 
+function ensureBackgroundUpdateController() {
+	if (backgroundUpdateController?.exists()) return;
+	lastCameraPos = k.getCamPos().clone();
+	const controller = k.add([
+		tags.levelBg,
+		tags.gameLoop,
+	]);
+	backgroundUpdateController = controller;
+
+	controller.onUpdate(updateBackgroundObjects);
+	controller.onDestroy(() => {
+		if (backgroundUpdateController?.id === controller.id) {
+			backgroundUpdateController = undefined;
+			lastCameraPos = undefined;
+			backgroundObjects.clear();
+		}
+	});
+}
+
+function updateBackgroundObjects() {
+	const cameraPos = k.getCamPos();
+	const cameraMoved = !lastCameraPos || cameraPos.dist(lastCameraPos) > 0.001;
+	lastCameraPos = cameraPos.clone();
+
+	for (const obj of backgroundObjects.values()) {
+		if (!obj.exists()) continue;
 		if (obj.hasMovement) {
-			// Apply movement to initial world position
-			const movementDelta = obj.moveDirection.scale(obj.moveSpeed * dtScaled());
+			const movementDelta = obj.moveDirection.scale(
+				obj.moveSpeed * dtScaled()
+			);
 			obj.initialWorldPos = obj.initialWorldPos.add(movementDelta);
+		}
 
-			// Final position = initial world position + movement + parallax offset
-			obj.pos = obj.initialWorldPos.add(parallaxOffset);
-		} else {
-			// Static object: position = initial position + parallax offset
+		if (obj.hasMovement || cameraMoved) {
+			const cameraDelta = cameraPos.sub(obj.initialCamPos);
+			const parallaxOffset = cameraDelta.scale(1 - 1 / obj.parallaxLevel);
 			obj.pos = obj.initialWorldPos.add(parallaxOffset);
 		}
 
 		if (obj.rotationSpeed !== 0) {
 			obj.angle += obj.rotationSpeed * dtScaled();
 		}
-	});
-
-	return obj;
+	}
 }

@@ -1,6 +1,6 @@
 import type { Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../../game"
-import { k, mainSoundVolume, velocityScale } from "../../main"
+import { k, mainSoundVolume } from "../../main"
 import { applyProjectileDamage } from "../../services/projectileService"
 import { spawnThreatEncounter } from "../../services/enemyEncounterService"
 import { audioService } from "../../services/audioService"
@@ -8,6 +8,10 @@ import { tags } from "../../tags"
 import { timescale } from "../../comp/timescale"
 import { spawnExplosionEffect } from "../spawnFlash"
 import { spawnRing } from "../spawnRing"
+import {
+	lerpAngleBetweenPos,
+	steerMoveRotateAndLean,
+} from "../../shared"
 
 interface LostConvoyProps {
 	pos: Vec2
@@ -66,9 +70,19 @@ export function spawnLostConvoy(props: LostConvoyProps) {
 
 		const toPlayer = playerObj.pos.sub(drone.pos)
 		if (toPlayer.len() > 58) {
-			const direction = toPlayer.unit()
-			drone.move(direction.scale(drone.speed * velocityScale() * drone.getTimescale()))
-			drone.angle = direction.angle() + 90
+			const { lerp, correctedDesiredRot } = lerpAngleBetweenPos(
+				drone.angle,
+				drone.pos,
+				playerObj.pos,
+				0.08 * drone.getTimescale(),
+				-90
+			)
+			steerMoveRotateAndLean(
+				drone,
+				lerp,
+				drone.speed * drone.getTimescale(),
+				correctedDesiredRot
+			)
 		}
 
 		checkProjectileIntersection(drone.pos, 12, tags.enemy, (projectile) => {

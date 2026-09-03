@@ -48,6 +48,7 @@ import {
 	transitionToLevel,
 } from "./levels/levels";
 import { hideDeathScreen, showDeathScreen } from "./ui/deathScreen";
+import { getPlayerDeathCause } from "./services/damageService";
 import { resetLevelLoadout } from "./upg";
 import {
 	clearRecoveryOffers,
@@ -233,6 +234,7 @@ function updateDebreeCollection(
 export function beginPlayerDeathSequence() {
 	if (isPlayerDying) return;
 	isPlayerDying = true;
+	const deathCause = getPlayerDeathCause();
 	const diedInHub = activeLevelKey() === "hub";
 	if (!diedInHub) {
 		finishRunStats("DESTROYED");
@@ -244,7 +246,7 @@ export function beginPlayerDeathSequence() {
 
 	k.wait(2, () => {
 		if (!isPlayerDying) return;
-		showDeathScreen();
+		showDeathScreen(deathCause);
 	});
 
 	k.wait(5, () => {
@@ -259,7 +261,7 @@ export function beginPlayerDeathSequence() {
 		if (diedInHub) {
 			k.destroyAll(tags.follower);
 			transitionToLevel("hub");
-			playerObj = setupPlayer();
+			playerObj = setupPlayer({ respawnTransition: true });
 			respawnCombatDrones(combatDroneCount);
 			updatePlayerHealthBar(player.maxHealth + session.extraHealth);
 			setTimescale(1, 0.4, false);
@@ -274,7 +276,7 @@ export function beginPlayerDeathSequence() {
 		resetPowerupRuntime();
 		loadPlayer();
 		transitionToLevel("hub");
-		playerObj = setupPlayer();
+		playerObj = setupPlayer({ respawnTransition: true });
 		setupGameLoopUi(player.maxHealth, player.rocketsLvl !== undefined);
 		setTimescale(1, 0.4, false);
 		isPlayerDying = false;
