@@ -16,6 +16,7 @@ import { randomExplosion } from "./util";
 import { unitComponents } from "./spawn/spawnShip1";
 import { JitterComp } from "./comp/jitter";
 import { enemyOnDeath } from "./spawn/enemyShared";
+import { RewardSource } from "./services/rewardService";
 
 interface Part {
 	obj: GameObj<
@@ -28,6 +29,9 @@ interface Part {
 
 interface Compose {
 	parts: Part[];
+	rewardSource?: Exclude<RewardSource, "crate">;
+	rewardMultiplier?: number;
+	onBodyDeath?: () => void;
 }
 
 export interface Component {
@@ -59,7 +63,13 @@ export function compose(c: Compose): Component[] {
 			if (part.isBody) {
 				delete unitComponents[part.obj.id!];
 				k.destroy(part.obj);
-				enemyOnDeath(part.obj.pos, 10, 1);
+				enemyOnDeath(
+					part.obj.pos,
+					10 * (c.rewardMultiplier ?? 1),
+					c.rewardMultiplier ?? 1,
+					c.rewardSource
+				);
+				c.onBodyDeath?.();
 				return;
 			}
 

@@ -21,11 +21,11 @@ export const rocket: UpgradeDefinition = {
 };
 
 export const increaseRockets: UpgradeDefinition = {
-	toolKey: "increaseRockets",
+	toolKey: "nrOfRockets",
 	toolName: "Increase missiles",
 	category: "combat",
 	type: "stat",
-	requiredTool: "rockets",
+	requirements: { allOf: [{ toolKey: "rockets" }] },
 	levels: [
 		{
 			name: "Level 1",
@@ -71,7 +71,7 @@ export const rocketShards: UpgradeDefinition = {
 	toolName: "Missile shards",
 	category: "combat",
 	type: "stat",
-	requiredTool: "rockets",
+	requirements: { allOf: [{ toolKey: "rockets" }] },
 	levels: [
 		{
 			name: "Level 1",

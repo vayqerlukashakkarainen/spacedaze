@@ -82,17 +82,22 @@ export function updateDebug() {
 /**
  * Toggle debug visibility
  */
-function toggleDebug() {
-	debugVisible = !debugVisible;
+export function setDebugVisible(visible: boolean) {
+	debugVisible = visible;
 
-	// Update opacity for all debug labels
 	for (const label of Object.values(debugLabels)) {
-		if (label && "opacity" in label) {
-			label.hidden = debugVisible;
-		}
+		if (label) label.hidden = !debugVisible;
 	}
 
-	console.log(`Debug: ${debugVisible ? "ON" : "OFF"}`);
+	return debugVisible;
+}
+
+export function toggleDebug() {
+	return setDebugVisible(!debugVisible);
+}
+
+export function debugIsVisible() {
+	return debugVisible;
 }
 
 /**

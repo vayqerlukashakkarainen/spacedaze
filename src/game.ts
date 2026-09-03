@@ -2,6 +2,7 @@ import {
 	AnchorComp,
 	AnimateComp,
 	AreaComp,
+	Color,
 	GameObj,
 	HealthComp,
 	PosComp,
@@ -15,8 +16,9 @@ import {
 	changeGameState,
 	addScore,
 	mainSoundVolume,
+	setTimescale,
 } from "./main";
-import { player, resetSession, session } from "./player";
+import { loadPlayer, player, resetSession, session } from "./player";
 
 import { clearPlayer, setupPlayer } from "./setupPlayer";
 import { tags } from "./tags";
@@ -24,36 +26,58 @@ import {
 	addHealthBar,
 	clearGameLoopUi,
 	setupGameLoopUi,
+	showSalvageGain,
 	updatePlayerHealthBar,
 } from "./ui/gameUi";
 import { Component } from "./compose";
-import { getDmg } from "./projectiles/shared";
-import { spawnExplosionEffect } from "./spawn/spawnFlash";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
 import { InteractableComp } from "./comp/interactable";
 import {
 	activeLevel,
+	activeLevelKey,
 	loadLevel,
 	updateLvl,
 	resetCurrentLevel,
+	transitionToLevel,
 } from "./levels/levels";
+import { hideDeathScreen, showDeathScreen } from "./ui/deathScreen";
+import { resetLevelLoadout } from "./upg";
+import {
+	clearRecoveryOffers,
+	clearRunInventory,
+	prepareDeathRecoveryOffers,
+} from "./services/runInventoryService";
+import { resetPowerupRuntime, respawnCombatDrones } from "./powerups";
+import {
+	finishRunStats,
+	recordDebreeCollected,
+} from "./services/runStatsService";
+import type { DebreeCollectionState } from "./spawn/spawnDebree";
 
 export let playerObj: GameObj<
 	PosComp | SpriteComp | RotateComp | AreaComp | AnchorComp | HealthComp
 >;
 let timeSinceLastLevel = 0;
+let isPlayerDying = false;
 
 export let debrees: GameObj<AnimateComp | PosComp | SpriteComp>[] = [];
 export const projectiles: GameObj<PosComp | any>[] = [];
 
 export function startGame() {
-	playerObj = setupPlayer();
+	resetLevelLoadout();
 	resetSession();
-	setupGameLoopUi(player.maxHealth);
+	clearRunInventory();
+	clearRecoveryOffers();
+	resetPowerupRuntime();
+	loadPlayer();
+	playerObj = setupPlayer();
+	setupGameLoopUi(player.maxHealth, player.rocketsLvl !== undefined);
 }
 
 export function updateGameLoop() {
+	if (isPlayerDying) return;
+
 	const deltaTime = k.dt();
 	timeSinceLastLevel += deltaTime;
 
@@ -64,12 +88,45 @@ export function updateGameLoop() {
 	if (activeLevel()) {
 		if (updateLvl()) {
 			timeSinceLastLevel = 0;
-			resetCurrentLevel();
+			transitionToLevel("hub");
 		}
 	}
 
 	for (let i = 0; i < debrees.length; i++) {
 		const d = debrees[i];
+		const collectible = d as typeof d & {
+			collection?: DebreeCollectionState;
+			scale: Vec2;
+			angle: number;
+			salvageValue: number;
+			color: Color;
+		};
+
+		if (collectible.collection) {
+			const completed = updateDebreeCollection(
+				collectible,
+				playerObj.pos,
+				deltaTime
+			);
+			if (completed) {
+				k.destroy(d);
+				debrees.splice(i, 1);
+				recordDebreeCollected();
+				audioService.playSound("collect1", { volume: mainSoundVolume });
+				const salvageGained = addScore(
+					player.scorePerPickup *
+						collectible.salvageValue *
+						player.debreeValueMultiplier
+				);
+				showSalvageGain(
+					salvageGained,
+					collectible.color,
+					playerObj.pos.clone()
+				);
+				i--;
+			}
+			continue;
+		}
 
 		const dist = d.pos.dist(playerObj.pos);
 
@@ -77,23 +134,12 @@ export function updateGameLoop() {
 			dist <
 			player.debreeSeekDistance * player.debreeSeekDistanceMultiplier
 		) {
-			d.moveTo(
-				playerObj.pos,
-				player.debreeSeekSpeed * player.debreeSeekSpeedMultiplier
-			);
-
-			if (dist < player.debreePickupDistance) {
-				k.destroy(d);
-				debrees.splice(i, 1);
-				audioService.playSound("collect1", { volume: mainSoundVolume });
-				addScore(player.scorePerPickup);
-				i--;
-			}
+			beginDebreeCollection(collectible, playerObj.pos);
 		}
 	}
 
 	// Check for nearby interactable buildings
-	const interactables = k.query({ include: ["interactable"] });
+	const interactables = k.get("interactable");
 	for (const obj of interactables) {
 		const interactable = obj as GameObj<InteractableComp | PosComp>;
 		if (!interactable.pos) continue;
@@ -103,8 +149,134 @@ export function updateGameLoop() {
 	}
 }
 
+function beginDebreeCollection(
+	debris: GameObj<PosComp> & {
+		collection?: DebreeCollectionState;
+		angle: number;
+		scale: Vec2;
+	},
+	playerPos: Vec2
+) {
+	const approach = playerPos.sub(debris.pos);
+	debris.collection = {
+		elapsed: 0,
+		duration: 0.48,
+		startPos: debris.pos.clone(),
+		approachDir: approach.len() > 0 ? approach.unit() : k.vec2(0, -1),
+		startAngle: debris.angle,
+		startScale: debris.scale.x,
+		spin: k.chance(0.5) ? 1 : -1,
+	};
+}
+
+function updateDebreeCollection(
+	debris: GameObj<PosComp> & {
+		collection?: DebreeCollectionState;
+		scale: Vec2;
+		angle: number;
+	},
+	playerPos: Vec2,
+	deltaTime: number
+) {
+	const collection = debris.collection;
+	if (!collection) return false;
+	collection.elapsed += deltaTime;
+	const progress = k.clamp(collection.elapsed / collection.duration, 0, 1);
+	const overshootDistance = 26;
+	const overshootAt = 0.72;
+	const overshootPos = playerPos.add(
+		collection.approachDir.scale(overshootDistance)
+	);
+
+	if (progress < overshootAt) {
+		const pullProgress = progress / overshootAt;
+		const eased = pullProgress * pullProgress * pullProgress;
+		debris.pos = collection.startPos.add(
+			overshootPos.sub(collection.startPos).scale(eased)
+		);
+		debris.scale = k.vec2(
+			collection.startScale * k.lerp(1, 1.45, eased)
+		);
+		debris.angle = collection.startAngle + collection.spin * 300 * eased;
+	} else {
+		const snapProgress = (progress - overshootAt) / (1 - overshootAt);
+		const eased = 1 - Math.pow(1 - snapProgress, 3);
+		debris.pos = overshootPos.add(playerPos.sub(overshootPos).scale(eased));
+		debris.scale = k.vec2(
+			collection.startScale * k.lerp(1.45, 0.35, eased)
+		);
+		debris.angle =
+			collection.startAngle + collection.spin * k.lerp(300, 440, eased);
+	}
+	return progress >= 1;
+}
+
+export function beginPlayerDeathSequence() {
+	if (isPlayerDying) return;
+	isPlayerDying = true;
+	const diedInHub = activeLevelKey() === "hub";
+	if (!diedInHub) {
+		finishRunStats("DESTROYED");
+		prepareDeathRecoveryOffers();
+	}
+
+	setTimescale(0.15, 1, false);
+	k.shake(8);
+
+	k.wait(2, () => {
+		if (!isPlayerDying) return;
+		showDeathScreen();
+	});
+
+	k.wait(5, () => {
+		if (!isPlayerDying) return;
+
+		hideDeathScreen();
+		const combatDroneCount = diedInHub
+			? k.get(tags.follower).length
+			: 0;
+		clearPlayer();
+
+		if (diedInHub) {
+			k.destroyAll(tags.follower);
+			transitionToLevel("hub");
+			playerObj = setupPlayer();
+			respawnCombatDrones(combatDroneCount);
+			updatePlayerHealthBar(player.maxHealth + session.extraHealth);
+			setTimescale(1, 0.4, false);
+			isPlayerDying = false;
+			return;
+		}
+
+		clearGameLoopUi();
+		k.destroyAll(tags.follower);
+		resetLevelLoadout();
+		resetSession();
+		resetPowerupRuntime();
+		loadPlayer();
+		transitionToLevel("hub");
+		playerObj = setupPlayer();
+		setupGameLoopUi(player.maxHealth, player.rocketsLvl !== undefined);
+		setTimescale(1, 0.4, false);
+		isPlayerDying = false;
+	});
+}
+
+export function playerDeathSequenceActive() {
+	return isPlayerDying;
+}
+
 export function clearGame() {
+	isPlayerDying = false;
+	hideDeathScreen();
+	setTimescale(1, 0.2, false);
 	clearPlayer();
+	resetLevelLoadout();
+	resetSession();
+	clearRunInventory();
+	clearRecoveryOffers();
+	resetPowerupRuntime();
+	loadPlayer();
 	timeSinceLastLevel = 0;
 	debrees = [];
 	resetCurrentLevel();
@@ -117,34 +289,9 @@ export function clearGame() {
 	k.destroyAll(tags.unit);
 	k.destroyAll(tags.debree);
 	k.destroyAll(tags.props);
+	k.destroyAll(tags.damageNumber);
 	clearGameLoopUi();
 	changeGameState(GameState.MainMenu);
-}
-
-export function createExplosion(
-	pos: Vec2,
-	radius: number,
-	splashDmg: number,
-	splashDmgFallof: number,
-	splashDmgFallofDist: number
-) {
-	const enemies = k.query({
-		include: [tags.enemy, tags.unit],
-		includeOp: "and",
-	});
-	spawnExplosionEffect(pos, radius);
-
-	for (let i = 0; i < enemies.length; i++) {
-		if (enemies[i].pos.dist(pos) < radius) {
-			const dmg = getDmg(
-				player.critChance,
-				splashDmg,
-				player.critMultiplier,
-				enemies[i].pos
-			);
-			enemies[i].hp -= dmg;
-		}
-	}
 }
 
 export function checkProjectileIntersection(
@@ -214,8 +361,8 @@ export function addMaxHealth() {
 
 	session.extraHealth++;
 	const totalHealth = player.maxHealth + session.extraHealth;
-	playerObj.maxHP = totalHealth;
+	playerObj.setMaxHP(totalHealth);
 	addHealthBar(totalHealth - 1);
-	playerObj.hp += 1;
-	updatePlayerHealthBar(playerObj.hp);
+	playerObj.heal();
+	updatePlayerHealthBar(playerObj.hp());
 }

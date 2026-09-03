@@ -52,17 +52,10 @@ const defaultStats: Record<string, number> = {
 	rocketCount: 3,
 	rocketShards: 0,
 
-	// Combat - General
-	critChance: 0,
-	critMultiplier: 2,
-
 	// Resources
 	scorePerPickup: 1,
-	debreePickupDistance: 10,
 	debreeSeekDistance: 50,
 	debreeSeekDistanceMultiplier: 1,
-	debreeSeekSpeed: 80,
-	debreeSeekSpeedMultiplier: 1,
 	debreeValueMultiplier: 1,
 
 	// Survival
@@ -76,6 +69,10 @@ const defaultStats: Record<string, number> = {
 	// Special
 	extraRockets: 0,
 	extraSpaceDebreeInMissiles: 0,
+	primaryRocketChance: 0,
+	projectileBounceCount: 0,
+	projectileBounceDamageRetention: 0,
+	projectileGuidanceDistance: 0,
 };
 
 function initializeStats() {

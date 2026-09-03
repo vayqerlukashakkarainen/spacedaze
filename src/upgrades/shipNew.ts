@@ -80,48 +80,6 @@ export const debreeDist: UpgradeDefinition = {
 	],
 };
 
-export const debreeSpeed: UpgradeDefinition = {
-	toolKey: "debreeSpeed",
-	toolName: "Stronger magnets",
-	category: "resources",
-	type: "stat",
-	levels: [
-		{
-			name: "Level 1",
-			desc: "Stronger magnets = faster debree, easy math",
-			sprite: "debree_speed_upg1",
-			price: 32,
-			effects: {
-				modifiers: [
-					{ stat: "debreeSeekSpeedMultiplier", value: 1.2, type: "multiply" },
-				],
-			},
-		},
-		{
-			name: "Level 2",
-			desc: "Stronger magnets = faster debree, easy math",
-			sprite: "debree_speed_upg1",
-			price: 32,
-			effects: {
-				modifiers: [
-					{ stat: "debreeSeekSpeedMultiplier", value: 1.4, type: "multiply" },
-				],
-			},
-		},
-		{
-			name: "Level 3",
-			desc: "Stronger magnets = faster debree, easy math",
-			sprite: "debree_speed_upg1",
-			price: 32,
-			effects: {
-				modifiers: [
-					{ stat: "debreeSeekSpeedMultiplier", value: 2, type: "multiply" },
-				],
-			},
-		},
-	],
-};
-
 export const sprint: UpgradeDefinition = {
 	toolKey: "sprint",
 	toolName: "Thrusters overclock",
@@ -161,7 +119,7 @@ export const sprintSpeed: UpgradeDefinition = {
 	toolName: "Thrusters cooling",
 	category: "movement",
 	type: "stat",
-	requiredTool: "sprint",
+	requirements: { allOf: [{ toolKey: "sprint" }] },
 	levels: [
 		{
 			name: "Level 1",
@@ -182,6 +140,58 @@ export const sprintSpeed: UpgradeDefinition = {
 			effects: {
 				modifiers: [
 					{ stat: "sprintSpeedMultiplier", value: 1.4, type: "multiply" },
+				],
+			},
+		},
+	],
+};
+
+export const spaceJump: UpgradeDefinition = {
+	toolKey: "spaceJump",
+	toolName: "Space Jump",
+	category: "movement",
+	type: "ability",
+	levels: [
+		{
+			name: "Space Jump",
+			desc: "Press SPACE to phase 75px through incoming fire. Recharges in 2.5 seconds",
+			sprite: "space_jump_upg1",
+			price: 32,
+			effects: {
+				abilities: [
+					{ abilityId: "spaceJump", description: "Space Jump unlocked", cooldown: 2.5 },
+				],
+			},
+		},
+	],
+};
+
+export const spaceJumpUpgrades: UpgradeDefinition = {
+	toolKey: "spaceJumpUpgrades",
+	toolName: "Space Jump Systems",
+	category: "movement",
+	type: "ability",
+	requirements: { allOf: [{ toolKey: "spaceJump" }] },
+	levels: [
+		{
+			name: "Phase Capacitor",
+			desc: "Space Jump travels 90px and recharges in 2.1 seconds for this run",
+			sprite: "phase_capacitor_upg1",
+			price: 48,
+			effects: {
+				abilities: [
+					{ abilityId: "spaceJump", description: "Improved Space Jump", cooldown: 2.1 },
+				],
+			},
+		},
+		{
+			name: "Twin Capacitor",
+			desc: "Store two Space Jump charges for this run. Each charge recharges in 3 seconds",
+			sprite: "twin_capacitor_upg1",
+			price: 64,
+			effects: {
+				abilities: [
+					{ abilityId: "spaceJump", description: "Two Space Jump charges", cooldown: 3 },
 				],
 			},
 		},
@@ -220,7 +230,7 @@ export const debreeValue: UpgradeDefinition = {
 	toolName: "Shiny debree",
 	category: "resources",
 	type: "stat",
-	requiredTool: "debreeDist",
+	requirements: { allOf: [{ toolKey: "debreeDist" }] },
 	levels: [
 		{
 			name: "Level 1",

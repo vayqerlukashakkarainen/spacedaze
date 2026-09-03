@@ -13,6 +13,21 @@ export interface GenCell {
 	locked: boolean;
 }
 
+export const ROOM_ROLES = [
+	"spawn",
+	"combat",
+	"reward",
+	"asteroid",
+	"shrine",
+	"boss",
+	"exit",
+] as const;
+export type RoomRole = (typeof ROOM_ROLES)[number];
+
+export function roomRoleTag(role: RoomRole): string {
+	return `room_${role}`;
+}
+
 /**
  * Complete generation map - single source of truth
  */
@@ -111,8 +126,17 @@ export interface CaveGenConfig {
 		resourceNodeCount: number;
 		hazardCount: number;
 		minPoiSpacing: number; // Minimum distance between POIs
+		rewardWallDensity: number;
+		rewardWallMinSpacing: number;
+		rewardWallClusterChance: number;
+		rewardWallClusterMinSize: number;
+		rewardWallClusterMaxSize: number;
 	};
 }
+
+export type CaveGenConfigOverrides = {
+	[Section in keyof CaveGenConfig]?: Partial<CaveGenConfig[Section]>;
+};
 
 /**
  * Default configuration
@@ -146,5 +170,29 @@ export const DEFAULT_CAVE_CONFIG: CaveGenConfig = {
 		resourceNodeCount: 5,
 		hazardCount: 3,
 		minPoiSpacing: 6,
+		rewardWallDensity: 0.009,
+		rewardWallMinSpacing: 3,
+		rewardWallClusterChance: 0.4,
+		rewardWallClusterMinSize: 2,
+		rewardWallClusterMaxSize: 5,
 	},
 };
+
+export function resolveCaveGenConfig(
+	overrides: CaveGenConfigOverrides = {}
+): CaveGenConfig {
+	return {
+		fill: { ...DEFAULT_CAVE_CONFIG.fill, ...overrides.fill },
+		ca: { ...DEFAULT_CAVE_CONFIG.ca, ...overrides.ca },
+		connectivity: {
+			...DEFAULT_CAVE_CONFIG.connectivity,
+			...overrides.connectivity,
+		},
+		stamps: { ...DEFAULT_CAVE_CONFIG.stamps, ...overrides.stamps },
+		materials: {
+			...DEFAULT_CAVE_CONFIG.materials,
+			...overrides.materials,
+		},
+		features: { ...DEFAULT_CAVE_CONFIG.features, ...overrides.features },
+	};
+}

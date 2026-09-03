@@ -1,61 +1,71 @@
-import { GameObj, Vec2 } from "kaplay";
-import {
-	checkProjectileIntersection,
-	clearGame,
-	createExplosion,
-	playerObj,
-} from "../game";
-import { dtScaled, k, mainSoundVolume } from "../main";
+import { Vec2 } from "kaplay";
+import { checkProjectileIntersection, playerObj } from "../game";
+import { k, mainSoundVolume, velocityScale } from "../main";
 import { audioService } from "../services/audioService";
-import { starsEmitter } from "../particles";
 import { tags } from "../tags";
 import { randomExplosion } from "../util";
-import { spawnDebree } from "./spawnDebree";
 import { registerHitAnimation } from "../shared";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
+import {
+	createEnemySpawnProfile,
+	type EnemySpawnOptions,
+} from "../services/threatService";
+import { applyDamage } from "../services/damageService";
 
 export function spawnHeavyVehicle(
 	pos: Vec2,
 	dir: Vec2,
 	hp: number,
-	sprite: string
+	sprite: string,
+	options: EnemySpawnOptions = {}
 ) {
-	const hb = 12;
+	const profile = createEnemySpawnProfile(hp, 1, 1, options);
+	const hb = 12 * profile.scale;
 	const m = k.add([
 		k.pos(pos),
 		k.sprite(sprite),
+		k.color(...profile.tint),
 		k.rotate(dir.angle() - 90),
 		k.anchor("center"),
-		k.health(hp),
+		k.health(profile.hp),
 		k.animate(),
-		k.offscreen({ destroy: true }),
+		k.scale(profile.scale),
+		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{
 			vel: dir,
-			speed: k.rand(180, 240),
+			speed: k.rand(180, 240) * profile.speedMultiplier,
 			hb,
+			elite: profile.elite,
+			damage: profile.damage,
 		},
 		tags.enemy,
 		tags.unit,
+		...(profile.elite ? [tags.elite] : []),
 		tags.gameLoop,
+		...(options.tags ?? []),
 	]);
 
 	registerHitAnimation(m);
 
 	m.onUpdate(() => {
-		m.move(m.vel.scale(m.speed * dtScaled()));
+		m.move(m.vel.scale(m.speed * velocityScale()));
 
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
 			onEnemyHit(m, p);
 		});
 
 		if (playerObj.pos.dist(m.pos) < m.hb) {
-			playerObj.hp -= 1;
-			m.hp -= hp;
+			applyDamage(playerObj, m.damage);
+			applyDamage(m, profile.hp);
 		}
 	});
 
 	m.onDeath(() => {
-		enemyOnDeath(m.pos, 10, 2);
+		enemyOnDeath(
+			m.pos,
+			10 * profile.rewardMultiplier,
+			2 * profile.rewardMultiplier
+		);
 		audioService.playSound(randomExplosion(), { volume: mainSoundVolume });
 		k.destroy(m);
 	});

@@ -12,28 +12,44 @@ import { randomExplosion } from "../util";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
 import type { Vec2 } from "kaplay";
 import { timescale } from "../comp/timescale";
+import {
+	createEnemySpawnProfile,
+	type EnemySpawnOptions,
+} from "../services/threatService";
 
-export function spawnAssasin(pos: Vec2, am: number, hp: number, scale: number) {
-	const hb = 12 * scale;
+export function spawnAssasin(
+	pos: Vec2,
+	am: number,
+	hp: number,
+	scale: number,
+	options: EnemySpawnOptions = {}
+) {
+	const profile = createEnemySpawnProfile(hp, 2, scale, options);
+	const hb = 12 * profile.scale;
 	const m = k.add([
 		k.pos(pos),
 		k.sprite("enemy_ship1"),
+		k.color(...profile.tint),
 		k.rotate(0),
 		k.anchor("center"),
-		k.health(hp),
+		k.health(profile.hp),
 		k.animate(),
 		timescale(),
-		k.scale(scale),
-		k.offscreen({ destroy: true }),
+		k.scale(profile.scale),
+		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{
-			speed: k.rand(100, 130),
+			speed: k.rand(100, 130) * profile.speedMultiplier,
 			hb,
+			elite: profile.elite,
+			damage: profile.damage,
 			targetPos: k.rand(k.vec2(k.width(), k.height())),
 		},
 		k.state("retreat", ["attack", "retreat"]),
 		tags.enemy,
 		tags.unit,
+		...(profile.elite ? [tags.elite] : []),
 		tags.gameLoop,
+		...(options.tags ?? []),
 	]);
 
 	m.onStateEnter("retreat", async () => {
@@ -58,7 +74,12 @@ export function spawnAssasin(pos: Vec2, am: number, hp: number, scale: number) {
 			m.enterState("retreat");
 		} else if (dist > 50 && dist < 200) {
 			if (Math.floor(k.rand(0, 200)) == 1) {
-				spawnEnemyBlaster(m.pos, k.Vec2.fromAngle(m.angle - 90), m.angle, 2);
+				spawnEnemyBlaster(
+					m.pos,
+					k.Vec2.fromAngle(m.angle - 90),
+					m.angle,
+					m.damage
+				);
 			}
 		}
 	});
@@ -66,7 +87,7 @@ export function spawnAssasin(pos: Vec2, am: number, hp: number, scale: number) {
 	registerHitAnimation(m);
 
 	m.onUpdate(() => {
-		const { lerp } = lerpAngleBetweenPos(
+		const { lerp, correctedDesiredRot } = lerpAngleBetweenPos(
 			m.angle,
 			m.pos,
 			m.targetPos,
@@ -74,7 +95,12 @@ export function spawnAssasin(pos: Vec2, am: number, hp: number, scale: number) {
 			-90
 		);
 
-		lerpMoveRotateAndScale(m, lerp, m.speed * m.getTimescale());
+		lerpMoveRotateAndScale(
+			m,
+			lerp,
+			m.speed * m.getTimescale(),
+			correctedDesiredRot
+		);
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {
 			onEnemyHit(m, p);
 		});
@@ -82,7 +108,7 @@ export function spawnAssasin(pos: Vec2, am: number, hp: number, scale: number) {
 
 	m.onDeath(() => {
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume });
-		enemyOnDeath(m.pos, am, 1);
+		enemyOnDeath(m.pos, am * profile.rewardMultiplier, profile.rewardMultiplier);
 		k.destroy(m);
 	});
 

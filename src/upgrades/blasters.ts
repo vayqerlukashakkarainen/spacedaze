@@ -22,7 +22,7 @@ export const blaster: Tool = {
 
 export const blasterMultiple: Tool = {
 	toolName: "Parallel processor",
-	requiredTool: "blaster",
+	requirements: { allOf: [{ toolKey: "blaster" }] },
 	upgrades: [
 		{
 			name: "Level 1",
@@ -34,9 +34,22 @@ export const blasterMultiple: Tool = {
 	],
 };
 
+export const mouseAim: Tool = {
+	toolName: "Targeting computer",
+	upgrades: [
+		{
+			name: "Level 1",
+			desc: "Aim weapons independently toward the mouse pointer",
+			price: 24,
+			sprite: "parallel_blasters_upg1",
+			value: 1,
+		},
+	],
+};
+
 export const blasterSpeed: Tool = {
 	toolName: "Blaster speed",
-	requiredTool: "blaster",
+	requirements: { allOf: [{ toolKey: "blaster" }] },
 	upgrades: [
 		{
 			name: "Level 1",
@@ -50,7 +63,7 @@ export const blasterSpeed: Tool = {
 
 export const blasterDmg: Tool = {
 	toolName: "Blaster dmg",
-	requiredTool: "blaster",
+	requirements: { allOf: [{ toolKey: "blaster" }] },
 	upgrades: [
 		{
 			name: "Level 1",

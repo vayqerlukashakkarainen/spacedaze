@@ -1,5 +1,6 @@
 import { GenerationMap, CaveGenConfig } from "../generationTypes";
 import { hexNeighbors } from "../hexUtils";
+import { SeededRNG } from "../seededRng";
 
 /**
  * Pass 6: Material and hardness assignment
@@ -7,6 +8,7 @@ import { hexNeighbors } from "../hexUtils";
  */
 export function applyMaterialAssignment(
 	map: GenerationMap,
+	rng: SeededRNG,
 	config: CaveGenConfig
 ): void {
 	const { edgeHardnessBonus, depthHardnessScale, baseDensity } =
@@ -48,6 +50,6 @@ export function applyMaterialAssignment(
 			0.1,
 			1.0 + edgeHardness + depthHardness - neighborSoftness
 		);
-		cell.density = baseDensity * (0.8 + Math.random() * 0.4); // Slight variation
+		cell.density = baseDensity * (0.8 + rng.nextFloat() * 0.4);
 	}
 }

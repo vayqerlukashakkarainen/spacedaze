@@ -12,10 +12,6 @@ const levelRewards: Record<number, () => void> = {
 			"level-reward"
 		);
 	},
-	10: () => {
-		// Level 10: Increased crit chance
-		upgradeService.addModifier("critChance", 0.1, "additive", "level-reward");
-	},
 	15: () => {
 		// Level 15: Stronger magnets
 		upgradeService.addModifier(

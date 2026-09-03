@@ -34,8 +34,7 @@ export function spawnBackgroundObject(props: BackgroundObjectProps): GameObj {
 
 	// Calculate z-index based on parallax level (6c)
 	// Higher parallax = further away = lower z-index
-	// Invert so closer objects render on top
-	const zIndex = props.parallaxLevel;
+	const zIndex = -props.parallaxLevel;
 
 	// Build component list
 	const components: any[] = [
@@ -78,7 +77,9 @@ export function spawnBackgroundObject(props: BackgroundObjectProps): GameObj {
 	obj.onUpdate(() => {
 		// Calculate parallax offset from camera movement
 		const cameraDelta = k.getCamPos().sub(obj.initialCamPos);
-		const parallaxOffset = cameraDelta.scale(1 / obj.parallaxLevel);
+		// Compensate for most of the camera movement on distant layers. After the
+		// camera transform, the object only drifts by 1 / parallaxLevel on screen.
+		const parallaxOffset = cameraDelta.scale(1 - 1 / obj.parallaxLevel);
 
 		if (obj.hasMovement) {
 			// Apply movement to initial world position

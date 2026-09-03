@@ -5,11 +5,15 @@ import { audioService } from "../../services/audioService";
 import { explosionEmitter } from "../../particles";
 import { tags } from "../../tags";
 import { registerHitAnimation } from "../../shared";
+import { showDamageNumber } from "../../services/damageService";
+import { tryBounceProjectile } from "../../services/projectileService";
 
 interface DamageShrineProps {
 	pos: Vec2;
 	health: number;
 	depleteRate: number; // damage per second that depletes
+	onComplete?: (pos: Vec2) => void;
+	tags?: string[];
 }
 
 export function spawnDamageShrine(props: DamageShrineProps) {
@@ -28,6 +32,7 @@ export function spawnDamageShrine(props: DamageShrineProps) {
 		tags.enemy,
 		tags.props,
 		tags.gameLoop,
+		...(props.tags ?? []),
 	]);
 
 	registerHitAnimation(shrine);
@@ -59,7 +64,9 @@ export function spawnDamageShrine(props: DamageShrineProps) {
 		// Check for projectile hits
 		checkProjectileIntersection(shrine.pos, 24, tags.friendly, (p) => {
 			// Add damage from projectile
-			shrine.damageReceived += p.dmg || 1;
+			const damage = p.impactDamage ?? 1;
+			shrine.damageReceived += damage;
+			showDamageNumber(shrine.pos, damage);
 
 			// Trigger hit animation
 			if (shrine.animation) {
@@ -69,8 +76,7 @@ export function spawnDamageShrine(props: DamageShrineProps) {
 			// Play hit sound
 			audioService.playSound("hit1", { volume: mainSoundVolume });
 
-			// Destroy projectile
-			k.destroy(p);
+			if (!tryBounceProjectile(p, shrine)) k.destroy(p);
 		});
 
 		// Update health bar
@@ -79,14 +85,13 @@ export function spawnDamageShrine(props: DamageShrineProps) {
 
 		// Check if health threshold reached
 		if (shrine.damageReceived >= shrine.maxHealth) {
-			console.log("Damage shrine destroyed!");
-
 			// Spawn particles
 			explosionEmitter.pos = shrine.pos;
 			explosionEmitter.emit(30);
 
 			// Play sound
 			audioService.playSound("powerup1", { volume: mainSoundVolume });
+			props.onComplete?.(shrine.pos.clone());
 
 			// Destroy shrine
 			k.destroy(shrine);

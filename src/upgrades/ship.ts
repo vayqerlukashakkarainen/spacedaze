@@ -41,33 +41,6 @@ export const debreeDist: Tool = {
 	],
 };
 
-export const debreeSpeed: Tool = {
-	toolName: "Stronger magnets",
-	upgrades: [
-		{
-			name: "Level 1",
-			desc: "Stronger magnets = faster debree, easy math",
-			sprite: "debree_speed_upg1",
-			price: 32,
-			value: 1.2,
-		},
-		{
-			name: "Level 2",
-			desc: "Stronger magnets = faster debree, easy math",
-			sprite: "debree_speed_upg1",
-			price: 32,
-			value: 1.4,
-		},
-		{
-			name: "Level 3",
-			desc: "Stronger magnets = faster debree, easy math",
-			sprite: "debree_speed_upg1",
-			price: 32,
-			value: 2,
-		},
-	],
-};
-
 export const sprint: Tool = {
 	toolName: "Thrusters overclock",
 	upgrades: [
@@ -90,7 +63,7 @@ export const sprint: Tool = {
 
 export const sprintSpeed: Tool = {
 	toolName: "Thrusters cooling",
-	requiredTool: "sprint",
+	requirements: { allOf: [{ toolKey: "sprint" }] },
 	upgrades: [
 		{
 			name: "Level 1",
@@ -105,6 +78,40 @@ export const sprintSpeed: Tool = {
 			sprite: "faster_speed_upg1",
 			price: 32,
 			value: 1.4,
+		},
+	],
+};
+
+export const spaceJump: Tool = {
+	toolName: "Space Jump",
+	upgrades: [
+		{
+			name: "Space Jump",
+			desc: "Press SPACE to phase a short distance through incoming fire",
+			sprite: "space_jump_upg1",
+			price: 32,
+			value: 1,
+		},
+	],
+};
+
+export const spaceJumpUpgrades: Tool = {
+	toolName: "Space Jump Systems",
+	requirements: { allOf: [{ toolKey: "spaceJump" }] },
+	upgrades: [
+		{
+			name: "Phase Capacitor",
+			desc: "Jump farther and recharge the phase drive faster for this run",
+			sprite: "phase_capacitor_upg1",
+			price: 48,
+			value: 1,
+		},
+		{
+			name: "Twin Capacitor",
+			desc: "Store two Space Jump charges for this run",
+			sprite: "twin_capacitor_upg1",
+			price: 64,
+			value: 2,
 		},
 	],
 };
@@ -131,7 +138,7 @@ export const movespeed: Tool = {
 
 export const debreeValue: Tool = {
 	toolName: "Shiny debree",
-	requiredTool: "debreeDist",
+	requirements: { allOf: [{ toolKey: "debreeDist" }] },
 	upgrades: [
 		{
 			name: "Level 1",

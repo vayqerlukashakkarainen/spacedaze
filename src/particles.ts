@@ -3,6 +3,7 @@ import { k, layers } from "./main";
 import { tags } from "./tags";
 
 export let trailEmitter: GameObj<PosComp | ParticlesComp>;
+export let boostTrailEmitter: GameObj<PosComp | ParticlesComp>;
 export let starsEmitter: GameObj<PosComp | ParticlesComp>;
 export let starsEmitterDir: GameObj<PosComp | ParticlesComp>;
 export let explosionEmitter: GameObj<PosComp | ParticlesComp>;
@@ -99,6 +100,31 @@ export function initParticles() {
 			},
 			{
 				rate: 1,
+				direction: 0,
+				spread: 90,
+				position: k.vec2(0, 0),
+			}
+		),
+		"trail",
+	]);
+
+	boostTrailEmitter = k.add([
+		k.pos(),
+		k.particles(
+			{
+				max: 2000,
+				speed: [2, 30],
+				lifeTime: [0.2, 0.6],
+				colors: [k.rgb(80, 180, 255), k.rgb(30, 100, 255)],
+				opacities: [0.9, 0.6],
+				angle: [0, 360],
+				damping: [2, 2],
+				scales: [0.4, 0.2, 0.1],
+				texture: k.getSprite("particle3")!.data!.tex,
+				quads: [k.getSprite("particle3")!.data!.frames[0]],
+			},
+			{
+				rate: 0,
 				direction: 0,
 				spread: 90,
 				position: k.vec2(0, 0),

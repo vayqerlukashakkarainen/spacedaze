@@ -1,21 +1,20 @@
-import { Vec2 } from "kaplay";
 import { chance } from "../powerups";
-import { spawnFlash } from "../spawn/spawnFlash";
-import { k, mainSoundVolume } from "../main";
-import { audioService } from "../services/audioService";
 
-export function getDmg(
+export interface CriticalDamageResult {
+	damage: number;
+	critical: boolean;
+}
+
+export function resolveCriticalDamage(
 	critChance: number,
 	dmg: number,
-	critMultiplier: number,
-	pos: Vec2
-) {
-	if (chance(critChance, 100)) {
-		spawnFlash(pos, critMultiplier);
-
-		audioService.playSound("hit1", { volume: mainSoundVolume });
-		return dmg * critMultiplier;
-	}
-
-	return dmg;
+	critMultiplier: number
+): CriticalDamageResult {
+	const normalizedChance = Math.max(0, Math.min(100, critChance));
+	const normalizedMultiplier = Math.max(1, critMultiplier);
+	const critical = chance(normalizedChance, 100);
+	return {
+		damage: critical ? dmg * normalizedMultiplier : dmg,
+		critical,
+	};
 }

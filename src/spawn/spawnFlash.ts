@@ -1,15 +1,15 @@
-import { Vec2 } from "kaplay";
+import { Color, Vec2 } from "kaplay";
 import { k } from "../main";
 import { explosionEmitter } from "../particles";
 import { loopService } from "../services/loopService";
 import { spawnRing } from "./spawnRing";
 import { tags } from "../tags";
 
-export function spawnFlash(pos: Vec2, size: number) {
-	const crit = k.add([
+export function spawnFlash(pos: Vec2, size: number, color: Color = k.WHITE) {
+	k.add([
 		k.pos(pos),
 		k.circle(size),
-		k.color(k.WHITE),
+		k.color(color),
 		k.scale(1),
 		k.opacity(1),
 		k.lifespan(0.04),

@@ -6,8 +6,10 @@ import {
 	ScaleComp,
 	Vec2,
 } from "kaplay";
-import { dtScaled, k } from "./main";
+import { k, velocityScale } from "./main";
 import { adjustedTarget } from "./util";
+
+const MAX_STEERING_LEAN = 0.65;
 
 export function registerHitAnimation(m: GameObj<AnimateComp>) {
 	m.animate("opacity", [0, 1, 0, 1], {
@@ -30,20 +32,38 @@ export function lerpAngleBetweenPos(
 	const desiredRot = k.rad2deg(a) + addAngle;
 	const correctedDesiredRot = adjustedTarget(angle, desiredRot);
 
-	return { dir, lerp: k.lerp(angle, correctedDesiredRot, hardness) };
+	return {
+		dir,
+		lerp: k.lerp(angle, correctedDesiredRot, hardness),
+		correctedDesiredRot,
+	};
 }
 
 export function lerpMoveRotateAndScale(
 	m: GameObj<PosComp | RotateComp | ScaleComp | any>,
 	lerp: number,
-	speed: number
+	speed: number,
+	desiredAngle?: number,
+	baseScale = 1
 ) {
 	const lerpAngle = k.deg2rad(lerp + 90);
 	const x = Math.cos(lerpAngle);
 	const y = Math.sin(lerpAngle);
-	m.move(k.vec2(x * speed * -1, y * speed * -1).scale(dtScaled()));
+	m.move(k.vec2(x * speed * -1, y * speed * -1).scale(velocityScale()));
 	m.angle = lerp;
-	m.scale = k.vec2(Math.abs(y), 1);
+	if (desiredAngle === undefined) {
+		m.scale = k.vec2(Math.abs(y) * baseScale, baseScale);
+		return;
+	}
+
+	const steeringAmount = k.clamp(Math.abs(lerp - desiredAngle) / 100, 0, 1);
+	const targetScaleX = (1 - steeringAmount * MAX_STEERING_LEAN) * baseScale;
+	const targetScaleY = (1 - steeringAmount / 40) * baseScale;
+	const bankLerp = k.clamp(12 * k.dt(), 0, 1);
+	m.scale = k.vec2(
+		k.lerp(m.scale.x, targetScaleX, bankLerp),
+		k.lerp(m.scale.y, targetScaleY, bankLerp)
+	);
 }
 
 export function sum(values: number[]) {

@@ -2,27 +2,20 @@ import { KEventController, Vec2 } from "kaplay";
 import { addMaxHealth, playerObj } from "./game";
 import { k, mainSoundVolume, setTimescale } from "./main";
 import { hasLvlValue, player, session } from "./player";
-import { sum } from "./shared";
 import { spawnFollower } from "./spawn/spawnFollower";
-import { spawnPowerup } from "./spawn/spawnPowerup";
 import { spawnRing } from "./spawn/spawnRing";
 import { audioService } from "./services/audioService";
 import { upgradeService } from "./services/upgradeService";
+import { tags } from "./tags";
 
 // Track active slowdown timer and accumulated duration
 let activeSlowdownTimer: KEventController | undefined;
 let slowdownRemainingTime = 0;
+export const PRIMARY_ROCKET_CHANCE_PER_PICKUP = 0.1;
 
 export const powerups = {
 	addFollower: (pos: Vec2) => {
-		spawnFollower({
-			follow: playerObj,
-			hp: 6,
-			pos: k.vec2(k.rand(k.width()), 0),
-			speed: k.rand(80, 110),
-			blasterDmg:
-				player.followerBlasterDmg * player.followerBlasterDmgMultiplier,
-		});
+		spawnCombatDrone();
 	},
 	addPlayerMaxHealth: (pos: Vec2) => {
 		addMaxHealth();
@@ -36,6 +29,15 @@ export const powerups = {
 		upgradeService.addModifier(
 			"extraSpaceDebreeInMissiles",
 			2,
+			"additive",
+			"powerup"
+		);
+	},
+	addPrimaryRocketChance: (pos: Vec2) => {
+		session.primaryRocketChance += PRIMARY_ROCKET_CHANCE_PER_PICKUP;
+		upgradeService.addModifier(
+			"primaryRocketChance",
+			PRIMARY_ROCKET_CHANCE_PER_PICKUP,
 			"additive",
 			"powerup"
 		);
@@ -74,22 +76,56 @@ export const powerups = {
 	},
 } as const;
 
+export function respawnCombatDrones(count: number) {
+	for (let index = 0; index < count; index++) {
+		spawnCombatDrone();
+	}
+}
+
+function spawnCombatDrone() {
+	spawnFollower({
+		follow: playerObj,
+		hp: 6,
+		speed: k.rand(80, 110),
+		blasterDmg:
+			player.followerBlasterDmg * player.followerBlasterDmgMultiplier,
+	});
+}
+
 export type PowerupKey = keyof typeof powerups;
+
+export function resetPowerupRuntime() {
+	if (activeSlowdownTimer) activeSlowdownTimer.cancel();
+	activeSlowdownTimer = undefined;
+	slowdownRemainingTime = 0;
+}
+
+export function getPlayerPowerupStatus(): [string, string][] {
+	return [
+		["Combat Drones", String(k.get(tags.follower).length)],
+		["Hull Reinforcement", formatBonus(session.extraHealth)],
+		["Missile Cache", formatBonus(session.extraRockets)],
+		["Shrapnel Payload", formatBonus(session.extraSpaceDebreeInMissiles)],
+		["Rocket Coupler", formatPercentage(session.primaryRocketChance)],
+		["Time Dilator", activeSlowdownTimer ? "ACTIVE" : "INACTIVE"],
+	];
+}
+
+function formatBonus(value: number): string {
+	return Number.isFinite(value) ? `+${value}` : "+0";
+}
+
+function formatPercentage(value: number): string {
+	return Number.isFinite(value) ? `${Math.round(value * 100)}%` : "0%";
+}
 
 export const powerupsSprites: Record<PowerupKey, string> = {
 	addFollower: "follower_upg1",
 	addPlayerMaxHealth: "hull_upg1",
 	addExtraRockets: "more_missiles_upg1",
 	addSpaceDebree: "missile_shards_upg1",
+	addPrimaryRocketChance: "rocket_upg1",
 	slowdownTime: "overclock_thrusters_upg1",
-};
-
-export const powerupWeights: Record<PowerupKey, number> = {
-	addFollower: 350,
-	addPlayerMaxHealth: 200,
-	addExtraRockets: 120,
-	addSpaceDebree: 110,
-	slowdownTime: 130, // 5B: Uncommon (weight: ~120-150)
 };
 
 export const powerupReq: Record<PowerupKey, (() => boolean) | undefined> = {
@@ -105,45 +141,10 @@ export const powerupReq: Record<PowerupKey, (() => boolean) | undefined> = {
 			player.rocketsLvl !== undefined || upgradeService.hasUnlock("rockets")
 		);
 	},
+	addPrimaryRocketChance: undefined,
 	slowdownTime: undefined, // No requirements
 };
 
-const blankChance = 45000;
-function randomizePowerup(chanceMultiplier: number): PowerupKey | null {
-	const keyValues = Object.entries(powerupWeights).filter((x) => {
-		if (powerupReq[x[0]] === undefined) return true;
-
-		return powerupReq[x[0]]();
-	});
-
-	const chanceSpan =
-		blankChance + sum(keyValues.map((x) => x[1] * chanceMultiplier));
-
-	const r = Math.floor(k.rand(0, chanceSpan));
-
-	let previous = 0;
-	for (let i = 0; i < keyValues.length; i++) {
-		const thisChance = previous + keyValues[i][1] * chanceMultiplier;
-		if (r > previous && r <= thisChance) {
-			return keyValues[i][0] as PowerupKey;
-		}
-
-		previous = thisChance;
-	}
-
-	return null;
-}
-
-export function trySpawnRandomizedPowerup(pos: Vec2, chanceMultiplier: number) {
-	const key = randomizePowerup(chanceMultiplier);
-
-	if (!key) {
-		return;
-	}
-
-	spawnPowerup(pos, key);
-}
-
 export function chance(c: number, max: number) {
-	return Math.floor(k.rand(0, max)) <= c;
+	return k.rand(0, max) < c;
 }

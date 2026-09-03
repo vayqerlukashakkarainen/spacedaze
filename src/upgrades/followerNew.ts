@@ -49,3 +49,26 @@ export const followerMissiles: UpgradeDefinition = {
 		},
 	],
 };
+
+export const followerProjectileLink: UpgradeDefinition = {
+	toolKey: "followerProjectileLink",
+	toolName: "Drone projectile link",
+	category: "combat",
+	type: "unlock",
+	levels: [
+		{
+			name: "Neural Ballistics Link",
+			desc: "Combat drones inherit your projectile modifiers",
+			sprite: "arc_capacitor_upg1",
+			price: 30,
+			effects: {
+				unlocks: [
+					{
+						unlockId: "followerProjectileLink",
+						description: "Drones inherit projectile modifiers",
+					},
+				],
+			},
+		},
+	],
+};

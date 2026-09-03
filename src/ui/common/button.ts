@@ -1,6 +1,7 @@
 import { Vec2 } from "kaplay";
 import { k, layers } from "../../main";
 import { uiState } from "../uiState";
+import { UI_COLORS } from "./theme";
 
 interface Props {
 	pos: Vec2;
@@ -25,14 +26,18 @@ export function createUiButton({
 }: Props) {
 	const btnSize = size || k.vec2(120, 40);
 	const btnTags = tags || ["levelEditor"];
-	const btnColor = color || { r: 0, g: 0, b: 0 };
+	const btnColor = color || {
+		r: UI_COLORS.panel[0],
+		g: UI_COLORS.panel[1],
+		b: UI_COLORS.panel[2],
+	};
 	const btn = k.add([
 		k.pos(pos),
 		k.rect(btnSize.x, btnSize.y),
 		k.area(),
 		k.color(btnColor.r, btnColor.g, btnColor.b),
 		k.anchor("center"),
-		k.outline(2, new k.Color(255, 255, 255)),
+		k.outline(2, k.rgb(...UI_COLORS.accent)),
 		k.fixed(),
 		k.layer(layers.ui),
 		...btnTags,
@@ -48,11 +53,13 @@ export function createUiButton({
 
 	btn.onHover(() => {
 		uiState.isOverUI = true;
+		btn.color = k.rgb(...UI_COLORS.panelHover);
 		if (onHoverStart) onHoverStart();
 	});
 
 	btn.onHoverEnd(() => {
 		uiState.isOverUI = false;
+		btn.color = k.rgb(btnColor.r, btnColor.g, btnColor.b);
 		if (onHoverEnd) onHoverEnd();
 	});
 	return btn;

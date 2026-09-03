@@ -19,6 +19,7 @@ interface SpawnBuildingOptions {
 	z?: number;
 	anchor?: Anchor;
 	scale?: number;
+	interactPromptOffset?: Vec2;
 }
 
 export function spawnBuilding(
@@ -32,6 +33,7 @@ export function spawnBuilding(
 		z = 0,
 		anchor = "center",
 		scale = 1,
+		interactPromptOffset = k.vec2(0, -40),
 	} = options;
 
 	const building = k.add([
@@ -46,8 +48,8 @@ export function spawnBuilding(
 	]);
 
 	const interactPrompt = building.add([
-		k.text("Space", { size: 12 }),
-		k.pos(0, -40),
+		k.text("F", { size: 12 }),
+		k.pos(interactPromptOffset),
 		k.anchor("center"),
 		k.color(255, 255, 255),
 		k.z(100),

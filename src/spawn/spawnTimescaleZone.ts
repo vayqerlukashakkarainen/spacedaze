@@ -10,6 +10,7 @@ interface Props {
 	timescaleValue: number;
 	duration?: number;
 	visualize?: boolean;
+	tags?: string[];
 }
 
 export function spawnTimescaleZone(props: Props) {
@@ -30,6 +31,7 @@ export function spawnTimescaleZone(props: Props) {
 		},
 		tags.props,
 		tags.gameLoop,
+		...(props.tags ?? []),
 	]);
 
 	// Spawn visual ring effect when zone is created

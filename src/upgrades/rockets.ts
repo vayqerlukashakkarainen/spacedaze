@@ -15,7 +15,7 @@ export const rocket: Tool = {
 
 export const increaseRockets: Tool = {
 	toolName: "Increase missiles",
-	requiredTool: "rockets",
+	requirements: { allOf: [{ toolKey: "rockets" }] },
 	upgrades: [
 		{
 			name: "Level 1",
@@ -50,7 +50,7 @@ export const increaseRockets: Tool = {
 
 export const rocketShards: Tool = {
 	toolName: "Missile shards",
-	requiredTool: "rockets",
+	requirements: { allOf: [{ toolKey: "rockets" }] },
 	upgrades: [
 		{
 			name: "Level 1",

@@ -36,6 +36,7 @@ export function renderASCII(map: GenerationMap): string {
 			} else {
 				// Empty cells - show tags
 				if (cell.tags.has("player_spawn")) line += "P ";
+				else if (cell.tags.has("end")) line += "E ";
 				else if (cell.tags.has("resource_node")) line += "R ";
 				else if (cell.tags.has("hazard")) line += "H ";
 				else if (cell.tags.has("tunnel")) line += "· ";
@@ -186,6 +187,8 @@ export function exportSVG(
 			// Color by tag
 			if (cell.tags.has("player_spawn")) {
 				fill = "#0f0";
+			} else if (cell.tags.has("end")) {
+				fill = "#0ff";
 			} else if (cell.tags.has("resource_node")) {
 				fill = "#00f";
 			} else if (cell.tags.has("hazard")) {
@@ -272,6 +275,8 @@ export function exportPNG(
 			// Color by tag
 			if (cell.tags.has("player_spawn")) {
 				fillColor = "#0f0";
+			} else if (cell.tags.has("end")) {
+				fillColor = "#0ff";
 			} else if (cell.tags.has("resource_node")) {
 				fillColor = "#00f";
 			} else if (cell.tags.has("hazard")) {

@@ -1,6 +1,6 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileComponentIntersection } from "../game";
-import { dtScaled, k } from "../main";
+import { k, velocityScale } from "../main";
 import { trailEmitter } from "../particles";
 import { spawnEnemyBlaster } from "../services/projectileHelpers";
 import { tags } from "../tags";
@@ -15,6 +15,10 @@ import { Component, compose } from "../compose";
 import { jitter } from "../comp/jitter";
 import { onEnemyHit } from "./enemyShared";
 import { timescale } from "../comp/timescale";
+import {
+	createEnemySpawnProfile,
+	type EnemySpawnOptions,
+} from "../services/threatService";
 
 const wingOffset = [6, 2];
 export const unitComponents: Record<number, Component[]> = {};
@@ -25,35 +29,43 @@ export function spawnShip1(
 	am: number,
 	hp: number,
 	scale: number,
-	speed: number
+	speed: number,
+	options: EnemySpawnOptions = {}
 ) {
-	const hb = 16 * scale;
+	const profile = createEnemySpawnProfile(hp, 1, scale, options);
+	const hb = 16 * profile.scale;
 	const m = k.add([
 		k.pos(pos),
 		k.sprite("enemy_ship1_body"),
+		k.color(...profile.tint),
 		k.rotate(dir.angle() + 90),
 		k.anchor("center"),
-		k.health(hp),
+		k.health(profile.hp),
 		k.animate(),
-		k.scale(scale),
+		k.scale(profile.scale),
 		timescale(),
 		jitter(),
-		k.offscreen({ destroy: true }),
+		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{
 			vel: dir,
-			speed: speed,
+			speed: speed * profile.speedMultiplier,
 			hb,
+			elite: profile.elite,
+			damage: profile.damage,
 		},
 		tags.enemy,
 		tags.unit,
+		...(profile.elite ? [tags.elite] : []),
 		tags.gameLoop,
+		...(options.tags ?? []),
 	]);
 
 	const wing1 = m.add([
 		k.pos(k.vec2(-wingOffset[0], -wingOffset[1])),
 		k.sprite("enemy_ship1_left_wing"),
+		k.color(...profile.tint),
 		k.anchor("center"),
-		k.health(Math.floor(hp / 2)),
+		k.health(Math.floor(profile.hp / 2)),
 		k.animate(),
 		k.rotate(0),
 		timescale(),
@@ -64,8 +76,9 @@ export function spawnShip1(
 	const wing2 = m.add([
 		k.pos(k.vec2(wingOffset[0], -wingOffset[1])),
 		k.sprite("enemy_ship1_right_wing"),
+		k.color(...profile.tint),
 		k.anchor("center"),
-		k.health(Math.floor(hp / 2)),
+		k.health(Math.floor(profile.hp / 2)),
 		k.animate(),
 		k.rotate(0),
 		timescale(),
@@ -75,15 +88,21 @@ export function spawnShip1(
 	]);
 
 	unitComponents[m.id!] = compose({
+		rewardMultiplier: profile.rewardMultiplier,
 		parts: [
-			{ obj: m, hitbox: 8, isBody: true, scoreOnDestroy: am },
+			{
+				obj: m,
+				hitbox: 8,
+				isBody: true,
+				scoreOnDestroy: am * profile.rewardMultiplier,
+			},
 			{ obj: wing1, hitbox: 8, isBody: false, scoreOnDestroy: 0 },
 			{ obj: wing2, hitbox: 8, isBody: false, scoreOnDestroy: 0 },
 		],
 	});
 
 	m.onUpdate(() => {
-		m.move(m.vel.scale(m.speed * dtScaled() * m.getTimescale()));
+		m.move(m.vel.scale(m.speed * velocityScale() * m.getTimescale()));
 
 		checkProjectileComponentIntersection(
 			m.pos,
@@ -91,8 +110,6 @@ export function spawnShip1(
 			tags.friendly,
 			unitComponents[m.id!],
 			(p, i) => {
-				k.destroy(p);
-
 				onEnemyHit(unitComponents[m.id!][i].obj, p);
 			}
 		);
@@ -102,7 +119,7 @@ export function spawnShip1(
 				m.pos,
 				k.Vec2.fromAngle(m.angle - 90),
 				m.angle,
-				1
+				m.damage
 			);
 		}
 

@@ -32,3 +32,16 @@ export const followerMissiles: Tool = {
 		},
 	],
 };
+
+export const followerProjectileLink: Tool = {
+	toolName: "Drone projectile link",
+	upgrades: [
+		{
+			name: "Neural Ballistics Link",
+			desc: "Combat drones inherit your projectile modifiers",
+			sprite: "arc_capacitor_upg1",
+			price: 30,
+			value: 1,
+		},
+	],
+};

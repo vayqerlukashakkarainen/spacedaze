@@ -22,20 +22,32 @@ const headOffset = 25;
 const pipeOffset = 22;
 export const unitComponents: Record<number, Component[]> = {};
 
-export function spawnBoss1(pos: Vec2, am: number, hp: number, scale: number) {
-	const angle = pos.angle(k.center());
+interface BossOptions {
+	onDefeated?: (pos: Vec2) => void;
+	tags?: string[];
+}
+
+export function spawnBoss1(
+	pos: Vec2,
+	am: number,
+	hp: number,
+	scale: number,
+	options: BossOptions = {}
+) {
+	const targetPos = pos.clone();
+	const spawnPos = pos.add(0, 180);
 	const hb = 100 * scale;
 	const m = k.add([
-		k.pos(k.vec2(k.center().x, k.height() - 120)),
+		k.pos(spawnPos),
 		k.sprite("boss1_body"),
-		k.rotate(angle),
+		k.rotate(0),
 		k.anchor("center"),
 		k.health(hp),
 		k.animate(),
 		k.opacity(0),
 		k.scale(scale),
 		jitter(),
-		k.state("fire_blasters", [
+		k.state("entry", [
 			"entry",
 			"wait",
 			"fire_blasters",
@@ -44,11 +56,14 @@ export function spawnBoss1(pos: Vec2, am: number, hp: number, scale: number) {
 		]),
 		{
 			hb,
-			entryPos: k.center(),
+			entryPos: spawnPos.clone(),
+			targetPos,
+			baseScale: scale,
 		},
 		tags.enemy,
 		tags.unit,
 		tags.gameLoop,
+		...(options.tags ?? []),
 	]);
 
 	const blaster1 = m.add([
@@ -99,6 +114,8 @@ export function spawnBoss1(pos: Vec2, am: number, hp: number, scale: number) {
 	]);
 
 	unitComponents[m.id!] = compose({
+		rewardSource: "boss",
+		onBodyDeath: () => options.onDefeated?.(targetPos.clone()),
 		parts: [
 			{ obj: m, hitbox: 64, isBody: true, scoreOnDestroy: am },
 			{ obj: blaster1, hitbox: 22, isBody: false, scoreOnDestroy: 0 },
@@ -111,12 +128,13 @@ export function spawnBoss1(pos: Vec2, am: number, hp: number, scale: number) {
 		m.entryPos = m.pos;
 	});
 	m.onStateUpdate("entry", () => {
-		m.moveTo(k.center(), 15);
+		m.moveTo(m.targetPos, 90);
 
-		const movedDist = m.entryPos.dist(m.pos);
-		k.shake(movedDist / 1000);
+		const remainingDistance = m.pos.dist(m.targetPos);
+		k.shake(remainingDistance / 2000);
 
-		if (movedDist > 180) {
+		if (remainingDistance < 4) {
+			m.pos = m.targetPos.clone();
 			m.enterState("wait");
 		}
 	});
@@ -128,8 +146,10 @@ export function spawnBoss1(pos: Vec2, am: number, hp: number, scale: number) {
 
 	m.onStateEnter("fire_blasters", async () => {
 		for (let i = 0; i < 3; i++) {
-			blaster1.targetPos = k.center();
-			blaster2.targetPos = k.rand(k.vec2(k.width(), k.height()));
+			blaster1.targetPos = playerObj.pos.clone();
+			blaster2.targetPos = playerObj.pos.add(
+				k.rand(k.vec2(-120, -120), k.vec2(120, 120))
+			);
 			await k.wait(0.6);
 			await loopService.loop(
 				0.1,
@@ -166,7 +186,7 @@ export function spawnBoss1(pos: Vec2, am: number, hp: number, scale: number) {
 	});
 
 	m.onUpdate(() => {
-		const v = k.wave(3, 3.1, k.time());
+		const v = k.wave(m.baseScale * 0.98, m.baseScale * 1.02, k.time());
 		m.scale = k.vec2(v, v);
 		checkProjectileComponentIntersection(
 			m.pos,
@@ -174,8 +194,6 @@ export function spawnBoss1(pos: Vec2, am: number, hp: number, scale: number) {
 			tags.friendly,
 			unitComponents[m.id!],
 			(p, i) => {
-				k.destroy(p);
-
 				onEnemyHit(unitComponents[m.id!][i].obj, p);
 			}
 		);

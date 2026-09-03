@@ -1,5 +1,7 @@
 // Core upgrade system types
 
+import { UpgradeRewardPolicy } from "./rewardTypes";
+
 export type StatCategory =
 	| "movement"
 	| "combat"
@@ -51,12 +53,23 @@ export interface UpgradeLevel {
 	effects: UpgradeEffect;
 }
 
+export interface UpgradeRequirement {
+	toolKey: string;
+	minimumStacks?: number;
+}
+
+export interface UpgradeRequirements {
+	allOf?: readonly UpgradeRequirement[];
+	anyOf?: readonly UpgradeRequirement[];
+}
+
 export interface UpgradeDefinition {
 	toolKey: string;
 	toolName: string;
 	category: StatCategory;
 	type: UpgradeType;
-	requiredTool?: string;
+	requirements?: UpgradeRequirements;
+	reward?: UpgradeRewardPolicy;
 	levels: UpgradeLevel[];
 }
 

@@ -9,6 +9,8 @@ interface ShrineProps {
 	pos: Vec2;
 	radius: number;
 	captureTime: number;
+	onComplete?: (pos: Vec2) => void;
+	tags?: string[];
 }
 
 export function spawnShrine(props: ShrineProps) {
@@ -25,6 +27,7 @@ export function spawnShrine(props: ShrineProps) {
 		},
 		tags.props,
 		tags.gameLoop,
+		...(props.tags ?? []),
 	]);
 
 	// Create circle to show radius
@@ -79,14 +82,13 @@ export function spawnShrine(props: ShrineProps) {
 
 		// Check if capture complete
 		if (shrine.timer >= shrine.maxTimer) {
-			console.log("Shrine captured!");
-
 			// Spawn particles
 			explosionEmitter.pos = shrine.pos;
 			explosionEmitter.emit(30);
 
 			// Play sound
 			audioService.playSound("powerup1", { volume: mainSoundVolume });
+			props.onComplete?.(shrine.pos.clone());
 
 			// Destroy shrine
 			k.destroy(shrine);

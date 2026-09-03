@@ -1,17 +1,17 @@
-import { GameObj } from "kaplay";
+import { GameObj, Vec2 } from "kaplay";
 import {
-	dtScaled,
 	k,
 	mainSoundVolume,
 	subSoundVolume,
 	timeScale,
+	velocityScale,
 } from "../main";
 import { audioService } from "./audioService";
 import { timescale } from "../comp/timescale";
-import { createExplosion, pickUnitInDistance, projectiles } from "../game";
+import { pickUnitInDistance, projectiles } from "../game";
 import { tags } from "../tags";
 import { spawnFlash } from "../spawn/spawnFlash";
-import { spawnLink } from "../spawn/spawnLink";
+import { spawnChainProjectile } from "../spawn/spawnLink";
 import {
 	debreeRocketEmitter,
 	dustTrailEmitter,
@@ -20,7 +20,7 @@ import {
 	trailEmitter,
 } from "../particles";
 import { lerpAngleBetweenPos, lerpMoveRotateAndScale } from "../shared";
-import { chance } from "../powerups";
+import { resolveCriticalDamage } from "../projectiles/shared";
 import type {
 	AccelerateModifier,
 	BounceModifier,
@@ -29,24 +29,56 @@ import type {
 	CurveModifier,
 	DamageTickModifier,
 	DuplicateModifier,
+	EchoModifier,
+	ExecutionModifier,
+	FragmentModifier,
 	GravityModifier,
+	GrowthModifier,
 	ImpactModifier,
 	KnockbackModifier,
 	LifespanModifier,
+	MineModifier,
 	OnDestroyModifier,
+	PaintModifier,
 	PiercingModifier,
+	ProximityModifier,
 	ProjectileConfig,
+	ReturnModifier,
 	SeekModifier,
 	SlowModifier,
 	SplashModifier,
 	SpiralModifier,
 	SplitModifier,
 	TrailModifier,
+	VolatileModifier,
+	CriticalShatterModifier,
 } from "../projectiles/projectileConfig";
+import { gridRegistry } from "../grid/gridRegistry";
+import { ACTIVE_RUN_GRID_KEY } from "../grid/gridKeys";
+import type { HexGrid } from "../grid/hexGrid";
+import { damageDestructibleWall } from "./destructibleWallService";
+import { spawnRing } from "../spawn/spawnRing";
+import { randomExplosion } from "../util";
+import { applyDamage } from "./damageService";
+import {
+	createExplosion,
+	type ExplosionContext,
+	type ExplosionOptions,
+} from "./explosionService";
+import { applyRadialGravity } from "./radialGravityService";
+
+const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
+
+interface ChainLightningRuntime extends ChainModifier {
+	chainedTargets: Set<number>;
+	chainsUsed: number;
+}
 
 export function spawnProjectile(config: ProjectileConfig): GameObj {
+	config.procState ??= { remaining: DEFAULT_PROJECTILE_PROC_BUDGET };
 	// Calculate final speed
 	const finalSpeed = config.speed * (config.speedMultiplier ?? 1);
+	const damagesDestructibleWalls = config.tags.includes(tags.friendly);
 
 	// Build component list
 	const components: any[] = [
@@ -57,13 +89,17 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 		k.offscreen({ destroy: true }),
 		k.anchor("center"),
 		k.sprite(config.sprite),
+		k.color(
+			config.tint ??
+				(config.tags.includes(tags.enemy) ? k.rgb(255, 150, 150) : k.WHITE)
+		),
 		k.scale(1),
 		{
 			speed: finalSpeed,
 			dir: config.dir,
 			lifetime: 0,
 		},
-		...[...config.tags, tags.gameLoop],
+		...[...config.tags, tags.projectile, tags.gameLoop],
 	];
 
 	const proj = k.add(components);
@@ -80,12 +116,26 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	applyLifespanModifier(proj, config.lifespan);
 	applyOnDestroyModifier(proj, config.onDestroy);
 	applySplitModifier(proj, config.split);
+	applySpiralModifier(proj, config.spiral);
+	applyDuplicateModifier(proj, config.duplicate);
 	applyAccelerateModifier(proj, config.accelerate);
 	applyGravityModifier(proj, config.gravity);
 	applyCurveModifier(proj, config.curve);
 	applyDamageTickModifier(proj, config.damageTick);
 	applySlowModifier(proj, config.slow);
 	applyKnockbackModifier(proj, config.knockback);
+	applyFragmentModifier(proj, config.fragment);
+	applyProximityModifier(proj, config.proximity);
+	applyEchoModifier(proj, config.echo);
+	applyReturnModifier(proj, config.returning);
+	applyGrowthModifier(proj, config.growth);
+	applyVolatileModifier(proj, config.volatile);
+	applyCriticalShatterModifier(proj, config.criticalShatter);
+	applyExecutionModifier(proj, config.execution);
+	applyPaintModifier(proj, config.paint);
+	applyMineModifier(proj, config.mine);
+	proj.projectileConfig = config;
+	proj.procState = config.procState;
 
 	// Play fire sound
 	if (config.fireSound) {
@@ -94,13 +144,21 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 
 	// Update loop
 	proj.onUpdate(() => {
-		proj.lifetime += dtScaled();
+		const previousPos = proj.pos.clone();
+		proj.lifetime += k.dt() * proj.getTimescale();
 
 		// Check lifespan
 		if (proj.lifespanDuration && proj.lifetime > proj.lifespanDuration) {
+			proj.destroyCause = "lifespan";
+			if (proj.isDeployedMine) proj.suppressOnDestroyEffects = true;
 			k.destroy(proj);
 			return;
 		}
+
+		if (proj.proximityConfig && updateProximityFuse(proj)) return;
+		if (proj.echoConfig) updateEcho(proj, config);
+		if (proj.returnConfig) updateReturning(proj);
+		if (proj.growthConfig) updateGrowth(proj);
 
 		// Trail rendering
 		if (proj.trail) {
@@ -108,7 +166,11 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 		}
 
 		// Seeking behavior
-		if (proj.canSeek && proj.lifetime > proj.seekDelay) {
+		if (
+			proj.canSeek &&
+			proj.lifetime > proj.seekDelay &&
+			!proj.returnConfig?.returning
+		) {
 			updateSeeking(proj);
 		}
 
@@ -119,6 +181,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 			!proj.hasSplit
 		) {
 			updateSplit(proj, config);
+			if (!proj.exists()) return;
 		}
 
 		// Spiral behavior
@@ -150,12 +213,36 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 			updateCurve(proj);
 		}
 
-		// Movement
-		updateMovement(proj);
+		// Spiral movement advances its own center point.
+		if (!proj.spiralConfig) updateMovement(proj);
+		const wallCollision = findSolidCellCollision(previousPos, proj.pos);
+		if (wallCollision) {
+			if (damagesDestructibleWalls) {
+					damageDestructibleWall(
+						ACTIVE_RUN_GRID_KEY,
+						wallCollision.coord,
+						Math.max(proj.impactDamage ?? proj.splashDamage ?? 1, 1),
+						wallCollision.safePos
+					);
+			}
+			proj.pos = wallCollision.safePos;
+			if (!tryBounceProjectile(proj, undefined, wallCollision.normal)) {
+				k.destroy(proj);
+			}
+		}
+		if (!proj.exists()) return;
+		if (
+			proj.mineConfig &&
+			!proj.isDeployedMine &&
+			updateMinePlacement(proj, config)
+		) return;
 	});
 
 	// On destroy
 	proj.onDestroy(() => {
+		if (proj.isDeployedMine && proj.destroyCause !== "proximity") {
+			proj.suppressOnDestroyEffects = true;
+		}
 		// Remove from projectiles array
 		const index = projectiles.findIndex((p) => p.id === proj.id);
 		if (index !== -1) {
@@ -163,16 +250,19 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 		}
 
 		// Play destroy sound
-		if (config.destroySound) {
+		if (config.destroySound && !proj.suppressDestroySound) {
 			audioService.playSound(config.destroySound, { volume: subSoundVolume });
 		}
 
 		// Flash effect
-		spawnFlash(proj.pos, 5);
+		spawnFlash(proj.pos, 5, proj.didCrit ? k.RED : k.WHITE);
 
 		// OnDestroy effects
-		if (proj.onDestroyConfig) {
+		if (proj.onDestroyConfig && !proj.suppressOnDestroyEffects) {
 			handleOnDestroy(proj, config);
+		}
+		if (proj.fragmentConfig && !proj.suppressOnDestroyEffects) {
+			handleFragmentation(proj, config);
 		}
 	});
 
@@ -180,6 +270,50 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	projectiles.push(proj);
 
 	return proj;
+}
+
+interface SolidCellCollision {
+	safePos: Vec2;
+	normal: Vec2;
+	coord: Parameters<HexGrid["hexToScreen"]>[0];
+}
+
+function findSolidCellCollision(
+	start: Vec2,
+	end: Vec2
+): SolidCellCollision | undefined {
+	const grid = gridRegistry.get(ACTIVE_RUN_GRID_KEY);
+	if (!grid) return undefined;
+
+	const distance = start.dist(end);
+	const sampleSpacing = Math.max(4, grid.config.hexSize * 0.2);
+	const sampleCount = Math.max(1, Math.ceil(distance / sampleSpacing));
+	let safePos = start.clone();
+
+	for (let index = 1; index <= sampleCount; index++) {
+		const samplePos = start.lerp(end, index / sampleCount);
+		const coord = grid.screenToHex(samplePos);
+		if (!grid.inBounds(coord) || !grid.isWalkable(coord)) {
+			return {
+				safePos,
+				normal: getSolidCellNormal(grid, coord, samplePos, end.sub(start)),
+				coord,
+			};
+		}
+		safePos = samplePos;
+	}
+	return undefined;
+}
+
+function getSolidCellNormal(
+	grid: HexGrid,
+	blockedCoord: Parameters<HexGrid["hexToScreen"]>[0],
+	impactPos: Vec2,
+	movement: Vec2
+) {
+	const normal = impactPos.sub(grid.hexToScreen(blockedCoord));
+	if (normal.len() > 0) return normal.unit();
+	return movement.len() > 0 ? movement.unit().scale(-1) : k.vec2(0, -1);
 }
 
 // Modifier Application Functions
@@ -234,7 +368,11 @@ function applyPiercingModifier(proj: GameObj, config?: PiercingModifier) {
 function applyBounceModifier(proj: GameObj, config?: BounceModifier) {
 	if (!config) return;
 	proj.bouncesRemaining = config.maxBounces;
-	proj.bounceSpeedRetention = config.speedRetention ?? 1.1;
+	proj.bounceSpeedRetention = config.speedRetention ?? 1;
+	proj.bounceDamageRetention = config.damageRetention ?? 0.7;
+	proj.stripPlayerModifiersOnBounce = config.stripPlayerModifiers ?? false;
+	proj.bounceInheritsPlayerModifiers = config.inheritPlayerModifiers ?? false;
+	proj.bounceModifierFallbacks = config.modifierFallbacks;
 	proj.bounceConfig = config;
 	proj.hitTargets = new Set();
 }
@@ -247,6 +385,7 @@ function applyChainModifier(proj: GameObj, config?: ChainModifier) {
 		damageReduction: config.damageReduction ?? 0.7,
 		targetTags: config.targetTags,
 		chainedTargets: new Set(),
+		chainsUsed: 0,
 	};
 }
 
@@ -309,6 +448,7 @@ function applyGravityModifier(proj: GameObj, config?: GravityModifier) {
 		strength: config.strength,
 		range: config.range,
 		falloff: config.falloff ?? 0.5,
+		targetTags: config.targetTags,
 	};
 }
 
@@ -350,6 +490,93 @@ function applySlowModifier(proj: GameObj, config?: SlowModifier) {
 function applyKnockbackModifier(proj: GameObj, config?: KnockbackModifier) {
 	if (!config) return;
 	proj.knockbackStrength = config.strength;
+}
+
+function applyFragmentModifier(proj: GameObj, config?: FragmentModifier) {
+	if (!config) return;
+	proj.fragmentConfig = { ...config };
+}
+
+function applyProximityModifier(proj: GameObj, config?: ProximityModifier) {
+	if (!config) return;
+	proj.proximityConfig = {
+		...config,
+		targetTags: [...config.targetTags],
+	};
+	proj.splashDamage = (proj.impactDamage ?? proj.splashDamage ?? 1) *
+		config.damageMultiplier;
+	proj.splashRadius = config.explosionRadius;
+	proj.splashFalloff = 0.35;
+	proj.splashFalloffDist = 0.5;
+	proj.onDestroyConfig = {
+		...(proj.onDestroyConfig ?? {}),
+		explode: true,
+	};
+}
+
+function applyEchoModifier(proj: GameObj, config?: EchoModifier) {
+	if (!config) return;
+	proj.echoConfig = {
+		...config,
+		remaining: config.count,
+		nextAt: config.delay,
+		origin: proj.pos.clone(),
+	};
+}
+
+function applyReturnModifier(proj: GameObj, config?: ReturnModifier) {
+	if (!config) return;
+	proj.returnConfig = {
+		...config,
+		origin: proj.pos.clone(),
+		returning: false,
+		returned: false,
+		turnProgress: 0,
+		turnDirection: k.chance(0.5) ? 1 : -1,
+	};
+}
+
+function applyGrowthModifier(proj: GameObj, config?: GrowthModifier) {
+	if (!config) return;
+	proj.growthConfig = {
+		...config,
+		origin: proj.pos.clone(),
+		baseDamage: proj.impactDamage,
+		baseScale: proj.scale.x,
+		particleTimer: 0,
+	};
+}
+
+function applyVolatileModifier(proj: GameObj, config?: VolatileModifier) {
+	if (!config) return;
+	proj.volatileConfig = { ...config, procState: proj.procState };
+}
+
+function applyCriticalShatterModifier(
+	proj: GameObj,
+	config?: CriticalShatterModifier
+) {
+	if (!config) return;
+	proj.criticalShatterConfig = { ...config };
+}
+
+function applyExecutionModifier(proj: GameObj, config?: ExecutionModifier) {
+	if (!config) return;
+	proj.executionConfig = { ...config };
+}
+
+function applyPaintModifier(proj: GameObj, config?: PaintModifier) {
+	if (!config) return;
+	proj.paintConfig = { ...config };
+}
+
+function applyMineModifier(proj: GameObj, config?: MineModifier) {
+	if (!config) return;
+	proj.mineConfig = {
+		...config,
+		origin: proj.pos.clone(),
+		placementChecked: false,
+	};
 }
 
 // Update Functions
@@ -414,19 +641,21 @@ function updateMovement(proj: GameObj) {
 		proj.move(
 			k
 				.vec2(currentDir.x * speed, currentDir.y * speed)
-				.scale(dtScaled() * proj.getTimescale())
+				.scale(velocityScale())
 		);
 	}
 }
 
 function updateSplit(proj: GameObj, config: ProjectileConfig) {
 	proj.hasSplit = true;
+	const splitCount = consumeProcSlots(config, proj.splitConfig.splitCount);
+	if (splitCount < 2) return;
 
 	const angleStep =
-		proj.splitConfig.splitAngle / (proj.splitConfig.splitCount - 1);
+		proj.splitConfig.splitAngle / (splitCount - 1);
 	const startAngle = proj.angle - proj.splitConfig.splitAngle / 2;
 
-	for (let i = 0; i < proj.splitConfig.splitCount; i++) {
+	for (let i = 0; i < splitCount; i++) {
 		const angle = startAngle + i * angleStep;
 		const dir = k.Vec2.fromAngle(angle - 90);
 
@@ -437,40 +666,62 @@ function updateSplit(proj: GameObj, config: ProjectileConfig) {
 			rotation: angle,
 			speed: config.speed * proj.splitConfig.speedMultiplier,
 			split: undefined,
+			impact: config.impact
+				? {
+						...config.impact,
+						damage:
+							config.impact.damage * proj.splitConfig.damageMultiplier,
+					}
+				: undefined,
 		};
-
-		if (newConfig.impact) {
-			newConfig.impact.damage *= proj.splitConfig.damageMultiplier;
-		}
 
 		spawnProjectile(newConfig);
 	}
 
+	proj.suppressOnDestroyEffects = true;
 	k.destroy(proj);
 }
 
 function updateSpiral(proj: GameObj) {
 	const config = proj.spiralConfig;
+	if (proj.targetUnit) updateSeekingAngle(proj);
 	config.currentAngle +=
-		config.rotationSpeed * dtScaled() * proj.getTimescale();
-	config.currentRadius += config.expandSpeed * dtScaled() * proj.getTimescale();
+		config.rotationSpeed * k.dt() * velocityScale() * proj.getTimescale();
+	config.currentRadius +=
+		config.expandSpeed * k.dt() * velocityScale() * proj.getTimescale();
 
 	const spiralOffset = k.Vec2.fromAngle(config.currentAngle).scale(
 		config.radius + config.currentRadius
 	);
 	const baseDir = k.Vec2.fromAngle(proj.angle - 90);
 	const baseMovement = baseDir.scale(
-		proj.speed * dtScaled() * proj.getTimescale()
+		proj.speed * k.dt() * velocityScale() * proj.getTimescale()
 	);
 
 	proj.spiralCenter = proj.spiralCenter.add(baseMovement);
 	proj.pos = proj.spiralCenter.add(spiralOffset);
 }
 
+function updateSeekingAngle(proj: GameObj) {
+	const { lerp } = lerpAngleBetweenPos(
+		proj.angle,
+		proj.pos,
+		proj.targetUnit.pos,
+		proj.turnSpeed * timeScale * proj.getTimescale(),
+		-90
+	);
+	proj.angle = lerp;
+	proj.dir = k.Vec2.fromAngle(proj.angle - 90);
+}
+
 function updateDuplicate(proj: GameObj, config: ProjectileConfig) {
 	proj.hasDuplicated = true;
+	const duplicateCount = consumeProcSlots(
+		config,
+		proj.duplicateConfig.duplicateCount
+	);
 
-	for (let i = 0; i < proj.duplicateConfig.duplicateCount; i++) {
+	for (let i = 0; i < duplicateCount; i++) {
 		const offsetAngle =
 			(i + 1) * (360 / (proj.duplicateConfig.duplicateCount + 1));
 		const offsetDir = k.Vec2.fromAngle(offsetAngle);
@@ -490,58 +741,316 @@ function updateDuplicate(proj: GameObj, config: ProjectileConfig) {
 
 function updateAccelerate(proj: GameObj) {
 	const config = proj.accelerateConfig;
-	proj.speed += config.acceleration * dtScaled() * proj.getTimescale();
+	proj.speed +=
+		config.acceleration * k.dt() * velocityScale() * proj.getTimescale();
 	proj.speed = Math.max(config.minSpeed, Math.min(config.maxSpeed, proj.speed));
 }
 
 function updateGravity(proj: GameObj) {
 	const config = proj.gravityConfig;
-	const massObjects = k.query({ include: ["mass"], includeOp: "and" });
-
-	for (const obj of massObjects) {
-		const distance = proj.pos.dist(obj.pos);
-		if (distance > config.range || distance < 1) continue;
-
-		// Calculate direction from mass object to projectile (pull towards projectile)
-		const direction = proj.pos.sub(obj.pos).unit();
-
-		// Calculate force with distance falloff (inverse square law approximation)
-		const normalizedDistance = distance / config.range;
-		const falloffMultiplier = Math.pow(1 - normalizedDistance, config.falloff);
-		const force =
-			config.strength * falloffMultiplier * dtScaled() * proj.getTimescale();
-
-		// Apply force to mass object's velocity (relative effect)
-		const acceleration = direction.scale(force / obj.mass);
-		obj.velocity.x += acceleration.x;
-		obj.velocity.y += acceleration.y;
-
-		// Apply velocity to position
-		obj.pos.x +=
-			obj.velocity.x * dtScaled() * (obj.getTimescale ? obj.getTimescale() : 1);
-		obj.pos.y +=
-			obj.velocity.y * dtScaled() * (obj.getTimescale ? obj.getTimescale() : 1);
-
-		// Apply damping to prevent infinite acceleration
-		const damping = 0.95;
-		obj.velocity.x *= damping;
-		obj.velocity.y *= damping;
-	}
+	applyRadialGravity(proj.pos, {
+		strength: config.strength,
+		range: config.range,
+		falloff: config.falloff,
+		targetTags: config.targetTags,
+		targetTagMode: "and",
+		excludeIds: [proj.id],
+	});
 }
 
 function updateCurve(proj: GameObj) {
 	const config = proj.curveConfig;
 	const turnDirection = config.direction === "left" ? -1 : 1;
 	const angleChange =
-		config.strength * turnDirection * dtScaled() * proj.getTimescale();
+		config.strength *
+		turnDirection *
+		k.dt() *
+		velocityScale() *
+		proj.getTimescale();
 	proj.angle += angleChange;
 	proj.dir = k.Vec2.fromAngle(proj.angle - 90);
 }
 
-function handleBounce(target: GameObj, projectile: GameObj) {
-	// Calculate normal (surface normal) from target center to projectile position
-	// For circular objects, the normal is the vector from center to impact point
-	const normal = projectile.pos.sub(target.pos).unit();
+function updateProximityFuse(proj: GameObj) {
+	const config = proj.proximityConfig;
+	if (proj.lifetime < (config.armDelay ?? 0)) return false;
+	const targets = k.query({
+		include: config.targetTags,
+		includeOp: "and",
+	});
+	const target = targets.find((candidate) =>
+		candidate.exists() && candidate.pos.dist(proj.pos) <= config.radius
+	);
+	if (!target) return false;
+
+	if (proj.isDeployedMine) {
+		detonateMine(proj);
+		return true;
+	}
+
+	proj.destroyCause = "proximity";
+	k.destroy(proj);
+	return true;
+}
+
+function detonateMine(proj: GameObj) {
+	if (!proj.isDeployedMine || proj.mineDetonationFeedbackPlayed) return;
+	proj.mineDetonationFeedbackPlayed = true;
+	proj.destroyCause = "proximity";
+	proj.suppressOnDestroyEffects = true;
+	createProjectileExplosion(proj, {
+		pos: proj.pos,
+		radius: proj.splashRadius ?? 58,
+		damage: proj.splashDamage ?? 1,
+		damageFalloff: proj.splashFalloff ?? 0.35,
+		falloffDistance: proj.splashFalloffDist ?? 0.5,
+	});
+	debreeRocketEmitter.emitter.position = proj.pos;
+	debreeRocketEmitter.emitter.direction = proj.angle - 90;
+	debreeRocketEmitter.emit(6);
+	audioService.playSound(randomExplosion(), { volume: subSoundVolume });
+	k.shake(4);
+	k.destroy(proj);
+}
+
+function updateMinePlacement(proj: GameObj, config: ProjectileConfig) {
+	const mine = proj.mineConfig;
+	if (mine.placementChecked) return false;
+	if (mine.origin.dist(proj.pos) < mine.placementDistance) return false;
+
+	mine.placementChecked = true;
+	if (!k.chance(mine.chance)) return false;
+	return deployMine(proj, config);
+}
+
+function updateEcho(proj: GameObj, config: ProjectileConfig) {
+	const echo = proj.echoConfig;
+	if (echo.remaining <= 0 || proj.lifetime < echo.nextAt) return;
+	if (!consumeProcBudget(config, 1)) {
+		echo.remaining = 0;
+		return;
+	}
+
+	const echoConfig: ProjectileConfig = {
+		...config,
+		pos: echo.origin.clone(),
+		dir: config.dir.clone(),
+		echo: undefined,
+		impact: config.impact
+			? {
+					damage: config.impact.damage * echo.damageMultiplier,
+					damageMultiplier: config.impact.damageMultiplier,
+				}
+			: undefined,
+		fireSound: undefined,
+	};
+	spawnProjectile(echoConfig);
+	echo.remaining--;
+	echo.nextAt += echo.delay;
+}
+
+function updateReturning(proj: GameObj) {
+	const config = proj.returnConfig;
+	if (config.returned || proj.lifetime < config.delay) return;
+
+	if (!config.returning) {
+		config.returning = true;
+		proj.speed *= config.speedMultiplier;
+		proj.targetUnit = null;
+		if (proj.hitTargets) proj.hitTargets.clear();
+		spawnFlash(proj.pos, 3, k.rgb(100, 190, 255));
+	}
+
+	const turnDuration = Math.max(0.08, config.turnDuration ?? 0.28);
+	const remainingTurn = 180 - config.turnProgress;
+	const turnStep = Math.min(
+		remainingTurn,
+		(180 / turnDuration) * k.dt() * velocityScale() * proj.getTimescale()
+	);
+	proj.angle += turnStep * config.turnDirection;
+	config.turnProgress += turnStep;
+	proj.dir = k.Vec2.fromAngle(proj.angle - 90);
+
+	if (config.turnProgress < 180) return;
+	config.returned = true;
+	const towardOrigin = config.origin.sub(proj.pos);
+	if (towardOrigin.len() > 0) {
+		proj.dir = towardOrigin.unit();
+		proj.angle = k.rad2deg(k.Vec2.toAngle(proj.dir)) + 90;
+	}
+}
+
+function updateGrowth(proj: GameObj) {
+	const config = proj.growthConfig;
+	const progress = k.clamp(
+		config.origin.dist(proj.pos) / config.maxDistance,
+		0,
+		1
+	);
+	const scale = k.lerp(config.baseScale, config.maxScale, progress);
+	proj.scale = k.vec2(scale);
+	if (config.baseDamage !== undefined) {
+		const damageMultiplier = k.lerp(
+			1,
+			config.maxDamageMultiplier,
+			progress
+		);
+		proj.impactDamage = config.baseDamage * damageMultiplier;
+
+		if (proj.is(tags.blaster) && damageMultiplier > 1.02) {
+			config.particleTimer += k.dt() * proj.getTimescale();
+			const particleInterval = k.lerp(0.1, 0.035, progress);
+			if (config.particleTimer >= particleInterval) {
+				config.particleTimer %= particleInterval;
+				const currentDir = k.Vec2.fromAngle(proj.angle - 90);
+				trailEmitter.emitter.position = proj.pos.sub(
+					currentDir.scale(5 + proj.scale.x * 2)
+				);
+				trailEmitter.emitter.direction = proj.angle;
+				trailEmitter.emit(1 + Math.floor(progress * 2));
+			}
+		}
+	}
+}
+
+function deployMine(proj: GameObj, config: ProjectileConfig) {
+	if (!consumeProcBudget(config, 1)) {
+		return false;
+	}
+
+	const mine = proj.mineConfig;
+	const damage = proj.impactDamage ?? proj.splashDamage ?? 1;
+	proj.suppressOnDestroyEffects = true;
+	proj.suppressDestroySound = true;
+	const mineConfig: ProjectileConfig = {
+		...config,
+		pos: proj.pos.clone(),
+		dir: k.vec2(0),
+		speed: 0,
+		fireSound: undefined,
+		destroySound: undefined,
+		mine: undefined,
+		echo: undefined,
+		returning: undefined,
+		growth: undefined,
+		accelerate: undefined,
+		spiral: undefined,
+		split: undefined,
+		lifespan: { duration: mine.armDelay + mine.duration },
+		proximity: {
+			radius: mine.triggerRadius,
+			explosionRadius: mine.explosionRadius,
+			damageMultiplier: mine.damageMultiplier,
+			targetTags: [tags.enemy],
+			armDelay: mine.armDelay,
+		},
+		impact: undefined,
+		splash: {
+			damage,
+			radius: mine.explosionRadius,
+		},
+		onDestroy: { explode: true },
+	};
+	const mineObj = spawnProjectile(mineConfig);
+	mineObj.isDeployedMine = true;
+	mineObj.mineArmDelay = mine.armDelay;
+	mineObj.scale = k.vec2(1.35);
+	mineObj.color = k.rgb(105, 105, 105);
+	mineObj.onUpdate(() => {
+		if (mineObj.mineArmed || mineObj.lifetime < mineObj.mineArmDelay) return;
+		mineObj.mineArmed = true;
+		mineObj.color = k.rgb(255, 190, 70);
+	});
+	k.destroy(proj);
+	return true;
+}
+
+function handleFragmentation(proj: GameObj, config: ProjectileConfig) {
+	const fragment = proj.fragmentConfig;
+	const count = consumeProcSlots(config, fragment.count);
+	if (count <= 0) return;
+	const damage = proj.impactDamage ?? config.impact?.damage ?? 1;
+
+	for (let index = 0; index < count; index++) {
+		const angle = proj.angle - fragment.spreadAngle / 2 +
+			fragment.spreadAngle * ((index + 0.5) / count);
+		spawnProjectile({
+			...config,
+			pos: proj.pos.clone(),
+			dir: k.Vec2.fromAngle(angle - 90),
+			rotation: angle,
+			fireSound: undefined,
+			fragment: undefined,
+			echo: undefined,
+			mine: undefined,
+			split: undefined,
+			onDestroy: undefined,
+			impact: {
+				damage: damage * fragment.damageMultiplier,
+			},
+			lifespan: { duration: 0.7 },
+		});
+	}
+}
+
+function spawnCriticalShards(proj: GameObj) {
+	const config = proj.criticalShatterConfig;
+	const sourceConfig = proj.projectileConfig as ProjectileConfig;
+	const count = consumeProcSlots(sourceConfig, config.count);
+	if (count <= 0) return;
+	const damage = proj.impactDamage ?? sourceConfig.impact?.damage ?? 1;
+
+	for (let index = 0; index < count; index++) {
+		const angle = proj.angle - config.spreadAngle / 2 +
+			config.spreadAngle * ((index + 0.5) / count);
+		spawnProjectile({
+			...sourceConfig,
+			pos: proj.pos.clone(),
+			dir: k.Vec2.fromAngle(angle - 90),
+			rotation: angle,
+			fireSound: undefined,
+			criticalShatter: undefined,
+			fragment: undefined,
+			echo: undefined,
+			mine: undefined,
+			split: undefined,
+			onDestroy: undefined,
+			impact: { damage: damage * config.damageMultiplier },
+			lifespan: { duration: 0.65 },
+		});
+	}
+}
+
+function consumeProcBudget(config: ProjectileConfig, amount: number) {
+	if (!config.procState || config.procState.remaining < amount) return false;
+	config.procState.remaining -= amount;
+	return true;
+}
+
+function consumeProcSlots(config: ProjectileConfig, requested: number) {
+	if (!config.procState) return 0;
+	const count = Math.min(requested, config.procState.remaining);
+	config.procState.remaining -= count;
+	return count;
+}
+
+export function tryBounceProjectile(
+	projectile: GameObj,
+	target?: GameObj,
+	explicitNormal?: Vec2,
+	deferModifierCleanup: boolean = false
+) {
+	if (
+		projectile.bouncesRemaining === undefined ||
+		projectile.bouncesRemaining <= 0
+	) return false;
+
+	let normal = explicitNormal;
+	if (!normal && target?.pos) {
+		const targetNormal = projectile.pos.sub(target.pos);
+		if (targetNormal.len() > 0) normal = targetNormal.unit();
+	}
+	if (!normal) normal = projectile.dir.scale(-1);
 
 	// Get incident direction (current projectile direction)
 	const incident = projectile.dir;
@@ -557,24 +1066,118 @@ function handleBounce(target: GameObj, projectile: GameObj) {
 
 	// Increase speed (arcade-style energy boost)
 	projectile.speed *= projectile.bounceSpeedRetention;
+	if (projectile.impactDamage !== undefined) {
+		projectile.impactDamage *= projectile.bounceDamageRetention;
+	}
+	if (projectile.splashDamage !== undefined) {
+		projectile.splashDamage *= projectile.bounceDamageRetention;
+	}
 
 	// Decrement bounces
 	projectile.bouncesRemaining--;
+	projectile.pos = projectile.pos.add(projectile.dir.scale(3));
+	spawnFlash(projectile.pos, 2, k.WHITE);
 
 	// Mark target as hit to prevent immediate re-collision
-	if (!projectile.hitTargets) {
+	if (target && !projectile.hitTargets) {
 		projectile.hitTargets = new Set();
 	}
-	projectile.hitTargets.add(target.id);
+	if (target) projectile.hitTargets.add(target.id);
+	if (deferModifierCleanup) {
+		projectile.bounceModifierCleanupPending = true;
+	} else {
+		stripPlayerModifiersAfterBounce(projectile);
+	}
+	return true;
+}
+
+function stripPlayerModifiersAfterBounce(projectile: GameObj) {
+	if (!projectile.bounceModifierCleanupPending && !projectile.stripPlayerModifiersOnBounce) {
+		return;
+	}
+	projectile.bounceModifierCleanupPending = false;
+	if (
+		!projectile.stripPlayerModifiersOnBounce ||
+		projectile.bounceInheritsPlayerModifiers
+	) return;
+
+	const fallback = projectile.bounceModifierFallbacks ?? {};
+
+	if (fallback.piercing) {
+		projectile.piercesRemaining = fallback.piercing.maxPierces;
+		projectile.pierceReduction = fallback.piercing.damageReduction ?? 0.8;
+	} else {
+		delete projectile.piercesRemaining;
+		delete projectile.pierceReduction;
+	}
+
+	if (fallback.chain) {
+		projectile.chainConfig = {
+			maxChains: fallback.chain.maxChains,
+			chainDistance: fallback.chain.chainDistance,
+			damageReduction: fallback.chain.damageReduction ?? 0.7,
+			targetTags: fallback.chain.targetTags,
+			chainedTargets: new Set(),
+			chainsUsed: 0,
+		};
+	} else {
+		delete projectile.chainConfig;
+	}
+
+	if (fallback.split) {
+		projectile.splitConfig = {
+			splitCount: fallback.split.splitCount,
+			splitAngle: fallback.split.splitAngle,
+			splitDelay: fallback.split.splitDelay ?? 0.5,
+			speedMultiplier: fallback.split.speedMultiplier ?? 0.8,
+			damageMultiplier: fallback.split.damageMultiplier ?? 0.6,
+		};
+		projectile.hasSplit = false;
+	} else {
+		delete projectile.splitConfig;
+		projectile.hasSplit = true;
+	}
+
+	if (fallback.gravity) {
+		projectile.gravityConfig = {
+			strength: fallback.gravity.strength,
+			range: fallback.gravity.range,
+			falloff: fallback.gravity.falloff ?? 0.5,
+			targetTags: fallback.gravity.targetTags,
+		};
+	} else {
+		delete projectile.gravityConfig;
+	}
+
+	delete projectile.critChance;
+	delete projectile.critMultiplier;
+	delete projectile.critFlashSize;
+	delete projectile.critSound;
+	delete projectile.damageTickConfig;
+	delete projectile.slowConfig;
+	delete projectile.knockbackStrength;
+	delete projectile.fragmentConfig;
+	delete projectile.proximityConfig;
+	delete projectile.echoConfig;
+	delete projectile.returnConfig;
+	delete projectile.growthConfig;
+	delete projectile.volatileConfig;
+	delete projectile.criticalShatterConfig;
+	delete projectile.executionConfig;
+	delete projectile.paintConfig;
+	delete projectile.mineConfig;
+	delete projectile.accelerateConfig;
+	delete projectile.spiralConfig;
 }
 
 function handleOnDestroy(proj: GameObj, config: ProjectileConfig) {
 	// Spawn projectiles on destroy
 	if (proj.onDestroyConfig.spawnProjectiles) {
 		const spawnConfig = proj.onDestroyConfig.spawnProjectiles;
-		const angleStep = spawnConfig.spreadAngle / spawnConfig.count;
+		const spawnCount = consumeProcSlots(config, spawnConfig.count);
+		const angleStep = spawnConfig.spreadAngle / Math.max(1, spawnCount);
 
-		for (let i = 0; i < spawnConfig.count; i++) {
+		for (let i = 0; i < spawnCount; i++) {
 			const angle = proj.angle + (i * angleStep - spawnConfig.spreadAngle / 2);
 			const dir = k.Vec2.fromAngle(angle - 90);
 
@@ -601,13 +1204,13 @@ function handleOnDestroy(proj: GameObj, config: ProjectileConfig) {
 
 	// Explode effect
 	if (proj.onDestroyConfig.explode && proj.splashRadius) {
-		createExplosion(
-			proj.pos,
-			proj.splashRadius,
-			proj.splashDamage,
-			proj.splashFalloff,
-			proj.splashFalloffDist
-		);
+		createProjectileExplosion(proj, {
+			pos: proj.pos,
+			radius: proj.splashRadius,
+			damage: proj.splashDamage,
+			damageFalloff: proj.splashFalloff,
+			falloffDistance: proj.splashFalloffDist,
+		});
 		debreeRocketEmitter.emitter.position = proj.pos;
 		debreeRocketEmitter.emitter.direction = proj.angle - 90;
 		debreeRocketEmitter.emit(6);
@@ -620,32 +1223,89 @@ export function applyProjectileDamage(
 	target: GameObj,
 	projectile: GameObj
 ): boolean {
+	if (!target.exists() || typeof target.hurt !== "function") return true;
+	if (
+		projectile.isDeployedMine &&
+		projectile.lifetime < (projectile.mineArmDelay ?? 0)
+	) return false;
+	if (projectile.isDeployedMine) {
+		detonateMine(projectile);
+		return false;
+	}
 	// Check if already hit (for piercing)
 	if (projectile.hitTargets && projectile.hitTargets.has(target.id)) {
 		return false;
 	}
 
 	let shouldDestroy = true;
+	let directTargetChainedByExplosion = false;
+	if (projectile.damageTickConfig) {
+		applyDamageTickEffect(target, {
+			...projectile.damageTickConfig,
+			volatile: projectile.volatileConfig,
+		});
+	}
+	if (projectile.slowConfig) {
+		applySlowEffect(target, {
+			...projectile.slowConfig,
+			procState: projectile.procState,
+		});
+	}
 
 	// Apply impact damage with crit
 	if (projectile.impactDamage !== undefined) {
 		let damage = projectile.impactDamage;
+		let critical = false;
+		projectile.didCrit = false;
+		if (
+			projectile.executionConfig &&
+			target.hp &&
+			target.maxHP &&
+			target.maxHP() > 0 &&
+			target.hp() / target.maxHP() <=
+				projectile.executionConfig.healthThreshold
+		) {
+			damage *= projectile.executionConfig.damageMultiplier;
+		}
+		if (projectile.paintConfig && target.projectilePaintStacks > 0) {
+			damage *= 1 + target.projectilePaintStacks *
+				projectile.paintConfig.damagePerStack;
+		}
 
 		// Apply crit
 		if (
 			projectile.critChance !== undefined &&
 			projectile.critMultiplier !== undefined
 		) {
-			if (chance(projectile.critChance, 100)) {
-				damage *= projectile.critMultiplier;
-				spawnFlash(projectile.pos, projectile.critFlashSize);
+			const result = resolveCriticalDamage(
+				projectile.critChance,
+				damage,
+				projectile.critMultiplier
+			);
+			damage = result.damage;
+			critical = result.critical;
+			if (critical) {
+				projectile.didCrit = true;
+				spawnFlash(projectile.pos, projectile.critFlashSize, k.RED);
 				audioService.playSound(projectile.critSound, {
 					volume: mainSoundVolume,
 				});
 			}
 		}
 
-		target.hp -= damage;
+		applyDamage(target, damage, { critical });
+		if (critical && projectile.criticalShatterConfig) {
+			spawnCriticalShards(projectile);
+		}
+		if (projectile.paintConfig && (!target.hp || target.hp() > 0)) {
+			applyPaintEffect(target, projectile.paintConfig);
+		}
+		if (target.hp && target.hp() <= 0) {
+			const volatile = target.damageTickEffect?.volatile;
+			if (volatile) triggerVolatileCorrosion(target, volatile);
+			const slowEffect = target.slowEffect;
+			if (slowEffect?.stasisBurst) triggerStasisBurst(target, slowEffect);
+		}
 	}
 
 	// Apply splash damage
@@ -653,12 +1313,15 @@ export function applyProjectileDamage(
 		projectile.splashDamage !== undefined &&
 		projectile.splashRadius !== undefined
 	) {
-		createExplosion(
-			projectile.pos,
-			projectile.splashRadius,
-			projectile.splashDamage,
-			projectile.splashFalloff ?? 0,
-			projectile.splashFalloffDist ?? 0
+		const explosion = createProjectileExplosion(projectile, {
+			pos: projectile.pos,
+			radius: projectile.splashRadius,
+			damage: projectile.splashDamage,
+			damageFalloff: projectile.splashFalloff ?? 0,
+			falloffDistance: projectile.splashFalloffDist ?? 0,
+		});
+		directTargetChainedByExplosion = explosion.hits.some(
+			(hit) => hit.target.id === target.id
 		);
 	}
 
@@ -667,7 +1330,7 @@ export function applyProjectileDamage(
 		projectile.bouncesRemaining !== undefined &&
 		projectile.bouncesRemaining > 0
 	) {
-		handleBounce(target, projectile);
+		tryBounceProjectile(projectile, target, undefined, true);
 		shouldDestroy = false;
 	}
 	// Handle piercing (only if not bouncing)
@@ -682,18 +1345,17 @@ export function applyProjectileDamage(
 	}
 
 	// Handle chain
-	if (projectile.chainConfig && projectile.chainConfig.maxChains > 0) {
-		handleChainLightning(target, projectile);
-	}
-
-	// Apply damage tick effect
-	if (projectile.damageTickConfig) {
-		applyDamageTickEffect(target, projectile.damageTickConfig);
-	}
-
-	// Apply slow effect
-	if (projectile.slowConfig) {
-		applySlowEffect(target, projectile.slowConfig);
+	if (
+		projectile.chainConfig &&
+		projectile.chainConfig.maxChains > 0 &&
+		!directTargetChainedByExplosion
+	) {
+		projectile.chainConfig.chainedTargets.add(target.id);
+		handleChainLightning(
+			target.pos,
+			projectile.chainConfig,
+			projectile.impactDamage ?? 1
+		);
 	}
 
 	// Apply knockback
@@ -702,90 +1364,131 @@ export function applyProjectileDamage(
 		target.vel = target.vel.add(dir.scale(projectile.knockbackStrength));
 	}
 
+	stripPlayerModifiersAfterBounce(projectile);
+
 	return shouldDestroy;
 }
 
-function handleChainLightning(target: GameObj, projectile: GameObj) {
-	const config = projectile.chainConfig;
+function createProjectileExplosion(
+	projectile: GameObj,
+	options: Omit<ExplosionOptions, "onResolved">
+) {
+	return createExplosion({
+		...options,
+		onResolved: (explosion) => {
+			startExplosionChainLightning(explosion, projectile);
+		},
+	});
+}
 
-	if (config.chainedTargets.size >= config.maxChains) return;
+function startExplosionChainLightning(
+	explosion: ExplosionContext,
+	projectile: GameObj
+) {
+	const sourceConfig = projectile.chainConfig;
+	if (!sourceConfig || sourceConfig.maxChains <= 0) return;
+	const blastTargetIds = new Set(
+		explosion.hits.map((hit) => hit.target.id)
+	);
 
-	config.chainedTargets.add(target.id);
-
-	// Find next target
-	const units = k.query({ include: config.targetTags, includeOp: "and" });
-
-	for (const unit of units) {
-		if (config.chainedTargets.has(unit.id)) continue;
-		if (unit.pos.dist(target.pos) > config.chainDistance) continue;
-
-		// Spawn visual link between targets
-		spawnLink({
-			pos1: target.pos,
-			pos2: unit.pos,
+	for (const hit of explosion.hits) {
+		spawnChainProjectile({
+			pos1: explosion.pos,
+			pos2: hit.target.pos,
 			decayTime: 0.2 * (2 - timeScale),
 			color: k.Color.fromHex("#00ffff"),
 			opacity: 0.8,
 			size: 2,
-			distortion: 0,
 		});
+		const branchConfig = {
+			...sourceConfig,
+			chainedTargets: new Set(blastTargetIds),
+			chainsUsed: 0,
+		};
+		handleChainLightning(hit.target.pos, branchConfig, hit.damage);
+	}
+}
 
-		// Apply reduced damage
-		const chainDamage = projectile.impactDamage * config.damageReduction;
-		unit.hp -= chainDamage;
+function handleChainLightning(
+	origin: Vec2,
+	config: ChainLightningRuntime,
+	baseDamage: number
+) {
+	if (config.chainsUsed >= config.maxChains) return;
+	const units = k.query({ include: config.targetTags, includeOp: "and" });
 
-		// Visual effect
-		spawnFlash(unit.pos, 1);
+	for (const unit of units) {
+		if (!unit.exists()) continue;
+		if (config.chainedTargets.has(unit.id)) continue;
+		if (unit.pos.dist(origin) > config.chainDistance) continue;
+		config.chainedTargets.add(unit.id);
+		config.chainsUsed++;
 
-		// Recursive chain
-		if (config.chainedTargets.size < config.maxChains) {
-			handleChainLightning(unit, projectile);
-		}
+		// Spawn a collision-free visual arc between targets
+		spawnChainProjectile({
+			pos1: origin,
+			pos2: unit.pos,
+			target: unit,
+			decayTime: 0.2 * (2 - timeScale),
+			color: k.Color.fromHex("#00ffff"),
+			opacity: 0.8,
+			size: 2,
+			onArrive: () => {
+				if (!unit.exists()) return;
+
+				const chainDamage = baseDamage * config.damageReduction;
+				applyDamage(unit, chainDamage);
+				spawnFlash(unit.pos, 1);
+
+				if (config.chainsUsed < config.maxChains) {
+					handleChainLightning(unit.pos, config, baseDamage);
+				}
+			},
+		});
 		break;
 	}
 }
 
 function applyDamageTickEffect(target: GameObj, config: any) {
-	// Check if target already has damage tick effect
 	if (target.damageTickEffect) {
-		// Refresh duration if already applied
-		target.damageTickEffect.endTime = target.lifetime + config.duration;
+		target.damageTickEffect.remaining = config.duration;
+		target.damageTickEffect.damagePerTick = config.damagePerTick;
+		if (config.volatile) target.damageTickEffect.volatile = config.volatile;
 		return;
 	}
 
-	// Initialize target lifetime if not present
-	if (target.lifetime === undefined) {
-		target.lifetime = 0;
-	}
-
-	// Apply shader if specified
 	if (config.shader && !target.hasShader) {
 		target.use(k.shader(config.shader));
 		target.hasShader = true;
 	}
 
-	// Set up damage tick effect
 	target.damageTickEffect = {
 		damagePerTick: config.damagePerTick,
 		tickInterval: config.tickInterval,
-		duration: config.duration,
 		effectType: config.effectType,
-		nextTickTime: target.lifetime + config.tickInterval,
-		endTime: target.lifetime + config.duration,
+		tickRemaining: config.tickInterval,
+		remaining: config.duration,
 		shader: config.shader,
+		volatile: config.volatile,
 	};
 
-	// Add update handler if not already present
+	if (!target.hasVolatileDeathHook) {
+		target.hasVolatileDeathHook = true;
+		target.onDeath(() => {
+			const volatile = target.damageTickEffect?.volatile;
+			if (volatile) triggerVolatileCorrosion(target, volatile);
+		});
+	}
+
 	if (!target.hasDamageTickUpdate) {
 		target.hasDamageTickUpdate = true;
 		target.onUpdate(() => {
 			if (!target.damageTickEffect) return;
+			const delta = k.dt() * (target.getTimescale ? target.getTimescale() : 1);
+			target.damageTickEffect.remaining -= delta;
+			target.damageTickEffect.tickRemaining -= delta;
 
-			target.lifetime += dtScaled();
-
-			// Check if effect has expired
-			if (target.lifetime >= target.damageTickEffect.endTime) {
-				// Remove shader if specified
+			if (target.damageTickEffect.remaining <= 0) {
 				if (target.damageTickEffect.shader && target.hasShader) {
 					target.unuse("shader");
 					target.hasShader = false;
@@ -794,13 +1497,16 @@ function applyDamageTickEffect(target: GameObj, config: any) {
 				return;
 			}
 
-			// Check if it's time to tick
-			if (target.lifetime >= target.damageTickEffect.nextTickTime) {
-				target.hp -= target.damageTickEffect.damagePerTick;
-				target.damageTickEffect.nextTickTime =
-					target.lifetime + target.damageTickEffect.tickInterval;
+			if (target.damageTickEffect.tickRemaining <= 0) {
+				const tickDamage = target.damageTickEffect.damagePerTick;
+				applyDamage(target, tickDamage);
+				if (target.hp && target.hp() <= 0) {
+					const volatile = target.damageTickEffect?.volatile;
+					if (volatile) triggerVolatileCorrosion(target, volatile);
+				}
+				target.damageTickEffect.tickRemaining +=
+					target.damageTickEffect.tickInterval;
 
-				// Spawn effect particles
 				if (target.damageTickEffect.effectType) {
 					let emitter: any;
 					switch (target.damageTickEffect.effectType) {
@@ -828,54 +1534,54 @@ function applyDamageTickEffect(target: GameObj, config: any) {
 }
 
 function applySlowEffect(target: GameObj, config: any) {
-	// Check if target already has slow effect
 	if (target.slowEffect) {
-		// Refresh duration if already applied
-		target.slowEffect.endTime = target.lifetime + config.duration;
+		target.slowEffect.remaining = config.duration;
+		if (config.stasisBurst) {
+			target.slowEffect.stasisBurst = config.stasisBurst;
+			target.slowEffect.procState = config.procState;
+		}
 		return;
 	}
 
-	// Initialize target lifetime if not present
-	if (target.lifetime === undefined) {
-		target.lifetime = 0;
-	}
-
-	// Store original speed if not already stored
 	if (target.originalSpeed === undefined && target.speed !== undefined) {
 		target.originalSpeed = target.speed;
 	}
 
-	// Apply shader if specified
 	if (config.shader && !target.hasSlowShader) {
 		target.use(k.shader(config.shader));
 		target.hasSlowShader = true;
 	}
 
-	// Apply slow to speed
 	if (target.speed !== undefined) {
 		target.speed = target.originalSpeed * (1 - config.slowPercentage);
 	}
 
-	// Set up slow effect
 	target.slowEffect = {
-		duration: config.duration,
 		slowPercentage: config.slowPercentage,
 		effectType: config.effectType,
-		endTime: target.lifetime + config.duration,
+		remaining: config.duration,
 		shader: config.shader,
 		particleTimer: 0,
+		stasisBurst: config.stasisBurst,
+		procState: config.procState,
 	};
 
-	// Add update handler if not already present
+	if (!target.hasStasisDeathHook) {
+		target.hasStasisDeathHook = true;
+		target.onDeath(() => {
+			const effect = target.slowEffect;
+			if (effect?.stasisBurst) triggerStasisBurst(target, effect);
+		});
+	}
+
 	if (!target.hasSlowUpdate) {
 		target.hasSlowUpdate = true;
 		target.onUpdate(() => {
 			if (!target.slowEffect) return;
+			const delta = k.dt() * (target.getTimescale ? target.getTimescale() : 1);
+			target.slowEffect.remaining -= delta;
+			target.slowEffect.particleTimer += delta;
 
-			target.lifetime += dtScaled();
-			target.slowEffect.particleTimer += dtScaled();
-
-			// Spawn effect particles periodically
 			if (
 				target.slowEffect.effectType &&
 				target.slowEffect.particleTimer >= 0.1
@@ -902,14 +1608,11 @@ function applySlowEffect(target: GameObj, config: any) {
 				}
 			}
 
-			// Check if effect has expired
-			if (target.lifetime >= target.slowEffect.endTime) {
-				// Restore original speed
+			if (target.slowEffect.remaining <= 0) {
 				if (target.originalSpeed !== undefined) {
 					target.speed = target.originalSpeed;
 				}
 
-				// Remove shader if specified
 				if (target.slowEffect.shader && target.hasSlowShader) {
 					target.unuse("shader");
 					target.hasSlowShader = false;
@@ -919,4 +1622,128 @@ function applySlowEffect(target: GameObj, config: any) {
 			}
 		});
 	}
+}
+
+function triggerVolatileCorrosion(target: GameObj, config: VolatileModifier) {
+	if (target.volatileCorrosionTriggered) return;
+	if (!config.procState || config.procState.remaining <= 0) return;
+	target.volatileCorrosionTriggered = true;
+	config.procState.remaining--;
+	const nearbyTargets = k.query({
+		include: [tags.enemy, tags.unit],
+		includeOp: "and",
+	});
+	for (const nearby of nearbyTargets) {
+		if (nearby.id === target.id || nearby.pos.dist(target.pos) > config.radius) {
+			continue;
+		}
+		applyDamageTickEffect(nearby, {
+			damagePerTick: config.spreadDamagePerTick,
+			tickInterval: 0.5,
+			duration: config.spreadDuration,
+			effectType: "spark",
+			volatile: config,
+		});
+	}
+	createExplosion({
+		pos: target.pos,
+		radius: config.radius,
+		damage: config.damage,
+		damageFalloff: 0.45,
+		falloffDistance: 0.5,
+	});
+}
+
+function triggerStasisBurst(target: GameObj, effect: any) {
+	if (target.stasisBurstTriggered) return;
+	if (!effect.procState || effect.procState.remaining <= 0) return;
+	target.stasisBurstTriggered = true;
+	effect.procState.remaining--;
+	const burst = effect.stasisBurst;
+	const nearbyTargets = k.query({
+		include: [tags.enemy, tags.unit],
+		includeOp: "and",
+	});
+	for (const nearby of nearbyTargets) {
+		if (nearby.id === target.id || nearby.pos.dist(target.pos) > burst.radius) {
+			continue;
+		}
+		applySlowEffect(nearby, {
+			duration: burst.duration,
+			slowPercentage: burst.slowPercentage,
+			effectType: "stars",
+			stasisBurst: burst,
+			procState: effect.procState,
+		});
+	}
+	spawnRing({
+		pos: target.pos,
+		speed: 190,
+		intensity: 0.35,
+		maxRadius: burst.radius,
+		visualize: true,
+		color: k.rgb(100, 205, 255),
+	});
+}
+
+function applyPaintEffect(target: GameObj, config: PaintModifier) {
+	target.projectilePaintStacks = Math.min(
+		config.maxStacks,
+		(target.projectilePaintStacks ?? 0) + 1
+	);
+	target.projectilePaintRemaining = config.duration;
+	applyProjectilePaintTint(target, config.maxStacks);
+	spawnFlash(target.pos, 2 + target.projectilePaintStacks, k.rgb(255, 220, 80));
+
+	if (target.hasProjectilePaintUpdate) return;
+	target.hasProjectilePaintUpdate = true;
+	target.onUpdate(() => {
+		if (!target.projectilePaintRemaining) return;
+		target.projectilePaintRemaining -=
+			k.dt() * (target.getTimescale ? target.getTimescale() : 1);
+		if (target.projectilePaintRemaining > 0) return;
+		target.projectilePaintRemaining = 0;
+		target.projectilePaintStacks = 0;
+		clearProjectilePaintTint(target);
+	});
+}
+
+function applyProjectilePaintTint(target: GameObj, maxStacks: number) {
+	if (!target.projectilePaintOriginalColor) {
+		target.projectilePaintAddedColor = !target.has("color");
+		if (target.projectilePaintAddedColor) {
+			target.use(k.color(k.WHITE));
+		}
+		target.projectilePaintOriginalColor = {
+			r: target.color.r,
+			g: target.color.g,
+			b: target.color.b,
+		};
+	}
+
+	const original = target.projectilePaintOriginalColor;
+	const stackProgress = k.clamp(
+		target.projectilePaintStacks / Math.max(1, maxStacks),
+		0,
+		1
+	);
+	const tintStrength = k.lerp(0.58, 0.82, stackProgress);
+	target.color = k.rgb(
+		k.lerp(original.r, 255, tintStrength),
+		k.lerp(original.g, 45, tintStrength),
+		k.lerp(original.b, 45, tintStrength)
+	);
+}
+
+function clearProjectilePaintTint(target: GameObj) {
+	const original = target.projectilePaintOriginalColor;
+	if (!original) return;
+
+	if (target.projectilePaintAddedColor) {
+		target.unuse("color");
+	} else {
+		target.color = k.rgb(original.r, original.g, original.b);
+	}
+	delete target.projectilePaintOriginalColor;
+	delete target.projectilePaintAddedColor;
 }

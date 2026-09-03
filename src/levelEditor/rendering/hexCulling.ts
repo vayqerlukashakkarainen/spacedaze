@@ -1,7 +1,7 @@
 import { Vec2 } from "kaplay";
 import { k } from "../../main";
 import { HexGrid, CellType, HexCell } from "../../grid/hexGrid";
-import { HexCoord, pixelToHex, hexKey } from "../../grid/hexCoord";
+import { HexCoord, hexKey } from "../../grid/hexCoord";
 import { editorState } from "../state/editorState";
 import { drawWallCell, getHexCenter } from "./wallRenderer";
 import { tags } from "../../tags";
@@ -50,9 +50,7 @@ export function getVisibleHexBounds(grid: HexGrid): {
 	];
 
 	// Convert world corners to hex coordinates
-	const hexCorners = corners.map((corner) =>
-		pixelToHex(corner, grid.config.hexSize)
-	);
+	const hexCorners = corners.map((corner) => grid.screenToHex(corner));
 
 	// Find min/max bounds with padding
 	const padding = 2; // Add padding to prevent pop-in

@@ -6,7 +6,15 @@
 		"dev": "vite",
 		"preview": "vite preview",
 		"zip": "npm run build && mkdir -p dist && zip -r dist/game.zip dist -x \"**/.DS_Store\"",
+		"test": "npm run test:generation && npm run test:run-pool && npm run test:wall-tiles && npm run test:upgrade-requirements && npm run test:projectile-behaviors && npm run test:console-markdown && npm run test:threat && npm run test:chest-challenge",
 		"test:generation": "tsx src/generation/test/generation.test.ts",
+		"test:run-pool": "tsx src/services/runLevelPool.test.ts",
+		"test:wall-tiles": "tsx src/levels/hexWallTiles.test.ts",
+		"test:upgrade-requirements": "tsx src/services/upgradeRequirementService.test.ts",
+		"test:projectile-behaviors": "tsx src/upgrades/projectileBehaviorsNew.test.ts",
+		"test:console-markdown": "tsx src/ui/consoleMarkdown.test.ts",
+		"test:threat": "tsx src/services/threatService.test.ts",
+		"test:chest-challenge": "tsx src/ui/chestChallenge.test.ts",
 		"test:generator": "tsx src/generation/test/testGenerator.ts"
 	},
 	"dependencies": {

@@ -1,4 +1,4 @@
-import { GameObj, PosComp, Vec2 } from "kaplay";
+import { Color, GameObj, PosComp, Vec2 } from "kaplay";
 import { dt, k } from "../main";
 import { tags } from "../tags";
 
@@ -8,14 +8,16 @@ interface Props {
 	intensity: number;
 	maxRadius?: number;
 	visualize?: boolean;
+	color?: Color;
 }
 
 export function spawnRing(props: Props) {
 	const visualize = props.visualize !== undefined ? props.visualize : true;
 	const maxRadius = props.maxRadius || 500;
+	const color = props.color ?? k.WHITE;
 
 	// Track which objects are currently affected
-	const affectedObjects = new Map<number, number>();
+	const affectedObjects = new Map<number, GameObj<PosComp>>();
 
 	const ring = k.add([
 		k.pos(props.pos),
@@ -36,7 +38,7 @@ export function spawnRing(props: Props) {
 	if (visualize) {
 		visualCircle = ring.add([
 			k.circle(ring.radius, { fill: false }),
-			k.outline(3, k.Color.WHITE),
+			k.outline(3, color),
 			k.anchor("center"),
 		]);
 	}
@@ -50,7 +52,7 @@ export function spawnRing(props: Props) {
 			k.destroy(visualCircle);
 			visualCircle = ring.add([
 				k.circle(ring.radius, { fill: false }),
-				k.outline(3, k.Color.WHITE),
+				k.outline(3, color),
 				k.anchor("center"),
 			]);
 		}
@@ -63,7 +65,8 @@ export function spawnRing(props: Props) {
 
 		// Get all objects with sprites that can have shaders
 		const objects = k.query({
-			include: ["timescale"],
+			include: ["timescale", "sprite"],
+			includeOp: "and",
 		}) as GameObj<PosComp>[];
 
 		// Effect radius (how far from ring edge the effect reaches)
@@ -77,20 +80,20 @@ export function spawnRing(props: Props) {
 			const objId = obj.id!;
 
 			if (distToRing < effectRadius) {
-				// Object is near the ring - apply or update shader
-				const currentEffect = affectedObjects.get(objId) || 0;
-				affectedObjects.set(objId, currentEffect + dt());
+				if (affectedObjects.has(objId)) continue;
 
 				try {
-					// Apply shader with ring-specific parameters
 					obj.use(
 						k.shader("ringDistortion", () => ({
 							u_time: k.time(),
-							u_intensity: ring.intensity,
-							u_ringCenter: ring.pos,
-							u_ringRadius: ring.radius,
+							u_intensity: getRingDistortionStrength(
+								ring,
+								obj,
+								effectRadius
+							),
 						}))
 					);
+					affectedObjects.set(objId, obj);
 				} catch (e) {
 					// Shader already applied or object doesn't support shaders
 				}
@@ -113,21 +116,12 @@ export function spawnRing(props: Props) {
 	});
 
 	ring.onDestroy(() => {
-		// Remove shader from all affected objects
-		const objects = k.query({
-			include: ["sprite", "pos"],
-		}) as GameObj<PosComp>[];
-
-		for (const obj of objects) {
+		for (const obj of affectedObjects.values()) {
 			if (!obj.exists()) continue;
-			const objId = obj.id!;
-
-			if (affectedObjects.has(objId)) {
-				try {
-					obj.unuse("shader");
-				} catch (e) {
-					// Shader wasn't present
-				}
+			try {
+				obj.unuse("shader");
+			} catch (e) {
+				// Shader wasn't present
 			}
 		}
 
@@ -135,4 +129,16 @@ export function spawnRing(props: Props) {
 	});
 
 	return ring;
+}
+
+function getRingDistortionStrength(
+	ring: GameObj<PosComp | any>,
+	obj: GameObj<PosComp>,
+	effectRadius: number
+) {
+	if (!ring.exists() || !obj.exists()) return 0;
+	const radiusProgress = k.clamp(ring.radius / ring.maxRadius, 0, 1);
+	const distanceToRing = Math.abs(obj.pos.dist(ring.pos) - ring.radius);
+	const proximity = 1 - k.clamp(distanceToRing / effectRadius, 0, 1);
+	return ring.intensity * proximity * (1 - radiusProgress);
 }

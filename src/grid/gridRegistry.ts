@@ -6,7 +6,10 @@ import { HexGrid } from "./hexGrid";
  * Allows components to reference grids by key
  */
 class GridRegistry {
-	private grids: Map<string, HexGrid>;
+	private grids: Map<
+		string,
+		{ grid: HexGrid; updateVisibility: boolean }
+	>;
 
 	constructor() {
 		this.grids = new Map();
@@ -15,13 +18,14 @@ class GridRegistry {
 	/**
 	 * Register a grid with a key
 	 */
-	register(key: string, grid: HexGrid): void {
-		this.grids.set(key, grid);
+	register(key: string, grid: HexGrid, updateVisibility: boolean = true): void {
+		this.grids.set(key, { grid, updateVisibility });
 	}
 
 	updateVisibleCells() {
-		this.grids.forEach((grid) => {
-			updateVisibleCells(grid);
+		this.grids.forEach((entry) => {
+			if (!entry.updateVisibility) return;
+			updateVisibleCells(entry.grid);
 		});
 	}
 
@@ -29,7 +33,7 @@ class GridRegistry {
 	 * Get a grid by key
 	 */
 	get(key: string): HexGrid | undefined {
-		return this.grids.get(key);
+		return this.grids.get(key)?.grid;
 	}
 
 	/**

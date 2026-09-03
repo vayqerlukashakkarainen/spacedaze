@@ -146,6 +146,7 @@ console.log(getStatistics(map));
 
 - `█▓▒░` - Solid cells (hardness levels)
 - `P` - Player spawn
+- `E` - End tile
 - `R` - Resource node
 - `H` - Hazard
 - `·` - Tunnel

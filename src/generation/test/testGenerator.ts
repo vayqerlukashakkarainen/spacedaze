@@ -65,6 +65,7 @@ console.log("  - cave_*.svg  - Visual preview (open in browser)\n");
 console.log("Legend:");
 console.log("  █▓▒░ - Solid cells (hardness)");
 console.log("  P - Player spawn");
+console.log("  E - End tile");
 console.log("  R - Resource node");
 console.log("  H - Hazard");
 console.log("  · - Tunnel");

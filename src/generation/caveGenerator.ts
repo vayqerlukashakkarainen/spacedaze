@@ -1,7 +1,8 @@
 import {
 	GenerationMap,
 	CaveGenConfig,
-	DEFAULT_CAVE_CONFIG,
+	CaveGenConfigOverrides,
+	resolveCaveGenConfig,
 } from "./generationTypes";
 import { SeededRNG } from "./seededRng";
 import { applyInitialFill } from "./passes/initialFill";
@@ -18,9 +19,9 @@ export class CaveGenerator {
 	private rng: SeededRNG;
 	private config: CaveGenConfig;
 
-	constructor(seed: number, config: Partial<CaveGenConfig> = {}) {
+	constructor(seed: number, config: CaveGenConfigOverrides = {}) {
 		this.rng = new SeededRNG(seed);
-		this.config = { ...DEFAULT_CAVE_CONFIG, ...config };
+		this.config = resolveCaveGenConfig(config);
 	}
 
 	/**
@@ -42,7 +43,7 @@ export class CaveGenerator {
 		applyStamps(map, this.rng, this.config);
 
 		console.log("⚒️  Pass 5: Material Assignment");
-		applyMaterialAssignment(map, this.config);
+		applyMaterialAssignment(map, this.rng, this.config);
 
 		console.log("🎯 Pass 6: Feature Tagging");
 		applyFeatureTagging(map, this.rng, this.config);
@@ -59,7 +60,7 @@ export function generateCave(
 	seed: number,
 	width: number,
 	height: number,
-	config?: Partial<CaveGenConfig>
+	config?: CaveGenConfigOverrides
 ): GenerationMap {
 	const generator = new CaveGenerator(seed, config);
 	return generator.generate(width, height);

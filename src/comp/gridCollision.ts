@@ -2,6 +2,7 @@ import { Comp, KEventController, Vec2 } from "kaplay"
 import { gridRegistry } from "../grid/gridRegistry"
 import { HexGrid, HexCell } from "../grid/hexGrid"
 import { HexCoord, hexEqual } from "../grid/hexCoord"
+import { k } from "../main"
 
 export interface GridCollisionComp extends Comp {
 	gridKey: string
@@ -24,7 +25,7 @@ export interface GridCollisionComp extends Comp {
 	isOnWalkableCell(): boolean
 
 	// Event when collision occurs
-	onCollide(callback: (cell: HexCell) => void): KEventController
+	onGridCollide(callback: (cell: HexCell) => void): KEventController
 }
 
 /**
@@ -94,7 +95,7 @@ export function gridCollision(gridKey: string): GridCollisionComp {
 						return
 					}
 
-					const nextPos = this.pos.add(moveVec)
+					const nextPos = this.pos.add(moveVec.scale(k.dt()))
 
 					// Check if next position is walkable
 					if (this.canMoveTo(nextPos)) {
@@ -109,7 +110,7 @@ export function gridCollision(gridKey: string): GridCollisionComp {
 						const nextCellData = this.grid.getCell(nextCell)
 
 						if (nextCellData) {
-							this.trigger("collide", nextCellData)
+							this.trigger("gridCollide", nextCellData)
 						}
 
 						// Movement blocked - stay at last valid position
@@ -200,8 +201,8 @@ export function gridCollision(gridKey: string): GridCollisionComp {
 			return this.grid.isWalkable(cell)
 		},
 
-		onCollide(callback: (cell: HexCell) => void): KEventController {
-			return this.on("collide", callback)
+		onGridCollide(callback: (cell: HexCell) => void): KEventController {
+			return this.on("gridCollide", callback)
 		},
 	}
 }

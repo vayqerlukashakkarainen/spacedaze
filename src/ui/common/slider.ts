@@ -1,6 +1,7 @@
 import { Vec2, GameObj } from "kaplay";
 import { k, layers } from "../../main";
 import { uiState } from "../uiState";
+import { UI_COLORS } from "./theme";
 
 interface Props {
 	pos: Vec2;
@@ -35,7 +36,7 @@ export function createSlider({
 		k.rect(width, trackHeight),
 		k.pos(pos.x, pos.y),
 		k.area(),
-		k.color(100, 100, 100),
+		k.color(...UI_COLORS.muted),
 		k.fixed(),
 		k.layer(layers.ui),
 		...sliderTags,
@@ -53,8 +54,8 @@ export function createSlider({
 	// Slider handle
 	const handle = k.add([
 		k.rect(handleWidth, handleHeight),
-		k.pos(pos.x + width * value, pos.y - (handleHeight - trackHeight) / 2),
-		k.color(255, 255, 255),
+		k.pos(pos.x + width * value, pos.y + trackHeight / 2),
+		k.color(...UI_COLORS.accent),
 		k.anchor("center"),
 		k.area(),
 		k.fixed(),
@@ -73,37 +74,35 @@ export function createSlider({
 
 	// Handle dragging
 	let isDragging = false;
+	const updateValue = (mouseX: number) => {
+		const newValue = k.clamp((mouseX - pos.x) / width, 0, 1);
+		handle.pos.x = pos.x + width * newValue;
+		onChange(newValue);
+	};
 
-	handle.onMousePress(() => {
-		isDragging = true;
+	const pressController = k.onMousePress("left", () => {
+		if (handle.isHovering()) {
+			isDragging = true;
+		}
 	});
 
-	k.onMouseRelease(() => {
+	track.onClick(() => {
+		updateValue(k.mousePos().x);
+	});
+
+	const releaseController = k.onMouseRelease(() => {
 		isDragging = false;
 	});
 
-	k.onMouseMove(() => {
-		if (isDragging || (k.isMouseDown("left") && handle.isHovering())) {
-			const mousePos = k.mousePos();
-			const sliderBounds = {
-				x: pos.x,
-				y: pos.y - handleHeight / 2,
-				width: width,
-				height: handleHeight,
-			};
+	const moveController = k.onMouseMove(() => {
+		if (!isDragging) return;
+		updateValue(k.mousePos().x);
+	});
 
-			// Check if mouse is near slider
-			if (
-				mousePos.x >= sliderBounds.x &&
-				mousePos.x <= sliderBounds.x + sliderBounds.width &&
-				mousePos.y >= sliderBounds.y &&
-				mousePos.y <= sliderBounds.y + sliderBounds.height
-			) {
-				const newValue = k.clamp((mousePos.x - pos.x) / width, 0, 1);
-				handle.pos.x = pos.x + width * newValue;
-				onChange(newValue);
-			}
-		}
+	track.onDestroy(() => {
+		pressController.cancel();
+		releaseController.cancel();
+		moveController.cancel();
 	});
 
 	return {

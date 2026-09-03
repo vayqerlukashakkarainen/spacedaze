@@ -1,6 +1,13 @@
 import { CaveGenerator } from "../caveGenerator";
-import { GenerationMap, GenCell } from "../generationTypes";
-import { hexCoord, hexKey } from "../hexUtils";
+import {
+	GenerationMap,
+	GenCell,
+	ROOM_ROLES,
+	resolveCaveGenConfig,
+	roomRoleTag,
+} from "../generationTypes";
+import { hexCoord, hexKey, hexNeighbors } from "../hexUtils";
+import { selectGeneratedContent } from "../runtime/roomContentRegistry";
 
 /**
  * Test suite for procedural cave generation
@@ -94,6 +101,11 @@ test("Same seed produces identical maps", () => {
 		);
 		assertEqual(c1.regionId, c2.regionId, `Cell ${i} regionId should match`);
 		assertEqual(c1.locked, c2.locked, `Cell ${i} locked state should match`);
+		assertEqual(
+			[...c1.tags].sort().join(","),
+			[...c2.tags].sort().join(","),
+			`Cell ${i} tags should match`
+		);
 	}
 });
 
@@ -381,6 +393,46 @@ test("Player spawn is in empty space", () => {
 	}
 });
 
+test("Generated maps contain exactly one reachable end tile", () => {
+	for (const seed of [1101, 1106, 1110, 1117, 1141, 2202, 3303]) {
+		const map = new CaveGenerator(seed).generate(35, 25);
+		const spawn = map
+			.getAllCells()
+			.find((cell) => cell.tags.has("player_spawn"));
+		const endCells = map
+			.getAllCells()
+			.filter((cell) => cell.tags.has("end"));
+
+		assertTrue(!!spawn, `Seed ${seed} should have a player spawn`);
+		assertEqual(endCells.length, 1, `Seed ${seed} should have exactly one end`);
+		assertFalse(endCells[0].solid, `Seed ${seed} end should be navigable`);
+		assertFalse(
+			endCells[0].tags.has("player_spawn"),
+			`Seed ${seed} end should differ from spawn`
+		);
+		assertTrue(
+			canReach(map, spawn!, endCells[0]),
+			`Seed ${seed} end should be reachable from spawn`
+		);
+	}
+});
+
+test("Partial generator overrides preserve nested defaults", () => {
+	const config = resolveCaveGenConfig({
+		fill: { percentage: 0.4 },
+		features: { hazardCount: 8 },
+	});
+
+	assertEqual(config.fill.percentage, 0.4, "Fill override should be applied");
+	assertEqual(config.fill.edgesSolid, true, "Fill default should be preserved");
+	assertEqual(config.features.hazardCount, 8, "Feature override should apply");
+	assertEqual(
+		config.features.resourceNodeCount,
+		5,
+		"Sibling feature default should be preserved"
+	);
+});
+
 test("Resource nodes exist", () => {
 	const generator = new CaveGenerator(1114);
 	const map = generator.generate(35, 25);
@@ -392,6 +444,19 @@ test("Resource nodes exist", () => {
 		resourceCells.length > 0,
 		`Should have resource nodes (found ${resourceCells.length})`
 	);
+});
+
+test("Resources and hazards never overlap", () => {
+	const generator = new CaveGenerator(1115);
+	const map = generator.generate(40, 30);
+	const overlaps = map
+		.getAllCells()
+		.filter(
+			(cell) =>
+				cell.tags.has("resource_node") && cell.tags.has("hazard")
+		);
+
+	assertEqual(overlaps.length, 0, "POI content slots should remain distinct");
 });
 
 test("Tags are only on empty cells", () => {
@@ -414,6 +479,95 @@ test("Tags are only on empty cells", () => {
 			`Tagged cell at ${cell.coord.q},${cell.coord.r} should be empty`
 		);
 	}
+});
+
+test("Reward walls can generate in destructible clusters", () => {
+	const generator = new CaveGenerator(2244, {
+		features: {
+			rewardWallDensity: 0.02,
+			rewardWallClusterChance: 1,
+			rewardWallClusterMinSize: 4,
+			rewardWallClusterMaxSize: 4,
+		},
+	});
+	const map = generator.generate(60, 45);
+	const rewardWalls = map
+		.getAllCells()
+		.filter((cell) => cell.tags.has("reward_wall"));
+	const clusteredWalls = rewardWalls.filter((cell) =>
+		cell.tags.has("reward_wall_cluster")
+	);
+	const hasAdjacentPair = rewardWalls.some((cell) =>
+		hexNeighbors(cell.coord).some((coord) =>
+			map.getCell(coord)?.tags.has("reward_wall")
+		)
+	);
+
+	assertTrue(rewardWalls.length > 0, "Should generate reward walls");
+	assertTrue(clusteredWalls.length > 0, "Should generate clustered reward walls");
+	assertTrue(hasAdjacentPair, "A reward-wall cluster should contain adjacent cells");
+});
+
+test("Generated runs include a distinct asteroid field", () => {
+	const generator = new CaveGenerator(1141);
+	const map = generator.generate(40, 30);
+	const asteroidCells = map
+		.getAllCells()
+		.filter((cell) => cell.tags.has(roomRoleTag("asteroid")));
+	const asteroidAnchors = asteroidCells.filter((cell) =>
+		cell.tags.has("room_anchor")
+	);
+
+	assertEqual(asteroidAnchors.length, 1, "Should have one asteroid field anchor");
+	assertTrue(
+		asteroidCells.length > asteroidAnchors.length,
+		"Asteroid field should cover more than its anchor cell"
+	);
+
+	for (const cell of asteroidCells) {
+		const roles = ROOM_ROLES.filter((role) =>
+			cell.tags.has(roomRoleTag(role))
+		);
+		assertEqual(roles.length, 1, "Asteroid cells should not overlap room roles");
+		assertFalse(cell.solid, "Asteroid cells should be in navigable space");
+	}
+});
+
+test("Generated runs include a shrine room", () => {
+	const generator = new CaveGenerator(1142);
+	const map = generator.generate(40, 30);
+	const shrineAnchors = map
+		.getAllCells()
+		.filter(
+			(cell) =>
+				cell.tags.has("room_anchor") &&
+				cell.tags.has(roomRoleTag("shrine"))
+		);
+
+	assertEqual(shrineAnchors.length, 1, "Should have one shrine room anchor");
+	assertFalse(shrineAnchors[0].solid, "Shrine room should be navigable");
+});
+
+test("Generated room content selection is deterministic", () => {
+	const coord = { q: 12, r: 8 };
+	const first = selectGeneratedContent("shrine", 7712, coord, 2);
+	const second = selectGeneratedContent("shrine", 7712, coord, 2);
+
+	assertEqual(first?.id, second?.id, "Same room seed should select same content");
+	assertTrue(!!first, "Shrine room should resolve registered content");
+});
+
+test("Milestone boss content unlocks at depth three", () => {
+	const coord = { q: 20, r: 14 };
+	const early = selectGeneratedContent("boss", 9912, coord, 2);
+	const milestone = selectGeneratedContent("boss", 9912, coord, 3);
+
+	assertEqual(early, undefined, "Boss should not resolve before its minimum depth");
+	assertEqual(
+		milestone?.id,
+		"milestone_boss",
+		"Boss room should resolve milestone content at depth three"
+	);
 });
 
 // ============================================================================
@@ -454,6 +608,29 @@ test("Rectangular grids work correctly", () => {
 	assertEqual(map2.width, 20, "Tall grid width");
 	assertEqual(map2.height, 50, "Tall grid height");
 });
+
+function canReach(map: GenerationMap, start: GenCell, target: GenCell) {
+	const targetKey = `${target.coord.q},${target.coord.r}`;
+	const pending = [start.coord];
+	const visited = new Set<string>();
+
+	while (pending.length > 0) {
+		const coord = pending.shift()!;
+		const key = `${coord.q},${coord.r}`;
+		if (key === targetKey) return true;
+		if (visited.has(key)) continue;
+		visited.add(key);
+
+		for (const neighborCoord of hexNeighbors(coord)) {
+			const neighbor = map.getCell(neighborCoord);
+			if (!neighbor || neighbor.solid) continue;
+			const neighborKey = `${neighbor.coord.q},${neighbor.coord.r}`;
+			if (!visited.has(neighborKey)) pending.push(neighbor.coord);
+		}
+	}
+
+	return false;
+}
 
 // ============================================================================
 // RUN TESTS
