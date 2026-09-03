@@ -19,6 +19,12 @@ interface ActivePopover {
 	obj: GameObj
 	elapsed: number
 	duration: number
+	fadeTargets: PopoverFadeTarget[]
+}
+
+interface PopoverFadeTarget {
+	obj: GameObj
+	baseOpacity: number
 }
 
 const POPOVER_WIDTH = 330
@@ -45,6 +51,7 @@ export function showPopover(options: PopoverOptions) {
 		options.duration ?? 5
 	)
 	const accent = options.color ?? k.rgb(...UI_COLORS.accent)
+	const fadeTargets: PopoverFadeTarget[] = []
 	const popover = k.add([
 		k.pos(k.width() / 2, k.height() + POPOVER_HEIGHT),
 		k.scale(0.86),
@@ -54,37 +61,44 @@ export function showPopover(options: PopoverOptions) {
 		k.z(300),
 		tags.gameLoopUi,
 	])
-	popover.add([
+	const background = popover.add([
 		k.rect(POPOVER_WIDTH, POPOVER_HEIGHT),
 		k.anchor("center"),
 		k.color(...UI_COLORS.panel),
-		k.opacity(0.96),
+		k.opacity(0),
 		k.outline(2, accent),
 	])
-	popover.add([
+	fadeTargets.push({ obj: background, baseOpacity: 0.96 })
+	const accentBar = popover.add([
 		k.rect(4, POPOVER_HEIGHT - 4),
 		k.pos(-POPOVER_WIDTH / 2 + 4, 0),
 		k.anchor("center"),
 		k.color(accent),
+		k.opacity(0),
 	])
+	fadeTargets.push({ obj: accentBar, baseOpacity: 1 })
 
 	const contentLeft = -POPOVER_WIDTH / 2 + 58
 	if (options.sprite) {
-		popover.add([
+		const icon = popover.add([
 			k.sprite(options.sprite, { width: 34, height: 34 }),
 			k.pos(-POPOVER_WIDTH / 2 + 31, 0),
 			k.anchor("center"),
 			k.color(accent),
+			k.opacity(0),
 		])
+		fadeTargets.push({ obj: icon, baseOpacity: 1 })
 	}
-	addThemedText(popover, {
+	const title = addThemedText(popover, {
 		text: options.title,
 		pos: k.vec2(contentLeft, -24),
 		variant: "caption",
 		color: accent,
 		size: 7,
 	})
-	addThemedText(popover, {
+	title.use(k.opacity(0))
+	fadeTargets.push({ obj: title, baseOpacity: 1 })
+	const message = addThemedText(popover, {
 		text: options.message,
 		pos: k.vec2(contentLeft, -11),
 		variant: "heading",
@@ -92,8 +106,10 @@ export function showPopover(options: PopoverOptions) {
 		size: 11,
 		width: POPOVER_WIDTH - 72,
 	})
+	message.use(k.opacity(0))
+	fadeTargets.push({ obj: message, baseOpacity: 1 })
 	if (options.description) {
-		addThemedText(popover, {
+		const description = addThemedText(popover, {
 			text: options.description,
 			pos: k.vec2(contentLeft, 8),
 			variant: "muted",
@@ -102,9 +118,11 @@ export function showPopover(options: PopoverOptions) {
 			width: POPOVER_WIDTH - 76,
 			lineHeight: 1.25,
 		})
+		description.use(k.opacity(0))
+		fadeTargets.push({ obj: description, baseOpacity: 1 })
 	}
 
-	activePopovers.push({ obj: popover, elapsed: 0, duration })
+	activePopovers.push({ obj: popover, elapsed: 0, duration, fadeTargets })
 	ensurePopoverController()
 	return popover
 }
@@ -155,7 +173,7 @@ function updatePopovers() {
 				1
 			)
 			const eased = 1 - Math.pow(1 - progress, 3)
-			active.obj.opacity = eased
+			setPopoverOpacity(active, eased)
 			active.obj.scale = k.vec2(k.lerp(0.86, 1, eased))
 			continue
 		}
@@ -167,8 +185,10 @@ function updatePopovers() {
 				0,
 				1
 			)
-			active.obj.opacity = 1 - progress
+			setPopoverOpacity(active, 1 - progress)
 			active.obj.scale = k.vec2(k.lerp(1, 0.78, progress))
+		} else {
+			setPopoverOpacity(active, 1)
 		}
 
 		if (active.elapsed >= active.duration && active.obj.exists()) {
@@ -185,6 +205,15 @@ function updatePopovers() {
 	}
 	if (activePopovers.length === 0 && popoverController?.exists()) {
 		k.destroy(popoverController)
+	}
+}
+
+function setPopoverOpacity(active: ActivePopover, opacity: number) {
+	const clampedOpacity = k.clamp(opacity, 0, 1)
+	active.obj.opacity = clampedOpacity
+	for (const target of active.fadeTargets) {
+		if (!target.obj.exists()) continue
+		target.obj.opacity = target.baseOpacity * clampedOpacity
 	}
 }
 
