@@ -19,6 +19,8 @@ import { tags } from "../tags"
 import { createUiScrollable, UiScrollableControl } from "./common/scrollable"
 import { UI_COLORS } from "./common/theme"
 import { uiState } from "./uiState"
+import { registerBatchedUiUpdate } from "../services/uiUpdateService"
+import { uiHitRegion } from "./common/hitRegion"
 
 const MAP_MARGIN = 22
 const MAP_HEADER_HEIGHT = 48
@@ -98,7 +100,7 @@ export function showTacticalMap() {
 	const viewport = k.add([
 		k.rect(viewportSize.x, viewportSize.y),
 		k.pos(viewportPos),
-		k.area(),
+		uiHitRegion(viewportSize),
 		k.color(0, 0, 0),
 		k.outline(1, k.rgb(...UI_COLORS.muted)),
 		k.mask("intersect"),
@@ -182,13 +184,14 @@ export function showTacticalMap() {
 		}),
 	]
 
-	mapCanvas.onUpdate(() => {
+	registerBatchedUiUpdate("modal", mapCanvas, () => {
 		const panDirection = k.vec2(
 			(k.isKeyDown("d") ? 1 : 0) - (k.isKeyDown("a") ? 1 : 0),
 			(k.isKeyDown("s") ? 1 : 0) - (k.isKeyDown("w") ? 1 : 0)
 		)
-		if (panDirection.len() === 0) return
-		mapCanvas.pos = mapCanvas.pos.add(panDirection.unit().scale(260 * k.dt()))
+		if (panDirection.len() !== 0) {
+			mapCanvas.pos = mapCanvas.pos.add(panDirection.unit().scale(260 * k.dt()))
+		}
 	})
 
 	addZoneSidebar(snapshot.cells, sidebarX, viewportPos.y, sidebarWidth, viewportSize.y)
@@ -485,7 +488,7 @@ function addZoneSidebar(
 		])
 		zoneScroll.content.add([
 			k.text(`HEX ${cargoObjective.q},${cargoObjective.r}`, {
-				size: 7,
+				size: 8,
 				font: "unscii",
 			}),
 			k.pos(19, 23),
@@ -511,7 +514,7 @@ function addZoneSidebar(
 			k.color(k.WHITE),
 		])
 		zoneScroll!.content.add([
-			k.text(`HEX ${zone.q},${zone.r}`, { size: 7, font: "unscii" }),
+			k.text(`HEX ${zone.q},${zone.r}`, { size: 8, font: "unscii" }),
 			k.pos(19, yPos + 15),
 			k.color(...UI_COLORS.muted),
 		])

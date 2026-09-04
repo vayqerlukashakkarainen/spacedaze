@@ -20,6 +20,9 @@ import { recordRunReward as recordRunRewardStat } from "../services/runStatsServ
 import { showCollectedRewardPopover } from "../services/popoverService";
 import { createUiPanel } from "./common/panel";
 import { UI_COLORS } from "./common/theme";
+import { registerBatchedUiUpdate } from "../services/uiUpdateService";
+import { uiHitRegion } from "./common/hitRegion";
+import { getRerollTokens } from "../player";
 
 let healthBars: GameObj<OpacityComp>[] = [];
 let specialBar: GameObj<RectComp> | null = null;
@@ -29,6 +32,7 @@ let phaseJumpCooldownBar: GameObj<RectComp> | null = null;
 let phaseJumpChargeLabel: GameObj | null = null;
 let shipStatusPanel: GameObj | null = null;
 let salvageDisplay: GameObj | null = null;
+let rerollDisplay: GameObj | null = null;
 let systemsPanel: GameObj | null = null;
 let runLoadoutPanel: GameObj | null = null;
 let loadoutIconsContainer: GameObj | null = null;
@@ -55,6 +59,13 @@ const abilityBarWidth = 52;
 const HUD_SCALE = 1.5;
 const HUD_MARGIN = 12;
 const SALVAGE_GAIN_LIFETIME = 0.7;
+let displayedSalvage = Number.NaN;
+let displayedRerollTokens = Number.NaN;
+let displayedSpecialWidth = Number.NaN;
+let displayedMissileVisibility: boolean | undefined;
+let displayedJumpCharges = Number.NaN;
+let displayedJumpMaxCharges = Number.NaN;
+let displayedJumpProgress = Number.NaN;
 export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 	shipStatusPanel = createUiPanel({
 		pos: k.vec2(
@@ -67,7 +78,7 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		scale: HUD_SCALE,
 	});
 	shipStatusPanel.add([
-		k.text("HULL", { size: 7, font: "unscii" }),
+		k.text("HULL", { size: 8, font: "unscii" }),
 		k.pos(8, 25),
 		k.color(k.WHITE),
 	]);
@@ -90,15 +101,57 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		k.anchor("right"),
 		k.color(...UI_COLORS.accent),
 	]);
-	salvageDisplay.onUpdate(() => {
-		salvageLabel.text = `${getScore()}`;
-		salvageIcon.pos.x = salvageLabel.pos.x - salvageLabel.width - 12;
+	rerollDisplay = shipStatusPanel.add([
+		k.pos(statusPanelWidth - 68, 27),
+		k.scale(1),
+		{
+			pulseScale: 1,
+		},
+	]);
+	const rerollIcon = rerollDisplay.add([
+		k.sprite("reroll_token", { width: 16, height: 16 }),
+		k.pos(-26, 0),
+		k.anchor("center"),
+		k.color(190, 75, 255),
+	]);
+	const rerollLabel = rerollDisplay.add([
+		k.text("", { size: 9, font: "unscii" }),
+		k.pos(0, 0),
+		k.anchor("right"),
+		k.color(190, 75, 255),
+	]);
+	registerBatchedUiUpdate("hud", salvageDisplay, () => {
+		const score = getScore();
+		if (score !== displayedSalvage) {
+			displayedSalvage = score;
+			salvageLabel.text = `${score}`;
+			salvageIcon.pos.x = salvageLabel.pos.x - salvageLabel.width - 12;
+		}
 		salvageDisplay!.pulseScale = k.lerp(
 			salvageDisplay!.pulseScale,
 			1,
 			k.clamp(14 * k.dt(), 0, 1)
 		);
 		salvageDisplay!.scale = k.vec2(salvageDisplay!.pulseScale);
+
+		const rerollTokens = getRerollTokens();
+		if (rerollTokens !== displayedRerollTokens) {
+			if (!Number.isNaN(displayedRerollTokens)) {
+				rerollDisplay!.pulseScale = Math.min(
+					1.45,
+					rerollDisplay!.pulseScale + 0.3
+				);
+			}
+			displayedRerollTokens = rerollTokens;
+			rerollLabel.text = `${rerollTokens}`;
+			rerollIcon.pos.x = rerollLabel.pos.x - rerollLabel.width - 11;
+		}
+		rerollDisplay!.pulseScale = k.lerp(
+			rerollDisplay!.pulseScale,
+			1,
+			k.clamp(14 * k.dt(), 0, 1)
+		);
+		rerollDisplay!.scale = k.vec2(rerollDisplay!.pulseScale);
 	});
 
 	systemsPanel = createUiPanel({
@@ -121,7 +174,7 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		k.anchor("center"),
 	]);
 	missileCooldownGroup.add([
-		k.text("MISSILE", { size: 7, font: "unscii" }),
+		k.text("MISSILE", { size: 8, font: "unscii" }),
 		k.pos(27, 25),
 		k.color(k.WHITE),
 	]);
@@ -172,14 +225,14 @@ export function showSalvageGain(
 	}
 
 	const gain = k.add([
-		k.text(`+${amount}`, { size: 6, font: "unscii" }),
+		k.text(`+${amount}`, { size: 8, font: "unscii" }),
 		k.pos(pos.add(k.rand(-7, 7), k.rand(-25, -19))),
 		k.anchor("center"),
 		k.color(color),
 		k.opacity(1),
 		k.scale(1.35),
 		k.z(100),
-		k.layer(layers.game),
+		k.layer(layers.gameText),
 		{
 			elapsed: 0,
 			startY: 0,
@@ -188,7 +241,7 @@ export function showSalvageGain(
 	]);
 	gain.startY = gain.pos.y;
 
-	gain.onUpdate(() => {
+	registerBatchedUiUpdate("overlay", gain, () => {
 		gain.elapsed += k.dt();
 		const progress = k.clamp(gain.elapsed / SALVAGE_GAIN_LIFETIME, 0, 1);
 		const rise = 1 - Math.pow(1 - progress, 3);
@@ -242,12 +295,15 @@ export function updateSpecialBar(
 	max: number,
 	missilesUnlocked = true
 ) {
-	if (missileCooldownGroup) {
+	if (missileCooldownGroup && displayedMissileVisibility !== missilesUnlocked) {
+		displayedMissileVisibility = missilesUnlocked;
 		missileCooldownGroup.hidden = !missilesUnlocked;
 	}
 	if (!specialBar) return;
-	specialBar.width =
-		abilityBarWidth * k.clamp(current / max, 0, 1);
+	const width = abilityBarWidth * k.clamp(current / max, 0, 1);
+	if (Math.abs(width - displayedSpecialWidth) < 0.05) return;
+	displayedSpecialWidth = width;
+	specialBar.width = width;
 }
 
 export function updatePhaseJumpUi(
@@ -264,7 +320,7 @@ export function updatePhaseJumpUi(
 		]);
 
 		systemsPanel.add([
-			k.text("JUMP", { size: 7, font: "unscii" }),
+			k.text("JUMP", { size: 8, font: "unscii" }),
 			k.pos(112, 25),
 			k.color(k.WHITE),
 		]);
@@ -289,6 +345,14 @@ export function updatePhaseJumpUi(
 		]);
 	}
 
+	if (
+		charges === displayedJumpCharges &&
+		maxCharges === displayedJumpMaxCharges &&
+		Math.abs(rechargeProgress - displayedJumpProgress) < 0.001
+	) return;
+	displayedJumpCharges = charges;
+	displayedJumpMaxCharges = maxCharges;
+	displayedJumpProgress = rechargeProgress;
 	phaseJumpIcon.opacity = charges > 0 ? 1 : 0.25;
 	if (phaseJumpCooldownBar) {
 		phaseJumpCooldownBar.width =
@@ -309,12 +373,20 @@ export function addCollectedPowerup(rewardOrId: Reward | string) {
 	const blueprintKey = reward.upgradeKey ?? reward.powerupKey ?? reward.id;
 	discoverBlueprint(blueprintKey);
 	recordRunRewardStat(reward.rarity);
-	const collectionKey = reward.upgradeKey ?? reward.powerupKey ?? reward.id;
+	const collectionKey = reward.weaponId
+		? "primaryWeapon"
+		: reward.upgradeKey ?? reward.powerupKey ?? reward.id;
 
 	const existing = collectedItems.get(collectionKey);
 	if (existing) {
-		existing.count++;
+		existing.count = reward.weaponId ? 1 : existing.count + 1;
 		existing.reward = reward;
+		if (reward.weaponId) {
+			existing.icon.use(k.sprite(reward.sprite, {
+				width: 22 * HUD_SCALE,
+				height: 22 * HUD_SCALE,
+			}));
+		}
 		existing.icon.color = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
 		existing.countLabel.text = `x${existing.count}`;
 		if (existing.icon.isHovering()) {
@@ -352,10 +424,10 @@ export function addCollectedPowerup(rewardOrId: Reward | string) {
 			(30 + row * 29) * HUD_SCALE
 		),
 		k.anchor("center"),
-		k.area(),
+		uiHitRegion(k.vec2(22 * HUD_SCALE), true),
 	]);
 	const countLabel = loadoutLabelsContainer.add([
-		k.text("x1", { size: 7 * HUD_SCALE, font: "unscii" }),
+		k.text("x1", { size: 8 * HUD_SCALE, font: "unscii" }),
 		k.pos(
 			icon.pos.x + 10 * HUD_SCALE,
 			icon.pos.y + 10 * HUD_SCALE
@@ -503,9 +575,17 @@ export function clearGameLoopUi() {
 	phaseJumpChargeLabel = null;
 	shipStatusPanel = null;
 	salvageDisplay = null;
+	rerollDisplay = null;
 	systemsPanel = null;
 	runLoadoutPanel = null;
 	loadoutIconsContainer = null;
 	loadoutLabelsContainer = null;
+	displayedSalvage = Number.NaN;
+	displayedRerollTokens = Number.NaN;
+	displayedSpecialWidth = Number.NaN;
+	displayedMissileVisibility = undefined;
+	displayedJumpCharges = Number.NaN;
+	displayedJumpMaxCharges = Number.NaN;
+	displayedJumpProgress = Number.NaN;
 	collectedItems.clear();
 }

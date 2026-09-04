@@ -1,12 +1,13 @@
 import type { Vec2 } from "kaplay"
 import { playerObj } from "../game"
-import { dt, k, mainSoundVolume, velocityScale } from "../main"
+import { dt, k, layers, mainSoundVolume, velocityScale } from "../main"
 import { player } from "../player"
 import { audioService } from "../services/audioService"
 import { tags } from "../tags"
 import { updatePlayerHealthBar } from "../ui/gameUi"
 import { timescale } from "../comp/timescale"
 import { spawnDamageNumber } from "./spawnDamageNumber"
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 
 export const HEALTH_ORB_DROP_CHANCE = 0.05
 
@@ -39,6 +40,7 @@ export function spawnHealthOrb(pos: Vec2) {
 		k.pos(pos),
 		k.anchor("center"),
 		k.color(...ORB_COLOR),
+		k.layer(layers.gameEffects),
 		k.opacity(0.9),
 		k.outline(2, k.rgb(...ORB_HIGHLIGHT)),
 		k.rotate(k.rand(360)),
@@ -60,16 +62,18 @@ export function spawnHealthOrb(pos: Vec2) {
 		k.color(...ORB_COLOR),
 		k.opacity(0.18),
 		k.z(-1),
+		k.layer(layers.gameEffects),
 	])
 	const ring = orb.add([
 		k.circle(15, { fill: false }),
 		k.anchor("center"),
 		k.opacity(0.65),
 		k.outline(1, k.rgb(...ORB_COLOR)),
+		k.layer(layers.gameEffects),
 	])
 
-	orb.onUpdate(() => {
-		if (!playerObj || !playerObj.exists() || typeof playerObj.hp !== "function") {
+	registerBatchedEntityUpdate("world", orb, () => {
+		if (!playerObj || !playerObj.exists() || typeof playerObj.hp !== "number") {
 			return
 		}
 		if (orb.collection) {
@@ -100,7 +104,7 @@ export function spawnHealthOrb(pos: Vec2) {
 			orb.lifeSpan += dt() * 45
 		}
 
-		if (playerObj.hp() >= playerObj.maxHP()) return
+		if (playerObj.hp >= playerObj.maxHP) return
 		const pickupDistance =
 			player.debreeSeekDistance * player.debreeSeekDistanceMultiplier
 		if (orb.pos.dist(playerObj.pos) >= pickupDistance) return
@@ -122,8 +126,8 @@ export function spawnHealthOrb(pos: Vec2) {
 	function collectHealthOrb() {
 		if (collected || !playerCanReceiveHealth()) return
 		collected = true
-		playerObj.heal(1)
-		updatePlayerHealthBar(playerObj.hp())
+		playerObj.hp = Math.min(playerObj.maxHP, playerObj.hp + 1)
+		updatePlayerHealthBar(playerObj.hp)
 		spawnDamageNumber(playerObj.pos.clone(), 1, {
 			color: k.rgb(...ORB_COLOR),
 			prefix: "+",
@@ -143,10 +147,9 @@ function playerCanReceiveHealth() {
 	return Boolean(
 		playerObj &&
 			playerObj.exists() &&
-			typeof playerObj.hp === "function" &&
-			typeof playerObj.heal === "function" &&
-			typeof playerObj.maxHP === "function" &&
-			playerObj.hp() < playerObj.maxHP()
+			typeof playerObj.hp === "number" &&
+			typeof playerObj.maxHP === "number" &&
+			playerObj.hp < playerObj.maxHP
 	)
 }
 
@@ -202,7 +205,7 @@ function spawnPlayerHealthPulse() {
 		},
 	])
 
-	pulse.onUpdate(() => {
+	registerBatchedEntityUpdate("effects", pulse, () => {
 		pulse.elapsed += k.dt()
 		const progress = k.clamp(pulse.elapsed / HEALTH_PULSE_DURATION, 0, 1)
 		const wave = (Math.sin(progress * Math.PI * 4) + 1) / 2

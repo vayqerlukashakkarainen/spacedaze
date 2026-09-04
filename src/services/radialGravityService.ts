@@ -1,5 +1,6 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { k } from "../main"
+import { forEachSpatialNearby } from "./runtimeSpatialIndexService"
 
 export interface RadialGravityConfig {
 	strength: number
@@ -24,18 +25,15 @@ export function applyRadialGravity(
 	config: RadialGravityConfig
 ) {
 	if (config.strength <= 0 || config.range <= 0) return
-	const targets = config.targetTags?.length
-		? k.query({
-				include: config.targetTags,
-				includeOp: config.targetTagMode ?? "and",
-			})
-		: k.query({ include: ["mass"], includeOp: "and" })
-	const excluded = new Set(config.excludeIds ?? [])
-
-	for (const target of targets as GameObj[]) {
-		if (!target.exists() || !target.pos || excluded.has(target.id)) continue
+	const tagMode = config.targetTagMode ?? "and"
+	const targetTags = config.targetTags?.length ? config.targetTags : ["mass"]
+	forEachSpatialNearby(sourcePos, config.range, {
+		allTags: tagMode === "and" ? targetTags : undefined,
+		anyTags: tagMode === "or" ? targetTags : undefined,
+		excludeIds: config.excludeIds,
+	}, (target) => {
 		const distance = sourcePos.dist(target.pos)
-		if (distance > config.range || distance < 1) continue
+		if (distance < 1) return
 
 		const direction = sourcePos.sub(target.pos).unit()
 		const normalizedDistance = distance / config.range
@@ -78,7 +76,7 @@ export function applyRadialGravity(
 						(target.gravitySteeringMultiplier ?? 1)
 				)
 			)
-			continue
+			return
 		}
 		const steered = steerMovementVector(
 			target,
@@ -88,7 +86,7 @@ export function applyRadialGravity(
 		if (!steered) {
 			target.pos = target.pos.add(direction.scale(distanceThisFrame))
 		}
-	}
+	})
 }
 
 function steerMovementVector(

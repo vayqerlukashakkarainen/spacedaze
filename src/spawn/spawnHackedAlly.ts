@@ -8,6 +8,7 @@ import { applyProjectileDamage } from "../services/projectileService"
 import { tags } from "../tags"
 import { target } from "../comp/target"
 import { timescale } from "../comp/timescale"
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 
 const HACKED_ALLY_LIMIT = 3
 const HACKED_ALLY_DURATION = 12
@@ -46,7 +47,7 @@ function spawnHackedAlly(pos: Vec2) {
 		tags.gameLoop,
 	])
 
-	ally.onUpdate(() => {
+	registerBatchedEntityUpdate("followers", ally, () => {
 		const deltaTime = k.dt() * ally.getTimescale()
 		ally.elapsed += deltaTime
 		ally.fireCooldown -= deltaTime

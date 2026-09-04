@@ -1,12 +1,13 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileIntersection } from "../../game";
-import { dt, k, mainSoundVolume } from "../../main";
+import { dt, k, layers, mainSoundVolume } from "../../main";
 import { audioService } from "../../services/audioService";
 import { explosionEmitter } from "../../particles";
 import { tags } from "../../tags";
 import { registerHitAnimation } from "../../shared";
 import { showDamageNumber } from "../../services/damageService";
 import { tryBounceProjectile } from "../../services/projectileService";
+import { registerBatchedEntityUpdate } from "../../services/entityUpdateService";
 
 interface DamageShrineProps {
 	pos: Vec2;
@@ -46,6 +47,7 @@ export function spawnDamageShrine(props: DamageShrineProps) {
 		k.anchor("center"),
 		k.color(60, 60, 60),
 		k.opacity(0.8),
+		k.layer(layers.gameEffects),
 	]);
 
 	const barFill = shrine.add([
@@ -54,9 +56,10 @@ export function spawnDamageShrine(props: DamageShrineProps) {
 		k.anchor("left"),
 		k.color(255, 100, 100),
 		k.opacity(0.9),
+		k.layer(layers.gameEffects),
 	]);
 
-	shrine.onUpdate(() => {
+	registerBatchedEntityUpdate("enemies", shrine, () => {
 		// Deplete damage over time
 		shrine.damageReceived -= props.depleteRate * dt();
 		if (shrine.damageReceived < 0) shrine.damageReceived = 0;

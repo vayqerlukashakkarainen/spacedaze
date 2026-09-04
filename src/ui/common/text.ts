@@ -3,6 +3,9 @@ import { k } from "../../main"
 import { UI_COLORS } from "./theme"
 
 export type UiTextVariant =
+	| "eyebrow"
+	| "display"
+	| "title"
 	| "caption"
 	| "heading"
 	| "body"
@@ -17,12 +20,15 @@ interface UiTextStyle {
 }
 
 const UI_TEXT_STYLES: Record<UiTextVariant, UiTextStyle> = {
+	eyebrow: { size: 8, lineHeight: 1.25, color: UI_COLORS.muted },
+	display: { size: 20, lineHeight: 1.15, color: UI_COLORS.text },
+	title: { size: 12, lineHeight: 1.25, color: UI_COLORS.text },
 	caption: { size: 8, lineHeight: 1.25, color: UI_COLORS.accent },
 	heading: { size: 10, lineHeight: 1.4, color: UI_COLORS.accent },
-	body: { size: 8, lineHeight: 1.4, color: [255, 255, 255] },
+	body: { size: 8, lineHeight: 1.4, color: UI_COLORS.text },
 	muted: { size: 8, lineHeight: 1.4, color: UI_COLORS.muted },
-	stat: { size: 8, lineHeight: 1.35, color: [255, 255, 255] },
-	button: { size: 10, lineHeight: 1.2, color: [255, 255, 255] },
+	stat: { size: 8, lineHeight: 1.35, color: UI_COLORS.text },
+	button: { size: 10, lineHeight: 1.2, color: UI_COLORS.text },
 }
 
 export interface ThemedTextProps {
@@ -35,6 +41,7 @@ export interface ThemedTextProps {
 	color?: Color
 	lineHeight?: number
 	lineSpacing?: number
+	z?: number
 }
 
 export function addThemedText(parent: GameObj, props: ThemedTextProps) {
@@ -46,7 +53,7 @@ export function addThemedText(parent: GameObj, props: ThemedTextProps) {
 		size,
 		props.lineHeight ?? style.lineHeight
 	)
-	return parent.add([
+	const components: any[] = [
 		k.text(props.text, {
 			size,
 			font: "unscii",
@@ -56,7 +63,9 @@ export function addThemedText(parent: GameObj, props: ThemedTextProps) {
 		}),
 		k.pos(props.pos ?? k.vec2(0, 0)),
 		k.color(color),
-	])
+	]
+	if (props.z !== undefined) components.push(k.z(props.z))
+	return parent.add(components)
 }
 
 export function getThemedTextStyle(variant: UiTextVariant) {

@@ -17,6 +17,7 @@ import { unitComponents } from "./spawn/spawnShip1";
 import { JitterComp } from "./comp/jitter";
 import { enemyOnDeath } from "./spawn/enemyShared";
 import { RewardSource } from "./services/rewardService";
+import { registerBatchedEntityUpdate } from "./services/entityUpdateService";
 
 interface Part {
 	obj: GameObj<
@@ -109,7 +110,7 @@ export function detach(pos: Vec2, sprite: string, force: number) {
 		},
 	]);
 
-	p.onUpdate(() => {
+	registerBatchedEntityUpdate("effects", p, () => {
 		const v = k.wave(-1, 1, k.time() * p.spin);
 		p.scale = k.vec2(v, v);
 	});

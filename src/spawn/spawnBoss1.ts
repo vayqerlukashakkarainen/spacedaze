@@ -16,6 +16,7 @@ import { jitter } from "../comp/jitter";
 import { onEnemyHit } from "./enemyShared";
 import { lerpAngleBetweenPos } from "../shared";
 import { loopService } from "../services/loopService";
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 
 const blasterOffset = [22, -2];
 const headOffset = 25;
@@ -186,7 +187,7 @@ export function spawnBoss1(
 		blaster2.angle = lerp2;
 	});
 
-	m.onUpdate(() => {
+	registerBatchedEntityUpdate("enemies", m, () => {
 		const v = k.wave(m.baseScale * 0.98, m.baseScale * 1.02, k.time());
 		m.scale = k.vec2(v, v);
 		checkProjectileComponentIntersection(

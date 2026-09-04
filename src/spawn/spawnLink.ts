@@ -1,6 +1,7 @@
 import type { Color, GameObj, PosComp, Vec2 } from "kaplay";
-import { dt, k } from "../main";
+import { dt, k, layers } from "../main";
 import { tags } from "../tags";
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 
 interface Props {
 	pos1: Vec2;
@@ -28,6 +29,7 @@ export function spawnChainProjectile(props: Props) {
 		k.color(props.color),
 		k.opacity(props.opacity),
 		k.z(8),
+		k.layer(layers.gameEffects),
 		{
 			elapsed: 0,
 			maxLifetime: Math.max(0.5, props.decayTime * 2),
@@ -54,7 +56,7 @@ export function spawnChainProjectile(props: Props) {
 		tags.gameLoop,
 	]);
 
-	projectile.onUpdate(() => {
+	registerBatchedEntityUpdate("effects", projectile, () => {
 		const deltaTime = dt();
 		projectile.elapsed += deltaTime;
 		const targetPos = props.target?.pos ?? props.pos2;

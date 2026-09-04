@@ -118,6 +118,14 @@ export interface CurveModifier {
 	direction: "left" | "right" | "random";
 }
 
+export interface WiggleModifier {
+	amplitude: number;
+	frequency: number;
+	phase?: number;
+	trailColor?: Color;
+	trailLength?: number;
+}
+
 export interface DamageTickModifier {
 	damagePerTick: number;
 	tickInterval: number;
@@ -251,6 +259,7 @@ export interface ProjectileConfig {
 	accelerate?: AccelerateModifier;
 	gravity?: GravityModifier;
 	curve?: CurveModifier;
+	wiggle?: WiggleModifier;
 	knockback?: KnockbackModifier;
 	fragment?: FragmentModifier;
 	proximity?: ProximityModifier;

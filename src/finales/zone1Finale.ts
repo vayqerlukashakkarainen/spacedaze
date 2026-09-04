@@ -80,6 +80,7 @@ export const zone1Finale: FinaleDefinition = {
 						am: 1,
 						hp: 3,
 						powerupMultiplier: 3,
+						tier: k.chance(0.15) ? "golden" : "normal",
 					});
 				}
 

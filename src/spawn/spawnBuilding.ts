@@ -7,9 +7,10 @@ import {
 	ZComp,
 	Anchor,
 } from "kaplay";
-import { k } from "../main";
+import { k, layers } from "../main";
 import { tags } from "../tags";
 import { interactable, InteractableComp } from "../comp/interactable";
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 
 interface SpawnBuildingOptions {
 	pos: Vec2;
@@ -40,6 +41,7 @@ export function spawnBuilding(
 		k.pos(pos),
 		k.sprite(sprite),
 		k.anchor(anchor),
+		k.layer(layers.buildings),
 		k.z(z),
 		k.scale(scale),
 		interactable(interactRadius, onInteract),
@@ -49,6 +51,7 @@ export function spawnBuilding(
 
 	const interactPrompt = building.add([
 		k.text("F", { size: 12 }),
+		k.layer(layers.gameText),
 		k.pos(interactPromptOffset),
 		k.anchor("center"),
 		k.color(255, 255, 255),
@@ -56,7 +59,7 @@ export function spawnBuilding(
 		k.opacity(0),
 	]);
 
-	building.onUpdate(() => {
+	registerBatchedEntityUpdate("world", building, () => {
 		const interactable = building as any;
 		interactPrompt.opacity = interactable.isInRange ? 1 : 0;
 	});

@@ -1,6 +1,7 @@
 import { Vec2 } from "kaplay"
 import { k, layers } from "../../main"
 import { uiState } from "../uiState"
+import { uiHitRegion } from "./hitRegion"
 
 interface ScrollableProps {
 	pos: Vec2
@@ -54,7 +55,7 @@ export function createUiScrollable({
 	const viewport = k.add([
 		k.pos(pos),
 		k.rect(width, height),
-		k.area(),
+		uiHitRegion(k.vec2(width, height)),
 		k.color(0, 0, 0),
 		k.mask("intersect"),
 		k.fixed(),
@@ -68,28 +69,28 @@ export function createUiScrollable({
 	const verticalTrack = viewport.add([
 		k.pos(width - scrollbarSize, 0),
 		k.rect(scrollbarSize, height),
-		k.area(),
+		uiHitRegion(k.vec2(scrollbarSize, height)),
 		k.color(45, 45, 45),
 		...tags,
 	])
 	const verticalThumb = viewport.add([
 		k.pos(width - scrollbarSize, 0),
 		k.rect(scrollbarSize, height),
-		k.area(),
+		uiHitRegion(k.vec2(scrollbarSize, height)),
 		k.color(180, 180, 180),
 		...tags,
 	])
 	const horizontalTrack = viewport.add([
 		k.pos(0, height - scrollbarSize),
 		k.rect(width, scrollbarSize),
-		k.area(),
+		uiHitRegion(k.vec2(width, scrollbarSize)),
 		k.color(45, 45, 45),
 		...tags,
 	])
 	const horizontalThumb = viewport.add([
 		k.pos(0, height - scrollbarSize),
 		k.rect(width, scrollbarSize),
-		k.area(),
+		uiHitRegion(k.vec2(width, scrollbarSize)),
 		k.color(180, 180, 180),
 		...tags,
 	])

@@ -2,10 +2,11 @@ import { endSong } from "../web";
 import type { Color, Vec2 } from "kaplay";
 import { audioService } from "../services/audioService";
 import { spawnLevel } from "../spawn/spawnLevel";
-import { getScore, k, spendScore } from "../main";
+import { getScore, k, layers, spendScore } from "../main";
 import { Level } from "./levels";
 import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject";
 import { spawnChest } from "../spawn/spawnChest";
+import { spawnCrate } from "../spawn/spawnCrate";
 import { playerObj, projectiles } from "../game";
 import { tags } from "../tags";
 import { spawnRecoveryShop } from "../spawn/spawnRecoveryShop";
@@ -19,16 +20,15 @@ import {
 } from "../services/hubProgressService";
 import {
 	showBlueprintArchive,
-	showArsenal,
+	showTrainingRange,
 	showContractTerminal,
 	showRunDebrief,
 	showSalvageForge,
 	showWarpZoneRegistry,
-	showWarpZoneSelector,
 } from "../ui/hubFacilities";
 import { saveGame } from "../util";
 import { starsEmitter } from "../particles";
-import { beginRunSession } from "../services/runDirectorService";
+import { beginRandomRunSession } from "../services/runDirectorService";
 import { ASTEROID_SPRITES } from "../asteroidSprites";
 import { spawnMeteorite } from "../spawn/spawnAsteroid";
 import { spawnDebreeValues } from "../spawn/spawnDebree";
@@ -37,18 +37,23 @@ import { tryBounceProjectile } from "../services/projectileService";
 import { applyDamage } from "../services/damageService";
 import { spawnGravityPull } from "../spawn/spawnGravityPull";
 import { spawnHealthOrb } from "../spawn/spawnHealthOrb";
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { PLANET_CHUNK_SPRITES } from "../planetChunkSprites";
 
 let lvlData: any = {};
 let bgAsteroidTimer = 0;
 let phaseFieldDamageCooldown = 0;
-const hubHalfWidth = 1050;
-const hubHalfHeight = 520;
+const hubHalfWidth = 1400;
+const hubHalfHeight = 760;
 const boundaryRevealRadius = 160;
-const phaseFieldOffsetX = 720;
-const phaseFieldOffsetY = 80;
+const phaseFieldOffsetX = 980;
+const phaseFieldOffsetY = 120;
 const phaseFieldInnerRadius = 162;
 const phaseFieldOuterRadius = 220;
 const trainingDummyRespawnDelay = 1.5;
+const hubFacilityScale = 1.35;
+const hubFacilityInteractRadius = 120;
+const hubFacilityLabelOffsetY = 126;
 const hubFacilitySprites: Record<
 	HubFacilityId,
 	{ built: string; destroyed: string }
@@ -86,23 +91,25 @@ export const hub: Level = {
 		endSong();
 	},
 	onStart: () => {
-		audioService.playMusic("hub", { volume: 1, loop: true });
+		audioService.playMusic("hub", {
+			volume: 1,
+			loop: true,
+			continueIfPlaying: true,
+		});
 		spawnHubBoundaries();
-		const wormholePos = k.center().add(180, -120);
+		const wormholePos = k.center().add(300, -80);
 		const wormhole = spawnLevel({
 			pos: wormholePos,
 			levelName: "level1",
 			visual: "wormhole",
 			label: "",
 			onEnter: (_portal, selectLevel, cancel) => {
-				showWarpZoneSelector((zoneId) => {
-					const firstFloor = beginRunSession(zoneId);
-					if (!firstFloor) {
-						cancel();
-						return;
-					}
-					selectLevel(firstFloor.levelKey);
-				}, cancel);
+				const firstFloor = beginRandomRunSession();
+				if (!firstFloor) {
+					cancel();
+					return;
+				}
+				selectLevel(firstFloor.levelKey);
 			},
 		});
 		const wormholeGravity = spawnGravityPull({
@@ -125,10 +132,28 @@ export const hub: Level = {
 		wormhole.onDestroy(() => {
 			if (wormholeGravity.exists()) k.destroy(wormholeGravity);
 		});
-		spawnChest(k.center().add(-50, 0));
-		const healthOrb = spawnHealthOrb(k.center().add(-220, 80));
+		spawnChest(k.center().add(-60, 20));
+		spawnCrate({
+			pos: k.center().add(-300, -50),
+			am: 4,
+			hp: 4,
+			powerupMultiplier: 0,
+			tier: "normal",
+			speed: 0,
+			destroyOffscreen: false,
+		});
+		spawnCrate({
+			pos: k.center().add(230, 110),
+			am: 4,
+			hp: 6,
+			powerupMultiplier: 0,
+			tier: "golden",
+			speed: 0,
+			destroyOffscreen: false,
+		});
+		const healthOrb = spawnHealthOrb(k.center().add(-330, 90));
 		healthOrb.speed = 0;
-		spawnRecoveryShop(k.center().add(-410, -170));
+		spawnRecoveryShop(k.center().add(-690, -280));
 		spawnDebreeValues(k.center().add(90, 55), [1, 2, 3, 4, 5]);
 		spawnHubFacilities();
 		spawnHubBackgroundDepth();
@@ -202,13 +227,11 @@ export const hub: Level = {
 
 function spawnHubBackgroundDepth() {
 	const center = k.center();
-	spawnHubStarLayer(center, 18, 110, 1180, 0.3, -30);
-	spawnHubStarLayer(center, 9, 72, 900, 0.46, -20);
 	spawnBackgroundObject({
 		pos: center,
 		sprite: "bg_destroyed_planet",
-		scale: 1.1,
-		color: k.rgb(9, 13, 17),
+		scale: 1.76,
+		color: k.rgb(16, 24, 32),
 		opacity: 1,
 		parallaxLevel: 36,
 		rotation: -8,
@@ -220,7 +243,7 @@ function spawnHubBackgroundDepth() {
 			pos: center.add(-390, -190),
 			sprite: "bg_destroyed_planet",
 			scale: 0.28,
-			color: k.rgb(15, 19, 23),
+			color: k.rgb(21, 29, 37),
 			opacity: 1,
 			parallaxLevel: 18,
 			rotation: -12,
@@ -230,7 +253,7 @@ function spawnHubBackgroundDepth() {
 			pos: center.add(410, 205),
 			sprite: "bg_destroyed_planet_sliced",
 			scale: 0.25,
-			color: k.rgb(12, 17, 22),
+			color: k.rgb(19, 27, 35),
 			opacity: 1,
 			parallaxLevel: 15,
 			rotation: 28,
@@ -274,6 +297,28 @@ function spawnHubBackgroundDepth() {
 
 	for (const object of scenery) spawnBackgroundObject(object);
 
+	const planetChunks = [
+		[-620, -270, 7, 0.62, -18, 24, -0.025],
+		[650, -230, 5, 0.52, 24, 19, 0.035],
+		[-680, 280, 6, 0.48, 16, 17, 0.03],
+		[660, 300, 4, 0.6, -32, 21, -0.02],
+		[20, -390, 1, 0.6, 8, 14, 0.04],
+		[40, 390, 3, 0.65, -12, 15, -0.035],
+	] as const;
+	for (const [x, y, spriteIndex, scale, rotation, parallaxLevel, rotationSpeed]
+		of planetChunks) {
+		spawnBackgroundObject({
+			pos: center.add(x, y),
+			sprite: PLANET_CHUNK_SPRITES[spriteIndex],
+			scale,
+			color: k.rgb(28, 36, 44),
+			opacity: 0.72,
+			parallaxLevel,
+			rotation,
+			rotationSpeed,
+		});
+	}
+
 	for (let index = 0; index < 28; index++) {
 		const angle = (360 / 28) * index + k.rand(-4, 4);
 		const distance = 205 + (index % 4) * 78 + k.rand(-22, 22);
@@ -306,6 +351,7 @@ function spawnPhaseShiftAsteroidField() {
 	const collisionOuterRadius = 235;
 	const controller = k.add([
 		k.pos(fieldCenter),
+		k.layer(layers.bg),
 		k.z(2),
 		{
 			draw() {
@@ -326,7 +372,7 @@ function spawnPhaseShiftAsteroidField() {
 		tags.gameLoop,
 	]);
 
-	controller.onUpdate(() => {
+	registerBatchedEntityUpdate("world", controller, () => {
 		for (const asteroid of asteroids) {
 			asteroid.angle += asteroid.rotationSpeed * k.dt();
 		}
@@ -422,67 +468,15 @@ function getPhaseFieldCenter() {
 	return k.center().add(phaseFieldOffsetX, phaseFieldOffsetY);
 }
 
-function spawnHubStarLayer(
-	center: ReturnType<typeof k.vec2>,
-	parallaxLevel: number,
-	count: number,
-	radius: number,
-	brightness: number,
-	z: number
-) {
-	const initialCameraPos = k.getCamPos().clone();
-	const stars = Array.from({ length: count }, () => {
-		const bright = k.rand(0.55, 1);
-		return {
-			pos: k.vec2(
-				k.rand(-radius, radius),
-				k.rand(-radius * 0.65, radius * 0.65)
-			),
-			size: k.chance(0.16) ? 2 : 1,
-			color: k.rgb(
-				120 * bright * brightness,
-				190 * bright * brightness,
-				220 * bright * brightness
-			),
-		};
-	});
-	const layer = k.add([
-		k.pos(center),
-		k.layer("bg"),
-		k.z(z),
-		{
-			draw() {
-				for (const star of stars) {
-					k.drawRect({
-						pos: star.pos,
-						width: star.size,
-						height: star.size,
-						color: star.color,
-					});
-				}
-			},
-		},
-		tags.levelBg,
-		tags.gameLoop,
-	]);
-
-	layer.onUpdate(() => {
-		const cameraDelta = k.getCamPos().sub(initialCameraPos);
-		layer.pos = center.add(
-			cameraDelta.scale(1 - 1 / parallaxLevel)
-		);
-	});
-}
-
 function spawnHubFacilities() {
 	const center = k.center();
 	const positions: Record<HubFacilityId, ReturnType<typeof k.vec2>> = {
-		contractTerminal: center.add(80, -180),
-		salvageForge: center.add(-370, 70),
-		debriefTerminal: center.add(-170, -180),
-		trainingRange: center.add(330, 145),
-		blueprintArchive: center.add(-120, 155),
-		warpZones: center.add(385, -145),
+		contractTerminal: center.add(160, -300),
+		salvageForge: center.add(-650, 170),
+		debriefTerminal: center.add(-260, -300),
+		trainingRange: center.add(570, 260),
+		blueprintArchive: center.add(-190, 300),
+		warpZones: center.add(650, -250),
 	};
 
 	for (const facility of HUB_FACILITIES) {
@@ -498,7 +492,7 @@ function spawnHubFacility(
 	const sprites = hubFacilitySprites[facility.id];
 	const building = k.add([
 		k.pos(pos),
-		interactable(72, () => {
+		interactable(hubFacilityInteractRadius, () => {
 			if (!built) {
 				if (!spendScore(facility.cost)) return;
 				buildFacility(facility.id);
@@ -522,7 +516,8 @@ function spawnHubFacility(
 	const buildingVisual = building.add([
 		k.sprite(built ? sprites.built : sprites.destroyed),
 		k.anchor("center"),
-		k.scale(1),
+		k.layer(layers.buildings),
+		k.scale(hubFacilityScale),
 		k.color(built ? k.WHITE : k.rgb(100, 110, 120)),
 		k.opacity(built ? 1 : 0.68),
 	]);
@@ -536,13 +531,14 @@ function spawnHubFacility(
 			width: 220,
 			align: "center",
 		}),
-		k.pos(0, 76),
+		k.pos(0, hubFacilityLabelOffsetY),
 		k.anchor("center"),
+		k.layer(layers.gameText),
 		k.color(k.WHITE),
 		k.opacity(0),
 	]);
 
-	building.onUpdate(() => {
+	registerBatchedEntityUpdate("world", building, () => {
 		label.opacity = building.isInRange ? 1 : 0;
 		label.text = built
 			? `F  ${facility.name}`
@@ -556,7 +552,7 @@ function openHubFacility(id: HubFacilityId) {
 	if (id === "contractTerminal") showContractTerminal();
 	if (id === "salvageForge") showSalvageForge();
 	if (id === "debriefTerminal") showRunDebrief();
-	if (id === "trainingRange") showArsenal();
+	if (id === "trainingRange") showTrainingRange();
 	if (id === "blueprintArchive") showBlueprintArchive();
 	if (id === "warpZones") showWarpZoneRegistry();
 }

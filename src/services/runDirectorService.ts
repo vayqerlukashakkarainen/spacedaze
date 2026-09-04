@@ -7,7 +7,7 @@ import {
 	selectNextRunLevel,
 } from "./runLevelPool"
 import { startRunStats } from "./runStatsService"
-import { getWarpZone } from "./warpZoneService"
+import { getUnlockedWarpZones, getWarpZone } from "./warpZoneService"
 
 export interface RunFloorSelection {
 	levelKey: RunLevelKey
@@ -65,6 +65,13 @@ export function beginRunSession(zoneId: string): RunFloorSelection | undefined {
 	}
 	startRunStats(getSelectedContract()?.name ?? "UNASSIGNED EXPEDITION")
 	return currentFloor
+}
+
+export function beginRandomRunSession(): RunFloorSelection | undefined {
+	const zones = getUnlockedWarpZones()
+	if (zones.length === 0) return undefined
+	const zone = zones[Math.floor(Math.random() * zones.length)]
+	return beginRunSession(zone.id)
 }
 
 export function advanceRunSession(): RunFloorSelection | undefined {

@@ -56,6 +56,7 @@ import type {
 	TrailModifier,
 	VolatileModifier,
 	CriticalShatterModifier,
+	WiggleModifier,
 } from "../projectiles/projectileConfig";
 import { gridRegistry } from "../grid/gridRegistry";
 import { ACTIVE_RUN_GRID_KEY } from "../grid/gridKeys";
@@ -70,6 +71,13 @@ import {
 	type ExplosionOptions,
 } from "./explosionService";
 import { applyRadialGravity } from "./radialGravityService";
+import { profileSection } from "./frameProfilerService";
+import { runLoop } from "./runLoopService";
+import { registerBatchedEntityUpdate } from "./entityUpdateService";
+import {
+	findSpatialNearby,
+	querySpatialNearby,
+} from "./runtimeSpatialIndexService";
 
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
 const PLAYER_PROJECTILE_SCALE = 0.7;
@@ -92,7 +100,6 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	// Build component list
 	const components: any[] = [
 		k.pos(config.pos),
-		k.area(),
 		k.rotate(config.rotation),
 		timescale(),
 		k.offscreen({ destroy: true }),
@@ -130,6 +137,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	applyAccelerateModifier(proj, config.accelerate);
 	applyGravityModifier(proj, config.gravity);
 	applyCurveModifier(proj, config.curve);
+	applyWiggleModifier(proj, config.wiggle);
 	applyDamageTickModifier(proj, config.damageTick);
 	applySlowModifier(proj, config.slow);
 	applyKnockbackModifier(proj, config.knockback);
@@ -150,7 +158,9 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 
 	// Play fire sound
 	if (config.fireSound) {
-		audioService.playSound(config.fireSound, { volume: mainSoundVolume });
+		audioService.playPositionalSound(config.fireSound, proj.pos, {
+			volume: mainSoundVolume,
+		});
 	}
 
 	// On destroy
@@ -166,7 +176,9 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 
 		// Play destroy sound
 		if (config.destroySound && !proj.suppressDestroySound) {
-			audioService.playSound(config.destroySound, { volume: subSoundVolume });
+			audioService.playPositionalSound(config.destroySound, proj.pos, {
+				volume: subSoundVolume,
+			});
 		}
 
 		// Flash effect
@@ -199,12 +211,7 @@ function ensureProjectileUpdateController() {
 	projectileUpdateController = controller;
 
 	controller.onUpdate(() => {
-		const lastProjectileIndex = projectiles.length - 1;
-		for (let index = lastProjectileIndex; index >= 0; index--) {
-			const proj = projectiles[index];
-			if (!proj?.exists() || proj.paused) continue;
-			updateProjectile(proj);
-		}
+		if (!runLoop.isEnabled()) updateProjectileBatch();
 	});
 	controller.onDestroy(() => {
 		if (projectileUpdateController?.id === controller.id) {
@@ -213,10 +220,29 @@ function ensureProjectileUpdateController() {
 	});
 }
 
+export function updateProjectileBatch() {
+	profileSection("projectiles", () => {
+		const lastProjectileIndex = projectiles.length - 1;
+		for (let index = lastProjectileIndex; index >= 0; index--) {
+			const proj = projectiles[index];
+			if (!proj?.exists() || proj.paused) continue;
+			updateProjectile(proj);
+		}
+	});
+}
+
 function updateProjectile(proj: GameObj) {
 	const config = proj.projectileConfig as ProjectileConfig;
 	const previousPos = proj.pos.clone();
 	proj.lifetime += k.dt() * proj.getTimescale();
+	if (
+		proj.isDeployedMine &&
+		!proj.mineArmed &&
+		proj.lifetime >= proj.mineArmDelay
+	) {
+		proj.mineArmed = true;
+		proj.color = k.rgb(255, 190, 70);
+	}
 
 	if (proj.lifespanDuration && proj.lifetime > proj.lifespanDuration) {
 		proj.destroyCause = "lifespan";
@@ -261,6 +287,7 @@ function updateProjectile(proj: GameObj) {
 	if (proj.curveConfig) updateCurve(proj);
 
 	if (!proj.spiralConfig) updateMovement(proj);
+	if (proj.wiggleConfig?.trailPoints) updateWiggleTrail(proj);
 	const wallCollision = findSolidCellCollision(previousPos, proj.pos);
 	if (wallCollision) {
 		let hitDestructibleWall = false;
@@ -491,6 +518,38 @@ function applyCurveModifier(proj: GameObj, config?: CurveModifier) {
 	};
 }
 
+function applyWiggleModifier(proj: GameObj, config?: WiggleModifier) {
+	if (!config) return;
+	proj.wiggleConfig = {
+		amplitude: config.amplitude,
+		frequency: config.frequency,
+		phase: config.phase ?? k.rand(0, Math.PI * 2),
+		baseAngle: proj.angle,
+	};
+	if (!config.trailLength || config.trailLength < 2) return;
+	proj.wiggleConfig.trailColor = config.trailColor ?? proj.color;
+	proj.wiggleConfig.trailLength = Math.max(2, Math.round(config.trailLength));
+	proj.wiggleConfig.trailPoints = [proj.pos.clone()];
+	proj.add([
+		k.z(-1),
+		{
+			draw() {
+				const points = proj.wiggleConfig.trailPoints as Vec2[];
+				for (let index = 1; index < points.length; index++) {
+					const progress = index / points.length;
+					k.drawLine({
+						p1: points[index - 1].sub(proj.pos),
+						p2: points[index].sub(proj.pos),
+						width: k.lerp(0.5, 2.2, progress),
+						color: proj.wiggleConfig.trailColor,
+						opacity: k.lerp(0.08, 0.8, progress),
+					});
+				}
+			},
+		},
+	]);
+}
+
 function applyDamageTickModifier(proj: GameObj, config?: DamageTickModifier) {
 	if (!config) return;
 	proj.damageTickConfig = {
@@ -660,16 +719,21 @@ function updateMovement(proj: GameObj) {
 			proj.turnSpeed * timeScale * proj.getTimescale(),
 			-90
 		);
+		const wiggleAngle = getWiggleAngle(proj);
 		steerMoveRotateAndLean(
 			proj,
-			lerp,
+			lerp + wiggleAngle,
 			speed,
-			correctedDesiredRot,
+			correctedDesiredRot + wiggleAngle,
 			proj.projectileVisualScale
 		);
 	} else {
 		// Straight movement
-		const currentDir = k.Vec2.fromAngle(proj.angle - 90);
+		const travelAngle = proj.wiggleConfig
+			? proj.wiggleConfig.baseAngle + getWiggleAngle(proj)
+			: proj.angle;
+		proj.angle = travelAngle;
+		const currentDir = k.Vec2.fromAngle(travelAngle - 90);
 		proj.move(
 			k
 				.vec2(currentDir.x * speed, currentDir.y * speed)
@@ -682,6 +746,20 @@ function updateMovement(proj: GameObj) {
 			proj.projectileVisualScale
 		);
 	}
+}
+
+function getWiggleAngle(proj: GameObj) {
+	if (!proj.wiggleConfig) return 0;
+	return Math.sin(
+		proj.lifetime * proj.wiggleConfig.frequency + proj.wiggleConfig.phase
+	) * proj.wiggleConfig.amplitude;
+}
+
+function updateWiggleTrail(proj: GameObj) {
+	if (!proj.wiggleConfig.trailPoints) return;
+	const points = proj.wiggleConfig.trailPoints as Vec2[];
+	points.push(proj.pos.clone());
+	while (points.length > proj.wiggleConfig.trailLength) points.shift();
 }
 
 function updateSplit(proj: GameObj, config: ProjectileConfig) {
@@ -812,13 +890,9 @@ function updateCurve(proj: GameObj) {
 function updateProximityFuse(proj: GameObj) {
 	const config = proj.proximityConfig;
 	if (proj.lifetime < (config.armDelay ?? 0)) return false;
-	const targets = k.query({
-		include: config.targetTags,
-		includeOp: "and",
+	const target = findSpatialNearby(proj.pos, config.radius, {
+		allTags: config.targetTags,
 	});
-	const target = targets.find((candidate) =>
-		candidate.exists() && candidate.pos.dist(proj.pos) <= config.radius
-	);
 	if (!target) return false;
 
 	if (proj.isDeployedMine) {
@@ -995,11 +1069,6 @@ function deployMine(proj: GameObj, config: ProjectileConfig) {
 	mineObj.mineArmDelay = mine.armDelay;
 	mineObj.scale = mineObj.scale.scale(1.35);
 	mineObj.color = k.rgb(105, 105, 105);
-	mineObj.onUpdate(() => {
-		if (mineObj.mineArmed || mineObj.lifetime < mineObj.mineArmDelay) return;
-		mineObj.mineArmed = true;
-		mineObj.color = k.rgb(255, 190, 70);
-	});
 	k.destroy(proj);
 	return true;
 }
@@ -1252,16 +1321,20 @@ function handleOnDestroy(proj: GameObj, config: ProjectileConfig) {
 
 	// Explode effect
 	if (proj.onDestroyConfig.explode && proj.splashRadius) {
+		const isProximityDetonation = proj.destroyCause === "proximity";
 		createProjectileExplosion(proj, {
 			pos: proj.pos,
 			radius: proj.splashRadius,
 			damage: proj.splashDamage,
+			visualScale: isProximityDetonation ? 0.55 : 1,
+			visualIntensity: isProximityDetonation ? 0.16 : undefined,
+			visualParticleCount: isProximityDetonation ? 5 : undefined,
 			damageFalloff: proj.splashFalloff,
 			falloffDistance: proj.splashFalloffDist,
 		});
 		debreeRocketEmitter.emitter.position = proj.pos;
 		debreeRocketEmitter.emitter.direction = proj.angle - 90;
-		debreeRocketEmitter.emit(6);
+		debreeRocketEmitter.emit(isProximityDetonation ? 2 : 6);
 	}
 }
 
@@ -1271,7 +1344,7 @@ export function applyProjectileDamage(
 	target: GameObj,
 	projectile: GameObj
 ): boolean {
-	if (!target.exists() || typeof target.hurt !== "function") return true;
+	if (!target.exists() || typeof target.hp !== "number") return true;
 	if (
 		projectile.isDeployedMine &&
 		projectile.lifetime < (projectile.mineArmDelay ?? 0)
@@ -1310,8 +1383,8 @@ export function applyProjectileDamage(
 			projectile.executionConfig &&
 			target.hp &&
 			target.maxHP &&
-			target.maxHP() > 0 &&
-			target.hp() / target.maxHP() <=
+			target.maxHP > 0 &&
+			target.hp / target.maxHP <=
 				projectile.executionConfig.healthThreshold
 		) {
 			damage *= projectile.executionConfig.damageMultiplier;
@@ -1349,10 +1422,10 @@ export function applyProjectileDamage(
 		if (critical && projectile.criticalShatterConfig) {
 			spawnCriticalShards(projectile);
 		}
-		if (projectile.paintConfig && (!target.hp || target.hp() > 0)) {
+		if (projectile.paintConfig && (!target.hp || target.hp > 0)) {
 			applyPaintEffect(target, projectile.paintConfig);
 		}
-		if (target.hp && target.hp() <= 0) {
+		if (target.hp && target.hp <= 0) {
 			const volatile = target.damageTickEffect?.volatile;
 			if (volatile) triggerVolatileCorrosion(target, volatile);
 			const slowEffect = target.slowEffect;
@@ -1467,7 +1540,9 @@ function handleChainLightning(
 	baseDamage: number
 ) {
 	if (config.chainsUsed >= config.maxChains) return;
-	const units = k.query({ include: config.targetTags, includeOp: "and" });
+	const units = querySpatialNearby(origin, config.chainDistance, {
+		allTags: config.targetTags,
+	});
 
 	for (const unit of units) {
 		if (!unit.exists()) continue;
@@ -1534,7 +1609,7 @@ function applyDamageTickEffect(target: GameObj, config: any) {
 
 	if (!target.hasDamageTickUpdate) {
 		target.hasDamageTickUpdate = true;
-		target.onUpdate(() => {
+		registerBatchedEntityUpdate("effects", target, () => {
 			if (!target.damageTickEffect) return;
 			const delta = k.dt() * (target.getTimescale ? target.getTimescale() : 1);
 			target.damageTickEffect.remaining -= delta;
@@ -1552,7 +1627,7 @@ function applyDamageTickEffect(target: GameObj, config: any) {
 			if (target.damageTickEffect.tickRemaining <= 0) {
 				const tickDamage = target.damageTickEffect.damagePerTick;
 				applyDamage(target, tickDamage);
-				if (target.hp && target.hp() <= 0) {
+				if (target.hp && target.hp <= 0) {
 					const volatile = target.damageTickEffect?.volatile;
 					if (volatile) triggerVolatileCorrosion(target, volatile);
 				}
@@ -1628,7 +1703,7 @@ function applySlowEffect(target: GameObj, config: any) {
 
 	if (!target.hasSlowUpdate) {
 		target.hasSlowUpdate = true;
-		target.onUpdate(() => {
+		registerBatchedEntityUpdate("effects", target, () => {
 			if (!target.slowEffect) return;
 			const delta = k.dt() * (target.getTimescale ? target.getTimescale() : 1);
 			target.slowEffect.remaining -= delta;
@@ -1681,9 +1756,8 @@ function triggerVolatileCorrosion(target: GameObj, config: VolatileModifier) {
 	if (!config.procState || config.procState.remaining <= 0) return;
 	target.volatileCorrosionTriggered = true;
 	config.procState.remaining--;
-	const nearbyTargets = k.query({
-		include: [tags.enemy, tags.unit],
-		includeOp: "and",
+	const nearbyTargets = querySpatialNearby(target.pos, config.radius, {
+		allTags: [tags.enemy, tags.unit],
 	});
 	for (const nearby of nearbyTargets) {
 		if (nearby.id === target.id || nearby.pos.dist(target.pos) > config.radius) {
@@ -1712,9 +1786,8 @@ function triggerStasisBurst(target: GameObj, effect: any) {
 	target.stasisBurstTriggered = true;
 	effect.procState.remaining--;
 	const burst = effect.stasisBurst;
-	const nearbyTargets = k.query({
-		include: [tags.enemy, tags.unit],
-		includeOp: "and",
+	const nearbyTargets = querySpatialNearby(target.pos, burst.radius, {
+		allTags: [tags.enemy, tags.unit],
 	});
 	for (const nearby of nearbyTargets) {
 		if (nearby.id === target.id || nearby.pos.dist(target.pos) > burst.radius) {
@@ -1749,7 +1822,7 @@ function applyPaintEffect(target: GameObj, config: PaintModifier) {
 
 	if (target.hasProjectilePaintUpdate) return;
 	target.hasProjectilePaintUpdate = true;
-	target.onUpdate(() => {
+	registerBatchedEntityUpdate("effects", target, () => {
 		if (!target.projectilePaintRemaining) return;
 		target.projectilePaintRemaining -=
 			k.dt() * (target.getTimescale ? target.getTimescale() : 1);

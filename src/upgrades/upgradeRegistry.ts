@@ -14,6 +14,7 @@ import {
 	spaceJump,
 	spaceJumpUpgrades,
 	phaseRam,
+	phaseMagazine,
 	movespeed,
 	debreeValue,
 	maxHealth,
@@ -84,6 +85,7 @@ const definitions: Record<string, UpgradeDefinition> = {
 	spaceJump,
 	spaceJumpUpgrades,
 	phaseRam,
+	phaseMagazine,
 	movespeed,
 
 	// Ship - Resources
@@ -148,6 +150,7 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	sprintSpeed: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 25, 80),
 	spaceJumpUpgrades: policy(RewardRarity.Rare, ["crate", "boss"], 70, 0, 130),
 	phaseRam: policy(RewardRarity.Rare, ["crate", "boss"], 55, 0, 120),
+	phaseMagazine: policy(RewardRarity.Epic, ["crate", "boss"], 24, 0, 145),
 	movespeed: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 140, 35, 90),
 	debreeDist: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 130, 35, 80),
 	debreeValue: policy(RewardRarity.Uncommon, ["crate", "boss"], 90, 0, 80),

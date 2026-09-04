@@ -14,6 +14,7 @@ import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
 } from "../services/threatService";
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 
 export function spawnGenericVehicle(
 	addTo: GameObj<{ killed: number }>,
@@ -52,7 +53,7 @@ export function spawnGenericVehicle(
 
 	registerHitAnimation(m);
 
-	m.onUpdate(() => {
+	registerBatchedEntityUpdate("enemies", m, () => {
 		m.move(m.vel.scale(m.speed * velocityScale() * m.getTimescale()));
 
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {

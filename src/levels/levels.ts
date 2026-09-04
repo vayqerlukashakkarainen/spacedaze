@@ -25,6 +25,7 @@ import {
 	updateRunFinale,
 } from "../services/runFinaleService";
 import { extractVolatileCargo } from "../services/shipUpgradeService";
+import { spawnGameplaySpaceAmbience } from "../spawn/spaceAmbience";
 
 const levels = {
 	hub,
@@ -60,6 +61,7 @@ export function loadLevel(levelKey: LevelKey) {
 		currentLvl.mapGeneration ? zone?.finaleId : undefined,
 		zone?.finaleTransitionSeconds
 	);
+	spawnGameplaySpaceAmbience();
 	if (currentLvl.onStart) {
 		currentLvl.onStart();
 	}
@@ -87,7 +89,7 @@ export function transitionToLevel(levelKey: LevelKey) {
 		endRunSession();
 	}
 	if (currentLvl === hub && levelKey !== "hub") {
-		hideRecoveryShop();
+		hideRecoveryShop(false);
 		clearRecoveryOffers();
 	}
 

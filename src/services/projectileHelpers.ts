@@ -125,6 +125,46 @@ export function getPrimaryWeaponDamage() {
 	return player.blasterDmg * weapon.damageMultiplier * player.blasterDmgMultiplier;
 }
 
+export function spawnPhaseMagazineSalvo(pos: Vec2) {
+	const roundCount = 10;
+	const tint = k.rgb(190, 75, 255);
+	const damage = getPrimaryWeaponDamage() * 0.35;
+	for (let index = 0; index < roundCount; index++) {
+		const angle = index * (360 / roundCount);
+		const config: ProjectileConfig = {
+			pos: pos.add(k.Vec2.fromAngle(angle).scale(7)),
+			dir: k.Vec2.fromAngle(angle),
+			rotation: angle + 90,
+			sprite: "bullet1",
+			tint,
+			speed: BULLET_SPEED,
+			speedMultiplier: 0.82,
+			tags: [tags.friendly, tags.blaster],
+			impact: { damage },
+			seek: {
+				enabled: true,
+				acquireDelay: 0.02,
+				seekDistance: 420,
+				turnSpeed: 0.12,
+				targetTags: [tags.enemy],
+			},
+			wiggle: {
+				amplitude: 14,
+				frequency: 14,
+				phase: index * 0.9,
+			},
+			lifespan: { duration: 2.8 },
+			crit: {
+				chance: player.critChance,
+				multiplier: player.critMultiplier,
+			},
+			fireSound: index === 0 ? "shoot1" : undefined,
+		};
+		applyPlayerProjectileModifiers(config, false);
+		spawnProjectile(config);
+	}
+}
+
 // Homing Rocket
 export function spawnHomingRocket(
 	pos: Vec2,

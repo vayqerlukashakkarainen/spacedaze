@@ -1,6 +1,6 @@
 import type { Vec2 } from "kaplay"
 import { playerObj } from "../../game"
-import { k, mainSoundVolume, spendScore } from "../../main"
+import { k, layers, mainSoundVolume, spendScore } from "../../main"
 import { addThreatTime } from "../../services/threatService"
 import { spawnThreatEncounter } from "../../services/enemyEncounterService"
 import { audioService } from "../../services/audioService"
@@ -9,6 +9,7 @@ import { tags } from "../../tags"
 import { spawnBuilding } from "../spawnBuilding"
 import { spawnDamageNumber } from "../spawnDamageNumber"
 import { spawnRing } from "../spawnRing"
+import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 
 interface RepairStationProps {
 	pos: Vec2
@@ -37,21 +38,24 @@ export function spawnRepairStation(props: RepairStationProps) {
 		k.pos(0, -86),
 		k.anchor("center"),
 		k.color(90, 255, 135),
+		k.layer(layers.gameText),
 	])
 	const barBg = station.add([
 		k.rect(76, 5),
 		k.pos(-38, -72),
 		k.anchor("left"),
 		k.color(45, 65, 50),
+		k.layer(layers.gameEffects),
 	])
 	const bar = station.add([
 		k.rect(0, 5),
 		k.pos(-38, -72),
 		k.anchor("left"),
 		k.color(90, 255, 135),
+		k.layer(layers.gameEffects),
 	])
 
-	station.onUpdate(() => {
+	registerBatchedEntityUpdate("world", station, () => {
 		if (!repairing || repaired) return
 		const inside = playerObj.pos.dist(station.pos) <= props.defendRadius
 		status.text = inside ? "REPAIRING" : "RETURN TO STATION"
@@ -62,9 +66,9 @@ export function spawnRepairStation(props: RepairStationProps) {
 
 		repairing = false
 		repaired = true
-		const restored = Math.max(0, playerObj.maxHP() - playerObj.hp())
-		playerObj.heal(playerObj.maxHP())
-		updatePlayerHealthBar(playerObj.hp())
+		const restored = Math.max(0, playerObj.maxHP - playerObj.hp)
+		playerObj.hp = playerObj.maxHP
+		updatePlayerHealthBar(playerObj.hp)
 		if (restored > 0) {
 			spawnDamageNumber(playerObj.pos.clone(), restored, {
 				color: k.rgb(90, 255, 135),
@@ -85,7 +89,7 @@ export function spawnRepairStation(props: RepairStationProps) {
 
 	function beginRepair() {
 		if (repairing || repaired) return
-		if (playerObj.hp() >= playerObj.maxHP()) {
+		if (playerObj.hp >= playerObj.maxHP) {
 			status.text = "HULL FULL"
 			return
 		}

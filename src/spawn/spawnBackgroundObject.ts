@@ -1,6 +1,7 @@
 import { Color, GameObj, Vec2 } from "kaplay";
 import { dtScaled, k, layers } from "../main";
 import { tags } from "../tags";
+import { profileSection } from "../services/frameProfilerService";
 
 interface BackgroundObjectProps {
 	pos: Vec2;
@@ -92,7 +93,7 @@ function ensureBackgroundUpdateController() {
 	]);
 	backgroundUpdateController = controller;
 
-	controller.onUpdate(updateBackgroundObjects);
+	controller.onUpdate(() => profileSection("external:background", updateBackgroundObjects));
 	controller.onDestroy(() => {
 		if (backgroundUpdateController?.id === controller.id) {
 			backgroundUpdateController = undefined;

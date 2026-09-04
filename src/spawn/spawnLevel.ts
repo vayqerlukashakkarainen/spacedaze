@@ -1,10 +1,12 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileIntersection, playerObj } from "../game";
-import { k } from "../main";
+import { k, layers } from "../main";
 import { tags } from "../tags";
 import { timescale } from "../comp/timescale";
 import { LevelKey } from "../levels/levels";
 import { startLevelTransition } from "../services/levelTransitionService";
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { audioService } from "../services/audioService";
 
 interface Props {
 	pos: Vec2;
@@ -51,6 +53,7 @@ export function spawnLevel(props: Props) {
 			k.scale(1),
 			k.anchor("center"),
 			k.opacity(0.2),
+			k.layer(layers.gameEffects),
 		]);
 	}
 
@@ -59,6 +62,7 @@ export function spawnLevel(props: Props) {
 		k.pos(0, props.visual === "wormhole" ? -78 : -28),
 		k.anchor("center"),
 		k.color(k.WHITE),
+		k.layer(layers.gameText),
 	]);
 	m.setPortalState = (
 		state: "dormant" | "charging" | "active",
@@ -99,8 +103,7 @@ export function spawnLevel(props: Props) {
 			targetLevel: props.levelName,
 		});
 	};
-
-	m.onUpdate(() => {
+	registerBatchedEntityUpdate("world", m, () => {
 		if (props.visual !== "wormhole") {
 			checkProjectileIntersection(m.pos, 16, tags.friendly, () => {
 				collectPortal();
@@ -117,46 +120,145 @@ export function spawnLevel(props: Props) {
 }
 
 function addWormholeEffect(portal: any) {
+	k.usePostEffect("wormholeLighting", () => {
+		if (!portal.exists()) {
+			return {
+				u_lightCenter: k.vec2(-1000, -1000),
+				u_resolution: k.vec2(k.width(), k.height()),
+				u_radius: 1,
+				u_intensity: 0,
+				u_time: k.time(),
+			}
+		}
+		const activationProgress = portal.portalProgress ?? 0
+		const stateIntensity = portal.portalState === "dormant"
+			? 0.18
+			: portal.portalState === "charging"
+				? k.lerp(0.3, 1.15, activationProgress)
+				: 0.72
+		const worldRadius = portal.portalState === "charging"
+			? k.lerp(105, 165, activationProgress)
+			: portal.portalState === "dormant"
+				? 85
+				: 145
+		const screenPos = k.toScreen(portal.pos)
+		return {
+			u_lightCenter: k.vec2(screenPos.x, k.height() - screenPos.y),
+			u_resolution: k.vec2(k.width(), k.height()),
+			u_radius: worldRadius * k.getCamScale().x,
+			u_intensity: stateIntensity + (portal.transitionIntensity ?? 0) * 0.3,
+			u_time: k.time(),
+		}
+	})
+	const ambience = audioService.playPositionalSound(
+		"wormhole_ambience",
+		() => portal.exists() ? portal.pos : undefined,
+		{
+			volume: 0.5,
+			loop: true,
+			minDistance: 55,
+			maxDistance: 400,
+			rolloff: 1.5,
+			panDistance: 280,
+		}
+	);
 	const core = portal.add([
 		k.circle(9),
 		k.anchor("center"),
 		k.color(0, 0, 0),
 		k.opacity(0.95),
 		k.outline(1, k.WHITE),
+		k.layer(layers.gameEffects),
+		k.z(2),
 	]);
 	const rings = [
 		{ radius: 16, speed: 38, squash: 0.48, phase: 0, activationAt: 0.08 },
-		{ radius: 20, speed: -27, squash: 0.58, phase: 1.2, activationAt: 0.22 },
-		{ radius: 24, speed: 24, squash: 0.68, phase: 2.1, activationAt: 0.36 },
-		{ radius: 29, speed: -20, squash: 0.76, phase: 3.4, activationAt: 0.5 },
-		{ radius: 34, speed: 16, squash: 0.84, phase: 4.3, activationAt: 0.66 },
-		{ radius: 40, speed: -13, squash: 0.92, phase: 5.1, activationAt: 0.82 },
+		{ radius: 24, speed: -27, squash: 0.58, phase: 1.2, activationAt: 0.22 },
+		{ radius: 32, speed: 24, squash: 0.68, phase: 2.1, activationAt: 0.36 },
+		{ radius: 40, speed: -20, squash: 0.76, phase: 3.4, activationAt: 0.5 },
+		{ radius: 48, speed: 16, squash: 0.84, phase: 4.3, activationAt: 0.66 },
+		{ radius: 56, speed: -13, squash: 0.92, phase: 5.1, activationAt: 0.82 },
 	].map((ring) => ({
-		...ring,
-		distanceOpacity: k.lerp(1, 0.24, (ring.radius - 16) / (40 - 16)),
-		obj: portal.add([
+			...ring,
+			distanceOpacity: k.lerp(1, 0.24, (ring.radius - 16) / (56 - 16)),
+			obj: portal.add([
 			k.circle(ring.radius, { fill: false }),
 			k.anchor("center"),
 			k.scale(1, ring.squash),
 			k.rotate(ring.phase * 20),
 			k.opacity(0.55),
 			k.outline(1, k.WHITE),
+			k.layer(layers.gameEffects),
 		]),
 	}));
 	const particles = Array.from({ length: 40 }, (_, index) => ({
 		phase: index / 40,
-		speed: 0.1 + (index % 5) * 0.012,
-		startRadius: 82 + (index % 4) * 7,
+		speed: 0.13 + (index % 5) * 0.014,
+		startRadius: 92 + (index % 4) * 10,
 		activationAt: 0.04 + (index / 40) * 0.88,
-		obj: portal.add([
-			k.rect(index % 4 === 0 ? 5 : 3, index % 5 === 0 ? 2 : 1),
-			k.anchor("center"),
-			k.color(k.WHITE),
-			k.opacity(0.2),
-		]),
+		width: 2 + (index % 4),
+		height: index % 5 === 0 ? 2 : 1,
+		shade: 170 + (index % 5) * 17,
 	}));
+	portal.add([
+		k.pos(0, 0),
+		{
+			draw() {
+				const time = k.time();
+				const activationProgress = portal.portalProgress ?? 0;
+				const isCharging = portal.portalState === "charging";
+				const isDormant = portal.portalState === "dormant";
 
-	portal.onUpdate(() => {
+				for (let index = 0; index < particles.length; index++) {
+					const particle = particles[index];
+					const reveal = isDormant
+						? 0
+						: isCharging
+							? k.clamp(
+									(activationProgress - particle.activationAt) / 0.1,
+									0,
+									1
+								)
+							: 1;
+					const progress = (time * particle.speed + particle.phase) % 1;
+					const acceleratedProgress = progress * progress;
+					const radius =
+						particle.startRadius -
+						acceleratedProgress * (particle.startRadius - 6);
+					const angle =
+						progress * 720 +
+						index * (360 / particles.length) +
+						time * (isCharging
+							? k.lerp(12, 58, activationProgress)
+							: 24);
+					const direction = k.Vec2.fromAngle(angle);
+					const scale = 0.75 + progress * 0.8;
+					const particleOpacity = k.clamp(reveal * (
+						progress < 0.15
+							? 0.3 + progress * 3
+							: progress > 0.9
+								? (1 - progress) * 8
+								: 0.7 + progress * 0.25
+					), 0, 1);
+
+					k.drawRect({
+						pos: k.vec2(
+							direction.x * radius,
+							direction.y * radius * 0.72
+						),
+						width: particle.width * scale,
+						height: particle.height * scale,
+						angle: angle + index * 19,
+						anchor: "center",
+						color: k.rgb(particle.shade, particle.shade, particle.shade),
+						opacity: particleOpacity,
+					});
+				}
+			},
+		},
+	]);
+
+	registerBatchedEntityUpdate("world", portal, () => {
 		const time = k.time();
 		const localTimescale = portal.getTimescale();
 		const transitionIntensity = portal.transitionIntensity ?? 0;
@@ -180,7 +282,6 @@ function addWormholeEffect(portal: any) {
 		);
 		core.scale = k.vec2(coreBaseScale * corePulse);
 		core.opacity = 1;
-
 		for (const ring of rings) {
 			const reveal = isDormant
 				? 0
@@ -219,40 +320,9 @@ function addWormholeEffect(portal: any) {
 				(isCharging ? k.lerp(0.25, 0.8, activationProgress) : 0.55);
 		}
 
-		for (let index = 0; index < particles.length; index++) {
-			const particle = particles[index];
-			const reveal = isDormant
-				? 0
-				: isCharging
-					? k.clamp(
-							(activationProgress - particle.activationAt) / 0.1,
-							0,
-							1
-						)
-					: 1;
-			const progress = (time * particle.speed + particle.phase) % 1;
-			const acceleratedProgress = progress * progress;
-			const radius =
-				particle.startRadius -
-				acceleratedProgress * (particle.startRadius - 6);
-			const angle =
-				progress * 620 +
-				index * (360 / particles.length) +
-				time * (isCharging ? k.lerp(8, 52, activationProgress) : 18);
-			const direction = k.Vec2.fromAngle(angle);
-			particle.obj.pos = k.vec2(
-				direction.x * radius,
-				direction.y * radius * 0.72
-			);
-			particle.obj.angle = angle;
-			particle.obj.scale = k.vec2(0.65 + progress * 0.75);
-			particle.obj.opacity = k.clamp(reveal * (
-				progress < 0.15
-					? 0.15 + progress * 2.5
-					: progress > 0.9
-						? (1 - progress) * 8
-						: 0.55 + progress * 0.35
-			), 0, 1);
-		}
+	});
+
+	portal.onDestroy(() => {
+		ambience.stop();
 	});
 }

@@ -3,6 +3,7 @@ import { k, layers } from "../../main";
 import { uiState } from "../../ui/uiState";
 import { createUiLabel } from "../../ui/common/label";
 import { createUiButton } from "../../ui/common/button";
+import { uiHitRegion } from "../../ui/common/hitRegion";
 
 interface ModalButton {
 	text: string;
@@ -26,7 +27,7 @@ export function createModal(
 	const overlay = k.add([
 		k.pos(0, 0),
 		k.rect(screenWidth, screenHeight),
-		k.area(),
+		uiHitRegion(k.vec2(screenWidth, screenHeight)),
 		k.color(0, 0, 0),
 		k.opacity(0.7),
 		k.fixed(),
@@ -121,7 +122,7 @@ export function createInputModal(
 	const overlay = k.add([
 		k.pos(0, 0),
 		k.rect(screenWidth, screenHeight),
-		k.area(),
+		uiHitRegion(k.vec2(screenWidth, screenHeight)),
 		k.color(0, 0, 0),
 		k.opacity(0.7),
 		k.fixed(),
@@ -281,7 +282,7 @@ export function createListModal(
 	const overlay = k.add([
 		k.pos(0, 0),
 		k.rect(screenWidth, screenHeight),
-		k.area(),
+		uiHitRegion(k.vec2(screenWidth, screenHeight)),
 		k.color(0, 0, 0),
 		k.opacity(0.7),
 		k.fixed(),

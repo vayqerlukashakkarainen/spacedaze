@@ -1,6 +1,7 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { ACTIVE_RUN_GRID_KEY } from "../grid/gridKeys"
 import { gridRegistry } from "../grid/gridRegistry"
+import { registerBatchedEntityUpdate } from "./entityUpdateService"
 import { k } from "../main"
 
 const PULSE_HALF_LIFE_SECONDS = 0.12
@@ -48,7 +49,7 @@ function registerPulseUpdate(target: PulseTarget) {
 	if (target.hasExplosionPulseUpdate) return
 	target.hasExplosionPulseUpdate = true
 
-	target.onUpdate(() => {
+	registerBatchedEntityUpdate("effects", target, () => {
 		const velocity = target.explosionPulseVelocity
 		if (!velocity || velocity.len() < MIN_PULSE_SPEED) {
 			target.explosionPulseVelocity = undefined

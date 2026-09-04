@@ -2,6 +2,7 @@ import type { Color, Vec2 } from "kaplay"
 import { timescale } from "../comp/timescale"
 import { k, layers } from "../main"
 import { tags } from "../tags"
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 
 const DAMAGE_NUMBER_LIFETIME = 0.65
 const DAMAGE_NUMBER_RISE_SPEED = 24
@@ -32,7 +33,7 @@ export function spawnDamageNumber(
 		k.opacity(1),
 		k.scale(critical ? 1.15 : 1),
 		k.z(100),
-		k.layer(layers.game),
+		k.layer(layers.gameText),
 		timescale(),
 		{
 			elapsed: 0,
@@ -41,7 +42,7 @@ export function spawnDamageNumber(
 		tags.gameLoop,
 	])
 
-	number.onUpdate(() => {
+	registerBatchedEntityUpdate("effects", number, () => {
 		const delta = k.dt() * number.getTimescale()
 		number.elapsed += delta
 		number.move(0, -DAMAGE_NUMBER_RISE_SPEED * number.getTimescale())

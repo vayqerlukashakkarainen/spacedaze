@@ -8,11 +8,15 @@ import { tags } from "../tags"
 import { applyDamage } from "./damageService"
 import { applyExplosionPulse } from "./explosionPulseService"
 import { audioService } from "./audioService"
+import { querySpatialNearby } from "./runtimeSpatialIndexService"
 
 export interface ExplosionOptions {
 	pos: Vec2
 	radius: number
 	damage: number
+	visualScale?: number
+	visualIntensity?: number
+	visualParticleCount?: number
 	damageFalloff?: number
 	falloffDistance?: number
 	canCrit?: boolean
@@ -41,18 +45,28 @@ export function registerExplosionModifier(modifier: ExplosionModifier) {
 }
 
 export function createExplosion(options: ExplosionOptions) {
+	const suppliedTargets = options.targets
 	const context: ExplosionContext = {
 		...options,
 		pos: options.pos.clone(),
 		hits: [],
-		targets: options.targets ?? k.query({
-			include: [tags.enemy, tags.unit],
-			includeOp: "and",
-		}),
+		targets: suppliedTargets ?? [],
 	}
 	for (const modifier of explosionModifiers) modifier(context)
+	if (!suppliedTargets) {
+		context.targets = querySpatialNearby(context.pos, context.radius, {
+			allTags: [tags.enemy, tags.unit],
+		})
+	}
 
-	spawnExplosionEffect(context.pos, context.radius)
+	spawnExplosionEffect(
+		context.pos,
+		context.radius * (context.visualScale ?? 1),
+		{
+			ringIntensity: context.visualIntensity,
+			particleCount: context.visualParticleCount,
+		}
+	)
 	applyPlayerExplosionPulse(context)
 	let playedCritSound = false
 
@@ -77,7 +91,9 @@ export function createExplosion(options: ExplosionOptions) {
 		if (result.critical) {
 			spawnFlash(target.pos, 1.5, k.RED)
 			if (!playedCritSound) {
-				audioService.playSound("crit1", { volume: mainSoundVolume })
+				audioService.playPositionalSound("crit1", context.pos, {
+					volume: mainSoundVolume,
+				})
 				playedCritSound = true
 			}
 		}

@@ -1,7 +1,9 @@
 import type { GameObj, PosComp, Vec2 } from "kaplay"
-import { k } from "../main"
+import { k, layers } from "../main"
 import { applyDamage } from "../services/damageService"
 import { tags } from "../tags"
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { forEachSpatialNearby } from "../services/runtimeSpatialIndexService"
 
 interface Props {
 	pos: Vec2
@@ -19,6 +21,7 @@ export function spawnAfterburnerWake(props: Props) {
 		k.anchor("center"),
 		k.color(255, 125, 25),
 		k.opacity(0.45),
+		k.layer(layers.gameEffects),
 		k.scale(1),
 		k.z(-2),
 		{ elapsed: 0 },
@@ -26,18 +29,19 @@ export function spawnAfterburnerWake(props: Props) {
 		tags.gameLoop,
 	])
 
-	wake.onUpdate(() => {
+	registerBatchedEntityUpdate("effects", wake, () => {
 		wake.elapsed += k.dt()
 		const progress = k.clamp(wake.elapsed / duration, 0, 1)
 		wake.opacity = 0.45 * (1 - progress)
 		wake.scale = k.vec2(k.lerp(0.65, 1.25, progress))
 
-		for (const enemy of k.get(tags.enemy) as GameObj<PosComp>[]) {
-			if (!enemy.exists() || !enemy.pos || hitTargets.has(enemy.id!)) continue
-			if (enemy.pos.dist(wake.pos) >= radius * wake.scale.x) continue
+		forEachSpatialNearby(wake.pos, radius * wake.scale.x, {
+			allTags: [tags.enemy],
+		}, (enemy) => {
+			if (!enemy.exists() || !enemy.pos || hitTargets.has(enemy.id!)) return
 			hitTargets.add(enemy.id!)
 			applyDamage(enemy, damage)
-		}
+		})
 
 		if (progress >= 1) k.destroy(wake)
 	})

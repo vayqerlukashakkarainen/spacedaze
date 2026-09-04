@@ -13,21 +13,31 @@ import {
 	upgradeForge,
 } from "../services/hubProgressService"
 import { getLastRunStats } from "../services/runStatsService"
-import { getAllRewardDefinitions } from "../services/rewardService"
+import {
+	getAllRewardDefinitions,
+	REWARD_RARITY_COLORS,
+	type RewardDefinition,
+} from "../services/rewardService"
 import { setNextGeneratedRunSeed } from "../levels/runMap"
 import { saveGame } from "../util"
 import { tags } from "../tags"
 import { uiState } from "./uiState"
-import { createUiPanel } from "./common/panel"
-import { UI_COLORS } from "./common/theme"
-import { getUnlockedWarpZones, WARP_ZONES } from "../services/warpZoneService"
 import {
-	equipWeapon,
-	getEquippedWeaponId,
-	getWeaponTriggerModifier,
-	isWeaponOwned,
-	WEAPONS,
-} from "../services/weaponService"
+	addThemedText,
+	createUiActionButton,
+	createUiBadge,
+	createUiPanel,
+	createUiProgressBar,
+	playUiModalClose,
+	playUiModalOpen,
+	createUiSectionHeader,
+	createUiSelectableRow,
+	createUiStatList,
+	createUiSurface,
+	createUiVerticalFlow,
+	UI_COLORS,
+} from "./common"
+import { getUnlockedWarpZones, WARP_ZONES } from "../services/warpZoneService"
 import {
 	addLvl,
 	getPermanentUpgradeLevel,
@@ -36,11 +46,16 @@ import {
 } from "../upg"
 import { getUpgradeDefinition } from "../upgrades/upgradeRegistry"
 import { loadPlayer } from "../player"
-import { addThemedText } from "./common/text"
-import { createUiVerticalFlow } from "./common/flow"
+import {
+	playShopMenuCloseSound,
+	playShopMenuOpenSound,
+} from "../services/shopMenuSoundService"
 
 let panelOpen = false
+let panelClosing = false
 let panelCloseHandler: (() => void) | undefined
+let activePanel: GameObj | undefined
+let activeBackdrop: GameObj | undefined
 
 export function hubFacilityPanelOpen() {
 	return panelOpen
@@ -104,8 +119,8 @@ export function showContractTerminal() {
 	}
 }
 
-export function showSalvageForge() {
-	const panel = openPanel("SALVAGE FORGE")
+export function showSalvageForge(playTransitionSound = true) {
+	const panel = openPanel("SALVAGE FORGE", undefined, playTransitionSound)
 	if (!panel) return
 
 	const level = getForgeLevel()
@@ -131,8 +146,8 @@ export function showSalvageForge() {
 			if (!spendScore(cost)) return
 			if (!upgradeForge()) return
 			saveGame("slot1")
-			hideHubFacilityPanel()
-			showSalvageForge()
+			hideHubFacilityPanel(false)
+			showSalvageForge(false)
 		})
 	}
 }
@@ -192,125 +207,230 @@ export function showBlueprintArchive() {
 	const discoveredCount = definitions.filter(([key]) =>
 		isBlueprintDiscovered(key)
 	).length
-	panel.add([
-		k.text(
-			`DISCOVERED ${discoveredCount} / ${definitions.length}`,
-			{ size: 10, font: "unscii" }
-		),
-		k.pos(0, -172),
-		k.anchor("center"),
-		k.color(...UI_COLORS.accent),
-	])
+	const pageSize = 5
+	let selectedIndex = Math.max(
+		0,
+		definitions.findIndex(([key]) => isBlueprintDiscovered(key))
+	)
+	let page = Math.floor(selectedIndex / pageSize)
+	const pageCount = Math.max(1, Math.ceil(definitions.length / pageSize))
+	const listRoot = panel.add([k.pos(0, 0)])
+	const detailRoot = panel.add([k.pos(0, 0)])
 
-	definitions.forEach(([key, reward], index) => {
-		const column = index % 2
-		const row = Math.floor(index / 2)
-		const discovered = isBlueprintDiscovered(key)
-		panel.add([
-			k.text(discovered ? reward.name : "????????", {
-				size: 9,
-				font: "unscii",
-				width: 300,
-			}),
-			k.pos(column === 0 ? -310 : 20, -140 + row * 24),
-			k.color(discovered ? k.WHITE : k.rgb(...UI_COLORS.muted)),
+	createUiSectionHeader(panel, {
+		pos: k.vec2(-350, -194),
+		width: 700,
+		height: 50,
+		eyebrow: "ENGINEERING ARCHIVE",
+		title: "BLUEPRINT TERMINAL",
+		action: `${discoveredCount} / ${definitions.length} DISCOVERED`,
+	})
+	createUiProgressBar(panel, {
+		pos: k.vec2(250, -151),
+		width: 88,
+		value: definitions.length > 0 ? discoveredCount / definitions.length : 0,
+	})
+	createUiSurface(panel, {
+		pos: k.vec2(-350, -136),
+		size: k.vec2(260, 290),
+	})
+	createUiSurface(panel, {
+		pos: k.vec2(-80, -136),
+		size: k.vec2(430, 290),
+		borderColor: UI_COLORS.accent,
+	})
+
+	const render = () => {
+		destroyChildren(listRoot)
+		destroyChildren(detailRoot)
+		createUiSectionHeader(listRoot, {
+			pos: k.vec2(-350, -136),
+			width: 260,
+			title: "RECOVERED SCHEMATICS",
+			eyebrow: "RECORD INDEX",
+			action: `PAGE ${page + 1}/${pageCount}`,
+		})
+		const pageStart = page * pageSize
+		const rowControls: Array<{
+			setSelected: (value: boolean) => void
+			setStatus: (value: string) => void
+			baseStatus: string
+		}> = []
+		definitions.slice(pageStart, pageStart + pageSize).forEach(
+			([key, reward], rowIndex) => {
+				const definitionIndex = pageStart + rowIndex
+				const discovered = isBlueprintDiscovered(key)
+				const control = createUiSelectableRow(listRoot, {
+					pos: k.vec2(-350, -84 + rowIndex * 42),
+					width: 260,
+					title: discovered ? reward.name : "???????? ????????",
+					meta: blueprintRecordId(key, definitionIndex),
+					status: definitionIndex === selectedIndex
+						? "SELECTED"
+						: discovered ? "RECOVERED" : "ENCRYPTED",
+					selected: definitionIndex === selectedIndex,
+					onClick: () => {
+						selectedIndex = definitionIndex
+						rowControls.forEach((row, index) => {
+							const isSelected = pageStart + index === selectedIndex
+							row.setSelected(isSelected)
+							row.setStatus(isSelected ? "SELECTED" : row.baseStatus)
+						})
+						renderBlueprintDetail(
+							detailRoot,
+							key,
+							reward,
+							definitionIndex
+						)
+					},
+				})
+				rowControls.push({
+					...control,
+					baseStatus: discovered ? "RECOVERED" : "ENCRYPTED",
+				})
+			}
+		)
+		createUiActionButton(listRoot, {
+			pos: k.vec2(-342, 130),
+			text: "<",
+			size: k.vec2(34, 18),
+			disabled: page === 0,
+			onClick: () => {
+				page--
+				render()
+			},
+		})
+		createUiActionButton(listRoot, {
+			pos: k.vec2(-132, 130),
+			text: ">",
+			size: k.vec2(34, 18),
+			disabled: page >= pageCount - 1,
+			onClick: () => {
+				page++
+				render()
+			},
+		})
+
+		const selected = definitions[selectedIndex]
+		if (selected) {
+			renderBlueprintDetail(
+				detailRoot,
+				selected[0],
+				selected[1],
+				selectedIndex
+			)
+		}
+	}
+
+	render()
+}
+
+function renderBlueprintDetail(
+	root: GameObj,
+	key: string,
+	reward: RewardDefinition,
+	index: number
+) {
+	destroyChildren(root)
+	const discovered = isBlueprintDiscovered(key)
+	createUiSectionHeader(root, {
+		pos: k.vec2(-80, -136),
+		width: 430,
+		height: 52,
+		eyebrow: blueprintRecordId(key, index),
+		title: discovered ? reward.name : "ENCRYPTED RECORD",
+	})
+	createUiBadge(root, {
+		pos: k.vec2(258, -126),
+		text: discovered ? reward.rarity : "ENCRYPTED",
+		width: 80,
+		color: discovered
+			? REWARD_RARITY_COLORS[reward.rarity]
+			: UI_COLORS.warning,
+	})
+
+	if (discovered) {
+		root.add([
+			k.pos(135, -34),
+			k.circle(48, { fill: false }),
+			k.outline(1, k.rgb(...UI_COLORS.border)),
 		])
+		root.add([
+			k.pos(135, -34),
+			k.sprite(reward.sprite),
+			k.anchor("center"),
+			k.scale(2.25),
+		])
+	} else {
+		addThemedText(root, {
+			text: "?",
+			pos: k.vec2(111, -52),
+			variant: "display",
+			size: 32,
+			width: 48,
+			align: "center",
+			color: k.rgb(...UI_COLORS.muted),
+		})
+	}
+
+	root.add([
+		k.pos(-80, 51),
+		k.rect(430, 1),
+		k.color(...UI_COLORS.border),
+	])
+	addThemedText(root, {
+		text: "FIELD NOTES",
+		pos: k.vec2(-66, 64),
+		variant: "eyebrow",
+		width: 190,
+	})
+	addThemedText(root, {
+		text: discovered ? reward.description.toUpperCase() : "DATA CORRUPTED. RECOVER THIS SCHEMATIC IN THE FIELD.",
+		pos: k.vec2(-66, 82),
+		variant: discovered ? "body" : "muted",
+		width: 190,
+	})
+	createUiStatList(root, {
+		pos: k.vec2(145, 64),
+		width: 190,
+		rowHeight: 22,
+		rows: discovered
+			? Object.entries(reward.stats).slice(0, 3).map(([label, value]) => ({
+				label: label.replace(/([A-Z])/g, " $1").toUpperCase(),
+				value: `${value}`.toUpperCase(),
+			}))
+			: [{ label: "STATUS", value: "ENCRYPTED" }],
 	})
 }
 
-export function showArsenal() {
-	const panel = openPanel("ARSENAL")
+function blueprintRecordId(key: string, index: number) {
+	const prefix = key.replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase()
+	return `BP-${prefix.padEnd(3, "X")}-${`${index + 1}`.padStart(3, "0")}`
+}
+
+function destroyChildren(parent: GameObj) {
+	for (const child of [...parent.children]) destroyObjectTree(child)
+}
+
+export function showTrainingRange(playTransitionSound = true) {
+	const panelSize = k.vec2(760, 300)
+	const panel = openPanel(undefined, panelSize, playTransitionSound)
 	if (!panel) return
-	const equippedWeaponId = getEquippedWeaponId()
 
+	createUiSectionHeader(panel, {
+		pos: k.vec2(-379, -149),
+		width: 758,
+		height: 54,
+		eyebrow: "TRAINING FACILITY",
+		title: "TRAINING RANGE",
+		action: `SALVAGE  ${getScore()}`,
+	})
 	addThemedText(panel, {
-		text: "PRIMARY WEAPONS",
-		pos: k.vec2(-100, -179),
-		variant: "heading",
-		width: 200,
-		align: "center",
+		text: "PERMANENT SHIP SYSTEMS",
+		pos: k.vec2(-358, -83),
+		variant: "eyebrow",
+		width: 716,
 	})
-
-	WEAPONS.forEach((weapon, index) => {
-		const owned = isWeaponOwned(weapon.id)
-		const equipped = weapon.id === equippedWeaponId
-		const card = panel.add([
-			k.rect(205, 218),
-			k.pos((index - 1) * 225, -47),
-			k.anchor("center"),
-			k.area(),
-			k.color(...(equipped ? UI_COLORS.panelHover : UI_COLORS.panel)),
-			k.outline(2, k.rgb(...(equipped ? UI_COLORS.accent : UI_COLORS.muted))),
-		])
-
-		card.add([
-			k.sprite(weapon.icon),
-			k.pos(0, -82),
-			k.anchor("center"),
-			k.scale(1.5),
-		])
-
-		const modifier = weapon.piercing
-			? `PIERCE +${weapon.piercing.maxPierces}`
-			: weapon.chain
-				? `CHAIN +${weapon.chain.maxChains}`
-				: "NO PRESET MODIFIER"
-		const triggerModifier = getWeaponTriggerModifier(weapon)
-		const fireRate = triggerModifier.usesCooldown
-			? `${(1 / weapon.fireCooldown).toFixed(1)}/S`
-			: "PER CLICK"
-		const content = createUiVerticalFlow(card, {
-			pos: k.vec2(-87, -50),
-			width: 174,
-			gap: 4,
-		})
-		content.addText({
-			text: weapon.name,
-			variant: "heading",
-			align: "center",
-			minHeight: 12,
-			gapAfter: 6,
-		})
-		content.addText({
-			text: weapon.description,
-			variant: "muted",
-			align: "center",
-			minHeight: 30,
-			gapAfter: 7,
-		})
-		content.addRows([
-			`DAMAGE  ${formatMultiplier(weapon.damageMultiplier)}`,
-			`RATE    ${fireRate}`,
-			`SPEED   ${formatMultiplier(weapon.projectileSpeedMultiplier)}`,
-		], {
-			variant: "stat",
-			rowHeight: 11,
-			gapAfter: 6,
-		})
-		content.addText({ text: modifier, variant: "body" })
-		addThemedText(card, {
-			text: equipped ? "EQUIPPED" : owned ? "CLICK TO EQUIP" : "LOCKED",
-			pos: k.vec2(-87, 84),
-			variant: equipped ? "caption" : "muted",
-			width: 174,
-			align: "center",
-		})
-
-		if (!owned || equipped) return
-		card.onHover(() => {
-			card.color = k.rgb(...UI_COLORS.panelHover)
-		})
-		card.onHoverEnd(() => {
-			card.color = k.rgb(...UI_COLORS.panel)
-		})
-		card.onClick(() => {
-			if (!equipWeapon(weapon.id)) return
-			saveGame("slot1")
-			hideHubFacilityPanel()
-			showArsenal()
-		})
-	})
-
 	PERMANENT_UPGRADE_KEYS.forEach((key, index) => {
 		addPermanentUpgradeCard(panel, key, index)
 	})
@@ -326,61 +446,63 @@ function addPermanentUpgradeCard(
 	const currentLevel = getPermanentUpgradeLevel(key) ?? -1
 	const nextLevel = definition.levels[currentLevel + 1]
 	const displayedLevel = nextLevel ?? definition.levels[currentLevel]
-	const card = panel.add([
-		k.rect(320, 88),
-		k.pos(index === 0 ? -167 : 167, 106),
-		k.anchor("center"),
-		k.color(...UI_COLORS.panel),
-		k.outline(2, k.rgb(...UI_COLORS.muted)),
-	])
+	const card = createUiSurface(panel, {
+		pos: k.vec2(index === 0 ? -358 : 10, -62),
+		size: k.vec2(348, 92),
+		tone: "raised",
+	})
 
 	card.add([
 		k.sprite(definition.levels[0].sprite),
-		k.pos(-140, 0),
+		k.pos(23, 46),
 		k.anchor("center"),
 		k.scale(1.25),
 	])
-	const content = createUiVerticalFlow(card, {
-		pos: k.vec2(-118, -32),
-		width: 155,
-		gap: 4,
-	})
-	content.addText({
+	addThemedText(card, {
 		text: definition.toolName.toUpperCase(),
+		pos: k.vec2(48, 12),
 		variant: "heading",
-		minHeight: 10,
-		gapAfter: 5,
+		width: 178,
 	})
-	content.addText({
+	addThemedText(card, {
 		text: nextLevel
 			? `LEVEL ${currentLevel + 1} / ${definition.levels.length}`
 			: `LEVEL ${definition.levels.length} / ${definition.levels.length}  //  OWNED`,
+		pos: k.vec2(48, 30),
 		variant: "muted",
-		minHeight: 8,
-		gapAfter: 4,
+		width: 178,
 	})
 	if (displayedLevel) {
-		content.addText({ text: displayedLevel.desc, variant: "body" })
+		addThemedText(card, {
+			text: displayedLevel.desc,
+			pos: k.vec2(48, 48),
+			variant: "body",
+			width: 178,
+		})
 	}
 
 	if (!nextLevel) {
-		addThemedText(card, {
+		createUiBadge(card, {
+			pos: k.vec2(242, 36),
 			text: "MAX LEVEL",
-			pos: k.vec2(55, -5),
-			variant: "caption",
-			width: 90,
-			align: "center",
+			width: 94,
 		})
 		return
 	}
 
-	addButton(card, k.vec2(100, 0), `BUY ${nextLevel.price}`, () => {
-		if (!spendScore(nextLevel.price)) return
-		if (addLvl(key) === undefined) return
-		loadPlayer()
-		hideHubFacilityPanel()
-		showArsenal()
-	}, 105)
+	createUiActionButton(card, {
+		pos: k.vec2(242, 27),
+		text: `BUY ${nextLevel.price}`,
+		size: k.vec2(94, 38),
+		disabled: getScore() < nextLevel.price,
+		onClick: () => {
+			if (!spendScore(nextLevel.price)) return
+			if (addLvl(key) === undefined) return
+			loadPlayer()
+			hideHubFacilityPanel(false)
+			showTrainingRange(false)
+		},
+	})
 }
 
 export function showWarpZoneRegistry() {
@@ -420,75 +542,84 @@ export function showWarpZoneRegistry() {
 	])
 }
 
-export function showWarpZoneSelector(
-	onSelect: (zoneId: string) => void,
-	onCancel: () => void
-) {
-	const panel = openPanel("SELECT WARP ZONE")
-	if (!panel) {
-		onCancel()
+export function hideHubFacilityPanel(playTransitionSound = true) {
+	if (!panelOpen || panelClosing) return
+	if (!playTransitionSound) {
+		finishClosingHubFacilityPanel(false)
 		return
 	}
-	panelCloseHandler = onCancel
-	const zones = getUnlockedWarpZones()
-
-	panel.add([
-		k.text("CHOOSE AN UNLOCKED DESTINATION", {
-			size: 10,
-			font: "unscii",
-		}),
-		k.pos(0, -130),
-		k.anchor("center"),
-		k.color(...UI_COLORS.muted),
-	])
-
-	zones.forEach((zone, index) => {
-		const y = -60 + index * 62
-		addButton(panel, k.vec2(0, y), zone.name, () => {
-			panelCloseHandler = undefined
-			hideHubFacilityPanel()
-			onSelect(zone.id)
-		})
-	})
+	panelClosing = true
+	playShopMenuCloseSound()
+	const panel = activePanel
+	const backdrop = activeBackdrop
+	if (!panel?.exists() || !backdrop?.exists()) {
+		finishClosingHubFacilityPanel(false)
+		return
+	}
+	void playUiModalClose(backdrop, panel, {
+		panelPos: k.center(),
+		backdropOpacity: 0.8,
+	}).then(() => finishClosingHubFacilityPanel(false))
 }
 
-export function hideHubFacilityPanel() {
-	if (!panelOpen) return
+function finishClosingHubFacilityPanel(playTransitionSound: boolean) {
 	const closeHandler = panelCloseHandler
 	panelCloseHandler = undefined
 	panelOpen = false
+	panelClosing = false
 	uiState.modalOpen = false
 	for (const obj of k.get<GameObj>(tags.hubFacilityUi)) {
 		destroyObjectTree(obj)
 	}
 	for (const obj of k.get<GameObj>(tags.gameLoop)) obj.paused = false
 	closeHandler?.()
+	if (playTransitionSound) playShopMenuCloseSound()
+	activePanel = undefined
+	activeBackdrop = undefined
 }
 
-function openPanel(title: string) {
+function openPanel(
+	title?: string,
+	size = k.vec2(720, 440),
+	playTransitionSound = true
+) {
 	if (panelOpen) return undefined
 	panelOpen = true
 	uiState.modalOpen = true
 	for (const obj of k.get<GameObj>(tags.gameLoop)) obj.paused = true
 
-	k.add([
+	const backdrop = k.add([
 		k.rect(k.width(), k.height()),
 		k.pos(0, 0),
 		k.color(k.BLACK),
 		k.opacity(0.8),
+		k.animate(),
 		k.fixed(),
 		k.layer(layers.uiEffects),
 		tags.hubFacilityUi,
 	])
 	const panel = createUiPanel({
 		pos: k.center(),
-		size: k.vec2(720, 440),
+		size,
 		title,
 		anchor: "center",
 		layer: layers.uiEffects,
 		tags: [tags.hubFacilityUi],
+		animated: true,
 	})
-	addButton(panel, k.vec2(0, 185), "CLOSE", hideHubFacilityPanel)
+	activeBackdrop = backdrop
+	activePanel = panel
+	playUiModalOpen(backdrop, panel, {
+		panelPos: k.center(),
+		backdropOpacity: 0.8,
+	})
+	addButton(
+		panel,
+		k.vec2(0, size.y / 2 - 35),
+		"CLOSE",
+		() => hideHubFacilityPanel()
+	)
+	if (playTransitionSound) playShopMenuOpenSound()
 	return panel
 }
 
@@ -499,36 +630,18 @@ function addButton(
 	onClick: () => void,
 	width: number = 180
 ) {
-	const button = parent.add([
-		k.rect(width, 38),
-		k.pos(pos),
-		k.anchor("center"),
-		k.area(),
-		k.color(...UI_COLORS.panel),
-		k.outline(2, k.rgb(...UI_COLORS.accent)),
-	])
-	button.add([
-		k.text(text, { size: 10, font: "unscii" }),
-		k.anchor("center"),
-	])
-	button.onHover(() => {
-		button.color = k.rgb(...UI_COLORS.panelHover)
+	return createUiActionButton(parent, {
+		pos: pos.sub(width / 2, 19),
+		text,
+		onClick,
+		size: k.vec2(width, 38),
 	})
-	button.onHoverEnd(() => {
-		button.color = k.rgb(...UI_COLORS.panel)
-	})
-	button.onClick(onClick)
-	return button
 }
 
 function queueContract(contract: RunContract) {
 	selectContract(contract)
 	setNextGeneratedRunSeed(contract.seed)
 	hideHubFacilityPanel()
-}
-
-function formatMultiplier(value: number) {
-	return `${value.toFixed(value % 1 === 0 ? 0 : 2)}x`
 }
 
 function destroyObjectTree(obj: GameObj) {

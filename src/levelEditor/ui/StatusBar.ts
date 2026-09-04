@@ -5,6 +5,7 @@ import { toggleLayerVisibility, switchToLayer } from "../actions/layerActions";
 import { createUiLabel } from "../../ui/common/label";
 import { createSlider } from "../../ui/common/slider";
 import { tags } from "../../tags";
+import { uiHitRegion } from "../../ui/common/hitRegion";
 
 /**
  * Create status bar UI at bottom of screen
@@ -164,7 +165,7 @@ export function drawLayerToggles(): void {
 		const btn = k.add([
 			k.pos(x, startY),
 			k.rect(buttonWidth, buttonHeight),
-			k.area(),
+			uiHitRegion(k.vec2(buttonWidth, buttonHeight), true),
 			k.color(100, 100, 100),
 			k.anchor("center"),
 			k.outline(2, new k.Color(255, 255, 255)),

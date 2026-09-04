@@ -19,6 +19,7 @@ import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
 } from "../services/threatService";
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 
 const wingOffset = [6, 2];
 export const unitComponents: Record<number, Component[]> = {};
@@ -101,7 +102,7 @@ export function spawnShip1(
 		],
 	});
 
-	m.onUpdate(() => {
+	registerBatchedEntityUpdate("enemies", m, () => {
 		m.move(m.vel.scale(m.speed * velocityScale() * m.getTimescale()));
 
 		checkProjectileComponentIntersection(
@@ -133,4 +134,6 @@ export function spawnShip1(
 		trailEmitter.emitter.direction = k.Vec2.toAngle(dir);
 		trailEmitter.emit(1);
 	});
+
+	return m;
 }

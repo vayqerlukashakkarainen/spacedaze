@@ -2,6 +2,7 @@ import { Vec2 } from "kaplay";
 import { k, layers } from "../../main";
 import { uiState } from "../uiState";
 import { UI_COLORS } from "./theme";
+import { uiHitRegion } from "./hitRegion";
 
 interface Props {
 	pos: Vec2;
@@ -30,7 +31,7 @@ export function createUiCheckbox({
 	const row = k.add([
 		k.pos(pos),
 		k.rect(width, 36),
-		k.area(),
+		uiHitRegion(k.vec2(width, 36), true),
 		k.anchor("center"),
 		k.color(...UI_COLORS.panel),
 		k.fixed(),

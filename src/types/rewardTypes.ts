@@ -1,5 +1,5 @@
 export type RewardSource = "crate" | "enemy" | "boss"
-export type RewardKind = "powerup" | "upgrade" | "item"
+export type RewardKind = "powerup" | "upgrade" | "weapon" | "item"
 
 export enum RewardRarity {
 	Common = "COMMON",

@@ -7,6 +7,7 @@ import { audioService } from "../../services/audioService"
 import { tags } from "../../tags"
 import { spawnRing } from "../spawnRing"
 import { spawnRepairStation } from "./spawnRepairStation"
+import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 
 interface DroneRepairZoneProps {
 	pos: Vec2
@@ -75,6 +76,7 @@ function spawnBrokenDrone(props: BrokenDroneProps) {
 	])
 	const prompt = wreck.add([
 		k.text(`F  REPAIR  ${props.cost}`, { size: 9, font: "unscii" }),
+		k.layer(layers.gameText),
 		k.pos(0, -19),
 		k.anchor("center"),
 		k.color(90, 255, 135),
@@ -82,7 +84,7 @@ function spawnBrokenDrone(props: BrokenDroneProps) {
 		k.z(10),
 	])
 
-	wreck.onUpdate(() => {
+	registerBatchedEntityUpdate("world", wreck, () => {
 		if (!wreck.exists()) return
 		if (!repairing) {
 			if (messageElapsed > 0) {

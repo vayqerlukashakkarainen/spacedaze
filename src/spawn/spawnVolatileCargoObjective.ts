@@ -1,11 +1,12 @@
 import type { Vec2 } from "kaplay"
 import { playerObj } from "../game"
-import { k, mainSoundVolume } from "../main"
+import { k, layers, mainSoundVolume } from "../main"
 import { starsEmitter } from "../particles"
 import { collectVolatileCargo } from "../services/shipUpgradeService"
 import { audioService } from "../services/audioService"
 import { tags } from "../tags"
 import { spawnRing } from "./spawnRing"
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 
 interface VolatileCargoObjectiveProps {
 	pos: Vec2
@@ -35,27 +36,17 @@ export function spawnVolatileCargoObjective(
 		k.color(255, 110, 25),
 		k.opacity(0.12),
 		k.z(-1),
+		k.layer(layers.gameEffects),
 	])
 	const ring = cargo.add([
 		k.circle(35, { fill: false }),
 		k.anchor("center"),
 		k.outline(2, k.rgb(255, 145, 45)),
 		k.opacity(0.75),
+		k.layer(layers.gameEffects),
 		k.z(-1),
 	])
-	const label = k.add([
-		k.pos(props.pos.add(0, -43)),
-		k.text("OBJECTIVE // VOLATILE CARGO", {
-			size: 8,
-			font: "unscii",
-		}),
-		k.anchor("center"),
-		k.color(255, 175, 75),
-		tags.gameLoop,
-		...(props.tags ?? []),
-	])
-
-	cargo.onUpdate(() => {
+	registerBatchedEntityUpdate("world", cargo, () => {
 		cargo.angle += k.dt() * 8
 		glow.opacity = k.wave(0.08, 0.22, k.time() * 3)
 		ring.scale = k.vec2(k.wave(0.92, 1.12, k.time() * 2.5))
@@ -80,10 +71,6 @@ export function spawnVolatileCargoObjective(
 		})
 		k.destroy(cargo)
 	})
-	cargo.onDestroy(() => {
-		if (label.exists()) k.destroy(label)
-	})
-
 	return cargo
 }
 
@@ -95,6 +82,7 @@ function spawnCollectionMessage(pos: Vec2) {
 			font: "unscii",
 		}),
 		k.anchor("center"),
+		k.layer(layers.gameText),
 		k.color(255, 175, 75),
 		k.opacity(1),
 		k.lifespan(2.2, { fade: 0.7 }),
@@ -103,7 +91,7 @@ function spawnCollectionMessage(pos: Vec2) {
 		},
 		tags.gameLoop,
 	])
-	message.onUpdate(() => {
+	registerBatchedEntityUpdate("effects", message, () => {
 		message.elapsed += k.dt()
 		message.pos.y -= 16 * k.dt()
 	})

@@ -1,12 +1,13 @@
 import type { Vec2 } from "kaplay"
 import { playerObj } from "../../game"
-import { k, mainSoundVolume } from "../../main"
+import { k, layers, mainSoundVolume } from "../../main"
 import { addThreatTime } from "../../services/threatService"
 import { spawnThreatEncounter } from "../../services/enemyEncounterService"
 import { audioService } from "../../services/audioService"
 import { tags } from "../../tags"
 import { spawnBuilding } from "../spawnBuilding"
 import { spawnRing } from "../spawnRing"
+import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 
 interface SignalRelayProps {
 	pos: Vec2
@@ -36,6 +37,7 @@ export function spawnSignalRelay(props: SignalRelayProps) {
 		k.pos(0, 81),
 		k.anchor("center"),
 		k.color(110, 205, 255),
+		k.layer(layers.gameText),
 	])
 	const nodes = Array.from({ length: 3 }, (_, index) => {
 		const pos = props.pos.add(k.Vec2.fromAngle(-90 + index * 120).scale(105))
@@ -45,6 +47,7 @@ export function spawnSignalRelay(props: SignalRelayProps) {
 			k.outline(2, k.rgb(95, 105, 120)),
 			k.color(95, 105, 120),
 			k.anchor("center"),
+			k.layer(layers.gameEffects),
 			k.opacity(0.22),
 			{
 				index,
@@ -57,11 +60,12 @@ export function spawnSignalRelay(props: SignalRelayProps) {
 			k.text(String(index + 1), { size: 8, font: "unscii" }),
 			k.anchor("center"),
 			k.color(k.WHITE),
+			k.layer(layers.gameText),
 		])
 		return node
 	})
 
-	relay.onUpdate(() => {
+	registerBatchedEntityUpdate("world", relay, () => {
 		if (!active || completed) return
 		const node = nodes[activeNode]
 		if (!node) return

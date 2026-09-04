@@ -1,9 +1,12 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../../game"
-import { k } from "../../main"
+import { k, layers, mainSoundVolume } from "../../main"
+import { audioService } from "../../services/audioService"
 import { applyDamage } from "../../services/damageService"
 import { tags } from "../../tags"
 import { spawnExplosionEffect } from "../spawnFlash"
+import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { querySpatialNearby } from "../../services/runtimeSpatialIndexService"
 
 interface MinefieldProps {
 	pos: Vec2
@@ -15,15 +18,6 @@ interface MinefieldProps {
 }
 
 export function spawnMinefield(props: MinefieldProps) {
-	k.add([
-		k.pos(props.pos),
-		k.text("MINEFIELD", { size: 9, font: "unscii" }),
-		k.anchor("center"),
-		k.color(255, 105, 105),
-		tags.gameLoop,
-		...(props.tags ?? []),
-	])
-
 	for (let index = 0; index < props.count; index++) {
 		const angle = seededUnit(props.seed, index, 1) * 360
 		const distance = props.radius * (0.28 + seededUnit(props.seed, index, 2) * 0.72)
@@ -43,6 +37,7 @@ function spawnProximityMine(pos: Vec2, damage: number, extraTags?: string[]) {
 		k.pos(pos),
 		k.sprite("room_proximity_mine"),
 		k.anchor("center"),
+		k.layer(layers.gameEffects),
 		k.rotate(k.rand(360)),
 		k.scale(0.82),
 		k.color(150, 150, 150),
@@ -52,7 +47,7 @@ function spawnProximityMine(pos: Vec2, damage: number, extraTags?: string[]) {
 		...(extraTags ?? []),
 	])
 
-	mine.onUpdate(() => {
+		registerBatchedEntityUpdate("world", mine, () => {
 		mine.angle += k.dt() * 18
 		armedElapsed += k.dt()
 		if (armedElapsed < 0.7) return
@@ -77,10 +72,10 @@ function spawnProximityMine(pos: Vec2, damage: number, extraTags?: string[]) {
 }
 
 function detonateMine(mine: GameObj, damage: number) {
-	const enemies = k.query({
-		include: [tags.enemy, tags.unit],
-		includeOp: "and",
-	}) as GameObj[]
+	const explosionPos = mine.pos.clone()
+	const enemies = querySpatialNearby(mine.pos, 52, {
+		allTags: [tags.enemy, tags.unit],
+	})
 	for (const target of [playerObj, ...enemies]) {
 		if (!target.exists() || target.pos.dist(mine.pos) > 52) continue
 		applyDamage(target, damage, {
@@ -91,7 +86,11 @@ function detonateMine(mine: GameObj, damage: number) {
 			},
 		})
 	}
-	spawnExplosionEffect(mine.pos, 52)
+	spawnExplosionEffect(explosionPos, 52)
+	audioService.playPositionalSound("explosion2", explosionPos, {
+		volume: mainSoundVolume * 0.8,
+		maxDistance: 650,
+	})
 	k.destroy(mine)
 }
 

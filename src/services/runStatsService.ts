@@ -12,7 +12,7 @@ export interface LifetimeStats {
 
 export interface RunStats {
 	contractName: string
-	outcome: "EXTRACTED" | "DESTROYED"
+	outcome: "EXTRACTED" | "DESTROYED" | "ABANDONED"
 	durationSeconds: number
 	kills: number
 	salvageEarned: number

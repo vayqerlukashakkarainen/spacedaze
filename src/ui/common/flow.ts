@@ -7,18 +7,19 @@ import {
 	type ThemedTextProps,
 } from "./text"
 
-interface UiVerticalFlowProps {
+export interface UiVerticalFlowProps {
 	pos: Vec2
 	width?: number
 	gap?: number
+	onHeightChange?: (height: number) => void
 }
 
-interface FlowTextProps extends Omit<ThemedTextProps, "pos"> {
+export interface FlowTextProps extends Omit<ThemedTextProps, "pos"> {
 	minHeight?: number
 	gapAfter?: number
 }
 
-interface FlowRowsProps extends Omit<ThemedTextProps, "pos" | "text"> {
+export interface FlowRowsProps extends Omit<ThemedTextProps, "pos" | "text"> {
 	rowHeight?: number
 	gapAfter?: number
 }
@@ -30,9 +31,16 @@ export function createUiVerticalFlow(
 	const container = parent.add([k.pos(props.pos)])
 	let cursorY = 0
 	const defaultGap = props.gap ?? 4
+	const notifyHeightChange = () => props.onHeightChange?.(cursorY)
 
 	return {
 		obj: container,
+		addItem<T extends GameObj>(item: T, height: number, gapAfter = defaultGap) {
+			item.pos = k.vec2(item.pos.x, cursorY)
+			cursorY += height + gapAfter
+			notifyHeightChange()
+			return item
+		},
 		addText(textProps: FlowTextProps) {
 			const variant = textProps.variant ?? "body"
 			const textObj = addThemedText(container, {
@@ -51,6 +59,7 @@ export function createUiVerticalFlow(
 				: size + lineSpacing
 			cursorY += Math.max(textProps.minHeight ?? 0, measuredHeight)
 			cursorY += textProps.gapAfter ?? defaultGap
+			notifyHeightChange()
 			return textObj
 		},
 		addRows(rows: readonly string[], rowProps: FlowRowsProps = {}) {
@@ -66,13 +75,48 @@ export function createUiVerticalFlow(
 				return textObj
 			})
 			cursorY += rowProps.gapAfter ?? defaultGap
+			notifyHeightChange()
 			return rowObjects
 		},
 		addGap(height: number) {
 			cursorY += height
+			notifyHeightChange()
 		},
 		getHeight() {
 			return cursorY
+		},
+		setHeight(height: number) {
+			cursorY = Math.max(0, height)
+			notifyHeightChange()
+		},
+	}
+}
+
+export interface UiHorizontalFlowProps {
+	pos: Vec2
+	gap?: number
+}
+
+export function createUiHorizontalFlow(
+	parent: GameObj,
+	props: UiHorizontalFlowProps
+) {
+	const container = parent.add([k.pos(props.pos)])
+	let cursorX = 0
+	const defaultGap = props.gap ?? 4
+
+	return {
+		obj: container,
+		addItem<T extends GameObj>(item: T, width: number, gapAfter = defaultGap) {
+			item.pos = k.vec2(cursorX, item.pos.y)
+			cursorX += width + gapAfter
+			return item
+		},
+		addGap(width: number) {
+			cursorX += width
+		},
+		getWidth() {
+			return cursorX
 		},
 	}
 }

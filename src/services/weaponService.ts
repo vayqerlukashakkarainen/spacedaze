@@ -125,6 +125,10 @@ export function equipWeapon(id: WeaponId) {
 	return true
 }
 
+export function resetEquippedWeapon() {
+	equippedWeaponId = DEFAULT_WEAPON_ID
+}
+
 export function setWeaponInventory(
 	ownedIds: string[],
 	equippedId: string

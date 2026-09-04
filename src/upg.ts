@@ -25,6 +25,7 @@ import {
 	spaceJump,
 	spaceJumpUpgrades,
 	phaseRam,
+	phaseMagazine,
 } from "./upgrades/ship";
 import { saveGame } from "./util";
 import { upgradeService } from "./services/upgradeService";
@@ -112,6 +113,7 @@ export const upgrades = {
 	spaceJump: spaceJump,
 	spaceJumpUpgrades: spaceJumpUpgrades,
 	phaseRam,
+	phaseMagazine,
 
 	movespeed: movespeed,
 	maxHealth: maxHealth,
@@ -183,6 +185,7 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	spaceJump: undefined,
 	spaceJumpUpgrades: undefined,
 	phaseRam: undefined,
+	phaseMagazine: undefined,
 	blasterParallel: undefined,
 	mouseAim: undefined,
 	armorPiercing: undefined,
@@ -240,6 +243,7 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	spaceJump: undefined,
 	spaceJumpUpgrades: undefined,
 	phaseRam: undefined,
+	phaseMagazine: undefined,
 	blasterParallel: undefined,
 	mouseAim: undefined,
 	armorPiercing: undefined,
@@ -475,6 +479,7 @@ export function resetLevelLoadout() {
 		spaceJump: undefined,
 		spaceJumpUpgrades: undefined,
 		phaseRam: undefined,
+		phaseMagazine: undefined,
 		blasterParallel: undefined,
 		mouseAim: undefined,
 		armorPiercing: undefined,

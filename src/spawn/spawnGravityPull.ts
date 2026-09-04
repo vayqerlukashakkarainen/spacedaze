@@ -2,6 +2,7 @@ import type { Vec2 } from "kaplay"
 import { k } from "../main"
 import { applyRadialGravity } from "../services/radialGravityService"
 import { tags } from "../tags"
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 
 interface GravityPullProps {
 	pos: Vec2
@@ -31,7 +32,7 @@ export function spawnGravityPull(props: GravityPullProps) {
 		...(props.tags ?? []),
 	])
 
-	gravity.onUpdate(() => {
+	registerBatchedEntityUpdate("world", gravity, () => {
 		let streaksThisFrame = 0
 		applyRadialGravity(gravity.pos, {
 			strength: gravity.strength,
@@ -103,7 +104,7 @@ function spawnPullStreak(pos: Vec2, direction: Vec2, strength: number) {
 		tags.gameLoop,
 	])
 
-	streak.onUpdate(() => {
+	registerBatchedEntityUpdate("effects", streak, () => {
 		streak.elapsed += k.dt()
 		streak.pos = streak.pos.add(direction.scale(25 * intensity * k.dt()))
 	})

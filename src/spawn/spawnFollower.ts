@@ -34,6 +34,8 @@ import {
 	DroneType,
 } from "../services/droneRoleService";
 import { updatePlayerHealthBar } from "../ui/gameUi";
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { findClosestSpatial } from "../services/runtimeSpatialIndexService";
 
 interface Props {
 	hp: number;
@@ -187,7 +189,7 @@ export function spawnFollower(props: Props) {
 	audioService.playSound("collect1", { volume: mainSoundVolume });
 	refreshFollowerTypes();
 
-	m.onUpdate(() => {
+	registerBatchedEntityUpdate("followers", m, () => {
 		if (configuredDroneSlots !== getDroneSlotSignature()) {
 			refreshFollowerTypes();
 		}
@@ -575,10 +577,10 @@ export function getDroneTypeCounts(): Record<DroneType, number> {
 
 function updateMedicBehavior(medic: GameObj) {
 	if ((medic.medicKillCharge ?? 0) < medicKillsPerRepair) return;
-	if (!playerObj.exists() || playerObj.hp() >= playerObj.maxHP()) return;
+	if (!playerObj.exists() || playerObj.hp >= playerObj.maxHP) return;
 	medic.medicKillCharge = 0;
-	playerObj.heal(1);
-	updatePlayerHealthBar(playerObj.hp());
+	playerObj.hp = Math.min(playerObj.maxHP, playerObj.hp + 1);
+	updatePlayerHealthBar(playerObj.hp);
 	spawnFlash(playerObj.pos.clone(), 10, k.WHITE);
 	audioService.playSound("collect1", { volume: subSoundVolume });
 }
@@ -597,18 +599,9 @@ function findClosestDebree(pos: Vec2, range: number) {
 }
 
 function findClosestHostileProjectile(pos: Vec2, range: number) {
-	let closest: GameObj<PosComp> | undefined;
-	let closestDistance = range;
-
-	for (const projectile of k.get(tags.projectile) as GameObj<PosComp>[]) {
-		if (!projectile.exists() || !projectile.tags.includes(tags.enemy)) continue;
-		const distance = projectile.pos.dist(pos);
-		if (distance >= closestDistance) continue;
-		closest = projectile;
-		closestDistance = distance;
-	}
-
-	return closest;
+	return findClosestSpatial(pos, range, {
+		allTags: [tags.projectile, tags.enemy],
+	}) as GameObj<PosComp> | undefined;
 }
 
 function spawnInterceptorPulse(start: Vec2, end: Vec2) {

@@ -2,6 +2,7 @@ import kaplay, { GameObj, Vec2 } from "kaplay";
 import { init, loadGame, saveGame } from "./util";
 import {
 	clearGame,
+	exitRunToHub,
 	playerDeathSequenceActive,
 	startGame,
 	updateGameLoop,
@@ -15,7 +16,14 @@ import {
 	isToolKey,
 	setLoadout,
 } from "./upg";
-import { loadPlayer, player, resetSession, session } from "./player";
+import {
+	getRerollTokens,
+	grantRerollTokens,
+	loadPlayer,
+	player,
+	resetSession,
+	session,
+} from "./player";
 import { initParticles, initUiEffects } from "./particles";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
@@ -56,7 +64,7 @@ import {
 } from "./ui/commandConsole";
 import { commandService } from "./services/commandService";
 import { playerObj } from "./game";
-import { transitionToLevel } from "./levels/levels";
+import { activeLevelKey, transitionToLevel } from "./levels/levels";
 import { getSelectedContract } from "./services/contractService";
 import {
 	recordPlaytime,
@@ -88,10 +96,17 @@ import {
 import {
 	hideHubFacilityPanel,
 	hubFacilityPanelOpen,
-	showArsenal,
+	showTrainingRange,
 } from "./ui/hubFacilities";
-import { beginRunSession } from "./services/runDirectorService";
+import {
+	beginRunSession,
+	runSessionActive,
+} from "./services/runDirectorService";
 import { applyDamage } from "./services/damageService";
+import {
+	isPlayerDebugInvulnerable,
+	setPlayerDebugInvulnerable,
+} from "./services/playerDamageState";
 import {
 	getThreatRomanNumeral,
 	getThreatSnapshot,
@@ -120,20 +135,48 @@ import {
 	spawnDebugEnemies,
 } from "./services/debugEnemySpawnService";
 import {
+	beginProfilerFrame,
+	frameProfilerEnabled,
 	profileSection,
-	recordFrameTime,
 	resetFrameProfiler,
+	setFrameProfilerEnabled,
 } from "./services/frameProfilerService";
 import {
 	clearProjectileStressTest,
 	countStressProjectiles,
 	spawnProjectileStressTest,
 } from "./services/performanceStressService";
+import {
+	cancelPerformanceBenchmark,
+	formatPerformanceBenchmarkReport,
+	getPerformanceBenchmarkStatus,
+	startPerformanceBenchmark,
+	updatePerformanceBenchmark,
+} from "./services/performanceBenchmarkService";
+import {
+	runLoop,
+	RunFrameContext,
+} from "./services/runLoopService";
+import {
+	beginDrawCallProfilerFrame,
+	drawCallTraceRunning,
+	formatDrawCallTraceReport,
+	installDrawCallProfiler,
+	startDrawCallTrace,
+} from "./services/drawCallProfilerService";
+import { updateProjectileBatch } from "./services/projectileService";
+import { updateBatchedEntities } from "./services/entityUpdateService";
+import { rebuildRuntimeSpatialIndex } from "./services/runtimeSpatialIndexService";
+import { updateBatchedUi } from "./services/uiUpdateService";
+import { updateUiPointerRegions } from "./services/uiPointerService";
 
 export const layers = {
 	bg: "bg",
+	buildings: "buildings",
 	game2: "game2",
 	game: "game",
+	gameEffects: "gameEffects",
+	gameText: "gameText",
 	ui: "ui",
 	uiEffects: "uiEffects",
 };
@@ -159,7 +202,7 @@ export const musicVolume = 0.6;
 // Keep world zoom and UI zoom independent. KAPLAY's global scale controls all
 // fixed UI, while the camera compensates so changing UI_ZOOM does not alter
 // how much of the game world is visible.
-export const GAME_ZOOM = 2;
+export const GAME_ZOOM = 1.6;
 export const UI_ZOOM = 1;
 export const WORLD_CAMERA_SCALE = GAME_ZOOM / UI_ZOOM;
 
@@ -171,12 +214,18 @@ let startTimeScale = 1;
 let timescaleLerpDuration = 0.3; // seconds
 let timescaleLerpProgress = 0;
 let audioFollowsTimescale = true;
+let runLoopFrame = 0;
 
 export const k = kaplay({
 	background: "#000000",
 	global: false,
 	scale: UI_ZOOM,
+	pixelDensity: Math.min(window.devicePixelRatio || 1, 2),
+	crisp: true,
+	texFilter: "nearest",
 });
+
+installDrawCallProfiler(k.canvas);
 
 export function dt() {
 	return k.dt() * timeScale;
@@ -222,47 +271,42 @@ init(k).then(() => {
 	setupStatsWindow();
 	initDebug();
 	k.setLayers(
-		[layers.bg, layers.game2, layers.game, layers.ui, layers.uiEffects],
+		[
+			layers.bg,
+			layers.buildings,
+			layers.game2,
+			layers.game,
+			layers.gameEffects,
+			layers.gameText,
+			layers.ui,
+			layers.uiEffects,
+		],
 		layers.game
 	);
 
 	addBorderOffsets();
 	registerDebugCommands();
+	registerRunLoopSystems();
 
 	changeGameState(GameState.MainMenu);
 
 	k.onUpdate(() => {
-		recordFrameTime(k.dt() * 1000);
-		// Update debug info
-		updateDebug();
-
-		// Lerp timescale towards target
-		if (timescaleLerpProgress < timescaleLerpDuration) {
-			timescaleLerpProgress += k.dt();
-			const t = Math.min(timescaleLerpProgress / timescaleLerpDuration, 1);
-			timeScale = startTimeScale + (targetTimeScale - startTimeScale) * t;
-			if (t === 1 && targetTimeScale === 1) audioFollowsTimescale = true;
-			audioService.updateAudioSpeed(audioPlaybackSpeed());
-		}
-
-		if (
-			gameState == GameState.Playing &&
-			!isPaused &&
-			!commandConsoleOpen() &&
-			!recoveryShopOpen() &&
-			!hubFacilityPanelOpen() &&
-			!tacticalMapOpen()
-		) {
-			timeSeconds += dt();
-			recordPlaytime(k.dt());
-			profileSection("gameLoop", updateGameLoop);
-		} else if (gameState == GameState.MainMenu) {
-			updateMainMenuLoop();
-		} else if (gameState == GameState.LevelEditor) {
-			updateLevelEditor();
-		}
-
-		profileSection("gridVisibility", () => gridRegistry.updateVisibleCells());
+		beginDrawCallProfilerFrame();
+		const frameMs = k.dt() * 1000;
+		beginProfilerFrame(frameMs);
+		profileSection("rootUpdate", () => {
+			const context = createRunFrameContext();
+			if (runLoop.isEnabled()) {
+				profileSection("centralRunLoop", () => runLoop.update(context));
+			} else {
+				profileSection("legacyFrame", () => updateLegacyFrame(context));
+			}
+			profileSection("benchmarkUpdate", () => updatePerformanceBenchmark(
+				frameMs,
+				k.debug.drawCalls(),
+				!commandConsoleOpen()
+			));
+		});
 	});
 
 	// Pause toggle with Escape key
@@ -400,6 +444,126 @@ init(k).then(() => {
 	});
 });
 
+function registerRunLoopSystems() {
+	runLoop.clear();
+	runLoop.register({
+		id: "runtime:ui-pointer",
+		phase: "input",
+		update: updateUiPointerRegions,
+	});
+	runLoop.register({
+		id: "core:timescale",
+		phase: "timers",
+		update: updateTimescale,
+	});
+	runLoop.register({
+		id: "runtime:projectiles",
+		phase: "movement",
+		priority: -100,
+		update: updateProjectileBatch,
+	});
+	runLoop.register({
+		id: "runtime:spatial-index",
+		phase: "spatialIndex",
+		update: rebuildRuntimeSpatialIndex,
+	});
+	runLoop.register({
+		id: "runtime:entities",
+		phase: "collision",
+		update: updateBatchedEntities,
+	});
+	runLoop.register({
+		id: "core:game-state",
+		phase: "gameplay",
+		update: updateActiveGameState,
+	});
+	runLoop.register({
+		id: "runtime:ui",
+		phase: "ui",
+		priority: -100,
+		update: updateBatchedUi,
+	});
+	runLoop.register({
+		id: "core:debug-ui",
+		phase: "ui",
+		update: updateDebug,
+	});
+	runLoop.register({
+		id: "core:grid-visibility",
+		phase: "cleanup",
+		update: () => profileSection(
+			"gridVisibility",
+			() => gridRegistry.updateVisibleCells()
+		),
+	});
+}
+
+function createRunFrameContext(): RunFrameContext {
+	const rawDt = k.dt();
+	const gameplayActive = canUpdateGameplay();
+	return {
+		frame: ++runLoopFrame,
+		rawDt,
+		dt: rawDt * timeScale,
+		scaledDt: rawDt * timeScale * 100,
+		timeScale,
+		gameState,
+		gameplayActive,
+		paused: isPaused,
+		cameraPos: k.camPos().clone(),
+		cameraScale: k.camScale().clone(),
+		viewportWidth: k.width(),
+		viewportHeight: k.height(),
+	};
+}
+
+function updateTimescale(context: RunFrameContext) {
+	if (timescaleLerpProgress < timescaleLerpDuration) {
+		timescaleLerpProgress += context.rawDt;
+		const t = Math.min(timescaleLerpProgress / timescaleLerpDuration, 1);
+		timeScale = startTimeScale + (targetTimeScale - startTimeScale) * t;
+		if (t === 1 && targetTimeScale === 1) audioFollowsTimescale = true;
+		audioService.updateAudioSpeed(audioPlaybackSpeed());
+	}
+	context.timeScale = timeScale;
+	context.dt = context.rawDt * timeScale;
+	context.scaledDt = context.dt * 100;
+}
+
+function canUpdateGameplay() {
+	return gameState == GameState.Playing &&
+		!isPaused &&
+		!commandConsoleOpen() &&
+		!recoveryShopOpen() &&
+		!hubFacilityPanelOpen() &&
+		!tacticalMapOpen();
+}
+
+function updateActiveGameState(context: RunFrameContext) {
+	context.gameState = gameState;
+	context.paused = isPaused;
+	context.gameplayActive = canUpdateGameplay();
+	if (context.gameplayActive) {
+		timeSeconds += context.dt;
+		recordPlaytime(context.rawDt);
+		profileSection("gameLoop", updateGameLoop);
+	} else if (gameState == GameState.MainMenu) {
+		updateMainMenuLoop();
+	} else if (gameState == GameState.LevelEditor) {
+		updateLevelEditor();
+	}
+}
+
+function updateLegacyFrame(context: RunFrameContext) {
+	updateUiPointerRegions();
+	updateTimescale(context);
+	rebuildRuntimeSpatialIndex();
+	updateActiveGameState(context);
+	updateBatchedUi();
+	profileSection("gridVisibility", () => gridRegistry.updateVisibleCells());
+	updateDebug();
+}
+
 export function changeGameState(state: number) {
 	const previousState = gameState;
 	gameState = state;
@@ -476,10 +640,10 @@ function registerDebugCommands() {
 			loadPlayer();
 			saveGame("slot1");
 
-			playerObj.setMaxHP(player.maxHealth);
+			playerObj.maxHP = player.maxHealth;
 			clearGameLoopUi();
 			setupGameLoopUi(player.maxHealth, false);
-			updatePlayerHealthBar(playerObj.hp());
+			updatePlayerHealthBar(playerObj.hp);
 
 			return clearedUpgradeCount > 0
 				? `Cleared ${clearedUpgradeCount} upgrade types and all run reward effects`
@@ -504,6 +668,34 @@ function registerDebugCommands() {
 	);
 
 	commandService.register(
+		"drawtrace",
+		"drawtrace start [frames] | status | report | objects - Inspect WebGL batches",
+		(args) => {
+			const mode = args[0]?.toLowerCase() ?? "status";
+			if (mode === "report") return formatDrawCallTraceReport();
+			if (mode === "objects") {
+				return ["sprite", "text", "circle", "rect", "particles"]
+					.map((component) => `${component}: ${k.get(component, { recursive: true }).length}`)
+					.join("\n");
+			}
+			if (mode === "status") {
+				return drawCallTraceRunning()
+					? "Draw trace running"
+					: formatDrawCallTraceReport();
+			}
+			if (mode !== "start") {
+				return "Usage: drawtrace start [frames] | status | report | objects";
+			}
+			const frames = Number(args[1] ?? 120);
+			if (!Number.isInteger(frames) || frames < 1 || frames > 600) {
+				return "Frame count must be an integer between 1 and 600";
+			}
+			startDrawCallTrace(frames);
+			return `Draw trace started for ${frames} frames. Close the console, then use drawtrace report.`;
+		}
+	);
+
+	commandService.register(
 		"debug",
 		"debug [on|off|toggle] - Show or hide the diagnostics HUD",
 		(args) => {
@@ -514,24 +706,95 @@ function registerDebugCommands() {
 
 			if (mode === "toggle") toggleDebug();
 			else setDebugVisible(mode === "on");
+			if (debugIsVisible()) setFrameProfilerEnabled(true);
 			return `Debug HUD ${debugIsVisible() ? "shown" : "hidden"}`;
 		}
 	);
 
 	commandService.register(
 		"profiler",
-		"profiler [show|hide|reset] - Control performance diagnostics",
+		"profiler [show|hide|on|off|status|reset|report] - Control performance diagnostics",
 		(args) => {
 			const mode = args[0]?.toLowerCase() ?? "show";
 			if (mode === "reset") {
 				resetFrameProfiler();
 				return "Profiler samples reset";
 			}
-			if (mode !== "show" && mode !== "hide") {
-				return "Usage: profiler [show|hide|reset]";
+			if (mode === "report") {
+				return formatPerformanceBenchmarkReport();
 			}
-			setDebugVisible(mode === "show");
-			return `Profiler ${mode === "show" ? "shown" : "hidden"}`;
+			if (mode === "status") {
+				return `Profiler ${frameProfilerEnabled() ? "enabled" : "disabled"}; HUD ${debugIsVisible() ? "shown" : "hidden"}`;
+			}
+			if (mode === "on" || mode === "show") setFrameProfilerEnabled(true);
+			if (mode === "off") setFrameProfilerEnabled(false);
+			if (mode === "show" || mode === "hide" || mode === "off") {
+				setDebugVisible(mode === "show");
+			}
+			if (!["show", "hide", "on", "off"].includes(mode)) {
+				return "Usage: profiler [show|hide|on|off|status|reset|report]";
+			}
+			return `Profiler ${frameProfilerEnabled() ? "enabled" : "disabled"}; HUD ${debugIsVisible() ? "shown" : "hidden"}`;
+		}
+	);
+
+	commandService.register(
+		"runloop",
+		"runloop [status|on|off|systems|profile|unprofile] - Control the central scheduler",
+		(args) => {
+			const mode = args[0]?.toLowerCase() ?? "status";
+			if (mode === "on" || mode === "off") {
+				runLoop.setEnabled(mode === "on");
+				return `Central run loop ${mode === "on" ? "enabled" : "disabled; using legacy frame path"}`;
+			}
+			if (mode === "profile" || mode === "unprofile") {
+				runLoop.setSystemProfiling(mode === "profile");
+				if (mode === "profile") setFrameProfilerEnabled(true);
+				resetFrameProfiler();
+				return `Per-system profiling ${mode === "profile" ? "enabled" : "disabled"}`;
+			}
+			if (mode === "systems") {
+				const lines = ["ID | PHASE | PRIORITY", "---|---|---"];
+				for (const system of runLoop.snapshot()) {
+					lines.push(`${system.id} | ${system.phase} | ${system.priority}`);
+				}
+				return lines.join("\n");
+			}
+			if (mode !== "status") {
+				return "Usage: runloop [status|on|off|systems|profile|unprofile]";
+			}
+			return `Central run loop ${runLoop.isEnabled() ? "ON" : "OFF"}; per-system profiling ${runLoop.isSystemProfilingEnabled() ? "ON" : "OFF"}; ${runLoop.snapshot().length} systems`;
+		}
+	);
+
+	commandService.register(
+		"benchmark",
+		"benchmark start <name> [1-30s] | status | report | cancel",
+		(args) => {
+			const mode = args[0]?.toLowerCase() ?? "status";
+			if (mode === "report") return formatPerformanceBenchmarkReport();
+			if (mode === "cancel") {
+				return cancelPerformanceBenchmark()
+					? "Benchmark cancelled"
+					: "No benchmark is running";
+			}
+			if (mode === "status") {
+				const status = getPerformanceBenchmarkStatus();
+				if (!status) return formatPerformanceBenchmarkReport();
+				return `Benchmark ${status.name}: ${status.elapsed.toFixed(1)} / ${status.duration.toFixed(1)}s`;
+			}
+			if (mode !== "start") {
+				return "Usage: benchmark start <name> [1-30s] | status | report | cancel";
+			}
+			const name = args[1]?.trim();
+			const duration = Number(args[2] ?? 5);
+			if (!name) return "Benchmark name is required";
+			if (!Number.isFinite(duration) || duration < 1 || duration > 30) {
+				return "Benchmark duration must be between 1 and 30 seconds";
+			}
+			startPerformanceBenchmark(name, duration);
+			setDebugVisible(true);
+			return `Benchmark ${name} started for ${duration}s. Close the console, then use benchmark report when it completes.`;
 		}
 	);
 
@@ -578,7 +841,7 @@ function registerDebugCommands() {
 
 	commandService.register("kill", "Kill the player", () => {
 		hideCommandConsole();
-		applyDamage(playerObj, playerObj.hp(), {
+		applyDamage(playerObj, playerObj.hp, {
 			source: { name: "DEBUG COMMAND", sprite: "bullet1" },
 		});
 	});
@@ -593,11 +856,27 @@ function registerDebugCommands() {
 	});
 
 	commandService.register("heal", "heal [amount]", (args) => {
-		const amount = Number(args[0] ?? playerObj.maxHP());
+		const amount = Number(args[0] ?? playerObj.maxHP);
 		if (!Number.isFinite(amount) || amount <= 0) return "Invalid heal amount";
-		playerObj.heal(amount);
+		playerObj.hp = Math.min(playerObj.maxHP, playerObj.hp + amount);
 		return `Healed ${amount}`;
 	});
+
+	commandService.register(
+		"invulnerable",
+		"invulnerable [on|off|toggle] - Toggle player damage immunity",
+		(args) => {
+			const mode = args[0]?.toLowerCase() ?? "toggle";
+			if (!["on", "off", "toggle"].includes(mode)) {
+				return "Usage: invulnerable [on|off|toggle]";
+			}
+			const enabled = mode === "toggle"
+				? !isPlayerDebugInvulnerable()
+				: mode === "on";
+			setPlayerDebugInvulnerable(enabled);
+			return `Player invulnerability ${enabled ? "enabled" : "disabled"}`;
+		}
+	);
 
 	commandService.register("hub", "Return to the hub", () => {
 		hideCommandConsole();
@@ -616,9 +895,9 @@ function registerDebugCommands() {
 		showRecoveryShop();
 	});
 
-	commandService.register("arsenal", "Open the arsenal", () => {
+	commandService.register("training", "Open the Training Range systems", () => {
 		hideCommandConsole();
-		showArsenal();
+		showTrainingRange();
 	});
 
 	commandService.register("map", "map [seed] - Preview a generated run", (args) => {
@@ -723,6 +1002,22 @@ function registerDebugCommands() {
 		addScore(amount);
 		return `Added ${amount} score`;
 	});
+
+	commandService.register(
+		"rerolls",
+		"rerolls [amount] - Show or grant reroll tokens",
+		(args) => {
+			if (args.length === 0) {
+				return `${getRerollTokens()} reroll tokens available`;
+			}
+			const amount = Number(args[0]);
+			if (!Number.isInteger(amount) || amount < 1 || amount > 99) {
+				return "Amount must be an integer between 1 and 99";
+			}
+			const total = grantRerollTokens(amount);
+			return `Granted ${amount} reroll tokens; ${total} available`;
+		}
+	);
 
 	commandService.register(
 		"rewards",
@@ -900,6 +1195,10 @@ function togglePause() {
 		loopService.pauseAll();
 		showPauseMenu({
 			onResume: togglePause,
+			onExitRun:
+				activeLevelKey() !== "hub" && runSessionActive()
+					? exitPausedRun
+					: undefined,
 			onQuit: quitPausedGame,
 		});
 	} else {
@@ -914,6 +1213,13 @@ function togglePause() {
 		audioService.resumeMusic();
 		loopService.resumeAll();
 	}
+}
+
+function exitPausedRun() {
+	hidePauseMenu();
+	isPaused = false;
+	loopService.resumeAll();
+	exitRunToHub();
 }
 
 function quitPausedGame() {

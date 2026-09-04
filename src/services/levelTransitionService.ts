@@ -17,6 +17,7 @@ import { starsEmitter } from "../particles";
 import { spawnRing } from "../spawn/spawnRing";
 import { tags } from "../tags";
 import { audioService } from "./audioService";
+import { profileSection } from "./frameProfilerService";
 
 const chargeDuration = 0.2;
 const entryDuration = 0.3;
@@ -90,7 +91,7 @@ export function startLevelTransition(options: TransitionOptions) {
 	starsEmitter.emitter.position = portalPos;
 	starsEmitter.emit(20);
 
-	controller.onUpdate(() => {
+	controller.onUpdate(() => profileSection("external:levelTransition", () => {
 		phaseTime += k.dt();
 
 		if (phase === "charge") {
@@ -174,7 +175,7 @@ export function startLevelTransition(options: TransitionOptions) {
 		cameraPos = followCamera(cameraPos, options.player.pos);
 
 		if (progress >= 1) finishTransition();
-	});
+	}));
 
 	function followCamera(current: Vec2, target: Vec2) {
 		const next = current.lerp(

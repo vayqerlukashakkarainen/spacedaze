@@ -16,7 +16,12 @@ export function generateChestReward(
 
 export function generateChestRewardChoices(
 	successfulHits: number,
-	failedAttempts: number
+	failedAttempts: number,
+	excludedRewardIds: readonly string[] = []
 ) {
-	return rollCrateRewardChoices(successfulHits, failedAttempts)
+	return rollCrateRewardChoices(
+		successfulHits,
+		failedAttempts,
+		excludedRewardIds
+	)
 }

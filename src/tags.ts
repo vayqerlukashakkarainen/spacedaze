@@ -5,6 +5,7 @@ export const tags = {
 	gameLoopUi: "game_loop_ui",
 	gameLoop: "gameLoop",
 	mainMenu: "mainMenu",
+	mainMenuTransition: "mainMenuTransition",
 	pauseMenu: "pauseMenu",
 	deathScreen: "deathScreen",
 	levelTransition: "levelTransition",
@@ -30,6 +31,8 @@ export const tags = {
 	follower: "follower",
 	player: "player",
 	hackedAlly: "hackedAlly",
+	swarmEnemy: "swarmEnemy",
+	hiveMind: "hiveMind",
 
 	levelBg: "level_bg",
 

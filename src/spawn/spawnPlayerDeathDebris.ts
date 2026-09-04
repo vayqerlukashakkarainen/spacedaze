@@ -1,6 +1,7 @@
 import type { Vec2 } from "kaplay"
 import { k } from "../main"
 import { tags } from "../tags"
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 
 const PLAYER_DEATH_DEBRIS_COUNT = 18
 
@@ -24,7 +25,7 @@ export function spawnPlayerDeathDebris(pos: Vec2) {
 			tags.gameLoop,
 		])
 
-		fragment.onUpdate(() => {
+		registerBatchedEntityUpdate("effects", fragment, () => {
 			fragment.move(fragment.velocity)
 			fragment.angle += fragment.angularVelocity * k.dt()
 		})

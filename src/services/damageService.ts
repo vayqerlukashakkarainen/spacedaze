@@ -35,8 +35,19 @@ export function applyDamage(
 	damage: number,
 	options: DamageOptions = {}
 ) {
-	if (!target.exists() || typeof target.hurt !== "function") return false
+	if (!target.exists() || typeof target.hp !== "number") return false
 	if (!Number.isFinite(damage) || damage <= 0) return false
+	const shieldProvider = target.shieldProvider as GameObj | undefined
+	if (
+		shieldProvider?.exists() &&
+		typeof shieldProvider.hp === "number" &&
+		shieldProvider.hp > 0
+	) {
+		return applyDamage(shieldProvider, damage, {
+			...options,
+			position: shieldProvider.pos?.clone() ?? options.position,
+		})
+	}
 	if (
 		target.tags.includes(tags.player) &&
 		isPlayerDamageInvulnerable()
@@ -47,7 +58,7 @@ export function applyDamage(
 	if (target.tags.includes(tags.player) && options.source) {
 		playerDeathCause = { ...options.source }
 	}
-	target.hurt(damage)
+	target.hp -= damage
 	if (options.showNumber !== false && numberPos) {
 		spawnDamageNumber(numberPos, damage, {
 			critical: options.critical,

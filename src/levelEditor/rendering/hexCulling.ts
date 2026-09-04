@@ -5,6 +5,7 @@ import { HexCoord, hexKey } from "../../grid/hexCoord";
 import { editorState } from "../state/editorState";
 import { drawWallCell, getHexCenter } from "./wallRenderer";
 import { tags } from "../../tags";
+import { uiHitRegion } from "../../ui/common/hitRegion";
 
 /**
  * Tracks which cells are currently rendered
@@ -207,7 +208,7 @@ function drawSpawnMarkers(): void {
 		const clickArea = k.add([
 			k.pos(spawn.pos),
 			k.circle(12),
-			k.area(),
+			uiHitRegion(k.vec2(24), true),
 			k.anchor("center"),
 			k.opacity(0.01), // Nearly invisible but clickable
 			tags.levelEditor,

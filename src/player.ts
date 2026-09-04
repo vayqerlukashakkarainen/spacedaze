@@ -16,6 +16,7 @@ interface Ship {
 	spaceJumpLvl: number | undefined;
 	spaceJumpUpgradeLvl: number | undefined;
 	spaceJumpDamage: number;
+	phaseMagazine: number | undefined;
 
 	maxHealth: number;
 	scorePerPickup: number;
@@ -115,6 +116,7 @@ interface Session {
 	volatileCargoActive: boolean;
 	volatileCargoIntact: boolean;
 	volatileCargoDelivered: boolean;
+	rerollTokens: number;
 }
 
 export const PLAYER_SCALE = 1.2;
@@ -129,6 +131,7 @@ export const session: Session = {
 	volatileCargoActive: false,
 	volatileCargoIntact: false,
 	volatileCargoDelivered: false,
+	rerollTokens: 0,
 };
 
 export function resetSession() {
@@ -138,7 +141,24 @@ export function resetSession() {
 	session.primaryRocketChance = 0;
 	session.scrapArmorCharges = 0;
 	session.scrapArmorProgress = 0;
+	session.rerollTokens = 0;
 	resetVolatileCargoObjective();
+}
+
+export function getRerollTokens() {
+	return session.rerollTokens;
+}
+
+export function grantRerollTokens(amount: number = 1) {
+	if (!Number.isFinite(amount) || amount <= 0) return session.rerollTokens;
+	session.rerollTokens += Math.floor(amount);
+	return session.rerollTokens;
+}
+
+export function spendRerollToken() {
+	if (session.rerollTokens <= 0) return false;
+	session.rerollTokens -= 1;
+	return true;
 }
 
 export function resetVolatileCargoObjective() {
@@ -176,6 +196,7 @@ export const player: Ship = {
 	spaceJumpLvl: undefined,
 	spaceJumpUpgradeLvl: undefined,
 	spaceJumpDamage: 0,
+	phaseMagazine: undefined,
 	speedMultiplier: 1,
 	speedPwrUpMultiplier: 1,
 	followerBlasterDmg: 1,
@@ -258,6 +279,7 @@ export function loadPlayer() {
 	player.spaceJumpLvl = getToolUpgradeLvlValue("spaceJump");
 	player.spaceJumpUpgradeLvl = getToolUpgradeLvlValue("spaceJumpUpgrades");
 	player.spaceJumpDamage = getToolUpgradeLvlValue("phaseRam") ?? 0;
+	player.phaseMagazine = getToolUpgradeLvlValue("phaseMagazine");
 
 	player.speedMultiplier = getToolUpgradeLvlValue("movespeed") ?? 1;
 	player.maxHealth = getToolUpgradeLvlValue("maxHealth") ?? 2;
@@ -291,6 +313,7 @@ export function loadPlayer() {
 		"sprintSpeed",
 		"spaceJump",
 		"spaceJumpUpgrades",
+		"phaseMagazine",
 		"movespeed",
 		"afterburnerWake",
 	]);

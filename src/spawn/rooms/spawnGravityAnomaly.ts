@@ -1,7 +1,8 @@
 import type { Vec2 } from "kaplay"
-import { k } from "../../main"
+import { k, layers } from "../../main"
 import { tags } from "../../tags"
 import { spawnGravityPull } from "../spawnGravityPull"
+import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 
 interface GravityAnomalyProps {
 	pos: Vec2
@@ -17,6 +18,7 @@ export function spawnGravityAnomaly(props: GravityAnomalyProps) {
 		k.outline(2, k.rgb(145, 105, 255)),
 		k.anchor("center"),
 		k.opacity(0.24),
+		k.layer(layers.gameEffects),
 		tags.props,
 		tags.gameLoop,
 		...(props.tags ?? []),
@@ -28,15 +30,8 @@ export function spawnGravityAnomaly(props: GravityAnomalyProps) {
 		k.scale(0.68),
 		k.rotate(0),
 		k.color(195, 175, 255),
+		k.layer(layers.buildings),
 		tags.props,
-		tags.gameLoop,
-		...(props.tags ?? []),
-	])
-	const label = k.add([
-		k.pos(props.pos.add(0, -58)),
-		k.text("GRAVITY ANOMALY", { size: 8, font: "unscii" }),
-		k.anchor("center"),
-		k.color(195, 175, 255),
 		tags.gameLoop,
 		...(props.tags ?? []),
 	])
@@ -55,14 +50,13 @@ export function spawnGravityAnomaly(props: GravityAnomalyProps) {
 		tags: props.tags,
 	})
 
-	core.onUpdate(() => {
+	registerBatchedEntityUpdate("world", core, () => {
 		core.angle += k.dt() * 10
 		field.opacity = k.wave(0.12, 0.32, k.time() * 1.8)
 	})
 	core.onDestroy(() => {
 		if (field.exists()) k.destroy(field)
 		if (gravity.exists()) k.destroy(gravity)
-		if (label.exists()) k.destroy(label)
 	})
 
 	return core

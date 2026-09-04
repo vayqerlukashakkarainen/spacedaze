@@ -12,6 +12,7 @@ import {
 } from "../services/threatService";
 import { applyDamage } from "../services/damageService";
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState";
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 
 export function spawnHeavyVehicle(
 	pos: Vec2,
@@ -48,7 +49,7 @@ export function spawnHeavyVehicle(
 
 	registerHitAnimation(m);
 
-	m.onUpdate(() => {
+	registerBatchedEntityUpdate("enemies", m, () => {
 		m.move(m.vel.scale(m.speed * velocityScale()));
 
 		checkProjectileIntersection(m.pos, m.hb, tags.friendly, (p) => {

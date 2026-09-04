@@ -61,6 +61,12 @@ import {
 	recordDebreeCollected,
 } from "./services/runStatsService";
 import type { DebreeCollectionState } from "./spawn/spawnDebree";
+import {
+	findSpatialNearby,
+	forEachSpatialNearby,
+} from "./services/runtimeSpatialIndexService";
+import { endRunSession } from "./services/runDirectorService";
+import { resetEquippedWeapon } from "./services/weaponService";
 
 export let playerObj: GameObj<
 	PosComp | SpriteComp | RotateComp | AreaComp | AnchorComp | HealthComp
@@ -77,8 +83,9 @@ export function startGame() {
 	clearRunInventory();
 	clearRecoveryOffers();
 	resetPowerupRuntime();
+	resetEquippedWeapon();
 	loadPlayer();
-	playerObj = setupPlayer();
+	playerObj = setupPlayer({ arrivalTransition: true });
 	setupGameLoopUi(player.maxHealth, player.rocketsLvl !== undefined);
 }
 
@@ -160,7 +167,7 @@ export function collectDebreeImmediately(
 	const color = debris.color ?? k.WHITE;
 	k.destroy(debris);
 	recordDebreeCollected();
-	audioService.playSound("collect1", { volume: mainSoundVolume });
+	audioService.playSound("salvage_pickup", { volume: mainSoundVolume });
 	const salvageGained = addScore(
 		player.scorePerPickup * salvageValue * player.debreeValueMultiplier
 	);
@@ -274,6 +281,7 @@ export function beginPlayerDeathSequence() {
 		resetLevelLoadout();
 		resetSession();
 		resetPowerupRuntime();
+		resetEquippedWeapon();
 		loadPlayer();
 		transitionToLevel("hub");
 		playerObj = setupPlayer({ respawnTransition: true });
@@ -287,6 +295,29 @@ export function playerDeathSequenceActive() {
 	return isPlayerDying;
 }
 
+export function exitRunToHub() {
+	if (activeLevelKey() === "hub") return;
+
+	finishRunStats("ABANDONED");
+	endRunSession();
+	clearPlayer();
+	if (playerObj?.exists()) k.destroy(playerObj);
+	k.destroyAll(tags.follower);
+	clearGameLoopUi();
+	resetLevelLoadout();
+	resetSession();
+	clearRunInventory();
+	clearRecoveryOffers();
+	resetPowerupRuntime();
+	resetEquippedWeapon();
+	loadPlayer();
+	debrees = [];
+	transitionToLevel("hub");
+	playerObj = setupPlayer({ respawnTransition: true });
+	setupGameLoopUi(player.maxHealth, player.rocketsLvl !== undefined);
+	setTimescale(1, 0.2, false);
+}
+
 export function clearGame() {
 	isPlayerDying = false;
 	hideDeathScreen();
@@ -297,6 +328,7 @@ export function clearGame() {
 	clearRunInventory();
 	clearRecoveryOffers();
 	resetPowerupRuntime();
+	resetEquippedWeapon();
 	loadPlayer();
 	timeSinceLastLevel = 0;
 	debrees = [];
@@ -321,15 +353,12 @@ export function checkProjectileIntersection(
 	projectilesWithTag: string,
 	onHit: (p: GameObj<PosComp | RotateComp | any>) => void
 ) {
-	for (let i = 0; i < projectiles.length; i++) {
-		const p = projectiles[i];
-
-		if (p.pos.dist(pos) < dist) {
-			if (!p.tags.includes(projectilesWithTag)) continue;
-
-			onHit(p);
-		}
-	}
+	forEachSpatialNearby(
+		pos,
+		dist,
+		{ allTags: [tags.projectile, projectilesWithTag] },
+		(p) => onHit(p as GameObj<PosComp | RotateComp | any>)
+	);
 }
 export function checkProjectileComponentIntersection(
 	pos: Vec2,
@@ -338,24 +367,23 @@ export function checkProjectileComponentIntersection(
 	components: Component[],
 	onHit: (p: GameObj<PosComp | RotateComp | any>, index: number) => void
 ) {
-	for (let i = 0; i < projectiles.length; i++) {
-		const p = projectiles[i];
-
-		if (p.pos.dist(pos) < dist) {
-			if (!p.tags.includes(projectilesWithTag)) continue;
-
+	forEachSpatialNearby(
+		pos,
+		dist,
+		{ allTags: [tags.projectile, projectilesWithTag] },
+		(projectile) => {
+			const p = projectile as GameObj<PosComp | RotateComp | any>;
 			for (let i = 0; i < components.length; i++) {
 				if (components[i].obj.hidden) continue;
-
 				if (
 					p.pos.dist(pos.sub(components[i].localPos)) < components[i].hitbox
 				) {
 					onHit(p, i);
-					return;
+					return false;
 				}
 			}
 		}
-	}
+	);
 }
 
 export function pickUnitInDistance(
@@ -364,17 +392,12 @@ export function pickUnitInDistance(
 	tag: string,
 	onFound: (u: GameObj) => void
 ) {
-	const units = k.query({ include: [tag, tags.unit], includeOp: "and" });
-	for (let i = 0; i < units.length; i++) {
-		const u = units[i];
-
-		if (u.pos.dist(pos) < dist) {
-			onFound(u);
-			return true;
-		}
-	}
-
-	return false;
+	const unit = findSpatialNearby(pos, dist, {
+		allTags: [tag, tags.unit],
+	});
+	if (!unit) return false;
+	onFound(unit);
+	return true;
 }
 
 export function addMaxHealth() {
@@ -382,8 +405,8 @@ export function addMaxHealth() {
 
 	session.extraHealth++;
 	const totalHealth = player.maxHealth + session.extraHealth;
-	playerObj.setMaxHP(totalHealth);
+	playerObj.maxHP = totalHealth;
 	addHealthBar(totalHealth - 1);
-	playerObj.heal();
-	updatePlayerHealthBar(playerObj.hp());
+	playerObj.hp = playerObj.maxHP;
+	updatePlayerHealthBar(playerObj.hp);
 }

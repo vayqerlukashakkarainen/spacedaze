@@ -21,13 +21,25 @@ import {
 	RecoveryOffer,
 } from "../services/runInventoryService"
 import { audioService } from "../services/audioService"
+import {
+	playShopMenuCloseSound,
+	playShopMenuOpenSound,
+} from "../services/shopMenuSoundService"
 import { tags } from "../tags"
 import { addCollectedPowerup } from "./gameUi"
 import { uiState } from "./uiState"
 import { createUiPanel } from "./common/panel"
 import { UI_COLORS } from "./common/theme"
+import { uiHitRegion } from "./common/hitRegion"
+import {
+	playUiModalClose,
+	playUiModalOpen,
+} from "./common/modalTransition"
 
 let isOpen = false
+let isClosing = false
+let activePanel: GameObj | undefined
+let activeBackdrop: GameObj | undefined
 
 export function showRecoveryShop() {
 	if (isOpen) return
@@ -35,32 +47,57 @@ export function showRecoveryShop() {
 	uiState.modalOpen = true
 	pauseGameObjects(true)
 	renderRecoveryShop()
+	playShopMenuOpenSound()
 }
 
-export function hideRecoveryShop() {
-	if (!isOpen) return
-	isOpen = false
-	uiState.modalOpen = false
-	k.destroyAll(tags.recoveryShop)
-	pauseGameObjects(false)
+export function hideRecoveryShop(animate = true) {
+	if (!isOpen || isClosing) return
+	if (!animate) {
+		finishClosingRecoveryShop(false)
+		return
+	}
+	isClosing = true
+	playShopMenuCloseSound()
+	const panel = activePanel
+	const backdrop = activeBackdrop
+	if (!panel?.exists() || !backdrop?.exists()) {
+		finishClosingRecoveryShop(false)
+		return
+	}
+	void playUiModalClose(backdrop, panel, {
+		panelPos: k.center(),
+		backdropOpacity: 0.78,
+	}).then(() => finishClosingRecoveryShop(false))
 }
 
 export function recoveryShopOpen() {
 	return isOpen
 }
 
-function renderRecoveryShop() {
+function finishClosingRecoveryShop(playTransitionSound: boolean) {
+	isOpen = false
+	isClosing = false
+	uiState.modalOpen = false
+	k.destroyAll(tags.recoveryShop)
+	pauseGameObjects(false)
+	if (playTransitionSound) playShopMenuCloseSound()
+	activePanel = undefined
+	activeBackdrop = undefined
+}
+
+function renderRecoveryShop(animate = true) {
 	k.destroyAll(tags.recoveryShop)
 	const offers = getRecoveryOffers()
 	const center = k.center()
 	const panelWidth = Math.min(840, k.width() - 40)
 	const panelHeight = Math.min(470, k.height() - 40)
 
-	k.add([
+	const backdrop = k.add([
 		k.rect(k.width(), k.height()),
 		k.pos(0, 0),
 		k.color(k.BLACK),
 		k.opacity(0.78),
+		k.animate(),
 		k.fixed(),
 		k.layer(layers.uiEffects),
 		tags.recoveryShop,
@@ -72,7 +109,16 @@ function renderRecoveryShop() {
 		anchor: "center",
 		layer: layers.uiEffects,
 		tags: [tags.recoveryShop],
+		animated: animate,
 	})
+	activeBackdrop = backdrop
+	activePanel = panel
+	if (animate) {
+		playUiModalOpen(backdrop, panel, {
+			panelPos: center,
+			backdropOpacity: 0.78,
+		})
+	}
 
 	panel.add([
 		k.text("RECOVERY SHOP", { size: 24, font: "unscii" }),
@@ -114,7 +160,7 @@ function renderRecoveryShop() {
 			k.rect(cardWidth, cardHeight),
 			k.pos(cardX, 28),
 			k.anchor("center"),
-			k.area(),
+			uiHitRegion(k.vec2(cardWidth, cardHeight), true),
 			k.color(...UI_COLORS.panel),
 			k.outline(2, new k.Color(...colorValues)),
 		])
@@ -178,7 +224,7 @@ function renderRecoveryShop() {
 		k.rect(180, 38),
 		k.pos(0, panelHeight / 2 - 28),
 		k.anchor("center"),
-		k.area(),
+		uiHitRegion(k.vec2(180, 38), true),
 		k.color(...UI_COLORS.panel),
 		k.outline(2, k.rgb(...UI_COLORS.accent)),
 	])
@@ -186,7 +232,7 @@ function renderRecoveryShop() {
 		k.text("CLOSE", { size: 12, font: "unscii" }),
 		k.anchor("center"),
 	])
-	close.onClick(hideRecoveryShop)
+	close.onClick(() => hideRecoveryShop())
 }
 
 function purchaseOffer(offer: RecoveryOffer) {
@@ -204,7 +250,7 @@ function purchaseOffer(offer: RecoveryOffer) {
 
 	consumeRecoveryOffer(offer.id)
 	audioService.playSound("purchase1", { volume: mainSoundVolume })
-	renderRecoveryShop()
+	renderRecoveryShop(false)
 }
 
 function getOfferLockReason(offer: RecoveryOffer) {

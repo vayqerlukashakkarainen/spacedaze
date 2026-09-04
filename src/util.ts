@@ -6,6 +6,7 @@ import {
 	getOwnedWeaponIds,
 	setWeaponInventory,
 } from "./services/weaponService";
+import { PLANET_CHUNK_SPRITES } from "./planetChunkSprites";
 
 const SAVE_VERSION = 2;
 const LEGACY_SAVE_KEYS = [
@@ -36,54 +37,62 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadRoot("./"); // A good idea for Itch.io publishing later
 	await k.loadSprite("ship", "sprites/ship-v2.png");
 	await k.loadSprite("crate1", "sprites/crate-v2.png");
-	await k.loadSprite("recovery_shop", "sprites/recovery-shop.png");
+	await k.loadSprite(
+		"salvage_asteroid_normal",
+		"sprites/salvage-asteroids/salvage-asteroid-normal.png"
+	)
+	await k.loadSprite(
+		"salvage_asteroid_rich",
+		"sprites/salvage-asteroids/salvage-asteroid-rich.png"
+	)
+	await k.loadSprite("recovery_shop", "sprites/shops/v3/recovery-shop.png");
 	await k.loadSprite(
 		"facility_contract_terminal",
-		"sprites/facilities/facility-contract-terminal.png"
+		"sprites/facilities/v2/facility-contract-terminal.png"
 	);
 	await k.loadSprite(
 		"facility_contract_terminal_destroyed",
-		"sprites/facilities/facility-contract-terminal-destroyed.png"
+		"sprites/facilities/v2/facility-contract-terminal-destroyed.png"
 	);
 	await k.loadSprite(
 		"facility_salvage_forge",
-		"sprites/facilities/facility-salvage-forge.png"
+		"sprites/facilities/v2/facility-salvage-forge.png"
 	);
 	await k.loadSprite(
 		"facility_salvage_forge_destroyed",
-		"sprites/facilities/facility-salvage-forge-destroyed.png"
+		"sprites/facilities/v2/facility-salvage-forge-destroyed.png"
 	);
 	await k.loadSprite(
 		"facility_debrief_terminal",
-		"sprites/facilities/facility-debrief-terminal.png"
+		"sprites/facilities/v2/facility-debrief-terminal.png"
 	);
 	await k.loadSprite(
 		"facility_debrief_terminal_destroyed",
-		"sprites/facilities/facility-debrief-terminal-destroyed.png"
+		"sprites/facilities/v2/facility-debrief-terminal-destroyed.png"
 	);
 	await k.loadSprite(
 		"facility_training_range",
-		"sprites/facilities/facility-training-range.png"
+		"sprites/facilities/v2/facility-training-range.png"
 	);
 	await k.loadSprite(
 		"facility_training_range_destroyed",
-		"sprites/facilities/facility-training-range-destroyed.png"
+		"sprites/facilities/v2/facility-training-range-destroyed.png"
 	);
 	await k.loadSprite(
 		"facility_blueprint_archive",
-		"sprites/facilities/facility-blueprint-archive.png"
+		"sprites/facilities/v2/facility-blueprint-archive.png"
 	);
 	await k.loadSprite(
 		"facility_blueprint_archive_destroyed",
-		"sprites/facilities/facility-blueprint-archive-destroyed.png"
+		"sprites/facilities/v2/facility-blueprint-archive-destroyed.png"
 	);
 	await k.loadSprite(
 		"facility_warp_zones",
-		"sprites/facilities/facility-warp-zones.png"
+		"sprites/facilities/v2/facility-warp-zones.png"
 	);
 	await k.loadSprite(
 		"facility_warp_zones_destroyed",
-		"sprites/facilities/facility-warp-zones-destroyed.png"
+		"sprites/facilities/v2/facility-warp-zones-destroyed.png"
 	);
 	await k.loadSprite("bullet1", "sprites/bullet1.png");
 	await k.loadSprite("rocket1", "sprites/rocket1.png");
@@ -126,6 +135,18 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSprite("enemy_ship1", "sprites/enemy_ship1.png");
 	await k.loadSprite("bike1", "sprites/bike1.png");
+	await k.loadSprite("enemy_rammer", "sprites/enemies/rammer.png");
+	await k.loadSprite("enemy_sniper", "sprites/enemies/sniper.png");
+	await k.loadSprite("enemy_mine_layer", "sprites/enemies/mine-layer.png");
+	await k.loadSprite(
+		"enemy_shield_drone",
+		"sprites/enemies/shield-drone.png"
+	);
+	await k.loadSprite("enemy_swarm_drone", "sprites/enemies/swarm-drone.png")
+	await k.loadSprite(
+		"enemy_swarm_hivemind",
+		"sprites/enemies/swarm-hivemind.png"
+	)
 
 	await k.loadSprite("particle1", "sprites/particle1.png");
 	await k.loadSprite("particle2", "sprites/particle2.png");
@@ -190,6 +211,10 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite(
 		"space_jump_upg1",
 		"sprites/upgrades/space_jump_upg1.png"
+	);
+	await k.loadSprite(
+		"reroll_token",
+		"sprites/upgrades/reroll_token.svg"
 	);
 	await k.loadSprite(
 		"phase_capacitor_upg1",
@@ -259,6 +284,12 @@ export async function init(k: KAPLAYCtx) {
 		"bg_destroyed_planet_sliced",
 		"sprites/bg/destroyed-planet-sliced.png"
 	);
+	for (const [index, sprite] of PLANET_CHUNK_SPRITES.entries()) {
+		await k.loadSprite(
+			sprite,
+			`sprites/planet-chunks/planet-chunk-${index + 1}.png`
+		);
+	}
 
 	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
 
@@ -273,7 +304,10 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound("hit2", "sounds/hit2.wav");
 	await k.loadSound("player_hit1", "sounds/player_hit1.wav");
 	await k.loadSound("collect1", "sounds/collect1.wav");
+	await k.loadSound("salvage_pickup", "sounds/salvage-pickup.mp3");
 	await k.loadSound("click1", "sounds/click.wav");
+	await k.loadSound("ui_hover", "sounds/ui-hover.wav");
+	await k.loadSound("ui_click", "sounds/ui-click.wav");
 	await k.loadSound("purchase", "sounds/purchase.wav");
 	await k.loadSound("error", "sounds/error.wav");
 	await k.loadSound("purchase1", "sounds/purchase1.wav");
@@ -281,7 +315,16 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound("crit1", "sounds/crit1.wav");
 	await k.loadSound("slowdown", "sounds/slowdown.wav");
 	await k.loadSound("swap_level", "sounds/swap_level.wav");
+	await k.loadSound(
+		"menu_spacejump_warp",
+		"sounds/menu-spacejump-warp.mp3"
+	);
+	await k.loadSound(
+		"player_arrival_impact",
+		"sounds/player-arrival-impact.mp3"
+	);
 	await k.loadSound("wormhole_rampup", "sounds/wormhole-rampup.mp3");
+	await k.loadSound("wormhole_ambience", "sounds/wormhole-ambience.mp3");
 	await k.loadSound(
 		"secret_cavern_reveal",
 		"sounds/secret-cavern-reveal.mp3"
@@ -295,6 +338,12 @@ export async function init(k: KAPLAYCtx) {
 		"reward_shine_legendary",
 		"sounds/reward-shine-legendary.mp3"
 	);
+	await k.loadSound("shop_menu_open", "sounds/shop-menu-open.mp3");
+	await k.loadSound("shop_menu_close", "sounds/shop-menu-close.mp3");
+	await k.loadSound(
+		"golden_crate_destroyed",
+		"sounds/golden-crate-destroyed.mp3"
+	);
 
 	await k.loadMusic("arcadia", "songs/arcadia.mp3");
 	await k.loadMusic(
@@ -302,6 +351,67 @@ export async function init(k: KAPLAYCtx) {
 		"songs/flirt-flirt-oh-it-hurts.mp3"
 	);
 	await k.loadMusic("hub", "songs/hub.mp3");
+
+	k.loadShader(
+		"wormholeLighting",
+		null,
+		`
+		uniform vec2 u_lightCenter;
+		uniform vec2 u_resolution;
+		uniform float u_radius;
+		uniform float u_intensity;
+		uniform float u_time;
+
+		vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
+			vec2 screenPos = uv * u_resolution;
+			vec2 fromLight = screenPos - u_lightCenter;
+			float lightDistance = length(fromLight);
+			float normalizedDistance = lightDistance / max(u_radius, 1.0);
+			float distortionMask = 1.0 - smoothstep(
+				0.08,
+				1.0,
+				normalizedDistance
+			);
+			vec2 direction = lightDistance > 0.001
+				? fromLight / lightDistance
+				: vec2(0.0);
+			float ripple = sin(normalizedDistance * 34.0 - u_time * 5.5);
+			float inwardPull = (1.0 - normalizedDistance) * 4.2;
+			float displacement = (ripple * 3.2 - inwardPull)
+				* distortionMask
+				* u_intensity;
+			vec2 distortedUv = clamp(
+				uv + direction * displacement / u_resolution,
+				vec2(0.0),
+				vec2(1.0)
+			);
+			vec4 baseColor = texture2D(tex, distortedUv) * color;
+			float radialLight = 1.0 - smoothstep(
+				u_radius * 0.12,
+				u_radius,
+				lightDistance
+			);
+			float pulse = 0.92 + sin(u_time * 2.4) * 0.08;
+			float lightStrength = radialLight * pulse * u_intensity;
+			vec3 lightColor = vec3(0.18, 0.68, 1.0);
+			float surfaceMask = smoothstep(
+				0.015,
+				0.24,
+				max(baseColor.r, max(baseColor.g, baseColor.b))
+			);
+			vec3 illuminatedSurface = mix(
+				baseColor.rgb,
+				max(baseColor.rgb, lightColor * 0.82),
+				lightStrength * surfaceMask * 0.52
+			);
+			vec3 atmosphericGlow = lightColor
+				* lightStrength
+				* 0.055
+				* (1.0 - surfaceMask);
+			return vec4(illuminatedSurface + atmosphericGlow, baseColor.a);
+		}
+	`
+	);
 
 	k.loadShader(
 		"hubBoundaryFade",
@@ -382,36 +492,52 @@ export async function init(k: KAPLAYCtx) {
 		`
 		uniform float u_time;
 		uniform float u_intensity;
+		uniform vec2 u_uvMin;
+		uniform vec2 u_uvMax;
 		
 		vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
-			if (u_intensity > 0.001) {
-				// Strong displacement amount for visible jitter
-				float displacementStrength = u_intensity * 15.0;
-				
-				// Create chaotic jitter displacement with multiple frequencies
-				float jitterX = sin(pos.x * 0.2 + u_time * 30.0) * sin(pos.y * 0.5 + u_time * 10.0);
-				float jitterY = cos(pos.y * 0.18 + u_time * 25.0) * cos(pos.x * 0.5 + u_time * 12.0);
-				
-				// Add higher frequency noise for more chaos
-				float noise1 = fract(sin(dot(pos, vec2(12.9898, 78.233))) * 43758.5453);
-				float noise2 = fract(sin(dot(pos, vec2(39.346, 11.135))) * 73156.3178);
-				
-				// Combine displacements
-				vec2 displacement = vec2(
-					(jitterX + (noise1 - 0.5) * 2.0) * displacementStrength,
-					(jitterY + (noise2 - 0.5) * 2.0) * displacementStrength
-				);
-				
-				// Convert pixel displacement to UV displacement (approximate texel size)
-				vec2 displacedUV = uv + displacement * 0.001;
-				
-				// Sample from displaced position
-				vec4 displacedColor = texture2D(tex, displacedUV);
-				
-				return displacedColor * color;
-			}
-			
-			return def_frag() * color;
+			vec2 frameSize = max(u_uvMax - u_uvMin, vec2(0.00001));
+			vec2 localUv = (uv - u_uvMin) / frameSize;
+			float waveX = sin(localUv.y * 31.0 + u_time * 7.0)
+				+ sin(localUv.y * 67.0 - u_time * 4.5) * 0.35;
+			float waveY = cos(localUv.x * 27.0 - u_time * 6.0)
+				+ cos(localUv.x * 59.0 + u_time * 3.5) * 0.3;
+			float effectAmount = smoothstep(0.01, 0.28, u_intensity);
+			vec2 displacement = vec2(waveX, waveY)
+				* frameSize
+				* effectAmount
+				* 0.04;
+			vec2 displacedUV = clamp(uv + displacement, u_uvMin, u_uvMax);
+			vec4 baseColor = def_frag();
+			vec4 displacedColor = texture2D(tex, displacedUV) * color;
+			return mix(baseColor, displacedColor, effectAmount);
+		}
+	`
+	);
+
+	// A cleaner, brighter wave used when the player space-jumps into a level.
+	// The shader is applied only while the expanding ring crosses each sprite.
+	k.loadShader(
+		"arrivalShockwave",
+		null,
+		`
+		uniform float u_time;
+		uniform float u_intensity;
+
+		vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
+			vec2 fromCenter = uv - vec2(0.5);
+			float centerDistance = length(fromCenter);
+			vec2 direction = centerDistance > 0.001
+				? fromCenter / centerDistance
+				: vec2(0.0);
+			float ripple = sin(centerDistance * 48.0 - u_time * 34.0);
+			float displacement = ripple * u_intensity * 0.035;
+			vec2 shiftedUv = clamp(uv + direction * displacement, 0.0, 1.0);
+			vec4 shifted = texture2D(tex, shiftedUv) * color;
+			vec3 shockColor = vec3(0.45, 0.9, 1.0);
+			float shimmer = 0.78 + 0.22 * sin(u_time * 42.0 + pos.x * 0.08);
+			vec3 altered = shifted.rgb * shockColor * (1.0 + u_intensity * shimmer);
+			return vec4(mix(shifted.rgb, altered, clamp(u_intensity, 0.0, 1.0)), shifted.a);
 		}
 	`
 	);

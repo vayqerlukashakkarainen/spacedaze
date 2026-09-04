@@ -1,4 +1,4 @@
-import type { Vec2 } from "kaplay";
+import type { GameObj, Vec2 } from "kaplay";
 import { generateCave } from "../generation/caveGenerator";
 import { generationMapToHexGrid } from "../generation/gridConversion";
 import {
@@ -33,7 +33,10 @@ import { spawnShrine } from "../spawn/shrine/spawnShrine";
 import { spawnDamageShrine } from "../spawn/shrine/spawnDamageShrine";
 import { getShrineLevelConfig } from "../spawn/shrine/shrineLevel";
 import { spawnTimescaleZone } from "../spawn/spawnTimescaleZone";
-import { spawnRewardPickup } from "../spawn/spawnPowerup";
+import {
+	spawnRerollTokenPickup,
+	spawnRewardPickup,
+} from "../spawn/spawnPowerup";
 import { rollCrateReward } from "../services/rewardService";
 import type { GeneratedMapConfig } from "./levels";
 import {
@@ -91,6 +94,11 @@ import {
 	stopThreatLevel,
 	updateThreatLevel,
 } from "../services/threatService";
+import {
+	incrementPerformanceCounter,
+	recordSectionTime,
+} from "../services/frameProfilerService";
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 
 export const RUN_GRID_KEY = ACTIVE_RUN_GRID_KEY;
 const RUN_RENDER_CHUNK_SIZE = 6;
@@ -219,7 +227,7 @@ export function clearGeneratedRunMap() {
 	gridRegistry.unregister(RUN_GRID_KEY);
 	clearDestructibleWalls(RUN_GRID_KEY);
 	stopThreatLevel();
-	k.destroyAll(tags.runMap);
+	destroyRunMapObjects();
 	currentGeneratedMap = undefined;
 	currentFloorExitPosition = undefined;
 	currentVolatileCargoCoord = undefined;
@@ -228,6 +236,25 @@ export function clearGeneratedRunMap() {
 	currentRewardWalls = [];
 	refreshRunMapWallTopology = undefined;
 	lastWallExplosionSoundAt = Number.NEGATIVE_INFINITY;
+}
+
+function destroyRunMapObjects() {
+	const objects = k.get<GameObj>(tags.runMap).sort(
+		(a, b) => objectDepth(b) - objectDepth(a)
+	);
+	for (const obj of objects) {
+		if (obj.exists()) k.destroy(obj);
+	}
+}
+
+function objectDepth(obj: GameObj) {
+	let depth = 0;
+	let parent = obj.parent;
+	while (parent) {
+		depth++;
+		parent = parent.parent;
+	}
+	return depth;
 }
 
 export function teleportPlayerToGeneratedRunExit() {
@@ -512,9 +539,15 @@ function setupDestructibleWalls(
 				grid.setCell(cavern.entrance, CellType.Empty);
 				refreshRunMapWallTopology?.(cavern.entrance);
 				spawnDestructibleWallBreakEffects(grid, cavern.entrance, seed);
-				audioService.playSound("secret_cavern_reveal", {
+				audioService.playPositionalSound(
+					"secret_cavern_reveal",
+					grid.hexToScreen(cavern.entrance),
+					{
 					volume: mainSoundVolume,
-				});
+						minDistance: 100,
+						maxDistance: 900,
+					}
+				);
 				spawnHiddenCavernLoot(grid, cavern, seed);
 			},
 		});
@@ -563,7 +596,9 @@ function spawnDestructibleWallBreakEffects(
 	const isRapidRepeat =
 		now - lastWallExplosionSoundAt < WALL_EXPLOSION_SOUND_REPEAT_WINDOW;
 	if (!isRapidRepeat || k.chance(WALL_EXPLOSION_SOUND_REPEAT_CHANCE)) {
-		audioService.playSound(randomExplosion(), { volume: subSoundVolume });
+		audioService.playPositionalSound(randomExplosion(), pos, {
+			volume: subSoundVolume,
+		});
 	}
 	lastWallExplosionSoundAt = now;
 	k.shake(3);
@@ -597,7 +632,7 @@ function spawnBouncingWallDebris(grid: HexGrid, pos: Vec2, hash: number) {
 			tags.gameLoop,
 		]);
 
-		shard.onUpdate(() => {
+		registerBatchedEntityUpdate("effects", shard, () => {
 			const scaledDt = k.dt() * velocityScale();
 			const movement = shard.velocity.scale(scaledDt);
 			const nextPos = shard.pos.add(movement);
@@ -662,6 +697,11 @@ function spawnHiddenCavernLoot(
 	const debrisCoord = cavern.cells[0];
 	const rewardCoord = cavern.cells[cavern.cells.length - 1];
 	spawnDebree(grid.hexToScreen(debrisCoord), 3 + (lootHash % 5));
+	if (lootHash % 5 === 0) {
+		spawnRerollTokenPickup(grid.hexToScreen(debrisCoord).add(20, 0), {
+			stationary: true,
+		});
+	}
 	const reward = rollCrateReward(1 + (lootHash % 3));
 	if (reward) {
 		spawnRewardPickup(grid.hexToScreen(rewardCoord), reward, {
@@ -678,6 +718,9 @@ function spawnRewardWallLoot(
 ) {
 	const lootHash = cavernHash(seed, rewardWall.coord, 43);
 	const pos = grid.hexToScreen(rewardWall.coord);
+	if (lootHash % 7 === 0) {
+		spawnRerollTokenPickup(pos.add(20, 0), { stationary: true });
+	}
 	const reward = rollCrateReward(1 + (lootHash % 2));
 	if (!reward) {
 		spawnDebree(pos, 4 + (lootHash % 4));
@@ -856,8 +899,10 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		k.layer(layers.game2),
 		{
 			draw() {
+				const startedAt = performance.now();
 				for (const visual of visibleWalls) {
 					if (visual.destructible?.destroyed) continue;
+					incrementPerformanceCounter("wallPrimitives");
 					k.drawPolygon({
 						pts: visual.corners,
 						color: k.BLACK,
@@ -866,6 +911,7 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 						drawRockPolyline(edge.outline, 2, 0.95);
 						drawRockPolyline(edge.ridge, 1, 0.5);
 						for (const crack of edge.cracks) {
+							incrementPerformanceCounter("wallPrimitives");
 							k.drawLine({
 								p1: crack.p1,
 								p2: crack.p2,
@@ -881,11 +927,13 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 				}
 				for (const cover of visibleCavernCovers) {
 					if (cover.cavern.opened) continue;
+					incrementPerformanceCounter("wallPrimitives");
 					k.drawPolygon({
 						pts: cover.corners,
 						color: k.BLACK,
 					});
 				}
+				recordSectionTime("wallDraw", performance.now() - startedAt);
 			},
 		},
 		tags.runMap,
@@ -979,6 +1027,7 @@ function createRockWallEdge(
 
 function drawRockPolyline(points: Vec2[], width: number, opacity: number) {
 	if (points.length < 2) return;
+	incrementPerformanceCounter("wallPrimitives");
 	k.drawLines({
 		pts: points,
 		width,
@@ -1290,6 +1339,9 @@ function spawnGeneratedContent(
 				am: 2 + Math.floor(depth / 2),
 				hp: 3 + depth,
 				powerupMultiplier: 0.35,
+				tier: cavernHash(currentRunSeed ?? depth, coord, 7331) % 100 < 15
+					? "golden"
+					: "normal",
 				speed: 0,
 				destroyOffscreen: false,
 				tags: [tags.runMap],
@@ -1318,6 +1370,9 @@ function spawnShrineReward(pos: Vec2) {
 		stationary: true,
 		armWhenPlayerLeaves: true,
 	});
+	if (k.chance(0.15)) {
+		spawnRerollTokenPickup(pos.add(24, 0), { stationary: true });
+	}
 }
 
 function selectRiftDestinations(
@@ -1394,7 +1449,7 @@ function spawnFloorExit(pos: Vec2) {
 		},
 	});
 
-	portal.onUpdate(() => {
+	registerBatchedEntityUpdate("world", portal, () => {
 		const phase = getRunPhase();
 		if (phase === "transition") {
 			const progress = getRunFinaleRampProgress();
@@ -1483,7 +1538,7 @@ function spawnCargoDeliveryIndicator() {
 		tags.gameLoop,
 	]);
 
-	indicator.onUpdate(() => {
+	registerBatchedEntityUpdate("world", indicator, () => {
 		const shouldShow =
 			session.volatileCargoActive &&
 			session.volatileCargoIntact &&
@@ -1517,7 +1572,7 @@ function spawnBossRoomTrigger(pos: Vec2, hexSize: number, depth: number) {
 		tags.gameLoop,
 	]);
 
-	trigger.onUpdate(() => {
+	registerBatchedEntityUpdate("world", trigger, () => {
 		if (triggered || trigger.pos.dist(playerObj.pos) > trigger.triggerRadius) {
 			return;
 		}
@@ -1559,7 +1614,7 @@ function spawnAsteroidFieldTrigger(
 		tags.gameLoop,
 	]);
 
-	trigger.onUpdate(() => {
+	registerBatchedEntityUpdate("world", trigger, () => {
 		if (triggered || trigger.pos.dist(playerObj.pos) > trigger.triggerRadius) {
 			return;
 		}
@@ -1626,7 +1681,7 @@ function spawnCombatRoomTrigger(pos: Vec2, hexSize: number) {
 		tags.gameLoop,
 	]);
 
-	trigger.onUpdate(() => {
+	registerBatchedEntityUpdate("world", trigger, () => {
 		if (triggered || trigger.pos.dist(playerObj.pos) > trigger.triggerRadius) {
 			return;
 		}
@@ -1663,7 +1718,7 @@ function spawnThreatDirector(
 		tags.gameLoopUi,
 	]);
 
-	director.onUpdate(() => {
+	registerBatchedEntityUpdate("world", director, () => {
 		updateThreatLevel(k.dt());
 		const threat = getThreatSnapshot();
 		const filled = Math.min(5, Math.ceil(threat.progress * 5));

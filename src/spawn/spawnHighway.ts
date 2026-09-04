@@ -2,6 +2,7 @@ import { Vec2 } from "kaplay";
 import { k, timeSeconds } from "../main";
 import { tags } from "../tags";
 import { spawnGenericVehicle } from "./spawnGenericVehicle";
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 
 interface Props {
 	spawnChance: number;
@@ -22,7 +23,7 @@ export function spawnHighway(props: Props) {
 		tags.enemy,
 	]);
 
-	m.onUpdate(() => {
+	registerBatchedEntityUpdate("world", m, () => {
 		if (Math.floor(k.rand(0, props.spawnChance)) == 1) {
 			const offset = smallOffset(6);
 			spawnGenericVehicle(

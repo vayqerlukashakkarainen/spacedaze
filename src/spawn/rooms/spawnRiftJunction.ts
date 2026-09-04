@@ -1,10 +1,11 @@
 import type { Vec2 } from "kaplay"
 import { playerObj } from "../../game"
-import { k } from "../../main"
+import { k, layers } from "../../main"
 import { resetPlayerPath } from "../../services/playerPathService"
 import { tags } from "../../tags"
 import { interactable } from "../../comp/interactable"
 import { spawnRing } from "../spawnRing"
+import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 
 interface RiftJunctionProps {
 	pos: Vec2
@@ -23,16 +24,10 @@ export function spawnRiftJunction(props: RiftJunctionProps) {
 	const core = junction.add([
 		k.sprite("room_rift_anchor"),
 		k.anchor("center"),
+		k.layer(layers.buildings),
 		k.scale(0.62),
 		k.rotate(0),
 	])
-	junction.add([
-		k.text("RIFT JUNCTION", { size: 8, font: "unscii" }),
-		k.pos(0, -56),
-		k.anchor("center"),
-		k.color(120, 205, 255),
-	])
-
 	props.destinations.slice(0, 3).forEach((destination, index) => {
 		const angle = -90 + index * 120
 		const portalPos = props.pos.add(k.Vec2.fromAngle(angle).scale(68))
@@ -51,20 +46,22 @@ export function spawnRiftJunction(props: RiftJunctionProps) {
 			k.rotate(0),
 			k.scale(1),
 			k.opacity(0.8),
+			k.layer(layers.gameEffects),
 		])
 		portal.add([
-			k.text(`F  RIFT ${index + 1}`, { size: 6, font: "unscii" }),
+			k.text(`F  RIFT ${index + 1}`, { size: 8, font: "unscii" }),
 			k.pos(0, 21),
 			k.anchor("center"),
 			k.color(k.WHITE),
+			k.layer(layers.gameText),
 		])
-		portal.onUpdate(() => {
+		registerBatchedEntityUpdate("world", portal, () => {
 			ring.angle += k.dt() * (index % 2 === 0 ? 80 : -80)
 			ring.scale = k.vec2(k.wave(0.85, 1.15, k.time() * 3 + index))
 		})
 	})
 
-	junction.onUpdate(() => {
+	registerBatchedEntityUpdate("world", junction, () => {
 		core.angle += k.dt() * 5
 	})
 

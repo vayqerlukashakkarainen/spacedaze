@@ -11,6 +11,7 @@ interface UiPanelProps {
 	anchor?: "topleft" | "center"
 	frameless?: boolean
 	scale?: number
+	animated?: boolean
 }
 
 export function createUiPanel({
@@ -22,6 +23,7 @@ export function createUiPanel({
 	anchor = "topleft",
 	frameless = false,
 	scale = 1,
+	animated = false,
 }: UiPanelProps) {
 	const panel = frameless
 		? k.add([
@@ -29,6 +31,7 @@ export function createUiPanel({
 			k.scale(scale),
 			k.fixed(),
 			k.layer(layer),
+			...(animated ? [k.animate()] : []),
 			...tags,
 		])
 		: k.add([
@@ -41,6 +44,7 @@ export function createUiPanel({
 			k.outline(1, k.rgb(...UI_COLORS.accent)),
 			k.fixed(),
 			k.layer(layer),
+			...(animated ? [k.animate()] : []),
 			...tags,
 		])
 

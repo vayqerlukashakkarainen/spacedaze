@@ -1,10 +1,53 @@
-import { AudioPlay, KEventController } from "kaplay";
+import { AudioPlay, KEventController, Vec2 } from "kaplay";
 import { audioPlaybackSpeed, k } from "../main";
+import { tags } from "../tags";
+import { profileSection } from "./frameProfilerService";
 
 interface PlayingSound {
 	audio: AudioPlay;
 	id: string;
 	baseVolume: number;
+	baseSpeed: number;
+	basePan: number;
+	spatial?: SpatialSound;
+}
+
+export interface SoundOptions {
+	volume?: number;
+	detune?: number;
+	speed?: number;
+	loop?: boolean;
+	pan?: number;
+}
+
+interface MusicOptions {
+	volume?: number;
+	loop?: boolean;
+	continueIfPlaying?: boolean;
+}
+
+interface PendingMusic {
+	musicId: string;
+	options?: MusicOptions;
+}
+
+export interface PositionalSoundOptions extends SoundOptions {
+	minDistance?: number;
+	maxDistance?: number;
+	rolloff?: number;
+	panDistance?: number;
+	listener?: PositionProvider;
+}
+
+type PositionProvider = Vec2 | (() => Vec2 | undefined);
+
+interface SpatialSound {
+	source: () => Vec2 | undefined;
+	listener: () => Vec2 | undefined;
+	minDistance: number;
+	maxDistance: number;
+	rolloff: number;
+	panDistance: number;
 }
 
 interface AudioSettings {
@@ -21,6 +64,12 @@ let currentMusicBaseVolume = 1;
 let currentMusicFade: KEventController | null = null;
 let optionalMusicRequest = 0;
 let audioSettings = loadAudioSettings();
+let positionalAudioUpdate: KEventController | null = null;
+let pendingMusic: PendingMusic | null = null;
+let audioUnlockListening = false;
+let audioUnlocked = false;
+
+const AUDIO_UNLOCK_EVENTS = ["pointerdown", "keydown", "touchstart"] as const;
 
 function clampVolume(value: number) {
 	return Math.max(0, Math.min(1, value));
@@ -47,6 +96,35 @@ function syncMasterVolume() {
 	k.setVolume(masterVolume());
 }
 
+function browserNeedsAudioUnlock() {
+	return typeof window !== "undefined" && !audioUnlocked;
+}
+
+function stopListeningForAudioUnlock() {
+	if (!audioUnlockListening) return;
+	for (const event of AUDIO_UNLOCK_EVENTS) {
+		window.removeEventListener(event, unlockPendingMusic);
+	}
+	audioUnlockListening = false;
+}
+
+function unlockPendingMusic() {
+	audioUnlocked = true;
+	void k.audioCtx.resume();
+	const request = pendingMusic;
+	pendingMusic = null;
+	stopListeningForAudioUnlock();
+	if (request) audioService.playMusic(request.musicId, request.options);
+}
+
+function listenForAudioUnlock() {
+	if (audioUnlockListening || typeof window === "undefined") return;
+	audioUnlockListening = true;
+	for (const event of AUDIO_UNLOCK_EVENTS) {
+		window.addEventListener(event, unlockPendingMusic, { once: true });
+	}
+}
+
 function saveAudioSettings() {
 	localStorage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify(audioSettings));
 }
@@ -57,49 +135,159 @@ function cancelMusicFade() {
 	currentMusicFade = null;
 }
 
+function positionProvider(provider: PositionProvider): () => Vec2 | undefined {
+	return typeof provider === "function" ? provider : () => provider;
+}
+
+function defaultPositionalListener() {
+	const listener = k.get(tags.player)[0];
+	return listener?.pos ?? k.getCamPos();
+}
+
+function spatialGain(sound: PlayingSound) {
+	if (!sound.spatial) return 1;
+	const source = sound.spatial.source();
+	const listener = sound.spatial.listener();
+	if (!source || !listener) return 0;
+	const distance = source.dist(listener);
+	if (distance <= sound.spatial.minDistance) return 1;
+	if (distance >= sound.spatial.maxDistance) return 0;
+	const range = sound.spatial.maxDistance - sound.spatial.minDistance;
+	const progress = (distance - sound.spatial.minDistance) / range;
+	return Math.pow(1 - progress, sound.spatial.rolloff);
+}
+
+function spatialPan(sound: PlayingSound) {
+	if (!sound.spatial) return sound.basePan;
+	const source = sound.spatial.source();
+	const listener = sound.spatial.listener();
+	if (!source || !listener) return 0;
+	const directionalPan = (source.x - listener.x) / sound.spatial.panDistance;
+	return k.clamp(sound.basePan + directionalPan, -1, 1);
+}
+
+function updatePlayingSound(sound: PlayingSound) {
+	sound.audio.volume =
+		sound.baseVolume *
+		audioSettings.soundVolume *
+		masterVolume() *
+		spatialGain(sound);
+	sound.audio.pan = spatialPan(sound);
+}
+
+function updatePositionalAudio() {
+	let hasPositionalSounds = false;
+	for (const sound of playingSounds) {
+		if (!sound.spatial) continue;
+		hasPositionalSounds = true;
+		updatePlayingSound(sound);
+	}
+	if (hasPositionalSounds || !positionalAudioUpdate) return;
+	positionalAudioUpdate.cancel();
+	positionalAudioUpdate = null;
+}
+
+function ensurePositionalAudioUpdate() {
+	if (positionalAudioUpdate) return;
+	positionalAudioUpdate = k.onUpdate(() => profileSection(
+		"external:positionalAudio",
+		updatePositionalAudio
+	));
+}
+
+function playTrackedSound(
+	soundId: string,
+	options: SoundOptions = {},
+	spatial?: SpatialSound
+) {
+	syncMasterVolume();
+	const baseVolume = options.volume ?? 1;
+	const baseSpeed = options.speed ?? 1;
+	const basePan = options.pan ?? 0;
+	const audio = k.play(soundId, {
+		volume: 0,
+		detune: options.detune,
+		loop: options.loop,
+		pan: basePan,
+	});
+	const sound: PlayingSound = {
+		audio,
+		id: soundId,
+		baseVolume,
+		baseSpeed,
+		basePan,
+		spatial,
+	};
+	sound.audio.speed = baseSpeed * audioPlaybackSpeed();
+	updatePlayingSound(sound);
+	playingSounds.push(sound);
+	if (spatial) ensurePositionalAudioUpdate();
+
+	audio.onEnd(() => {
+		const index = playingSounds.findIndex((current) => current.audio === audio);
+		if (index !== -1) playingSounds.splice(index, 1);
+	});
+
+	return audio;
+}
+
 export const audioService = {
 	playSound(
 		soundId: string,
-		options?: { volume?: number; detune?: number }
+		options?: SoundOptions
 	): AudioPlay {
-		syncMasterVolume();
-		const baseVolume = options?.volume ?? 1;
-		const audio = k.play(soundId, {
-			...options,
-			volume: baseVolume * audioSettings.soundVolume * masterVolume(),
+		return playTrackedSound(soundId, options);
+	},
+
+	playPositionalSound(
+		soundId: string,
+		source: PositionProvider,
+		options: PositionalSoundOptions = {}
+	): AudioPlay {
+		const minDistance = Math.max(0, options.minDistance ?? 80);
+		const maxDistance = Math.max(minDistance + 1, options.maxDistance ?? 700);
+		return playTrackedSound(soundId, options, {
+			source: positionProvider(source),
+			listener: positionProvider(options.listener ?? defaultPositionalListener),
+			minDistance,
+			maxDistance,
+			rolloff: Math.max(0.01, options.rolloff ?? 1.5),
+			panDistance: Math.max(1, options.panDistance ?? 300),
 		});
-
-		// Track this sound
-		const sound: PlayingSound = { audio, id: soundId, baseVolume };
-		sound.audio.speed = audioPlaybackSpeed();
-		playingSounds.push(sound);
-
-		// Remove from tracking when it ends
-		audio.onEnd(() => {
-			const index = playingSounds.findIndex((s) => s.audio === audio);
-			if (index !== -1) {
-				playingSounds.splice(index, 1);
-			}
-		});
-
-		return audio;
 	},
 
 	playMusic(
 		musicId: string,
-		options?: { volume?: number; loop?: boolean }
-	): AudioPlay {
+		options?: MusicOptions
+	): AudioPlay | null {
 		syncMasterVolume();
 		cancelMusicFade();
 		optionalMusicRequest++;
+		currentMusicBaseVolume = options?.volume ?? 1;
+		if (browserNeedsAudioUnlock()) {
+			pendingMusic = { musicId, options };
+			listenForAudioUnlock();
+			return null;
+		}
+		pendingMusic = null;
+		stopListeningForAudioUnlock();
+		if (
+			options?.continueIfPlaying &&
+			currentMusic &&
+			currentMusicId === musicId
+		) {
+			currentMusic.volume =
+				currentMusicBaseVolume * audioSettings.musicVolume * masterVolume();
+			currentMusic.paused = false;
+			return currentMusic;
+		}
 		// Stop current music if playing
 		if (currentMusic) {
 			currentMusic.stop();
 		}
 
-		currentMusicBaseVolume = options?.volume ?? 1;
 		currentMusic = k.play(musicId, {
-			...options,
+			loop: options?.loop,
 			volume:
 				currentMusicBaseVolume * audioSettings.musicVolume * masterVolume(),
 		});
@@ -140,7 +328,7 @@ export const audioService = {
 		const startVolume = fadingMusic.volume;
 		let elapsedSeconds = 0;
 		let fadeController: KEventController;
-		fadeController = k.onUpdate(() => {
+		fadeController = k.onUpdate(() => profileSection("external:audioFade", () => {
 			if (currentMusic !== fadingMusic) {
 				fadeController.cancel();
 				if (currentMusicFade === fadeController) currentMusicFade = null;
@@ -156,13 +344,15 @@ export const audioService = {
 			currentMusicId = null;
 			fadeController.cancel();
 			if (currentMusicFade === fadeController) currentMusicFade = null;
-		});
+		}));
 		currentMusicFade = fadeController;
 	},
 
 	stopMusic() {
 		optionalMusicRequest++;
 		cancelMusicFade();
+		pendingMusic = null;
+		stopListeningForAudioUnlock();
 		if (currentMusic) {
 			currentMusic.stop();
 			currentMusic = null;
@@ -199,10 +389,7 @@ export const audioService = {
 
 	setSoundVolume(volume: number) {
 		audioSettings.soundVolume = clampVolume(volume);
-		for (const sound of playingSounds) {
-			sound.audio.volume =
-				sound.baseVolume * audioSettings.soundVolume * masterVolume();
-		}
+		for (const sound of playingSounds) updatePlayingSound(sound);
 		saveAudioSettings();
 	},
 
@@ -221,10 +408,7 @@ export const audioService = {
 			currentMusic.volume =
 				currentMusicBaseVolume * audioSettings.musicVolume * masterVolume();
 		}
-		for (const sound of playingSounds) {
-			sound.audio.volume =
-				sound.baseVolume * audioSettings.soundVolume * masterVolume();
-		}
+		for (const sound of playingSounds) updatePlayingSound(sound);
 		saveAudioSettings();
 	},
 
@@ -243,7 +427,7 @@ export const audioService = {
 
 	updateAudioSpeed(timeScale: number) {
 		for (const sound of playingSounds) {
-			sound.audio.speed = timeScale;
+			sound.audio.speed = sound.baseSpeed * timeScale;
 		}
 	},
 
@@ -253,6 +437,8 @@ export const audioService = {
 			sound.audio.stop();
 		}
 		playingSounds.length = 0;
+		positionalAudioUpdate?.cancel();
+		positionalAudioUpdate = null;
 
 		// Stop music
 		audioService.stopMusic();

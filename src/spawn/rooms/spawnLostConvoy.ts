@@ -12,6 +12,7 @@ import {
 	lerpAngleBetweenPos,
 	steerMoveRotateAndLean,
 } from "../../shared"
+import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 
 interface LostConvoyProps {
 	pos: Vec2
@@ -43,22 +44,11 @@ export function spawnLostConvoy(props: LostConvoyProps) {
 		tags.gameLoop,
 		...(props.tags ?? []),
 	])
-	const label = k.add([
-		k.pos(drone.pos.add(0, -24)),
-		k.text("LOST CONVOY", { size: 7, font: "unscii" }),
-		k.anchor("center"),
-		k.color(125, 205, 255),
-		tags.gameLoop,
-		...(props.tags ?? []),
-	])
-
-	drone.onUpdate(() => {
+	registerBatchedEntityUpdate("world", drone, () => {
 		if (completed) return
-		label.pos = drone.pos.add(0, -24)
 		if (!active) {
 			if (drone.pos.dist(playerObj.pos) >= 95) return
 			active = true
-			label.text = "ESCORT TO EXIT"
 			spawnRing({
 				pos: drone.pos,
 				speed: 150,
@@ -101,7 +91,6 @@ export function spawnLostConvoy(props: LostConvoyProps) {
 		const destination = props.getDestination()
 		if (!destination || drone.pos.dist(destination) > 120) return
 		completed = true
-		label.text = "CONVOY SECURED"
 		spawnRing({
 			pos: drone.pos,
 			speed: 180,
@@ -120,9 +109,5 @@ export function spawnLostConvoy(props: LostConvoyProps) {
 		audioService.playSound("explosion2", { volume: mainSoundVolume })
 		k.destroy(drone)
 	})
-	drone.onDestroy(() => {
-		if (label.exists()) k.destroy(label)
-	})
-
 	return drone
 }

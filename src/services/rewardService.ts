@@ -1,6 +1,7 @@
 import { Vec2 } from "kaplay"
 import { k } from "../main"
-import { loadPlayer } from "../player"
+import { grantRerollTokens, loadPlayer } from "../player"
+import { tags } from "../tags"
 import {
 	PowerupKey,
 	powerupReq,
@@ -25,6 +26,15 @@ import { UpgradeEffect, UpgradeDefinition } from "../types/upgradeTypes"
 import {
 	getAllUpgradeDefinitions,
 } from "../upgrades/upgradeRegistry"
+import {
+	equipWeapon,
+	getEquippedWeapon,
+	getEquippedWeaponId,
+	getWeaponTriggerModifier,
+	type WeaponDefinition,
+	type WeaponId,
+	WEAPONS,
+} from "./weaponService"
 
 export { RewardRarity }
 export type { RewardKind, RewardSource }
@@ -51,6 +61,7 @@ export interface RewardDefinition {
 	weights: Partial<Record<RewardSource, number>>
 	powerupKey?: PowerupKey
 	upgradeKey?: string
+	weaponId?: WeaponId
 	levelIndex?: number
 	canReceive?: () => boolean
 }
@@ -65,6 +76,7 @@ export interface Reward {
 	rarity: RewardRarity
 	powerupKey?: PowerupKey
 	upgradeKey?: string
+	weaponId?: WeaponId
 	levelIndex?: number
 }
 
@@ -90,6 +102,17 @@ const CRATE_RARITY_WEIGHTS: RarityWeights[] = [
 ]
 
 const ENEMY_EMPTY_WEIGHT = 45000
+
+const STANDARD_DRONE_REQUIRED_UPGRADES = new Set([
+	"followerBlasterDmg",
+	"followerMissiles",
+	"followerProjectileLink",
+	"followerInterceptorProtocol",
+	"followerGunship",
+	"followerMedic",
+	"followerSalvager",
+	"sacrificialProtocol",
+])
 
 const powerupRewardRegistry: Record<PowerupKey, RewardDefinition> = {
 	addFollower: {
@@ -168,6 +191,20 @@ const powerupRewardRegistry: Record<PowerupKey, RewardDefinition> = {
 	},
 }
 
+const itemRewardRegistry: Record<string, RewardDefinition> = {
+	rerollToken: {
+		id: "rerollToken",
+		kind: "item",
+		name: "REROLL TOKEN",
+		description: "Spend at an opened chest to replace every offered reward",
+		stats: { rerollTokens: "+1" },
+		sprite: "reroll_token",
+		rarity: RewardRarity.Uncommon,
+		allowedSources: ["enemy", "boss"],
+		weights: { enemy: 60, boss: 120 },
+	},
+}
+
 export function getRewardDefinitions(
 	source?: RewardSource
 ): RewardDefinition[] {
@@ -178,11 +215,18 @@ export function getAllRewardDefinitions(
 	source?: RewardSource
 ): RewardDefinition[] {
 	const powerupRewards = Object.values(powerupRewardRegistry)
+	const itemRewards = Object.values(itemRewardRegistry)
+	const weaponRewards = WEAPONS.map(buildWeaponReward)
 	const upgradeRewards = getAllUpgradeDefinitions()
 		.map(buildCurrentUpgradeReward)
 		.filter((reward): reward is RewardDefinition => reward !== undefined)
 
-	return [...powerupRewards, ...upgradeRewards].filter((definition) => {
+	return [
+		...powerupRewards,
+		...itemRewards,
+		...weaponRewards,
+		...upgradeRewards,
+	].filter((definition) => {
 		return !source || definition.allowedSources.includes(source)
 	})
 }
@@ -195,6 +239,13 @@ export function getRewardLockReason(
 	definition: RewardDefinition
 ): string | undefined {
 	if (canReceiveReward(definition)) return undefined
+	if (
+		definition.upgradeKey &&
+		requiresStandardDrone(definition.upgradeKey) &&
+		!hasStandardDrone()
+	) {
+		return "Requires a standard combat drone in the swarm"
+	}
 	if (definition.upgradeKey && isToolKey(definition.upgradeKey)) {
 		const requirement = getUpgradeRequirementText(definition.upgradeKey)
 		if (requirement) return `Requires ${requirement}`
@@ -212,6 +263,15 @@ export function getRewardDefinition(id: string): RewardDefinition | undefined {
 	) as PowerupKey | undefined
 	const powerup = powerupKey ? powerupRewardRegistry[powerupKey] : undefined
 	if (powerup) return powerup
+	const item = Object.values(itemRewardRegistry).find(
+		(candidate) => candidate.id.toLowerCase() === normalizedId
+	)
+	if (item) return item
+
+	const weapon = WEAPONS.find(
+		(candidate) => `weapon:${candidate.id}`.toLowerCase() === normalizedId
+	)
+	if (weapon) return buildWeaponReward(weapon)
 
 	const currentUpgrade = getAllUpgradeDefinitions().find(
 		(definition) => definition.toolKey.toLowerCase() === normalizedId
@@ -248,7 +308,8 @@ export function rollCrateReward(successfulHits: number): Reward | undefined {
 
 export function rollCrateRewardChoices(
 	successfulHits: number,
-	failedAttempts: number
+	failedAttempts: number,
+	excludedRewardIds: readonly string[] = []
 ): CrateRewardResult {
 	const missedZones = Math.max(0, 3 - Math.floor(successfulHits))
 	const failures = Math.max(0, Math.floor(failedAttempts)) + missedZones
@@ -257,10 +318,14 @@ export function rollCrateRewardChoices(
 	const rewards: Reward[] = []
 
 	for (let index = 0; index < choiceCount; index++) {
-		const reward = rollCrateRewardForQuality(
+		const selectedIds = rewards.map((current) => current.id)
+		let reward = rollCrateRewardForQuality(
 			quality,
-			rewards.map((current) => current.id)
+			[...excludedRewardIds, ...selectedIds]
 		)
+		if (!reward && excludedRewardIds.length > 0) {
+			reward = rollCrateRewardForQuality(quality, selectedIds)
+		}
 		if (!reward) break
 		rewards.push(reward)
 	}
@@ -290,6 +355,11 @@ export function rollDropReward(
 }
 
 export function applyReward(reward: Reward, pos: Vec2): boolean {
+	if (reward.kind === "item" && reward.id === "rerollToken") {
+		grantRerollTokens(1)
+		return true
+	}
+
 	if (reward.kind === "powerup" && reward.powerupKey) {
 		powerups[reward.powerupKey](pos)
 		return true
@@ -297,6 +367,10 @@ export function applyReward(reward: Reward, pos: Vec2): boolean {
 
 	if (reward.kind === "upgrade" && reward.upgradeKey !== undefined) {
 		if (!isToolKey(reward.upgradeKey)) return false
+		if (
+			requiresStandardDrone(reward.upgradeKey) &&
+			!hasStandardDrone()
+		) return false
 		if (getNextRunUpgradeLevel(reward.upgradeKey) !== reward.levelIndex) {
 			return false
 		}
@@ -311,7 +385,44 @@ export function applyReward(reward: Reward, pos: Vec2): boolean {
 		return true
 	}
 
+	if (reward.kind === "weapon" && reward.weaponId) {
+		return equipWeapon(reward.weaponId)
+	}
+
 	return false
+}
+
+function buildWeaponReward(weapon: WeaponDefinition): RewardDefinition {
+	const triggerModifier = getWeaponTriggerModifier(weapon)
+	const fireRate = triggerModifier.usesCooldown
+		? `${(1 / weapon.fireCooldown).toFixed(1)}/S`
+		: "PER CLICK"
+	const preset = weapon.piercing
+		? `PIERCE +${weapon.piercing.maxPierces}`
+		: weapon.chain
+			? `CHAIN +${weapon.chain.maxChains}`
+			: "NONE"
+
+	return {
+		id: `weapon:${weapon.id}`,
+		kind: "weapon",
+		weaponId: weapon.id,
+		name: weapon.name,
+		description: `${weapon.description} Replaces your current primary weapon.`,
+		stats: {
+			REPLACES: getEquippedWeapon().name,
+			DAMAGE: formatMultiplier(weapon.damageMultiplier),
+			"FIRE RATE": fireRate,
+			PRESET: preset,
+		},
+		sprite: weapon.icon,
+		rarity: weapon.id === "standardBlaster"
+			? RewardRarity.Common
+			: RewardRarity.Rare,
+		allowedSources: ["crate"],
+		weights: { crate: weapon.id === "standardBlaster" ? 90 : 140 },
+		canReceive: () => getEquippedWeaponId() !== weapon.id,
+	}
 }
 
 function buildCurrentUpgradeReward(
@@ -355,8 +466,20 @@ function buildUpgradeReward(
 		rarity: policy.rarity,
 		allowedSources: policy.allowedSources,
 		weights: policy.weights,
-		canReceive: () => getNextRunUpgradeLevel(toolKey) === levelIndex,
+		canReceive: () =>
+			getNextRunUpgradeLevel(toolKey) === levelIndex &&
+			(!requiresStandardDrone(toolKey) || hasStandardDrone()),
 	}
+}
+
+function requiresStandardDrone(toolKey: string) {
+	return STANDARD_DRONE_REQUIRED_UPGRADES.has(toolKey)
+}
+
+function hasStandardDrone() {
+	return k.get(tags.follower).some((follower) => {
+		return follower.exists() && follower.droneType === "combat"
+	})
 }
 
 function formatUpgradeStats(
@@ -382,6 +505,10 @@ function formatUpgradeStats(
 		stats.ability = effects.abilities.map((ability) => ability.abilityId).join(",")
 	}
 	return stats
+}
+
+function formatMultiplier(value: number) {
+	return `${value.toFixed(value % 1 === 0 ? 0 : 2)}x`
 }
 
 function rollCrateRarity(successfulHits: number): RewardRarity {
@@ -479,6 +606,7 @@ function toReward(definition: RewardDefinition | undefined): Reward | undefined 
 		rarity: definition.rarity,
 		powerupKey: definition.powerupKey,
 		upgradeKey: definition.upgradeKey,
+		weaponId: definition.weaponId,
 		levelIndex: definition.levelIndex,
 	}
 }

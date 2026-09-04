@@ -6,13 +6,34 @@ import { k } from "../main"
 import { spawnAssasin } from "../spawn/spawnAssasin"
 import { spawnMeteorite } from "../spawn/spawnAsteroid"
 import { spawnBoss1 } from "../spawn/spawnBoss1"
+import { spawnMineLayer } from "../spawn/spawnMineLayer"
+import { spawnRammer } from "../spawn/spawnRammer"
+import { spawnShieldDrone } from "../spawn/spawnShieldDrone"
 import { spawnShip1 } from "../spawn/spawnShip1"
+import { spawnSniper } from "../spawn/spawnSniper"
+import { spawnHiveMind, spawnSwarmEnemy } from "../spawn/spawnSwarm"
 
-export type DebugEnemyType = "ship" | "assassin" | "asteroid" | "boss"
+export type DebugEnemyType =
+	| "ship"
+	| "assassin"
+	| "rammer"
+	| "sniper"
+	| "mine-layer"
+	| "shield"
+	| "swarm"
+	| "hivemind"
+	| "asteroid"
+	| "boss"
 
 const DEBUG_ENEMY_TYPES: readonly DebugEnemyType[] = [
 	"ship",
 	"assassin",
+	"rammer",
+	"sniper",
+	"mine-layer",
+	"shield",
+	"swarm",
+	"hivemind",
 	"asteroid",
 	"boss",
 ]
@@ -56,6 +77,34 @@ function spawnDebugEnemy(type: DebugEnemyType, pos: Vec2) {
 			return
 		case "assassin":
 			spawnAssasin(pos, 3, 4, 1, persistOptions)
+			return
+		case "rammer":
+			spawnRammer(pos, 4, persistOptions)
+			return
+		case "sniper":
+			spawnSniper(pos, 4, persistOptions)
+			return
+		case "mine-layer":
+			spawnMineLayer(pos, 5, persistOptions)
+			return
+		case "shield": {
+			const protectedTarget = spawnShip1(
+				pos,
+				direction,
+				2,
+				6,
+				1,
+				55,
+				persistOptions
+			)
+			spawnShieldDrone(pos.add(36, 0), protectedTarget, persistOptions)
+			return
+		}
+		case "swarm":
+			spawnSwarmEnemy(pos, 2, persistOptions)
+			return
+		case "hivemind":
+			spawnHiveMind(pos, persistOptions)
 			return
 		case "asteroid":
 			spawnMeteorite({

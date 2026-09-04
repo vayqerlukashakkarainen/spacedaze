@@ -1,12 +1,17 @@
 {
 	"name": "spacedaze",
 	"type": "module",
+	"engines": {
+		"node": ">=24.0.0 <25"
+	},
 	"scripts": {
 		"build": "vite build",
 		"dev": "vite",
 		"preview": "vite preview",
 		"zip": "npm run build && mkdir -p dist && zip -r dist/game.zip dist -x \"**/.DS_Store\"",
-		"test": "npm run test:generation && npm run test:run-pool && npm run test:wall-tiles && npm run test:upgrade-requirements && npm run test:projectile-behaviors && npm run test:console-markdown && npm run test:threat && npm run test:chest-challenge && npm run test:shrine-level && npm run test:drone-roles",
+		"test": "npm run test:sprites && npm run test:generation && npm run test:run-pool && npm run test:wall-tiles && npm run test:upgrade-requirements && npm run test:projectile-behaviors && npm run test:console-markdown && npm run test:threat && npm run test:chest-challenge && npm run test:shrine-level && npm run test:drone-roles && npm run test:performance-profiler && npm run test:run-loop && npm run test:dense-pool && npm run test:spatial-hash",
+		"test:sprites": "swift scripts/normalizeSpritePngs.swift public/sprites --check",
+		"sprites:normalize": "swift scripts/normalizeSpritePngs.swift public/sprites --write",
 		"test:generation": "tsx src/generation/test/generation.test.ts",
 		"test:run-pool": "tsx src/services/runLevelPool.test.ts",
 		"test:wall-tiles": "tsx src/levels/hexWallTiles.test.ts",
@@ -17,10 +22,14 @@
 		"test:chest-challenge": "tsx src/ui/chestChallenge.test.ts",
 		"test:shrine-level": "tsx src/spawn/shrine/shrineLevel.test.ts",
 		"test:drone-roles": "tsx src/services/droneRoleService.test.ts",
+		"test:performance-profiler": "tsx src/services/frameProfilerService.test.ts",
+		"test:run-loop": "tsx src/services/runLoopService.test.ts",
+		"test:dense-pool": "tsx src/services/densePool.test.ts",
+		"test:spatial-hash": "tsx src/services/spatialHash.test.ts",
 		"test:generator": "tsx src/generation/test/testGenerator.ts"
 	},
 	"dependencies": {
-		"kaplay": "4000.0.0-alpha.24"
+		"kaplay": "4000.0.0-alpha.27.1"
 	},
 	"devDependencies": {
 		"@types/node": "^22.15.19",

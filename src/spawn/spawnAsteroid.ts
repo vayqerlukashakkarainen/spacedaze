@@ -16,6 +16,7 @@ import {
 	type EnemySpawnOptions,
 } from "../services/threatService";
 import { gridRegistry } from "../grid/gridRegistry";
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 
 interface Props {
 	pos: Vec2;
@@ -79,7 +80,7 @@ export function spawnMeteorite(props: Props) {
 
 	registerHitAnimation(m);
 
-	m.onUpdate(() => {
+	registerBatchedEntityUpdate("enemies", m, () => {
 		const moveVelocity = m.vel.scale(
 			m.speed * velocityScale() * m.getTimescale()
 		);

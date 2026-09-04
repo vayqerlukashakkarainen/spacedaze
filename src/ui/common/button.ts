@@ -2,6 +2,71 @@ import { Vec2 } from "kaplay";
 import { k, layers } from "../../main";
 import { uiState } from "../uiState";
 import { UI_COLORS } from "./theme";
+import { uiHitRegion } from "./hitRegion";
+import {
+	playUiClickSound,
+	playUiHoverSound,
+} from "../../services/uiSoundService";
+
+export interface UiActionButtonProps {
+	pos: Vec2;
+	text: string;
+	onClick: () => void;
+	size?: Vec2;
+	selected?: boolean;
+	disabled?: boolean;
+	icon?: string;
+	iconSize?: number;
+}
+
+export function createUiActionButton(parent: ReturnType<typeof k.add>, {
+	pos,
+	text,
+	onClick,
+	size = k.vec2(120, 32),
+	selected = false,
+	disabled = false,
+	icon,
+	iconSize = 14,
+}: UiActionButtonProps) {
+	const button = parent.add([
+		k.pos(pos),
+		k.rect(size.x, size.y),
+		uiHitRegion(size),
+		k.color(...(selected ? UI_COLORS.panelHover : UI_COLORS.panel)),
+		k.outline(1, k.rgb(...(selected ? UI_COLORS.accent : UI_COLORS.border))),
+	]);
+	button.add([
+		k.text(text, { size: 8, font: "unscii" }),
+		k.pos(size.x / 2 + (icon ? 6 : 0), size.y / 2),
+		k.anchor("center"),
+		k.color(...(disabled ? UI_COLORS.muted : UI_COLORS.text)),
+	]);
+	if (icon) {
+		button.add([
+			k.sprite(icon, { width: iconSize, height: iconSize }),
+			k.pos(14, size.y / 2),
+			k.anchor("center"),
+			k.color(...(disabled ? UI_COLORS.muted : UI_COLORS.text)),
+		]);
+	}
+	if (!disabled) {
+		button.onClick(() => {
+			playUiClickSound();
+			onClick();
+		});
+		button.onHover(() => {
+			uiState.isOverUI = true;
+			button.color = k.rgb(...UI_COLORS.panelHover);
+			playUiHoverSound();
+		});
+		button.onHoverEnd(() => {
+			uiState.isOverUI = false;
+			button.color = k.rgb(...(selected ? UI_COLORS.panelHover : UI_COLORS.panel));
+		});
+	}
+	return button;
+}
 
 interface Props {
 	pos: Vec2;
@@ -34,7 +99,7 @@ export function createUiButton({
 	const btn = k.add([
 		k.pos(pos),
 		k.rect(btnSize.x, btnSize.y),
-		k.area(),
+		uiHitRegion(btnSize, true),
 		k.color(btnColor.r, btnColor.g, btnColor.b),
 		k.anchor("center"),
 		k.outline(2, k.rgb(...UI_COLORS.accent)),
@@ -49,11 +114,15 @@ export function createUiButton({
 		k.color(255, 255, 255),
 	]);
 
-	btn.onClick(onClick);
+	btn.onClick(() => {
+		playUiClickSound();
+		onClick();
+	});
 
 	btn.onHover(() => {
 		uiState.isOverUI = true;
 		btn.color = k.rgb(...UI_COLORS.panelHover);
+		playUiHoverSound();
 		if (onHoverStart) onHoverStart();
 	});
 

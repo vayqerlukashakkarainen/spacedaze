@@ -10,4 +10,8 @@
 
 - **Mysterious Sparkle Flourish** — SkySpeira. Downloaded from [Freesound](https://freesound.org/people/SkySpeira/sounds/844398/) for secret cavern reveals. Licensed under CC0.
 
+- **space ship speed up.wav** — pointparkcinema. Sourced from [Freesound](https://freesound.org/people/pointparkcinema/sounds/407235/) and trimmed for the main-menu space-jump warp. Licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
+
+- **Hyperdrive1.wav** — Assimulation_Gaming. Sourced from [Freesound](https://freesound.org/people/Assimulation_Gaming/sounds/330402/) and edited into the player landing impact. Licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
+
 The track is included for private, non-distributed prototyping. The artist's published licensing terms request contact before use in a project, so permission or a replacement track is required before sharing or distributing a build containing it.

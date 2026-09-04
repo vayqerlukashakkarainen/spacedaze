@@ -3,8 +3,9 @@ import { k, layers } from "../main"
 import { tags } from "../tags"
 import type { Reward } from "./rewardService"
 import { REWARD_RARITY_COLORS } from "./rewardService"
-import { addThemedText } from "../ui/common/text"
+import { createUiGrowingContainer } from "../ui/common/growingContainer"
 import { UI_COLORS } from "../ui/common/theme"
+import { registerBatchedUiUpdate } from "./uiUpdateService"
 
 export interface PopoverOptions {
 	title: string
@@ -17,6 +18,7 @@ export interface PopoverOptions {
 
 interface ActivePopover {
 	obj: GameObj
+	height: number
 	elapsed: number
 	duration: number
 	fadeTargets: PopoverFadeTarget[]
@@ -28,7 +30,7 @@ interface PopoverFadeTarget {
 }
 
 const POPOVER_WIDTH = 330
-const POPOVER_HEIGHT = 66
+const POPOVER_MIN_HEIGHT = 66
 const POPOVER_GAP = 8
 const POPOVER_BOTTOM_MARGIN = 22
 const POPOVER_ENTER_DURATION = 0.28
@@ -53,7 +55,7 @@ export function showPopover(options: PopoverOptions) {
 	const accent = options.color ?? k.rgb(...UI_COLORS.accent)
 	const fadeTargets: PopoverFadeTarget[] = []
 	const popover = k.add([
-		k.pos(k.width() / 2, k.height() + POPOVER_HEIGHT),
+		k.pos(k.width() / 2, k.height() + POPOVER_MIN_HEIGHT),
 		k.scale(0.86),
 		k.opacity(0),
 		k.fixed(),
@@ -61,16 +63,21 @@ export function showPopover(options: PopoverOptions) {
 		k.z(300),
 		tags.gameLoopUi,
 	])
-	const background = popover.add([
-		k.rect(POPOVER_WIDTH, POPOVER_HEIGHT),
-		k.anchor("center"),
-		k.color(...UI_COLORS.panel),
-		k.opacity(0),
-		k.outline(2, accent),
-	])
+	const container = createUiGrowingContainer(popover, {
+		pos: k.vec2(0, 0),
+		width: POPOVER_WIDTH,
+		minHeight: POPOVER_MIN_HEIGHT,
+		padding: { top: 8, right: 14, bottom: 8, left: 58 },
+		gap: 3,
+		anchor: "center",
+		borderColor: [accent.r, accent.g, accent.b],
+		opacity: 0,
+	})
+	const background = container.surface
+	background.outline.width = 2
 	fadeTargets.push({ obj: background, baseOpacity: 0.96 })
 	const accentBar = popover.add([
-		k.rect(4, POPOVER_HEIGHT - 4),
+		k.rect(4, POPOVER_MIN_HEIGHT - 4),
 		k.pos(-POPOVER_WIDTH / 2 + 4, 0),
 		k.anchor("center"),
 		k.color(accent),
@@ -78,7 +85,6 @@ export function showPopover(options: PopoverOptions) {
 	])
 	fadeTargets.push({ obj: accentBar, baseOpacity: 1 })
 
-	const contentLeft = -POPOVER_WIDTH / 2 + 58
 	if (options.sprite) {
 		const icon = popover.add([
 			k.sprite(options.sprite, { width: 34, height: 34 }),
@@ -89,40 +95,46 @@ export function showPopover(options: PopoverOptions) {
 		])
 		fadeTargets.push({ obj: icon, baseOpacity: 1 })
 	}
-	const title = addThemedText(popover, {
+	const title = container.flow.addText({
 		text: options.title,
-		pos: k.vec2(contentLeft, -24),
 		variant: "caption",
 		color: accent,
-		size: 7,
+		size: 8,
+		gapAfter: 3,
 	})
 	title.use(k.opacity(0))
 	fadeTargets.push({ obj: title, baseOpacity: 1 })
-	const message = addThemedText(popover, {
+	const message = container.flow.addText({
 		text: options.message,
-		pos: k.vec2(contentLeft, -11),
 		variant: "heading",
 		color: k.WHITE,
 		size: 11,
-		width: POPOVER_WIDTH - 72,
+		gapAfter: options.description ? 3 : 0,
 	})
 	message.use(k.opacity(0))
 	fadeTargets.push({ obj: message, baseOpacity: 1 })
 	if (options.description) {
-		const description = addThemedText(popover, {
+		const description = container.flow.addText({
 			text: options.description,
-			pos: k.vec2(contentLeft, 8),
 			variant: "muted",
 			color: k.rgb(150, 165, 175),
-			size: 7,
-			width: POPOVER_WIDTH - 76,
+			size: 8,
 			lineHeight: 1.25,
+			gapAfter: 0,
 		})
 		description.use(k.opacity(0))
 		fadeTargets.push({ obj: description, baseOpacity: 1 })
 	}
 
-	activePopovers.push({ obj: popover, elapsed: 0, duration, fadeTargets })
+	const popoverHeight = container.getHeight()
+	accentBar.height = popoverHeight - 4
+	activePopovers.push({
+		obj: popover,
+		height: popoverHeight,
+		elapsed: 0,
+		duration,
+		fadeTargets,
+	})
 	ensurePopoverController()
 	return popover
 }
@@ -141,7 +153,11 @@ export function showCollectedRewardPopover(reward: Reward) {
 function ensurePopoverController() {
 	if (popoverController?.exists()) return
 	popoverController = k.add([tags.gameLoopUi])
-	popoverController.onUpdate(updatePopovers)
+	registerBatchedUiUpdate(
+		"overlay",
+		popoverController,
+		updatePopovers
+	)
 	popoverController.onDestroy(() => {
 		popoverController = undefined
 		activePopovers.length = 0
@@ -152,16 +168,12 @@ function ensurePopoverController() {
 function updatePopovers() {
 	removeDestroyedPopovers()
 	const delta = k.dt()
+	const targetPositions = getPopoverTargetPositions()
 
 	for (let index = 0; index < activePopovers.length; index++) {
 		const active = activePopovers[index]
 		active.elapsed += delta
-		const targetY =
-			k.height() -
-			POPOVER_BOTTOM_MARGIN -
-			POPOVER_HEIGHT / 2 -
-			(activePopovers.length - 1 - index) *
-				(POPOVER_HEIGHT + POPOVER_GAP)
+		const targetY = targetPositions[index]
 		const positionBlend = 1 - Math.exp(-14 * delta)
 		active.obj.pos.x = k.width() / 2
 		active.obj.pos.y = k.lerp(active.obj.pos.y, targetY, positionBlend)
@@ -206,6 +218,17 @@ function updatePopovers() {
 	if (activePopovers.length === 0 && popoverController?.exists()) {
 		k.destroy(popoverController)
 	}
+}
+
+function getPopoverTargetPositions() {
+	const positions = new Array<number>(activePopovers.length)
+	let bottomOffset = POPOVER_BOTTOM_MARGIN
+	for (let index = activePopovers.length - 1; index >= 0; index--) {
+		const active = activePopovers[index]
+		positions[index] = k.height() - bottomOffset - active.height / 2
+		bottomOffset += active.height + POPOVER_GAP
+	}
+	return positions
 }
 
 function setPopoverOpacity(active: ActivePopover, opacity: number) {

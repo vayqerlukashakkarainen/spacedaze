@@ -1,5 +1,5 @@
 import { playerObj, checkProjectileIntersection } from "../game";
-import { dt, k, mainSoundVolume, velocityScale } from "../main";
+import { dt, k, layers, mainSoundVolume, velocityScale } from "../main";
 import { audioService } from "../services/audioService";
 import { starsEmitter } from "../particles";
 import { player } from "../player";
@@ -15,6 +15,8 @@ import {
 	Reward,
 	RewardRarity,
 } from "../services/rewardService";
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { showCollectedRewardPopover } from "../services/popoverService";
 
 interface RarityFeedback {
 	tier: number;
@@ -96,6 +98,15 @@ interface RewardPickupOptions {
 	onCollected?: (reward: Reward) => void;
 }
 
+export function spawnRerollTokenPickup(
+	pos: Vec2,
+	options: Pick<RewardPickupOptions, "stationary" | "label"> = {}
+) {
+	const reward = createReward("rerollToken");
+	if (!reward) return;
+	return spawnRewardPickup(pos, reward, options);
+}
+
 export function spawnRewardPickup(
 	pos: Vec2,
 	reward: Reward,
@@ -131,6 +142,7 @@ export function spawnRewardPickup(
 		k.opacity(feedback.auraOpacity * 0.65),
 		k.outline(2, rarityColor),
 		k.z(-1),
+		k.layer(layers.gameEffects),
 	]);
 
 	const auraRings = Array.from({ length: feedback.tier }, (_, index) =>
@@ -140,6 +152,7 @@ export function spawnRewardPickup(
 			k.anchor("center"),
 			k.opacity(feedback.auraOpacity / (index + 1)),
 			k.outline(1, rarityColor),
+			k.layer(layers.gameEffects),
 		])
 	);
 
@@ -154,6 +167,7 @@ export function spawnRewardPickup(
 			k.pos(0, -28),
 			k.anchor("center"),
 			k.color(rarityColor),
+			k.layer(layers.gameText),
 		]);
 	}
 
@@ -174,11 +188,15 @@ export function spawnRewardPickup(
 			? options.applyEffect(reward, powerupPos)
 			: applyReward(reward, powerupPos);
 		if (!applied) return;
-		addCollectedPowerup(reward);
+		if (reward.kind === "item" && reward.id === "rerollToken") {
+			showCollectedRewardPopover(reward);
+		} else {
+			addCollectedPowerup(reward);
+		}
 		options.onCollected?.(reward);
 	};
 
-	m.onUpdate(() => {
+	registerBatchedEntityUpdate("world", m, () => {
 		const dist = m.pos.dist(playerObj.pos);
 		if (!armed && dist > 40) armed = true;
 

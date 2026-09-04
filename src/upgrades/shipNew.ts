@@ -217,6 +217,26 @@ export const phaseRam: UpgradeDefinition = {
 	})),
 };
 
+export const phaseMagazine: UpgradeDefinition = {
+	toolKey: "phaseMagazine",
+	toolName: "Phase Magazine",
+	category: "combat",
+	type: "passive",
+	requirements: { allOf: [{ toolKey: "spaceJump" }] },
+	levels: [{
+		name: "Phase Seeker Salvo",
+		desc: "Completing a Space Jump releases 10 purple rounds that wiggle toward nearby enemies",
+		sprite: "hunter_guidance_upg1",
+		price: 52,
+		effects: {
+			unlocks: [{
+				unlockId: "phaseMagazine",
+				description: "Space Jump releases ten seeking phase rounds",
+			}],
+		},
+	}],
+};
+
 export const movespeed: UpgradeDefinition = {
 	toolKey: "movespeed",
 	toolName: "Improved thrusters",

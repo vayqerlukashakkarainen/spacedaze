@@ -144,6 +144,18 @@ export const phaseRam: Tool = {
 	],
 };
 
+export const phaseMagazine: Tool = {
+	toolName: "Phase Magazine",
+	requirements: { allOf: [{ toolKey: "spaceJump" }] },
+	upgrades: [{
+		name: "Phase Seeker Salvo",
+		desc: "Completing a Space Jump releases 10 purple rounds that wiggle toward nearby enemies",
+		sprite: "hunter_guidance_upg1",
+		price: 52,
+		value: 1,
+	}],
+};
+
 export const movespeed: Tool = {
 	toolName: "Improved thrusters",
 	upgrades: [

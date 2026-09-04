@@ -1,6 +1,7 @@
 import { Vec2 } from "kaplay";
-import { k } from "../main";
+import { k, layers } from "../main";
 import { tags } from "../tags";
+import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 
 interface Props {
 	spawnChance: number;
@@ -14,6 +15,7 @@ export function spawnSpawner(props: Props) {
 		k.pos(props.pos),
 		k.anchor("center"),
 		k.circle(12),
+		k.layer(layers.gameEffects),
 		k.animate(),
 		{
 			opacity: 0.15,
@@ -24,7 +26,7 @@ export function spawnSpawner(props: Props) {
 		tags.gameLoop,
 	]);
 
-	m.onUpdate(() => {
+	registerBatchedEntityUpdate("enemies", m, () => {
 		if (Math.floor(k.rand(0, props.spawnChance)) == 1) {
 			props.onSpawn(m.pos);
 			m.spawned++;

@@ -3,6 +3,7 @@ import { k, layers, changeGameState, GameState } from "../../main";
 import { uiState } from "../../ui/uiState";
 import { createUiButton } from "../../ui/common/button";
 import { createUiLabel } from "../../ui/common/label";
+import { uiHitRegion } from "../../ui/common/hitRegion";
 import {
 	clearGrid,
 	generateCave,
@@ -74,7 +75,7 @@ export function createActionBar(
 	const seedInputBg = k.add([
 		k.pos(paletteX, paletteY),
 		k.rect(120, 30),
-		k.area(),
+		uiHitRegion(k.vec2(120, 30), true),
 		k.color(20, 20, 20),
 		k.anchor("center"),
 		k.outline(1, new k.Color(100, 100, 100)),

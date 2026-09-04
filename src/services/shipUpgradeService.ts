@@ -19,13 +19,13 @@ export function tryBlockPlayerDamage(target: GameObj, damage: number) {
 
 	if (
 		player.sacrificialProtocol !== undefined &&
-		typeof target.hp === "function" &&
-		damage >= target.hp()
+		typeof target.hp === "number" &&
+		damage >= target.hp
 	) {
 		const drone = findClosestCombatDrone(target)
 		if (drone) {
 			spawnSacrificeLink(drone, target)
-			drone.hurt(drone.hp())
+			drone.hp = 0
 			return true
 		}
 	}
@@ -68,8 +68,8 @@ function findClosestCombatDrone(target: GameObj) {
 		.filter(
 			(drone) =>
 				drone.exists() &&
-				typeof drone.hp === "function" &&
-				drone.hp() > 0
+				typeof drone.hp === "number" &&
+				drone.hp > 0
 		)
 		.sort((a, b) => a.pos.dist(target.pos) - b.pos.dist(target.pos))[0]
 }
