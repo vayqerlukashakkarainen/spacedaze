@@ -29,12 +29,16 @@ import { tags } from "../tags"
 import { addCollectedPowerup } from "./gameUi"
 import { uiState } from "./uiState"
 import { createUiPanel } from "./common/panel"
-import { UI_COLORS } from "./common/theme"
+import { UI_COLORS, UI_FONT_SIZES } from "./common/theme"
 import { uiHitRegion } from "./common/hitRegion"
 import {
 	playUiModalClose,
 	playUiModalOpen,
 } from "./common/modalTransition"
+import {
+	purchaseBurstParticleCount,
+	spawnCurrencyBurst,
+} from "../spawn/spawnCurrencyBurst"
 
 let isOpen = false
 let isClosing = false
@@ -121,12 +125,12 @@ function renderRecoveryShop(animate = true) {
 	}
 
 	panel.add([
-		k.text("RECOVERY SHOP", { size: 24, font: "unscii" }),
+		k.text("RECOVERY SHOP", { size: UI_FONT_SIZES.display, font: "unscii" }),
 		k.pos(0, -panelHeight / 2 + 30),
 		k.anchor("center"),
 	])
 	panel.add([
-		k.text(`SALVAGE: ${getScore()}`, { size: 12, font: "unscii" }),
+		k.text(`SALVAGE: ${getScore()}`, { size: UI_FONT_SIZES.body, font: "unscii" }),
 		k.pos(0, -panelHeight / 2 + 62),
 		k.anchor("center"),
 		k.color(100, 200, 255),
@@ -135,7 +139,7 @@ function renderRecoveryShop(animate = true) {
 	if (offers.length === 0) {
 		panel.add([
 			k.text("NO LOST POWERUPS TO RECOVER", {
-				size: 14,
+				size: UI_FONT_SIZES.subheading,
 				font: "unscii",
 			}),
 			k.anchor("center"),
@@ -172,7 +176,7 @@ function renderRecoveryShop(animate = true) {
 		])
 		card.add([
 			k.text(`${offer.rarity}${offer.rewardIds.length > 1 ? `  x${offer.rewardIds.length}` : ""}`, {
-				size: 9,
+				size: UI_FONT_SIZES.small,
 				font: "unscii",
 			}),
 			k.pos(0, -68),
@@ -181,7 +185,7 @@ function renderRecoveryShop(animate = true) {
 		])
 		card.add([
 			k.text(offer.name, {
-				size: 12,
+				size: UI_FONT_SIZES.body,
 				font: "unscii",
 				width: cardWidth - 18,
 				align: "center",
@@ -191,7 +195,7 @@ function renderRecoveryShop(animate = true) {
 		])
 		card.add([
 			k.text(offer.description, {
-				size: 9,
+				size: UI_FONT_SIZES.small,
 				font: "unscii",
 				width: cardWidth - 22,
 				align: "center",
@@ -201,7 +205,7 @@ function renderRecoveryShop(animate = true) {
 		])
 		card.add([
 			k.text(lockReason ? `LOCKED\n${lockReason}` : `RECOVER  ${offer.price}`, {
-				size: lockReason ? 8 : 12,
+				size: lockReason ? UI_FONT_SIZES.tiny : UI_FONT_SIZES.body,
 				font: "unscii",
 				width: cardWidth - 18,
 				align: "center",
@@ -229,7 +233,7 @@ function renderRecoveryShop(animate = true) {
 		k.outline(2, k.rgb(...UI_COLORS.accent)),
 	])
 	close.add([
-		k.text("CLOSE", { size: 12, font: "unscii" }),
+		k.text("CLOSE", { size: UI_FONT_SIZES.body, font: "unscii" }),
 		k.anchor("center"),
 	])
 	close.onClick(() => hideRecoveryShop())
@@ -240,13 +244,17 @@ function purchaseOffer(offer: RecoveryOffer) {
 	if (!spendScore(offer.price)) return
 
 	for (const rewardId of offer.rewardIds) {
-		const reward = createReward(rewardId)
+		const reward = createReward(rewardId, offer.rarity as RewardRarity)
 		if (!reward || !applyReward(reward, k.center())) {
 			addScore(offer.price)
 			return
 		}
 		addCollectedPowerup(reward)
 	}
+	spawnCurrencyBurst(k.mousePos(), {
+		particleCount: purchaseBurstParticleCount(offer.price),
+		fixed: true,
+	})
 
 	consumeRecoveryOffer(offer.id)
 	audioService.playSound("purchase1", { volume: mainSoundVolume })

@@ -8,6 +8,7 @@ import {
 	addLocalLight,
 	updateLocalLight,
 } from "../services/localLightService";
+import { scaleThreatDebreeAmount } from "../services/threatService";
 
 export interface DebreeCollectionState {
 	elapsed: number;
@@ -43,7 +44,11 @@ export function spawnDebree(
 	amount: number,
 	options: DebreeSpawnOptions = {}
 ) {
-	spawnDebreeValues(pos, splitDebreeValue(amount), options);
+	spawnDebreeValues(
+		pos,
+		splitDebreeValue(scaleThreatDebreeAmount(amount)),
+		options
+	);
 }
 
 export function spawnDebreeValues(

@@ -57,16 +57,39 @@ import {
 } from "./services/runInventoryService";
 import { resetPowerupRuntime, respawnCombatDrones } from "./powerups";
 import {
-	finishRunStats,
 	recordDebreeCollected,
+	recordPlayerDeath,
 } from "./services/runStatsService";
 import type { DebreeCollectionState } from "./spawn/spawnDebree";
 import {
 	findSpatialNearby,
 	forEachSpatialNearby,
 } from "./services/runtimeSpatialIndexService";
-import { endRunSession } from "./services/runDirectorService";
 import { resetEquippedWeapon } from "./services/weaponService";
+import {
+	hasEquippedActiveModule,
+	resetActiveModule,
+} from "./services/activeModuleService";
+import { shouldStartPrologue } from "./services/narrativeService";
+import {
+	beginPrologueExperience,
+	cancelPrologueExperience,
+	finishPrologueOnDeath,
+	showHubIntroductionIfNeeded,
+	showPrologueRecoveryDialogue,
+} from "./services/prologueService";
+import { hideDialogue } from "./services/dialogService";
+import { saveGame } from "./util";
+import {
+	clearPendingRunEndSummary,
+	completeRun,
+	type RunEndSummary,
+} from "./services/runCompletionService";
+import { hideDebreeDepositPanel } from "./ui/debreeDepositPanel";
+import {
+	DebreeRunOutcome,
+	loseCarriedDebree,
+} from "./services/debreeEconomyService";
 
 export let playerObj: GameObj<
 	PosComp | SpriteComp | RotateComp | AreaComp | AnchorComp | HealthComp
@@ -84,9 +107,22 @@ export function startGame() {
 	clearRecoveryOffers();
 	resetPowerupRuntime();
 	resetEquippedWeapon();
+	resetActiveModule();
 	loadPlayer();
 	playerObj = setupPlayer({ arrivalTransition: true });
-	setupGameLoopUi(player.maxHealth, player.rocketsLvl !== undefined);
+	setupGameLoopUi(player.maxHealth, hasEquippedActiveModule());
+	if (shouldStartPrologue()) {
+		loadLevel("level1");
+		beginPrologueExperience(() => {
+			transitionToLevel("hub");
+			saveGame("slot1");
+		});
+		return;
+	}
+	k.wait(0.6, () => {
+		if (activeLevelKey() !== "hub") return;
+		void showHubIntroductionIfNeeded();
+	});
 }
 
 export function updateGameLoop() {
@@ -241,54 +277,67 @@ function updateDebreeCollection(
 export function beginPlayerDeathSequence() {
 	if (isPlayerDying) return;
 	isPlayerDying = true;
+	recordPlayerDeath();
 	const deathCause = getPlayerDeathCause();
 	const diedInHub = activeLevelKey() === "hub";
-	if (!diedInHub) {
-		finishRunStats("DESTROYED");
+	const diedInPrologue = finishPrologueOnDeath();
+	let debreeOutcome: DebreeRunOutcome = { deposited: 0, lost: 0 };
+	let runEndSummary: RunEndSummary | undefined;
+	if (diedInPrologue) saveGame("slot1");
+	if (!diedInHub && !diedInPrologue) {
+		debreeOutcome = loseCarriedDebree();
+		runEndSummary = completeRun("DESTROYED", debreeOutcome);
+		clearPendingRunEndSummary();
 		prepareDeathRecoveryOffers();
 	}
 
 	setTimescale(0.15, 1, false);
 	k.shake(8);
+	if (diedInPrologue) {
+		k.wait(1.1, () => {
+			if (!isPlayerDying) return;
+			void recoverFromPrologueDeath();
+		});
+		return;
+	}
 
 	k.wait(2, () => {
 		if (!isPlayerDying) return;
-		showDeathScreen(deathCause);
+		showDeathScreen(deathCause, runEndSummary, () => {
+			continueAfterPlayerDeath(diedInHub);
+		});
 	});
+}
 
-	k.wait(5, () => {
-		if (!isPlayerDying) return;
+function continueAfterPlayerDeath(diedInHub: boolean) {
+	if (!isPlayerDying) return;
+	hideDeathScreen();
+	const combatDroneCount = diedInHub ? k.get(tags.follower).length : 0;
+	clearPlayer();
 
-		hideDeathScreen();
-		const combatDroneCount = diedInHub
-			? k.get(tags.follower).length
-			: 0;
-		clearPlayer();
-
-		if (diedInHub) {
-			k.destroyAll(tags.follower);
-			transitionToLevel("hub");
-			playerObj = setupPlayer({ respawnTransition: true });
-			respawnCombatDrones(combatDroneCount);
-			updatePlayerHealthBar(player.maxHealth + session.extraHealth);
-			setTimescale(1, 0.4, false);
-			isPlayerDying = false;
-			return;
-		}
-
-		clearGameLoopUi();
+	if (diedInHub) {
 		k.destroyAll(tags.follower);
-		resetLevelLoadout();
-		resetSession();
-		resetPowerupRuntime();
-		resetEquippedWeapon();
-		loadPlayer();
 		transitionToLevel("hub");
 		playerObj = setupPlayer({ respawnTransition: true });
-		setupGameLoopUi(player.maxHealth, player.rocketsLvl !== undefined);
+		respawnCombatDrones(combatDroneCount);
+		updatePlayerHealthBar(player.maxHealth + session.extraHealth);
 		setTimescale(1, 0.4, false);
 		isPlayerDying = false;
-	});
+		return;
+	}
+
+	clearGameLoopUi();
+	k.destroyAll(tags.follower);
+	resetLevelLoadout();
+	resetSession();
+	resetPowerupRuntime();
+	resetEquippedWeapon();
+	loadPlayer();
+	transitionToLevel("hub");
+	playerObj = setupPlayer({ respawnTransition: true });
+	setupGameLoopUi(player.maxHealth, hasEquippedActiveModule());
+	setTimescale(1, 0.4, false);
+	isPlayerDying = false;
 }
 
 export function playerDeathSequenceActive() {
@@ -298,8 +347,7 @@ export function playerDeathSequenceActive() {
 export function exitRunToHub() {
 	if (activeLevelKey() === "hub") return;
 
-	finishRunStats("ABANDONED");
-	endRunSession();
+	completeRun("ABANDONED", loseCarriedDebree());
 	clearPlayer();
 	if (playerObj?.exists()) k.destroy(playerObj);
 	k.destroyAll(tags.follower);
@@ -314,13 +362,16 @@ export function exitRunToHub() {
 	debrees = [];
 	transitionToLevel("hub");
 	playerObj = setupPlayer({ respawnTransition: true });
-	setupGameLoopUi(player.maxHealth, player.rocketsLvl !== undefined);
+	setupGameLoopUi(player.maxHealth, hasEquippedActiveModule());
 	setTimescale(1, 0.2, false);
 }
 
 export function clearGame() {
 	isPlayerDying = false;
+	hideDebreeDepositPanel();
 	hideDeathScreen();
+	hideDialogue();
+	cancelPrologueExperience();
 	setTimescale(1, 0.2, false);
 	clearPlayer();
 	resetLevelLoadout();
@@ -345,6 +396,28 @@ export function clearGame() {
 	k.destroyAll(tags.damageNumber);
 	clearGameLoopUi();
 	changeGameState(GameState.MainMenu);
+}
+
+async function recoverFromPrologueDeath() {
+	await showPrologueRecoveryDialogue();
+	if (!isPlayerDying) return;
+
+	clearPlayer();
+	clearGameLoopUi();
+	k.destroyAll(tags.follower);
+	resetLevelLoadout();
+	resetSession();
+	clearRunInventory();
+	clearRecoveryOffers();
+	resetPowerupRuntime();
+	resetEquippedWeapon();
+	loadPlayer();
+	transitionToLevel("hub");
+	playerObj = setupPlayer({ respawnTransition: true });
+	setupGameLoopUi(player.maxHealth, hasEquippedActiveModule());
+	setTimescale(1, 0.4, false);
+	isPlayerDying = false;
+	k.wait(0.6, () => void showHubIntroductionIfNeeded());
 }
 
 export function checkProjectileIntersection(

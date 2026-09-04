@@ -6,6 +6,7 @@ import { tags } from "../../tags"
 import { interactable } from "../../comp/interactable"
 import { spawnRing } from "../spawnRing"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { UI_FONT_SIZES } from "../../ui/common"
 
 interface RiftJunctionProps {
 	pos: Vec2
@@ -49,7 +50,7 @@ export function spawnRiftJunction(props: RiftJunctionProps) {
 			k.layer(layers.gameEffects),
 		])
 		portal.add([
-			k.text(`F  RIFT ${index + 1}`, { size: 8, font: "unscii" }),
+			k.text(`F  RIFT ${index + 1}`, { size: UI_FONT_SIZES.tiny, font: "unscii" }),
 			k.pos(0, 21),
 			k.anchor("center"),
 			k.color(k.WHITE),

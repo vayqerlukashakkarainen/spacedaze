@@ -36,31 +36,65 @@ export function spawnBasicBlaster(
 	return spawnProjectile(config);
 }
 
+export interface PlayerBlasterShotOptions {
+	angleOffset?: number
+	damageMultiplier?: number
+	speedMultiplier?: number
+	playFireSound?: boolean
+}
+
 // Player Blaster with all modifiers
-export function spawnPlayerBlaster(pos: Vec2, dir: Vec2, rot: number) {
+export function spawnPlayerBlaster(
+	pos: Vec2,
+	dir: Vec2,
+	rot: number,
+	shotOptions: PlayerBlasterShotOptions = {}
+) {
 	const weapon = getEquippedWeapon();
 	const spreadAngle = k.rand(
 		-weapon.spreadDegrees,
 		weapon.spreadDegrees
-	);
+	) + (shotOptions.angleOffset ?? 0);
+	const impactDamage = player.blasterDmg *
+		weapon.damageMultiplier *
+		(shotOptions.damageMultiplier ?? 1);
 	const config: ProjectileConfig = {
 		pos,
 		dir: k.Vec2.fromAngle(rot + spreadAngle - 90),
 		rotation: rot + spreadAngle,
 		sprite: "bullet1",
+		tint: weapon.projectileTint
+			? k.rgb(...weapon.projectileTint)
+			: undefined,
+		visualScale: weapon.projectileScale,
 		speed: BULLET_SPEED,
 		speedMultiplier:
-			player.blasterSpeedMultiplier * weapon.projectileSpeedMultiplier,
+			player.blasterSpeedMultiplier *
+			weapon.projectileSpeedMultiplier *
+			(shotOptions.speedMultiplier ?? 1),
 		tags: [tags.friendly, tags.blaster],
 		impact: {
-			damage: player.blasterDmg * weapon.damageMultiplier,
+			damage: impactDamage,
 			damageMultiplier: player.blasterDmgMultiplier,
 		},
 		crit: {
 			chance: player.critChance,
 			multiplier: player.critMultiplier,
 		},
-		fireSound: "shoot1",
+		lifespan: weapon.lifespan
+			? { duration: weapon.lifespan }
+			: undefined,
+		splash: weapon.splash
+			? {
+				damage: impactDamage * weapon.splash.damageMultiplier,
+				radius: weapon.splash.radius,
+				damageMultiplier: player.blasterDmgMultiplier,
+			}
+			: undefined,
+		knockback: weapon.knockback
+			? { strength: weapon.knockback }
+			: undefined,
+		fireSound: shotOptions.playFireSound === false ? undefined : "shoot1",
 	};
 	if (weapon.piercing) {
 		config.piercing = { ...weapon.piercing };

@@ -38,7 +38,7 @@ export function spawnShip1(
 	const m = k.add([
 		k.pos(pos),
 		k.sprite("enemy_ship1_body"),
-		k.color(...profile.tint),
+		k.color(k.WHITE),
 		k.rotate(dir.angle() + 90),
 		k.anchor("center"),
 		k.health(profile.hp),
@@ -64,7 +64,7 @@ export function spawnShip1(
 	const wing1 = m.add([
 		k.pos(k.vec2(-wingOffset[0], -wingOffset[1])),
 		k.sprite("enemy_ship1_left_wing"),
-		k.color(...profile.tint),
+		k.color(k.WHITE),
 		k.anchor("center"),
 		k.health(Math.floor(profile.hp / 2)),
 		k.animate(),
@@ -77,7 +77,7 @@ export function spawnShip1(
 	const wing2 = m.add([
 		k.pos(k.vec2(wingOffset[0], -wingOffset[1])),
 		k.sprite("enemy_ship1_right_wing"),
-		k.color(...profile.tint),
+		k.color(k.WHITE),
 		k.anchor("center"),
 		k.health(Math.floor(profile.hp / 2)),
 		k.animate(),

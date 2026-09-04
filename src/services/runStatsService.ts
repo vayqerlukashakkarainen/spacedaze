@@ -7,6 +7,7 @@ export interface LifetimeStats {
 	playtimeSeconds: number
 	enemiesKilled: number
 	runs: number
+	deaths: number
 	debreeCollected: number
 }
 
@@ -16,6 +17,8 @@ export interface RunStats {
 	durationSeconds: number
 	kills: number
 	salvageEarned: number
+	salvageDeposited: number
+	salvageLost: number
 	rewardsCollected: number
 	highestRarity: string
 }
@@ -43,6 +46,16 @@ let lastRun = loadLastRun()
 let lifetimeStats = loadLifetimeStats()
 let playtimeSinceSave = 0
 
+export function resetRunStats() {
+	activeRun = undefined
+	lastRun = undefined
+	lifetimeStats = createEmptyLifetimeStats()
+	playtimeSinceSave = 0
+	localStorage.removeItem(LAST_RUN_KEY)
+	localStorage.removeItem(LIFETIME_STATS_KEY)
+	clearSelectedContract()
+}
+
 export function startRunStats(contractName: string) {
 	activeRun = {
 		contractName,
@@ -63,6 +76,11 @@ export function runStatsActive() {
 export function recordRunKill() {
 	lifetimeStats.enemiesKilled++
 	if (activeRun) activeRun.kills++
+	saveLifetimeStats()
+}
+
+export function recordPlayerDeath() {
+	lifetimeStats.deaths++
 	saveLifetimeStats()
 }
 
@@ -96,7 +114,10 @@ export function recordRunReward(rarity: string) {
 	}
 }
 
-export function finishRunStats(outcome: RunStats["outcome"]) {
+export function finishRunStats(
+	outcome: RunStats["outcome"],
+	debreeOutcome = { deposited: 0, lost: 0 }
+) {
 	if (!activeRun) return
 	lastRun = {
 		contractName: activeRun.contractName,
@@ -107,6 +128,8 @@ export function finishRunStats(outcome: RunStats["outcome"]) {
 		),
 		kills: activeRun.kills,
 		salvageEarned: activeRun.salvageEarned,
+		salvageDeposited: debreeOutcome.deposited,
+		salvageLost: debreeOutcome.lost,
 		rewardsCollected: activeRun.rewardsCollected,
 		highestRarity: activeRun.highestRarity,
 	}
@@ -130,12 +153,7 @@ function loadLastRun(): RunStats | undefined {
 }
 
 function loadLifetimeStats(): LifetimeStats {
-	const emptyStats: LifetimeStats = {
-		playtimeSeconds: 0,
-		enemiesKilled: 0,
-		runs: 0,
-		debreeCollected: 0,
-	}
+	const emptyStats = createEmptyLifetimeStats()
 	const saved = localStorage.getItem(LIFETIME_STATS_KEY)
 	if (!saved) return emptyStats
 	const parsed = JSON.parse(saved) as Partial<LifetimeStats>
@@ -143,7 +161,18 @@ function loadLifetimeStats(): LifetimeStats {
 		playtimeSeconds: validStat(parsed.playtimeSeconds),
 		enemiesKilled: validStat(parsed.enemiesKilled),
 		runs: validStat(parsed.runs),
+		deaths: validStat(parsed.deaths),
 		debreeCollected: validStat(parsed.debreeCollected),
+	}
+}
+
+function createEmptyLifetimeStats(): LifetimeStats {
+	return {
+		playtimeSeconds: 0,
+		enemiesKilled: 0,
+		runs: 0,
+		deaths: 0,
+		debreeCollected: 0,
 	}
 }
 

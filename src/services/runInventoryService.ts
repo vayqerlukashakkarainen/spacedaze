@@ -24,9 +24,11 @@ type InventoryReward = Pick<
 	| "description"
 	| "sprite"
 	| "rarity"
+	| "progression"
 	| "upgradeKey"
 	| "powerupKey"
 	| "weaponId"
+	| "activeModuleId"
 >
 
 const activeInventory = new Map<string, RunInventoryStack>()
@@ -41,13 +43,16 @@ const rarityPrices: Record<string, number> = {
 }
 
 export function recordRunReward(reward: InventoryReward) {
+	if (reward.progression.persistence === "permanent") return
 	if (reward.upgradeKey === "blaster") return
 	const key = reward.weaponId
 		? "primaryWeapon"
+		: reward.activeModuleId
+			? "secondaryWeapon"
 		: reward.upgradeKey ?? reward.powerupKey ?? reward.id
 	const existing = activeInventory.get(key)
 	if (existing) {
-		existing.rewardIds = reward.weaponId
+		existing.rewardIds = reward.weaponId || reward.activeModuleId
 			? [reward.id]
 			: [...existing.rewardIds, reward.id]
 		existing.name = reward.name

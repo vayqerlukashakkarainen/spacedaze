@@ -17,10 +17,23 @@ import { k, layers } from "../main"
 import { loopService } from "../services/loopService"
 import { tags } from "../tags"
 import { createUiScrollable, UiScrollableControl } from "./common/scrollable"
-import { UI_COLORS } from "./common/theme"
+import {
+	addThemedText,
+	createUiPanel,
+	createUiSectionHeader,
+	createUiSurface,
+	playUiModalClose,
+	playUiModalOpen,
+	UI_COLORS,
+	UI_FONT_SIZES,
+} from "./common"
 import { uiState } from "./uiState"
 import { registerBatchedUiUpdate } from "../services/uiUpdateService"
 import { uiHitRegion } from "./common/hitRegion"
+import {
+	playShopMenuCloseSound,
+	playShopMenuOpenSound,
+} from "../services/shopMenuSoundService"
 
 const MAP_MARGIN = 22
 const MAP_HEADER_HEIGHT = 48
@@ -32,9 +45,12 @@ const MAP_RASTER_PADDING = 8
 const MAP_MAX_RASTER_SIZE = 2048
 
 let open = false
+let closing = false
 let inputControllers: KEventController[] = []
 let pausedObjects = new Set<GameObj>()
 let zoneScroll: UiScrollableControl | undefined
+let activeRoot: GameObj | undefined
+let activeBackdrop: GameObj | undefined
 let rememberedMapSeed: number | undefined
 let rememberedZoomMultiplier = 1
 
@@ -56,6 +72,7 @@ export function showTacticalMap() {
 	if (!snapshot) return false
 
 	open = true
+	closing = false
 	uiState.modalOpen = true
 	pausedObjects = new Set()
 	for (const obj of k.get<GameObj>(tags.gameLoop)) {
@@ -73,42 +90,42 @@ export function showTacticalMap() {
 	)
 	const sidebarX = viewportPos.x + viewportSize.x + MAP_MARGIN
 
-	k.add([
+	const backdrop = k.add([
 		k.rect(k.width(), k.height()),
 		k.pos(0, 0),
 		k.color(...UI_COLORS.background),
-		k.opacity(0.97),
+		k.opacity(0.92),
+		k.animate(),
 		k.fixed(),
 		k.layer(layers.uiEffects),
-		k.z(300),
 		tags.tacticalMap,
 	])
+	const root = createUiPanel({
+		pos: k.vec2(0, 0),
+		size: k.vec2(k.width(), k.height()),
+		layer: layers.uiEffects,
+		tags: [tags.tacticalMap],
+		animated: true,
+	})
+	activeBackdrop = backdrop
+	activeRoot = root
 
-	k.add([
-		k.text(`SECTOR MAP  //  SEED ${snapshot.seed}`, {
-			size: 15,
-			font: "unscii",
-		}),
-		k.pos(MAP_MARGIN, 17),
-		k.color(...UI_COLORS.accent),
-		k.fixed(),
-		k.layer(layers.uiEffects),
-		k.z(302),
-		tags.tacticalMap,
-	])
+	createUiSectionHeader(root, {
+		pos: k.vec2(MAP_MARGIN, 0),
+		width: k.width() - MAP_MARGIN * 2,
+		height: MAP_HEADER_HEIGHT,
+		eyebrow: "NAVIGATION COMPUTER",
+		title: `SECTOR MAP  //  SEED ${snapshot.seed}`,
+		action: "LIVE CARTOGRAPHY",
+	})
 
-	const viewport = k.add([
-		k.rect(viewportSize.x, viewportSize.y),
-		k.pos(viewportPos),
-		uiHitRegion(viewportSize),
-		k.color(0, 0, 0),
-		k.outline(1, k.rgb(...UI_COLORS.muted)),
-		k.mask("intersect"),
-		k.fixed(),
-		k.layer(layers.uiEffects),
-		k.z(301),
-		tags.tacticalMap,
-	])
+	const viewport = createUiSurface(root, {
+		pos: viewportPos,
+		size: viewportSize,
+		tone: "raised",
+	})
+	viewport.use(uiHitRegion(viewportSize))
+	viewport.use(k.mask("intersect"))
 
 	const geometry = createMapGeometry(snapshot.cells)
 	const rasterizedMap = rasterizeMap(
@@ -142,7 +159,7 @@ export function showTacticalMap() {
 		k.pos(focusedMapPos(zoom)),
 		k.scale(zoom),
 	])
-	mapCanvas.onDestroy(() => rasterizedMap.sprite.data?.tex.free())
+	mapCanvas.onDestroy(() => rasterizedMap.sprite.data?.tex?.free())
 
 	let dragging = false
 	let previousMousePos = k.mousePos()
@@ -194,29 +211,52 @@ export function showTacticalMap() {
 		}
 	})
 
-	addZoneSidebar(snapshot.cells, sidebarX, viewportPos.y, sidebarWidth, viewportSize.y)
-	k.add([
-		k.text("DRAG / WASD  PAN     WHEEL  ZOOM     R  RESET     TAB / ESC  CLOSE", {
-			size: 9,
-			font: "unscii",
-		}),
-		k.pos(MAP_MARGIN, k.height() - 20),
-		k.color(...UI_COLORS.muted),
-		k.fixed(),
-		k.layer(layers.uiEffects),
-		k.z(302),
-		tags.tacticalMap,
-	])
+	addZoneSidebar(
+		root,
+		snapshot.cells,
+		sidebarX,
+		viewportPos.y,
+		sidebarWidth,
+		viewportSize.y
+	)
+	addThemedText(root, {
+		text: "DRAG / WASD  PAN     WHEEL  ZOOM     R  RESET     TAB / ESC  CLOSE",
+		pos: k.vec2(MAP_MARGIN, k.height() - 20),
+		variant: "muted",
+		width: k.width() - MAP_MARGIN * 2,
+	})
+
+	playUiModalOpen(backdrop, root, {
+		panelPos: k.vec2(0, 0),
+		backdropOpacity: 0.92,
+	})
+	playShopMenuOpenSound()
 
 	return true
 }
 
 export function hideTacticalMap() {
-	if (!open) return
-	open = false
-	uiState.modalOpen = false
+	if (!open || closing) return
+	closing = true
 	for (const controller of inputControllers) controller.cancel()
 	inputControllers = []
+	playShopMenuCloseSound()
+	const root = activeRoot
+	const backdrop = activeBackdrop
+	if (!root?.exists() || !backdrop?.exists()) {
+		finishClosingTacticalMap()
+		return
+	}
+	void playUiModalClose(backdrop, root, {
+		panelPos: k.vec2(0, 0),
+		backdropOpacity: 0.92,
+	}).then(finishClosingTacticalMap)
+}
+
+function finishClosingTacticalMap() {
+	open = false
+	closing = false
+	uiState.modalOpen = false
 	zoneScroll?.destroy()
 	zoneScroll = undefined
 	k.destroyAll(tags.tacticalMap)
@@ -225,6 +265,8 @@ export function hideTacticalMap() {
 	}
 	pausedObjects.clear()
 	loopService.resumeAll()
+	activeRoot = undefined
+	activeBackdrop = undefined
 }
 
 interface MapCellGeometry extends GeneratedRunMapCell {
@@ -304,7 +346,12 @@ function rasterizeMap(
 
 	for (const cell of geometry.cells) {
 		if (!cell.revealed) continue
-		if (!cell.solid && !cell.role && !cell.volatileCargoObjective) continue
+		if (
+			!cell.solid &&
+			!cell.role &&
+			!cell.volatileCargoObjective &&
+			!cell.debreeDeposit
+		) continue
 		const roleColor = cell.role ? getRoomColor(cell.role) : undefined
 		const color = cell.solid
 			? cell.destructible
@@ -336,6 +383,13 @@ function rasterizeMap(
 		}
 		if (cell.volatileCargoObjective) {
 			drawVolatileCargoMapMark(
+				context,
+				toRasterPosition(cell.center),
+				pixelsPerUnit
+			)
+		}
+		if (cell.debreeDeposit) {
+			drawDebreeDepositMapMark(
 				context,
 				toRasterPosition(cell.center),
 				pixelsPerUnit
@@ -427,26 +481,46 @@ function drawVolatileCargoMapMark(
 	context.stroke()
 }
 
+function drawDebreeDepositMapMark(
+	context: CanvasRenderingContext2D,
+	center: Vec2,
+	pixelsPerUnit: number
+) {
+	const radius = pixelsPerUnit * 0.34
+	context.beginPath()
+	context.arc(center.x, center.y, radius, 0, Math.PI * 2)
+	context.fillStyle = canvasColor(k.rgb(...UI_COLORS.success), 0.95)
+	context.fill()
+	context.beginPath()
+	context.arc(center.x, center.y, radius * 0.45, 0, Math.PI * 2)
+	context.fillStyle = canvasColor(k.rgb(...UI_COLORS.background), 1)
+	context.fill()
+}
+
 function canvasColor(color: Color, opacity = 1) {
 	return `rgba(${color.r}, ${color.g}, ${color.b}, ${opacity})`
 }
 
 function addZoneSidebar(
+	parent: GameObj,
 	cells: GeneratedRunMapCell[],
 	x: number,
 	y: number,
 	width: number,
 	height: number
 ) {
-	k.add([
-		k.text("OBJECTIVES // ZONES", { size: 12, font: "unscii" }),
-		k.pos(x, y),
-		k.color(...UI_COLORS.accent),
-		k.fixed(),
-		k.layer(layers.uiEffects),
-		k.z(302),
-		tags.tacticalMap,
-	])
+	createUiSurface(parent, {
+		pos: k.vec2(x, y),
+		size: k.vec2(width, height),
+		tone: "default",
+	})
+	createUiSectionHeader(parent, {
+		pos: k.vec2(x, y),
+		width,
+		height: 48,
+		eyebrow: "DISCOVERED SIGNALS",
+		title: "OBJECTIVES // ZONES",
+	})
 
 	const zones = cells
 		.filter((cell) => cell.revealed && cell.roomAnchor && cell.role)
@@ -454,11 +528,15 @@ function addZoneSidebar(
 	const cargoObjective = cells.find(
 		(cell) => cell.revealed && cell.volatileCargoObjective
 	)
-	const scrollY = y + 24
-	const scrollHeight = height - 24
+	const depositCount = cells.filter(
+		(cell) => cell.revealed && cell.debreeDeposit
+	).length
+	const scrollY = y + 52
+	const scrollHeight = height - 56
 	const rowHeight = 42
-	const objectiveRows = cargoObjective ? 1 : 0
+	const objectiveRows = (cargoObjective ? 1 : 0) + (depositCount > 0 ? 1 : 0)
 	zoneScroll = createUiScrollable({
+		parent,
 		pos: k.vec2(x, scrollY),
 		width,
 		height: scrollHeight,
@@ -467,8 +545,6 @@ function addZoneSidebar(
 			(zones.length + objectiveRows) * rowHeight + 12
 		),
 		scrollStep: rowHeight,
-		layer: layers.uiEffects,
-		zIndex: 302,
 		tags: [tags.tacticalMap],
 	})
 	if (cargoObjective) {
@@ -479,7 +555,7 @@ function addZoneSidebar(
 		])
 		zoneScroll.content.add([
 			k.text("OBJ  VOLATILE CARGO", {
-				size: 9,
+				size: UI_FONT_SIZES.small,
 				font: "unscii",
 				width: width - 24,
 			}),
@@ -488,10 +564,35 @@ function addZoneSidebar(
 		])
 		zoneScroll.content.add([
 			k.text(`HEX ${cargoObjective.q},${cargoObjective.r}`, {
-				size: 8,
+				size: UI_FONT_SIZES.tiny,
 				font: "unscii",
 			}),
 			k.pos(19, 23),
+			k.color(...UI_COLORS.muted),
+		])
+	}
+	if (depositCount > 0) {
+		const yPos = cargoObjective ? rowHeight + 8 : 8
+		zoneScroll.content.add([
+			k.rect(6, 28),
+			k.pos(7, yPos),
+			k.color(...UI_COLORS.success),
+		])
+		zoneScroll.content.add([
+			k.text(`SAFE  DEBREE RELAY  x${depositCount}`, {
+				size: UI_FONT_SIZES.small,
+				font: "unscii",
+				width: width - 24,
+			}),
+			k.pos(19, yPos),
+			k.color(...UI_COLORS.success),
+		])
+		zoneScroll.content.add([
+			k.text("DEPOSIT CARRIED DEBREE", {
+				size: UI_FONT_SIZES.tiny,
+				font: "unscii",
+			}),
+			k.pos(19, yPos + 15),
 			k.color(...UI_COLORS.muted),
 		])
 	}
@@ -506,7 +607,7 @@ function addZoneSidebar(
 		])
 		zoneScroll!.content.add([
 			k.text(`${String(index + 1).padStart(2, "0")}  ${getRoomLabel(role)}`, {
-				size: 9,
+				size: UI_FONT_SIZES.small,
 				font: "unscii",
 				width: width - 24,
 			}),
@@ -514,7 +615,7 @@ function addZoneSidebar(
 			k.color(k.WHITE),
 		])
 		zoneScroll!.content.add([
-			k.text(`HEX ${zone.q},${zone.r}`, { size: 8, font: "unscii" }),
+			k.text(`HEX ${zone.q},${zone.r}`, { size: UI_FONT_SIZES.tiny, font: "unscii" }),
 			k.pos(19, yPos + 15),
 			k.color(...UI_COLORS.muted),
 		])

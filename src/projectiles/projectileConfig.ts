@@ -232,6 +232,7 @@ export interface ProjectileConfig {
 	rotation: number;
 	sprite: string;
 	tint?: Color;
+	visualScale?: number;
 	speed: number;
 	tags: string[];
 	speedMultiplier?: number;

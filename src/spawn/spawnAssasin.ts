@@ -30,7 +30,7 @@ export function spawnAssasin(
 	const m = k.add([
 		k.pos(pos),
 		k.sprite("enemy_ship1"),
-		k.color(...profile.tint),
+		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),
 		k.health(profile.hp),

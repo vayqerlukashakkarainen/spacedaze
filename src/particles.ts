@@ -99,7 +99,7 @@ export function initParticles() {
 				quads: [k.getSprite("particle3")!.data!.frames[0].q],
 			},
 			{
-				rate: 1,
+				rate: 0,
 				direction: 0,
 				spread: 90,
 				position: k.vec2(0, 0),

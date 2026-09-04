@@ -8,6 +8,7 @@ import {
 } from "./runLevelPool"
 import { startRunStats } from "./runStatsService"
 import { getUnlockedWarpZones, getWarpZone } from "./warpZoneService"
+import { beginDebreeRun } from "./debreeEconomyService"
 
 export interface RunFloorSelection {
 	levelKey: RunLevelKey
@@ -63,6 +64,7 @@ export function beginRunSession(zoneId: string): RunFloorSelection | undefined {
 		visited: new Set([firstLevel]),
 		currentFloor,
 	}
+	beginDebreeRun()
 	startRunStats(getSelectedContract()?.name ?? "UNASSIGNED EXPEDITION")
 	return currentFloor
 }

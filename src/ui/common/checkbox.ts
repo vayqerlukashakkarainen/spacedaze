@@ -1,7 +1,7 @@
 import { Vec2 } from "kaplay";
 import { k, layers } from "../../main";
 import { uiState } from "../uiState";
-import { UI_COLORS } from "./theme";
+import { UI_COLORS, UI_FONT_SIZES } from "./theme";
 import { uiHitRegion } from "./hitRegion";
 
 interface Props {
@@ -48,7 +48,7 @@ export function createUiCheckbox({
 	]);
 
 	const mark = box.add([
-		k.text("X", { size: 15, font: "unscii" }),
+		k.text("X", { size: UI_FONT_SIZES.subheading, font: "unscii" }),
 		k.anchor("center"),
 		k.color(k.WHITE),
 		k.opacity(checked ? 1 : 0),
@@ -56,7 +56,7 @@ export function createUiCheckbox({
 
 	row.add([
 		k.pos(-width / 2 + 36, 0),
-		k.text(txt, { size: 12, font: "unscii" }),
+		k.text(txt, { size: UI_FONT_SIZES.body, font: "unscii" }),
 		k.anchor("left"),
 		k.color(k.WHITE),
 	]);

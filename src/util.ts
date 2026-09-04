@@ -1,12 +1,16 @@
 import { KAPLAYCtx } from "kaplay";
-import { loadout, upgrades } from "./upg";
-import { score, timeSeconds } from "./main";
+import { loadout, loadoutRarity, upgrades } from "./upg";
+import { RewardRarity } from "./types/rewardTypes";
+import { timeSeconds } from "./main";
 import {
 	getEquippedWeaponId,
 	getOwnedWeaponIds,
 	setWeaponInventory,
+	WEAPONS,
 } from "./services/weaponService";
 import { PLANET_CHUNK_SPRITES } from "./planetChunkSprites";
+import { getDepositedDebree } from "./services/debreeEconomyService";
+import { isBlueprintDiscovered } from "./services/hubProgressService";
 
 const SAVE_VERSION = 2;
 const LEGACY_SAVE_KEYS = [
@@ -20,6 +24,8 @@ interface SaveSlot {
 	time: number;
 	score: number;
 	loadout: Record<string, number | undefined>;
+	loadoutRarity?: Partial<Record<string, RewardRarity>>;
+	weaponInventoryVersion?: number;
 	ownedWeaponIds: string[];
 	equippedWeaponId: string;
 }
@@ -45,7 +51,6 @@ export async function init(k: KAPLAYCtx) {
 		"salvage_asteroid_rich",
 		"sprites/salvage-asteroids/salvage-asteroid-rich.png"
 	)
-	await k.loadSprite("recovery_shop", "sprites/shops/v3/recovery-shop.png");
 	await k.loadSprite(
 		"facility_contract_terminal",
 		"sprites/facilities/v2/facility-contract-terminal.png"
@@ -53,6 +58,14 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite(
 		"facility_contract_terminal_destroyed",
 		"sprites/facilities/v2/facility-contract-terminal-destroyed.png"
+	);
+	await k.loadSprite(
+		"facility_training_range",
+		"sprites/facilities/v2/facility-training-range.png"
+	);
+	await k.loadSprite(
+		"facility_training_range_destroyed",
+		"sprites/facilities/v2/facility-training-range-destroyed.png"
 	);
 	await k.loadSprite(
 		"facility_salvage_forge",
@@ -70,30 +83,6 @@ export async function init(k: KAPLAYCtx) {
 		"facility_debrief_terminal_destroyed",
 		"sprites/facilities/v2/facility-debrief-terminal-destroyed.png"
 	);
-	await k.loadSprite(
-		"facility_training_range",
-		"sprites/facilities/v2/facility-training-range.png"
-	);
-	await k.loadSprite(
-		"facility_training_range_destroyed",
-		"sprites/facilities/v2/facility-training-range-destroyed.png"
-	);
-	await k.loadSprite(
-		"facility_blueprint_archive",
-		"sprites/facilities/v2/facility-blueprint-archive.png"
-	);
-	await k.loadSprite(
-		"facility_blueprint_archive_destroyed",
-		"sprites/facilities/v2/facility-blueprint-archive-destroyed.png"
-	);
-	await k.loadSprite(
-		"facility_warp_zones",
-		"sprites/facilities/v2/facility-warp-zones.png"
-	);
-	await k.loadSprite(
-		"facility_warp_zones_destroyed",
-		"sprites/facilities/v2/facility-warp-zones-destroyed.png"
-	);
 	await k.loadSprite("bullet1", "sprites/bullet1.png");
 	await k.loadSprite("rocket1", "sprites/rocket1.png");
 	await k.loadSpriteAtlas("sprites/swarm-atlas.png", {
@@ -109,6 +98,30 @@ export async function init(k: KAPLAYCtx) {
 		blaster1: atlasEntry(9),
 		parallel_blasters_upg1: atlasEntry(10),
 	});
+	const inputPromptSprites = [
+		"escape",
+		"enter",
+		"space",
+		"tab",
+		"mouseLeft",
+		"mouseRight",
+		"w",
+		"a",
+		"s",
+		"d",
+		"f",
+		"r",
+		"t",
+		"1",
+		"2",
+		"3",
+	]
+	for (const sprite of inputPromptSprites) {
+		await k.loadSprite(
+			`input_key_${sprite}`,
+			`sprites/input-prompts/${sprite}.${sprite === "f" ? "svg" : "png"}`
+		)
+	}
 
 	await k.loadSprite("asteroid1", "sprites/asteroid1.png");
 	for (let index = 1; index <= 8; index++) {
@@ -174,7 +187,27 @@ export async function init(k: KAPLAYCtx) {
 		"weapon_arc_carbine",
 		"sprites/weapons/arc-carbine.png"
 	);
+	await k.loadSprite("weapon_scatter_array", "sprites/weapons/scatter-array.png")
+	await k.loadSprite("weapon_burst_driver", "sprites/weapons/burst-driver.png")
+	await k.loadSprite("weapon_plasma_mortar", "sprites/weapons/plasma-mortar.png")
+	await k.loadSprite("weapon_rail_lance", "sprites/weapons/rail-lance.png")
 	await k.loadSprite("rocket_upg1", "sprites/upgrades/rocket_upg1.png");
+	await k.loadSprite(
+		"active_kinetic_barrier",
+		"sprites/active-modules/kinetic-barrier.png"
+	);
+	await k.loadSprite(
+		"active_gravity_charge",
+		"sprites/active-modules/gravity-charge.png"
+	);
+	await k.loadSprite(
+		"active_breach_charge",
+		"sprites/active-modules/breach-charge.png"
+	);
+	await k.loadSprite(
+		"active_drone_beacon",
+		"sprites/active-modules/drone-beacon.png"
+	);
 	await k.loadSprite(
 		"blaster_upg_speed1",
 		"sprites/upgrades/blaster_upg_speed1.png"
@@ -294,6 +327,7 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
 
 	await k.loadSound("shoot1", "sounds/shoot1.wav");
+	await k.loadSound("rammer_launch", "sounds/rammer-launch.wav");
 	await k.loadSound("fire_rocket1", "sounds/rocket_fire1.wav");
 
 	await k.loadSound("explosion1", "sounds/explosion1.wav");
@@ -308,8 +342,14 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound("click1", "sounds/click.wav");
 	await k.loadSound("ui_hover", "sounds/ui-hover.wav");
 	await k.loadSound("ui_click", "sounds/ui-click.wav");
+	await k.loadSound("text_print", "sounds/text-print.wav");
+	await k.loadSound("system_error", "sounds/system-error.mp3");
 	await k.loadSound("purchase", "sounds/purchase.wav");
 	await k.loadSound("error", "sounds/error.wav");
+	await k.loadSound(
+		"empty_secondary_error",
+		"sounds/empty-secondary-error.mp3"
+	);
 	await k.loadSound("purchase1", "sounds/purchase1.wav");
 	await k.loadSound("powerup1", "sounds/powerup1.wav");
 	await k.loadSound("crit1", "sounds/crit1.wav");
@@ -322,6 +362,14 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound(
 		"player_arrival_impact",
 		"sounds/player-arrival-impact.mp3"
+	);
+	await k.loadSound(
+		"hyperspeed_jump_start",
+		"sounds/hyperspeed-jump-start.mp3"
+	);
+	await k.loadSound(
+		"hyperspeed_travel",
+		"sounds/hyperspeed-travel.mp3"
 	);
 	await k.loadSound("wormhole_rampup", "sounds/wormhole-rampup.mp3");
 	await k.loadSound("wormhole_ambience", "sounds/wormhole-ambience.mp3");
@@ -337,6 +385,14 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound(
 		"reward_shine_legendary",
 		"sounds/reward-shine-legendary.mp3"
+	);
+	await k.loadSound(
+		"high_rarity_reveal",
+		"sounds/high-rarity-reveal.mp3"
+	);
+	await k.loadSound(
+		"perfect_chest_open",
+		"sounds/perfect-chest-open.mp3"
 	);
 	await k.loadSound("shop_menu_open", "sounds/shop-menu-open.mp3");
 	await k.loadSound("shop_menu_close", "sounds/shop-menu-close.mp3");
@@ -640,13 +696,31 @@ export function saveGame(slot: string) {
 	const save: SaveSlot = {
 		version: SAVE_VERSION,
 		loadout,
-		score: score,
+		loadoutRarity,
+		score: getDepositedDebree(),
 		time: timeSeconds,
+		weaponInventoryVersion: 1,
 		ownedWeaponIds: getOwnedWeaponIds(),
 		equippedWeaponId: getEquippedWeaponId(),
 	};
 	localStorage.setItem(slot, JSON.stringify(save));
 }
+
+export function hasGameSave(slot: string) {
+	const saved = localStorage.getItem(slot)
+	if (!saved) return false
+	try {
+		const parsed = JSON.parse(saved) as Partial<SaveSlot>
+		return parsed.version === SAVE_VERSION
+	} catch {
+		return false
+	}
+}
+
+export function deleteGameSave(slot: string) {
+	localStorage.removeItem(slot)
+}
+
 export function loadGame(slot: string): SaveSlot | null {
 	for (const legacyKey of LEGACY_SAVE_KEYS) {
 		localStorage.removeItem(legacyKey);
@@ -661,9 +735,12 @@ export function loadGame(slot: string): SaveSlot | null {
 		return null;
 	}
 
-	setWeaponInventory(
-		save.ownedWeaponIds ?? [],
-		save.equippedWeaponId ?? ""
-	);
+	const ownedWeaponIds = save.weaponInventoryVersion === 1
+		? save.ownedWeaponIds ?? []
+		: WEAPONS.filter((weapon) =>
+			weapon.id === "standardBlaster" ||
+			isBlueprintDiscovered(`weapon:${weapon.id}`)
+		).map((weapon) => weapon.id);
+	setWeaponInventory(ownedWeaponIds, save.equippedWeaponId ?? "");
 	return save as SaveSlot;
 }

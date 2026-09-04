@@ -168,7 +168,7 @@ export function resetVolatileCargoObjective() {
 }
 
 export const player: Ship = {
-	maxHealth: 2,
+	maxHealth: 3,
 	scorePerPickup: 1,
 	blasterDmg: 2,
 	blasterDmgMultiplier: 1,
@@ -282,7 +282,7 @@ export function loadPlayer() {
 	player.phaseMagazine = getToolUpgradeLvlValue("phaseMagazine");
 
 	player.speedMultiplier = getToolUpgradeLvlValue("movespeed") ?? 1;
-	player.maxHealth = getToolUpgradeLvlValue("maxHealth") ?? 2;
+	player.maxHealth = getToolUpgradeLvlValue("maxHealth") ?? 3;
 
 	player.followerBlasterDmg = getToolUpgradeLvlValue("followerBlasterDmg") ?? 1;
 	player.missileDroneSlots = getToolUpgradeLvlValue("followerMissiles") ?? 0;

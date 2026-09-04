@@ -12,10 +12,12 @@ import { spawnSpawner } from "../spawn/spawnSpawner";
 import { audioService } from "../services/audioService";
 import type { FinaleDefinition } from "./finaleTypes";
 import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject";
+import { UI_FONT_SIZES } from "../ui/common";
 import {
 	getThreatSnapshot,
 	scaleThreatSpawnCount,
 } from "../services/threatService";
+import { getRunFinaleBattleZone } from "../services/runFinaleArenaService";
 
 let lvlData: any = {};
 let timer = 0;
@@ -112,7 +114,7 @@ export const zone1Finale: FinaleDefinition = {
 					k.pos(k.center()),
 					k.anchor("center"),
 					k.animate(),
-					k.text("!!THREAT DETECTED!!", { font: "", size: 42 }),
+					k.text("!!THREAT DETECTED!!", { font: "", size: UI_FONT_SIZES.logo }),
 					k.fixed(),
 					k.layer(layers.ui),
 					tags.gameLoopUi,
@@ -428,7 +430,7 @@ export const zone1Finale: FinaleDefinition = {
 
 function getPlayerViewportPos(screenPos: Vec2) {
 	const viewportSize = getWorldViewportSize();
-	return playerObj.pos.add(
+	return getFinaleViewportCenter().add(
 		(screenPos.x / k.width() - 0.5) * viewportSize.x,
 		(screenPos.y / k.height() - 0.5) * viewportSize.y
 	);
@@ -436,7 +438,7 @@ function getPlayerViewportPos(screenPos: Vec2) {
 
 function getRandomPlayerViewportPos() {
 	const viewportSize = getWorldViewportSize();
-	return playerObj.pos.add(
+	return getFinaleViewportCenter().add(
 		k.rand(-viewportSize.x / 2, viewportSize.x / 2),
 		k.rand(-viewportSize.y / 2, viewportSize.y / 2)
 	);
@@ -457,15 +459,23 @@ function getPlayerBorderPos(t: number) {
 	const sideProgress = wrapped * corners.length;
 	const side = Math.floor(sideProgress);
 	const nextSide = (side + 1) % corners.length;
-	return playerObj.pos.add(
+	return getFinaleViewportCenter().add(
 		corners[side].lerp(corners[nextSide], sideProgress - side)
 	);
 }
 
 function getWorldViewportSize() {
+	const battleZone = getRunFinaleBattleZone();
+	if (battleZone) {
+		return k.vec2(battleZone.halfWidth * 2, battleZone.halfHeight * 2);
+	}
 	const cameraScale = k.getCamScale();
 	return k.vec2(
 		k.width() / Math.max(cameraScale.x, 0.001),
 		k.height() / Math.max(cameraScale.y, 0.001)
 	);
+}
+
+function getFinaleViewportCenter() {
+	return getRunFinaleBattleZone()?.center ?? playerObj.pos;
 }

@@ -1,15 +1,17 @@
-import { Vec2 } from "kaplay"
+import { GameObj, Vec2 } from "kaplay"
 import { k, layers } from "../../main"
 import { uiState } from "../uiState"
 import { uiHitRegion } from "./hitRegion"
 
 interface ScrollableProps {
+	parent?: GameObj
 	pos: Vec2
 	width: number
 	height: number
 	contentWidth?: number
 	contentHeight?: number
 	scrollStep?: number
+	captureWheel?: boolean
 	layer?: string
 	zIndex?: number
 	tags?: string[]
@@ -35,12 +37,14 @@ export interface UiScrollableControl {
 }
 
 export function createUiScrollable({
+	parent,
 	pos,
 	width,
 	height,
 	contentWidth = width,
 	contentHeight = height,
 	scrollStep = 38,
+	captureWheel = false,
 	layer = layers.ui,
 	zIndex = 0,
 	tags = [],
@@ -52,17 +56,22 @@ export function createUiScrollable({
 	let draggingVerticalThumb = false
 	let draggingHorizontalThumb = false
 
-	const viewport = k.add([
+	const viewportComponents = [
 		k.pos(pos),
 		k.rect(width, height),
 		uiHitRegion(k.vec2(width, height)),
 		k.color(0, 0, 0),
 		k.mask("intersect"),
-		k.fixed(),
-		k.layer(layer),
-		k.z(zIndex),
 		...tags,
-	])
+	]
+	const viewport = parent
+		? parent.add(viewportComponents)
+		: k.add([
+			...viewportComponents,
+			k.fixed(),
+			k.layer(layer),
+			k.z(zIndex),
+		])
 
 	const content = viewport.add([k.pos(0, 0), ...tags])
 	const scrollbarSize = 5
@@ -150,7 +159,7 @@ export function createUiScrollable({
 	}
 
 	const wheelController = k.onScroll((delta) => {
-		if (!viewport.isHovering()) return
+		if (!captureWheel && !viewport.isHovering()) return
 		if (delta.x !== 0 || k.isKeyDown("shift")) {
 			const amount = delta.x !== 0 ? delta.x : delta.y
 			setScrollX(scrollX + amount * scrollStep)

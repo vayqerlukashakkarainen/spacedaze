@@ -13,6 +13,10 @@ export function spawnRecoveryShop(pos: Vec2) {
 		scale: recoveryShopScale,
 		interactRadius: 180,
 		interactPromptOffset: k.vec2(0, -recoveryShopLabelOffsetY),
+		interactionPrompt: {
+			title: "RECOVERY SHOP",
+			action: "OPEN SHOP",
+		},
 		onInteract: showRecoveryShop,
 	})
 	shop.use(k.color(185, 185, 185))

@@ -12,6 +12,11 @@ import { hexDistance, hexNeighbors } from "../generation/hexUtils";
 import { gridCollision } from "../comp/gridCollision";
 import { gridRegistry } from "../grid/gridRegistry";
 import { ACTIVE_RUN_GRID_KEY } from "../grid/gridKeys";
+import {
+	createInputPromptRow,
+	UI_COLORS,
+	UI_FONT_SIZES,
+} from "../ui/common";
 import { CellType, HexGrid } from "../grid/hexGrid";
 import { playerObj } from "../game";
 import { resetVolatileCargoObjective, session } from "../player";
@@ -37,7 +42,7 @@ import {
 	spawnRerollTokenPickup,
 	spawnRewardPickup,
 } from "../spawn/spawnPowerup";
-import { rollCrateReward } from "../services/rewardService";
+import { rollMapEventReward } from "../services/rewardService";
 import type { GeneratedMapConfig } from "./levels";
 import {
 	activateRunFinale,
@@ -89,6 +94,7 @@ import {
 	addThreatTime,
 	getThreatRomanNumeral,
 	getThreatSnapshot,
+	scaleThreatChestCost,
 	scaleThreatSpawnCount,
 	startThreatLevel,
 	stopThreatLevel,
@@ -99,6 +105,12 @@ import {
 	recordSectionTime,
 } from "../services/frameProfilerService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import {
+	narrativePrologueActive,
+	shouldStartPrologue,
+} from "../services/narrativeService";
+import { updateQuestObjective } from "../services/questService";
+import { spawnDebreeDeposit } from "../spawn/spawnDebreeDeposit";
 
 export const RUN_GRID_KEY = ACTIVE_RUN_GRID_KEY;
 const RUN_RENDER_CHUNK_SIZE = 6;
@@ -110,6 +122,7 @@ let currentRunSeed: number | undefined;
 let currentGeneratedMap: GenerationMap | undefined;
 let currentFloorExitPosition: Vec2 | undefined;
 let currentVolatileCargoCoord: { q: number; r: number } | undefined;
+let currentDebreeDepositCoords: Array<{ q: number; r: number }> = [];
 let revealedRunMapCells = new Set<string>();
 let currentHiddenCaverns: HiddenCavern[] = [];
 let currentRewardWalls: RewardWall[] = [];
@@ -138,6 +151,7 @@ export interface GeneratedRunMapCell {
 	roomAnchor: boolean;
 	revealed: boolean;
 	destructible: boolean;
+	debreeDeposit: boolean;
 	volatileCargoObjective: boolean;
 }
 
@@ -201,6 +215,9 @@ export function startGeneratedRunMap(
 	);
 
 	playerObj.pos = grid.hexToScreen(spawnCoord);
+	if (depth === 1 && shouldStartPrologue()) {
+		spawnFirstRunTutorialHints(grid, generatedMap, spawnCoord);
+	}
 	resetPlayerPath(playerObj.pos);
 	playerObj.use(gridCollision(RUN_GRID_KEY));
 	startThreatLevel(depth);
@@ -211,6 +228,12 @@ export function startGeneratedRunMap(
 		config.hexSize,
 		selectedSeed,
 		depth
+	);
+	spawnGeneratedDebreeDeposits(
+		grid,
+		generatedMap,
+		config.hexSize,
+		selectedSeed
 	);
 	spawnCargoDeliveryIndicator();
 	spawnThreatDirector(grid, generatedMap, config.hexSize);
@@ -231,6 +254,7 @@ export function clearGeneratedRunMap() {
 	currentGeneratedMap = undefined;
 	currentFloorExitPosition = undefined;
 	currentVolatileCargoCoord = undefined;
+	currentDebreeDepositCoords = [];
 	revealedRunMapCells.clear();
 	currentHiddenCaverns = [];
 	currentRewardWalls = [];
@@ -262,6 +286,19 @@ export function teleportPlayerToGeneratedRunExit() {
 	playerObj.pos = currentFloorExitPosition.clone();
 	resetPlayerPath(playerObj.pos);
 	return true;
+}
+
+export function teleportPlayerToNearestDebreeDeposit() {
+	if (currentDebreeDepositCoords.length === 0) return false
+	const grid = gridRegistry.get(RUN_GRID_KEY)
+	if (!grid) return false
+	const position = currentDebreeDepositCoords
+		.map((coord) => grid.hexToScreen(coord))
+		.sort((a, b) => a.dist(playerObj.pos) - b.dist(playerObj.pos))[0]
+	if (!position) return false
+	playerObj.pos = position
+	resetPlayerPath(playerObj.pos)
+	return true
 }
 
 export function getGeneratedRunSummary(): string {
@@ -317,6 +354,9 @@ export function getGeneratedRunMapSnapshot(): GeneratedRunMapSnapshot | undefine
 			revealed: revealedRunMapCells.has(runMapCellKey(cell.coord)),
 			destructible:
 				cell.solid && cell.tags.has("destructible_wall"),
+			debreeDeposit: currentDebreeDepositCoords.some(
+				(coord) => runMapCellKey(coord) === runMapCellKey(cell.coord)
+			),
 			volatileCargoObjective:
 				currentVolatileCargoCoord !== undefined &&
 				runMapCellKey(cell.coord) === runMapCellKey(currentVolatileCargoCoord),
@@ -527,6 +567,7 @@ function setupDestructibleWalls(
 		cavern.wallState = registerDestructibleWall({
 			gridKey: RUN_GRID_KEY,
 			coord: cavern.entrance,
+			worldPos: grid.hexToScreen(cavern.entrance),
 			maxHp,
 			onDamaged: (state, impactPos) => {
 				if (state.hp <= 0 || !impactPos) return;
@@ -557,6 +598,7 @@ function setupDestructibleWalls(
 		rewardWall.wallState = registerDestructibleWall({
 			gridKey: RUN_GRID_KEY,
 			coord: rewardWall.coord,
+			worldPos: grid.hexToScreen(rewardWall.coord),
 			maxHp: 5 + depth,
 			onDamaged: (state, impactPos) => {
 				if (state.hp <= 0 || !impactPos) return;
@@ -702,7 +744,7 @@ function spawnHiddenCavernLoot(
 			stationary: true,
 		});
 	}
-	const reward = rollCrateReward(1 + (lootHash % 3));
+	const reward = rollMapEventReward(1 + (lootHash % 3));
 	if (reward) {
 		spawnRewardPickup(grid.hexToScreen(rewardCoord), reward, {
 			stationary: true,
@@ -721,7 +763,7 @@ function spawnRewardWallLoot(
 	if (lootHash % 7 === 0) {
 		spawnRerollTokenPickup(pos.add(20, 0), { stationary: true });
 	}
-	const reward = rollCrateReward(1 + (lootHash % 2));
+	const reward = rollMapEventReward(1 + (lootHash % 2));
 	if (!reward) {
 		spawnDebree(pos, 4 + (lootHash % 4));
 		return;
@@ -769,6 +811,97 @@ function getPlayerSpawn(map: GenerationMap) {
 		q: Math.floor(map.width / 2),
 		r: Math.floor(map.height / 2),
 	};
+}
+
+function spawnFirstRunTutorialHints(
+	grid: HexGrid,
+	map: GenerationMap,
+	spawnCoord: { q: number; r: number }
+) {
+	const hints = [
+		{ action: "move" as const, label: "TO MOVE AROUND" },
+		{ action: "fire" as const, label: "TO FIRE" },
+		{ action: "special" as const, label: "FOR SPECIAL" },
+		{ action: "map" as const, label: "TO OPEN THE MAP" },
+	];
+	const path = findTutorialHintPath(map, spawnCoord, 9);
+	for (let index = 0; index < hints.length; index++) {
+		const pathIndex = Math.min(
+			path.length - 1,
+			Math.max(1, Math.round((index + 1) * (path.length - 1) / hints.length))
+		);
+		const coord = path[pathIndex] ?? spawnCoord;
+		const hint = k.add([
+			k.pos(grid.hexToScreen(coord)),
+			k.layer(layers.gameText),
+			k.z(20),
+			tags.runMap,
+			tags.gameLoop,
+		]);
+		hint.add([
+			k.rect(172, 36),
+			k.anchor("center"),
+			k.color(0, 4, 7),
+			k.opacity(0.86),
+			k.outline(1, k.rgb(...UI_COLORS.accent)),
+		]);
+		createInputPromptRow(hint, {
+			pos: k.vec2(0, -8),
+			prompts: [{ action: hints[index].action }],
+			color: UI_COLORS.text,
+			iconHeight: 20,
+		})
+		hint.add([
+			k.text(hints[index].label, {
+				font: "unscii",
+				size: UI_FONT_SIZES.tiny,
+				width: 160,
+				align: "center",
+			}),
+			k.pos(0, 9),
+			k.anchor("center"),
+			k.color(k.WHITE),
+		]);
+	}
+}
+
+function findTutorialHintPath(
+	map: GenerationMap,
+	start: { q: number; r: number },
+	maxDistance: number
+) {
+	const startKey = runMapCellKey(start);
+	const queue = [start];
+	const parent = new Map<string, { q: number; r: number } | undefined>([
+		[startKey, undefined],
+	]);
+	const distance = new Map([[startKey, 0]]);
+	let farthest = start;
+
+	for (let queueIndex = 0; queueIndex < queue.length; queueIndex++) {
+		const current = queue[queueIndex];
+		const currentDistance = distance.get(runMapCellKey(current)) ?? 0;
+		if (currentDistance > (distance.get(runMapCellKey(farthest)) ?? 0)) {
+			farthest = current;
+		}
+		if (currentDistance >= maxDistance) continue;
+		for (const neighbor of hexNeighbors(current)) {
+			const key = runMapCellKey(neighbor);
+			const cell = map.getCell(neighbor);
+			if (!cell || cell.solid || parent.has(key)) continue;
+			parent.set(key, current);
+			distance.set(key, currentDistance + 1);
+			queue.push(neighbor);
+		}
+	}
+
+	const path = [farthest];
+	let cursor = parent.get(runMapCellKey(farthest));
+	while (cursor) {
+		path.push(cursor);
+		cursor = parent.get(runMapCellKey(cursor));
+	}
+	return path.reverse();
 }
 
 function renderRunMap(grid: HexGrid, map: GenerationMap) {
@@ -1188,6 +1321,58 @@ function populateRunMap(
 	}
 }
 
+function spawnGeneratedDebreeDeposits(
+	grid: HexGrid,
+	map: GenerationMap,
+	hexSize: number,
+	seed: number
+) {
+	const spawnCell = map
+		.getAllCells()
+		.find((cell) => cell.tags.has("player_spawn"))
+	const exitCell = map
+		.getAllCells()
+		.find((cell) => cell.tags.has(roomRoleTag("exit")))
+	if (!spawnCell) return
+
+	const candidates = map
+		.getAllCells()
+		.filter((cell) => {
+			if (cell.solid || cell.locked || getRoomRole(cell)) return false
+			if (cell.tags.has("resource_node") || cell.tags.has("hazard")) return false
+			if (hexDistance(cell.coord, spawnCell.coord) < 7) return false
+			if (exitCell && hexDistance(cell.coord, exitCell.coord) < 6) return false
+			return true
+		})
+		.sort(
+			(a, b) =>
+				cavernHash(seed, a.coord, 11717) -
+				cavernHash(seed, b.coord, 11717)
+		)
+	const targetCount = Math.max(3, Math.min(6, Math.round(candidates.length / 220)))
+	const selected: GenCell[] = []
+	for (const candidate of candidates) {
+		if (
+			selected.some((cell) => hexDistance(cell.coord, candidate.coord) < 10)
+		) continue
+		selected.push(candidate)
+		if (selected.length >= targetCount) break
+	}
+
+	for (const cell of selected) {
+		currentDebreeDepositCoords.push({ ...cell.coord })
+		spawnDebreeDeposit(
+			getDisplacedContentPosition(
+				grid.hexToScreen(cell.coord),
+				cell.coord,
+				hexSize,
+				seed,
+				"debree_deposit"
+			)
+		)
+	}
+}
+
 function selectVolatileCargoCell(map: GenerationMap, seed: number) {
 	const spawnCell = map
 		.getAllCells()
@@ -1220,7 +1405,7 @@ function getDisplacedContentPosition(
 	coord: { q: number; r: number },
 	hexSize: number,
 	seed: number,
-	contentId: GeneratedContentId | "volatile_cargo_objective"
+	contentId: GeneratedContentId | "volatile_cargo_objective" | "debree_deposit"
 ) {
 	let contentSalt = 0;
 	for (let index = 0; index < contentId.length; index++) {
@@ -1248,7 +1433,15 @@ function spawnGeneratedContent(
 			spawnCombatRoomTrigger(pos, hexSize);
 			return;
 		case "reward_chest":
-			spawnChest(pos, depth);
+			spawnChest(pos, depth, {
+				purchaseCost: () => scaleThreatChestCost(12),
+			});
+			return;
+		case "weapon_chest":
+			spawnChest(pos, depth, {
+				rewardType: "weapon",
+				purchaseCost: () => scaleThreatChestCost(30),
+			});
 			return;
 		case "asteroid_field":
 			spawnAsteroidFieldTrigger(grid, map, coord, pos, hexSize);
@@ -1364,7 +1557,7 @@ function spawnGeneratedContent(
 }
 
 function spawnShrineReward(pos: Vec2) {
-	const reward = rollCrateReward(2);
+	const reward = rollMapEventReward(2);
 	if (!reward) return;
 	spawnRewardPickup(pos, reward, {
 		stationary: true,
@@ -1424,6 +1617,16 @@ function spawnFloorExit(pos: Vec2) {
 		label: "ACTIVATE EXIT",
 		portalState: "dormant",
 		onEnter: (_portal, selectLevel, cancel) => {
+			if (narrativePrologueActive()) {
+				portal.setPortalState("dormant", "SIGNAL JAMMED");
+				updateQuestObjective(
+					"lost-in-the-daze",
+					"THE EXIT SIGNAL IS JAMMED — SURVIVE"
+				);
+				addThreatTime(60);
+				cancel();
+				return;
+			}
 			if (getRunPhase() !== "exitReady") {
 				if (activateRunFinale()) {
 					const transitionSeconds = Math.ceil(
@@ -1710,7 +1913,7 @@ function spawnThreatDirector(
 	]);
 	const label = k.add([
 		k.pos(20, 18),
-		k.text("", { size: 16 }),
+		k.text("", { size: UI_FONT_SIZES.heading }),
 		k.color(255, 115, 115),
 		k.fixed(),
 		k.layer(layers.ui),
@@ -1722,7 +1925,7 @@ function spawnThreatDirector(
 		updateThreatLevel(k.dt());
 		const threat = getThreatSnapshot();
 		const filled = Math.min(5, Math.ceil(threat.progress * 5));
-		label.text = `THREAT ${getThreatRomanNumeral(threat.tier)}  [${"#".repeat(filled)}${"-".repeat(5 - filled)}]`;
+		label.text = `THREAT ${getThreatRomanNumeral(threat.tier)}  \\[${"#".repeat(filled)}${"-".repeat(5 - filled)}]`;
 
 		if (director.lastTier !== threat.tier) {
 			director.lastTier = threat.tier;

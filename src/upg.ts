@@ -38,6 +38,11 @@ import {
 	describeRequirements,
 	evaluateRequirements,
 } from "./services/upgradeRequirementService";
+import { RewardRarity } from "./types/rewardTypes";
+import {
+	getHigherRarity,
+	scaleUpgradeEffects,
+} from "./services/rewardQualityService";
 import {
 	arcCapacitor,
 	armorPiercing,
@@ -85,7 +90,15 @@ interface Upgrade {
 
 export type ToolKey = keyof typeof upgrades;
 
-export const PERMANENT_UPGRADE_KEYS = ["blaster", "spaceJump"] as const;
+export const PERMANENT_UPGRADE_KEYS = [
+	"blaster",
+	"blasterParallel",
+	"debreeDist",
+	"sprint",
+	"spaceJump",
+	"maxHealth",
+	"mouseAim",
+] as const;
 export type PermanentUpgradeKey = typeof PERMANENT_UPGRADE_KEYS[number];
 
 export interface Tool {
@@ -274,6 +287,9 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	voidLance: undefined,
 };
 
+export let loadoutRarity: Partial<Record<ToolKey, RewardRarity>> = {};
+export let levelLoadoutRarity: Partial<Record<ToolKey, RewardRarity>> = {};
+
 export function getToolUpgradeLvlValue(key: ToolKey) {
 	const level = getEffectiveUpgradeLevel(key);
 	if (level === undefined || !Number.isInteger(level) || level < 0) {
@@ -283,9 +299,13 @@ export function getToolUpgradeLvlValue(key: ToolKey) {
 	const definition = getUpgradeDefinition(key);
 	const upgrade = definition?.levels[level];
 	if (!upgrade) return undefined;
+	const rarity = getEffectiveUpgradeRarity(key) ?? definition.reward?.rarity;
+	const effects = rarity && definition.reward
+		? scaleUpgradeEffects(upgrade.effects, definition.reward.rarity, rarity)
+		: upgrade.effects;
 
 	if (key === "blaster") {
-		const blasterCount = upgrade.effects.modifiers?.find(
+		const blasterCount = effects.modifiers?.find(
 			(modifier) => modifier.stat === "blasterCount"
 		)?.value;
 		return blasterCount === undefined ? undefined : blasterCount - 1;
@@ -293,13 +313,13 @@ export function getToolUpgradeLvlValue(key: ToolKey) {
 
 	const stat = playerStatByTool[key];
 	if (stat) {
-		const value = upgrade.effects.modifiers?.find(
+		const value = effects.modifiers?.find(
 			(modifier) => modifier.stat === stat
 		)?.value;
 		return Number.isFinite(value) ? value : undefined;
 	}
 
-	if (upgrade.effects.unlocks?.length || upgrade.effects.abilities?.length) {
+	if (effects.unlocks?.length || effects.abilities?.length) {
 		return level + 1;
 	}
 
@@ -315,7 +335,14 @@ export function getToolUpgradeStatValue(
 		return undefined;
 	}
 
-	return getUpgradeDefinition(key)?.levels[level]?.effects.modifiers?.find(
+	const definition = getUpgradeDefinition(key);
+	const levelEffects = definition?.levels[level]?.effects;
+	if (!definition || !levelEffects) return undefined;
+	const rarity = getEffectiveUpgradeRarity(key) ?? definition.reward?.rarity;
+	const effects = rarity && definition.reward
+		? scaleUpgradeEffects(levelEffects, definition.reward.rarity, rarity)
+		: levelEffects;
+	return effects.modifiers?.find(
 		(modifier) => modifier.stat === stat
 	)?.value;
 }
@@ -375,6 +402,15 @@ export function getPermanentUpgradeLevel(key: ToolKey): number | undefined {
 	return isPermanentUpgradeKey(key) ? loadout[key] : undefined;
 }
 
+export function getEffectiveUpgradeRarity(
+	key: ToolKey
+): RewardRarity | undefined {
+	if (isPermanentUpgradeKey(key) && loadout[key] !== undefined) {
+		return RewardRarity.Legendary;
+	}
+	return levelLoadoutRarity[key];
+}
+
 export function isPermanentUpgradeKey(
 	key: ToolKey
 ): key is PermanentUpgradeKey {
@@ -417,21 +453,35 @@ export function getNextRunUpgradeLevel(key: ToolKey): number | undefined {
 	return nextLevel;
 }
 
-export function grantRunUpgrade(key: ToolKey): number | undefined {
+export function grantRunUpgrade(
+	key: ToolKey,
+	rarity?: RewardRarity
+): number | undefined {
 	const nextLevel = getNextRunUpgradeLevel(key);
 	if (nextLevel === undefined) return undefined;
 	levelLoadout[key] = nextLevel;
+	if (rarity) {
+		levelLoadoutRarity[key] = getHigherRarity(
+			levelLoadoutRarity[key],
+			rarity
+		);
+	}
 	return nextLevel;
 }
 
-export function addLvl(key: ToolKey) {
+export function addLvl(key: ToolKey, rarity?: RewardRarity) {
 	if (!isPermanentUpgradeKey(key)) {
-		return grantRunUpgrade(key);
+		return grantRunUpgrade(key, rarity);
 	}
 	const nextLvl = getNextLvl(key);
 	const upgradeDef = getUpgradeDefinition(key);
 	if (!upgradeDef?.levels[nextLvl]) return undefined;
 	loadout[key] = nextLvl;
+	const resolvedRarity = rarity ?? RewardRarity.Legendary;
+	loadoutRarity[key] = getHigherRarity(
+		loadoutRarity[key],
+		resolvedRarity
+	);
 
 	// Apply upgrade through new system
 	upgradeService.purchaseUpgrade(key, upgradeDef.levels[nextLvl].effects);
@@ -451,7 +501,19 @@ export function setLoadout(set: Record<string, number | undefined>) {
 	) as Record<ToolKey, number | undefined>;
 }
 
+export function setLoadoutRarity(
+	set: Partial<Record<string, RewardRarity>>
+) {
+	loadoutRarity = Object.fromEntries(
+		(Object.keys(upgrades) as ToolKey[]).flatMap((key) => {
+			const rarity = set[key];
+			return rarity ? [[key, rarity]] : [];
+		})
+	) as Partial<Record<ToolKey, RewardRarity>>;
+}
+
 export function resetLevelLoadout() {
+	levelLoadoutRarity = {};
 	levelLoadout = {
 		blaster: undefined,
 		blasterDmg: undefined,
@@ -517,6 +579,7 @@ export function clearAllUpgrades() {
 	).length
 
 	setLoadout({})
+	setLoadoutRarity({})
 	resetLevelLoadout()
 	upgradeService.reset()
 	return clearedUpgradeCount

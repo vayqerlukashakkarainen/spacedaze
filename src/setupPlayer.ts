@@ -2,6 +2,7 @@ import type { GameObj, KEventController, PosComp, RotateComp, Vec2 } from "kapla
 import { beginPlayerDeathSequence, checkProjectileIntersection } from "./game";
 import {
 	syncPlayerHealthBarCapacity,
+	flashEmptySecondarySocket,
 	updatePlayerHealthBar,
 	updatePhaseJumpUi,
 	updateSpecialBar,
@@ -9,6 +10,7 @@ import {
 import {
 	dt,
 	k,
+	layers,
 	mainSoundVolume,
 	timeScale,
 	WORLD_CAMERA_SCALE,
@@ -47,7 +49,9 @@ import {
 	getEquippedWeapon,
 	getWeaponTriggerModifier,
 } from "./services/weaponService";
+import type { WeaponDefinition } from "./services/weaponService";
 import { spawnPlayerDeathDebris } from "./spawn/spawnPlayerDeathDebris";
+import { getCarriedDebree } from "./services/debreeEconomyService";
 import { spawnAfterburnerWake } from "./spawn/spawnAfterburnerWake";
 import { spawnFlash } from "./spawn/spawnFlash";
 import { spawnRing } from "./spawn/spawnRing";
@@ -62,11 +66,25 @@ import {
 	getCameraBobScale,
 	startCameraBob,
 } from "./services/cameraEffectService";
+import {
+	constrainToRunFinaleBattleZone,
+	getRunFinaleBattleZone,
+} from "./services/runFinaleArenaService";
+import { dialogOpen } from "./services/dialogService";
+import {
+	beginActiveModuleActivation,
+	ensureDefaultActiveModule,
+	getActiveModuleCooldownRemaining,
+	getEquippedActiveModule,
+	updateActiveModuleCooldown,
+} from "./services/activeModuleService";
+import { createExplosion } from "./services/explosionService";
+import { damageDestructibleWallsInRadius } from "./services/destructibleWallService";
+import { spawnGravityPull } from "./spawn/spawnGravityPull";
+import { spawnFollower } from "./spawn/spawnFollower";
 
 let blasters = 0;
 let bulletIndex = 1;
-let specialTimer = 0;
-const rocketSpecialCooldown = 6;
 const targetOffset = 64;
 const playerAcceleration = 420;
 const playerDeceleration = 560;
@@ -116,6 +134,7 @@ interface SetupPlayerOptions {
 
 export function setupPlayer(options: SetupPlayerOptions = {}) {
 	resetPlayerDeathCause();
+	ensureDefaultActiveModule(player.rocketsLvl !== undefined);
 	const respawnTarget = k.center();
 	const respawnStart = respawnTarget.add(
 		-k.width() / (WORLD_CAMERA_SCALE * 2) - 48,
@@ -123,12 +142,22 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	);
 	const respawnDirection = respawnTarget.sub(respawnStart);
 	const respawnAngle = k.Vec2.toAngle(respawnDirection) + 90;
+	const arrivalDirection = k.Vec2.fromAngle(-90);
+	const arrivalStart = respawnTarget.sub(arrivalDirection.scale(72));
+	const arrivalEnd = respawnTarget.add(arrivalDirection.scale(28));
 	let respawnTransitionActive = options.respawnTransition === true;
 	let respawnTransitionElapsed = 0;
 	let arrivalTransitionActive = options.arrivalTransition === true;
 	let arrivalTransitionElapsed = 0;
+	let arrivalImpactStarted = false;
 	const playerObj = k.add([
-		k.pos(respawnTransitionActive ? respawnStart : respawnTarget),
+		k.pos(
+			arrivalTransitionActive
+				? arrivalStart
+				: respawnTransitionActive
+					? respawnStart
+					: respawnTarget
+		),
 		k.sprite("ship"),
 		k.rotate(respawnTransitionActive ? respawnAngle : 0),
 		k.scale(
@@ -153,6 +182,8 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		tags.gameLoop,
 	]);
 	const inputControllers: KEventController[] = [];
+	let primaryChargeStartedAt: number | undefined;
+	let primaryChargeWeaponId = "";
 	const scrapArmorPlates: GameObj[] = [];
 	let cargoObj: GameObj | undefined;
 	const phaseJumpCooldownTrack = k.add([
@@ -202,7 +233,6 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	}
 	if (arrivalTransitionActive) {
 		setPlayerDamageInvulnerable(true);
-		spawnPlayerArrivalImpact(playerObj);
 	}
 
 	registerHitAnimation(playerObj);
@@ -217,7 +247,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		k.destroy(playerObj);
 		starsEmitter.emitter.position = deathPos;
 		starsEmitter.emit(20);
-		spawnPlayerDeathDebris(deathPos);
+		spawnPlayerDeathDebris(deathPos, getCarriedDebree());
 		audioService.playSound("explosion1", { volume: mainSoundVolume });
 		beginPlayerDeathSequence();
 	});
@@ -241,6 +271,19 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			configuredWeaponId = currentWeapon.id;
 			configureBlasters(muzzleObj);
 		}
+		const primaryChargeProgress = currentWeapon.charge &&
+			primaryChargeStartedAt !== undefined
+			? k.clamp(
+				(k.time() - primaryChargeStartedAt) / currentWeapon.charge.maxDuration,
+				0,
+				1
+			)
+			: 0;
+		weaponVisual.color = k.rgb(
+			145 + 90 * primaryChargeProgress,
+			155 + 75 * primaryChargeProgress,
+			165 + 90 * primaryChargeProgress
+		);
 		if (configuredBlasterLevel !== (player.blasterLvl ?? -1)) {
 			configureBlasters(muzzleObj);
 		}
@@ -284,13 +327,13 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			updatePlayerHealthBar(playerObj.hp);
 		}
 
-		if (specialTimer < rocketSpecialCooldown) {
-			specialTimer += dt();
-		}
+		updateActiveModuleCooldown(dt());
+		const activeModule = getEquippedActiveModule();
+		const activeCooldown = activeModule?.cooldown ?? 1;
 		updateSpecialBar(
-			specialTimer,
-			rocketSpecialCooldown,
-			player.rocketsLvl !== undefined
+			activeCooldown - getActiveModuleCooldownRemaining(),
+			activeCooldown,
+			activeModule
 		);
 		if (levelTransitionActive()) {
 			currentCameraPos = k.getCamPos().clone();
@@ -311,6 +354,11 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			);
 			const impactEase = 1 - Math.pow(1 - impactProgress, 3);
 			const settleEase = 1 - Math.pow(1 - settleProgress, 3);
+			playerObj.pos = arrivalStart.lerp(arrivalEnd, impactEase);
+			if (!arrivalImpactStarted && arrivalTransitionElapsed >= 0.16) {
+				arrivalImpactStarted = true;
+				spawnPlayerArrivalImpact(playerObj);
+			}
 			const pulseScale = arrivalTransitionElapsed < 0.2
 				? k.lerp(0.2, 1.28, impactEase)
 				: k.lerp(1.28, 1, settleEase);
@@ -324,6 +372,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 
 			if (progress >= 1) {
 				arrivalTransitionActive = false;
+				playerObj.pos = arrivalEnd.clone();
 				playerObj.scale = k.vec2(PLAYER_SCALE);
 				playerObj.opacity = 1;
 				phaseJumpInvulnerableUntil =
@@ -372,19 +421,26 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		}
 
 		const isPhaseJumping = updatePhaseJump(playerObj);
+		constrainToRunFinaleBattleZone(playerObj.pos, 16);
 		setPlayerDamageInvulnerable(
 			isPhaseJumping || k.time() < phaseJumpInvulnerableUntil
 		);
 		playerObj.opacity = isPhaseJumping ? 0.35 : 1;
-		const cameraFollowSpeed = isPhaseJumping
-			? phaseCameraFollowSpeed
-			: normalCameraFollowSpeed;
-		if (!currentCameraPos) currentCameraPos = playerObj.pos.clone();
-		currentCameraPos = currentCameraPos.lerp(
-			playerObj.pos,
-			1 - Math.exp(-cameraFollowSpeed * dt())
-		);
-		k.setCamPos(currentCameraPos);
+		const battleZone = getRunFinaleBattleZone();
+		if (battleZone) {
+			currentCameraPos = battleZone.center;
+			k.setCamPos(battleZone.center);
+		} else {
+			const cameraFollowSpeed = isPhaseJumping
+				? phaseCameraFollowSpeed
+				: normalCameraFollowSpeed;
+			if (!currentCameraPos) currentCameraPos = playerObj.pos.clone();
+			currentCameraPos = currentCameraPos.lerp(
+				playerObj.pos,
+				1 - Math.exp(-cameraFollowSpeed * dt())
+			);
+			k.setCamPos(currentCameraPos);
+		}
 
 		if (!isPhaseJumping && k.time() >= phaseJumpInvulnerableUntil) {
 			checkProjectileIntersection(playerObj.pos, 12, tags.enemy, (p) => {
@@ -528,6 +584,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 				PLAYER_SCALE
 			);
 		}
+		constrainToRunFinaleBattleZone(playerObj.pos, 16);
 
 		const isPhaseJumpRecharging =
 			phaseJumpConfig !== undefined && phaseJumpCharges < phaseJumpMaxCharges;
@@ -551,15 +608,36 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		updatePlayerHealthBar(playerObj.hp);
 	});
 
-	const firePrimaryWeapon = () => {
+	const canFirePrimaryWeapon = () => {
+		if (dialogOpen()) return;
 		if (isPointerOverUi()) return;
 		if (levelTransitionActive() || respawnTransitionActive) return;
-		const weapon = getEquippedWeapon();
-		const triggerModifier = getWeaponTriggerModifier(weapon);
-		if (triggerModifier.usesCooldown) {
-			if (k.time() < nextPrimaryFireTime) return;
-			nextPrimaryFireTime = k.time() + weapon.fireCooldown;
-		}
+		return true;
+	};
+
+	const fireWeaponVolley = (
+		weapon: WeaponDefinition,
+		chargeRatio: number,
+		playFireSound: boolean
+	) => {
+		if (!playerObj.exists() || getEquippedWeapon().id !== weapon.id) return;
+		if (dialogOpen() || levelTransitionActive() || respawnTransitionActive) return;
+		const charge = weapon.charge;
+		const damageMultiplier = charge
+			? k.lerp(
+				charge.minDamageMultiplier,
+				charge.maxDamageMultiplier,
+				chargeRatio
+			)
+			: 1;
+		const speedMultiplier = charge
+			? k.lerp(
+				charge.minSpeedMultiplier ?? 1,
+				charge.maxSpeedMultiplier ?? 1,
+				chargeRatio
+			)
+			: 1;
+
 		if (
 			session.primaryRocketChance > 0 &&
 			k.chance(k.clamp(session.primaryRocketChance, 0, 1))
@@ -570,25 +648,69 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 				turretWorldAngle
 			);
 		}
-		if (hasLvlValue(player.blasterParallel, 1)) {
-			for (let i = 0; i < blasters; i++) {
-				const gunPipe = muzzleObj.children[i];
+
+		const projectileCount = Math.max(
+			1,
+			Math.floor(weapon.pattern?.projectileCount ?? 1)
+		);
+		const patternSpread = weapon.pattern?.spreadDegrees ?? 0;
+		let shouldPlayFireSound = playFireSound;
+		const fireFromMuzzle = (muzzlePos: Vec2) => {
+			for (let index = 0; index < projectileCount; index++) {
+				const angleOffset = projectileCount === 1
+					? 0
+					: -patternSpread / 2 + patternSpread * index / (projectileCount - 1);
 				spawnPlayerBlaster(
-					getPlayerMuzzlePos(playerObj.pos, gunPipe.pos, turretWorldAngle),
+					muzzlePos,
 					k.Vec2.fromAngle(turretWorldAngle - 90),
-					turretWorldAngle
+					turretWorldAngle,
+					{
+						angleOffset,
+						damageMultiplier,
+						speedMultiplier,
+						playFireSound: shouldPlayFireSound,
+					}
+				);
+				shouldPlayFireSound = false;
+			}
+		};
+
+		if (hasLvlValue(player.blasterParallel, 1)) {
+			for (let index = 0; index < blasters; index++) {
+				const gunPipe = muzzleObj.children[index];
+				fireFromMuzzle(
+					getPlayerMuzzlePos(playerObj.pos, gunPipe.pos, turretWorldAngle)
 				);
 			}
 			return;
 		}
 
 		const gunPipe = muzzleObj.children[bulletIndex % blasters];
-		spawnPlayerBlaster(
-			getPlayerMuzzlePos(playerObj.pos, gunPipe.pos, turretWorldAngle),
-			k.Vec2.fromAngle(turretWorldAngle - 90),
-			turretWorldAngle
+		fireFromMuzzle(
+			getPlayerMuzzlePos(playerObj.pos, gunPipe.pos, turretWorldAngle)
 		);
 		bulletIndex++;
+	};
+
+	const firePrimaryWeapon = (chargeRatio: number = 1) => {
+		if (!canFirePrimaryWeapon()) return;
+		const weapon = getEquippedWeapon();
+		const triggerModifier = getWeaponTriggerModifier(weapon);
+		if (triggerModifier.usesCooldown) {
+			if (k.time() < nextPrimaryFireTime) return;
+			nextPrimaryFireTime = k.time() + weapon.fireCooldown;
+		}
+		const burstCount = Math.max(1, Math.floor(weapon.pattern?.burstCount ?? 1));
+		const burstInterval = weapon.pattern?.burstInterval ?? 0;
+		for (let index = 0; index < burstCount; index++) {
+			const fireRound = () => fireWeaponVolley(
+				weapon,
+				k.clamp(chargeRatio, 0, 1),
+				true
+			);
+			if (index === 0) fireRound();
+			else k.wait(index * burstInterval, fireRound);
+		}
 	};
 
 	playerObj.onUpdate(() => profileSection("external:playerWeaponHold", () => {
@@ -598,30 +720,48 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	}));
 
 	inputControllers.push(k.onMousePress("left", () => {
-		if (getWeaponTriggerModifier(getEquippedWeapon()).mode !== "press") return;
-		firePrimaryWeapon();
+		const weapon = getEquippedWeapon();
+		const mode = getWeaponTriggerModifier(weapon).mode;
+		if (mode === "press") {
+			firePrimaryWeapon();
+			return;
+		}
+		if (mode !== "charge" || !canFirePrimaryWeapon()) return;
+		primaryChargeStartedAt = k.time();
+		primaryChargeWeaponId = weapon.id;
+	}));
+
+	inputControllers.push(k.onMouseRelease("left", () => {
+		if (primaryChargeStartedAt === undefined) return;
+		const weapon = getEquippedWeapon();
+		const chargeStartedAt = primaryChargeStartedAt;
+		primaryChargeStartedAt = undefined;
+		if (
+			weapon.id !== primaryChargeWeaponId ||
+			getWeaponTriggerModifier(weapon).mode !== "charge" ||
+			!weapon.charge
+		) return;
+		const chargeRatio = k.clamp(
+			(k.time() - chargeStartedAt) / weapon.charge.maxDuration,
+			0,
+			1
+		);
+		firePrimaryWeapon(chargeRatio);
 	}));
 
 	inputControllers.push(k.onMousePress("right", () => {
+		if (dialogOpen()) return;
 		if (levelTransitionActive() || respawnTransitionActive) return;
-		if (player.rocketsLvl === undefined) return;
-
-		if (specialTimer < rocketSpecialCooldown) {
+		if (!getEquippedActiveModule()) {
+			flashEmptySecondarySocket();
+			audioService.playSound("empty_secondary_error", {
+				volume: mainSoundVolume * 0.55,
+			});
 			return;
 		}
-
-		specialTimer = 0;
-		loopService.loop(
-			0.1,
-			() => {
-				spawnPlayerRocket(
-					playerObj.pos,
-					k.Vec2.fromAngle(turretWorldAngle - 90),
-					turretWorldAngle
-				);
-			},
-			player.nrOfRockets + session.extraRockets
-		);
+		const activeModule = beginActiveModuleActivation();
+		if (!activeModule) return;
+		activateModule(activeModule.id, playerObj, turretWorldAngle);
 	}));
 
 	playerObj.onKeyDown("shift", () => {
@@ -634,6 +774,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	});
 
 	playerObj.onKeyPress("space", () => {
+		if (dialogOpen()) return;
 		if (levelTransitionActive() || respawnTransitionActive) return;
 		const config = getPhaseJumpConfig();
 		if (!config || phaseJumpCharges <= 0 || phaseJumpEnd) return;
@@ -641,6 +782,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		const jumpDirection = k.Vec2.fromAngle(playerObj.angle - 90);
 		const startPos = playerObj.pos.clone();
 		const destination = startPos.add(jumpDirection.scale(config.distance));
+		constrainToRunFinaleBattleZone(destination, 16);
 		const gridCollision = playerObj.has("gridCollision")
 			? (playerObj.c("gridCollision") as GridCollisionComp)
 			: undefined;
@@ -664,6 +806,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	});
 
 	playerObj.onKeyPress("f", () => {
+		if (dialogOpen()) return;
 		if (levelTransitionActive() || respawnTransitionActive) return;
 		let closestInteractable:
 			| GameObj<InteractableComp | PosComp>
@@ -694,20 +837,6 @@ function spawnPlayerArrivalImpact(playerObj: GameObj<PosComp>) {
 	starsEmitter.emitter.position = playerObj.pos;
 	starsEmitter.emit(32);
 	spawnFlash(playerObj.pos, 14, k.rgb(150, 235, 255));
-	spawnRing({
-		pos: playerObj.pos.clone(),
-		speed: 820,
-		intensity: 1.15,
-		maxRadius: 620,
-		effectWidth: 72,
-		outlineWidth: 5,
-		visualOpacity: 0.95,
-		visualize: true,
-		color: k.rgb(120, 225, 255),
-		shader: "arrivalShockwave",
-		affectAllSprites: true,
-		excludeIds: [playerObj.id],
-	});
 	startCameraBob({
 		strength: 0.09,
 		duration: 0.85,
@@ -849,6 +978,184 @@ function configureSpaceJump() {
 		phaseJumpCharges + Math.max(0, phaseJumpMaxCharges - previousMaxCharges),
 		phaseJumpMaxCharges
 	);
+}
+
+function activateModule(
+	moduleId: string,
+	playerObj: GameObj<PosComp>,
+	turretWorldAngle: number
+) {
+	const direction = k.Vec2.fromAngle(turretWorldAngle - 90);
+	const targetPos = getActiveModuleTarget(playerObj.pos, 220);
+
+	switch (moduleId) {
+		case "rocketPod":
+			loopService.loop(
+				0.1,
+				() => {
+					if (!playerObj.exists()) return;
+					spawnPlayerRocket(
+						playerObj.pos,
+						direction,
+						turretWorldAngle
+					);
+				},
+				player.nrOfRockets + session.extraRockets
+			);
+			return;
+
+		case "kineticBarrier": {
+			playerObj.activeModuleInvulnerable = true;
+			const barrier = playerObj.add([
+				k.circle(25, { fill: false }),
+				k.anchor("center"),
+				k.outline(2, k.rgb(90, 200, 255)),
+				k.opacity(0.85),
+				k.layer(layers.gameEffects),
+				k.lifespan(1.6, { fade: 0.35 }),
+			]);
+			barrier.onUpdate(() => {
+				barrier.scale = k.vec2(k.wave(0.94, 1.08, k.time() * 7));
+			});
+			barrier.onDestroy(() => {
+				if (playerObj.exists()) playerObj.activeModuleInvulnerable = false;
+			});
+			spawnRing({
+				pos: playerObj.pos.clone(),
+				speed: 180,
+				intensity: 0.18,
+				maxRadius: 36,
+				color: k.rgb(90, 200, 255),
+			});
+			audioService.playSound("swap_level", {
+				volume: mainSoundVolume * 0.6,
+				detune: 650,
+			});
+			return;
+		}
+
+		case "gravityCharge": {
+			const gravity = spawnGravityPull({
+				pos: targetPos,
+				radius: 105,
+				strength: 42,
+				falloff: 1.2,
+				visualizePull: true,
+				targetTags: [
+					tags.enemy,
+					tags.projectile,
+					tags.debree,
+				],
+				tagStrengthMultipliers: {
+					[tags.projectile]: 1.8,
+					[tags.debree]: 1.4,
+				},
+			});
+			const core = k.add([
+				k.pos(targetPos),
+				k.sprite("active_gravity_charge"),
+				k.anchor("center"),
+				k.scale(0.75),
+				k.rotate(0),
+				k.color(150, 100, 255),
+				k.layer(layers.gameEffects),
+				tags.props,
+				tags.gameLoop,
+			]);
+			core.onUpdate(() => {
+				core.angle += 150 * dt();
+				core.scale = k.vec2(k.wave(0.65, 0.9, k.time() * 6));
+			});
+			spawnRing({
+				pos: targetPos,
+				speed: 55,
+				intensity: 0.28,
+				maxRadius: 105,
+				color: k.rgb(150, 100, 255),
+			});
+			k.wait(2.4, () => {
+				if (gravity.exists()) k.destroy(gravity);
+				if (core.exists()) k.destroy(core);
+				createExplosion({
+					pos: targetPos,
+					radius: 58,
+					damage: 10,
+					visualIntensity: 0.75,
+					visualParticleCount: 30,
+				});
+				audioService.playPositionalSound("explosion1", targetPos, {
+					volume: mainSoundVolume,
+				});
+				k.shake(4);
+			});
+			return;
+		}
+
+		case "breachCharge": {
+			const charge = k.add([
+				k.pos(targetPos),
+				k.sprite("active_breach_charge"),
+				k.anchor("center"),
+				k.scale(0.75),
+				k.rotate(turretWorldAngle),
+				k.color(k.WHITE),
+				k.opacity(1),
+				k.layer(layers.gameEffects),
+				tags.props,
+				tags.gameLoop,
+			]);
+			charge.onUpdate(() => {
+				charge.opacity = k.wave(0.25, 1, k.time() * 18);
+			});
+			audioService.playSound("click1", { volume: mainSoundVolume * 0.6 });
+			k.wait(0.7, () => {
+				if (charge.exists()) k.destroy(charge);
+				createExplosion({
+					pos: targetPos,
+					radius: 70,
+					damage: 28,
+					visualIntensity: 1,
+					visualParticleCount: 42,
+				});
+				damageDestructibleWallsInRadius(targetPos, 72, 28);
+				audioService.playPositionalSound("explosion1", targetPos, {
+					volume: mainSoundVolume,
+				});
+				k.shake(7);
+			});
+			return;
+		}
+
+		case "droneBeacon":
+			for (let index = 0; index < 2; index++) {
+				const drone = spawnFollower({
+					hp: 1,
+					blasterDmg: Math.max(1, player.followerBlasterDmg),
+					speed: player.speed * 1.15,
+					follow: playerObj,
+					deploymentStart: targetPos.add(index === 0 ? -12 : 12, 0),
+				});
+				drone.temporaryActiveModuleDrone = true;
+				k.wait(12, () => {
+					if (drone.exists()) k.destroy(drone);
+				});
+			}
+			spawnRing({
+				pos: targetPos,
+				speed: 160,
+				intensity: 0.2,
+				maxRadius: 52,
+				color: k.rgb(80, 220, 150),
+			});
+			return;
+	}
+}
+
+function getActiveModuleTarget(origin: Vec2, maxDistance: number) {
+	const mouseWorldPos = k.toWorld(k.mousePos());
+	const offset = mouseWorldPos.sub(origin);
+	if (offset.len() <= maxDistance) return mouseWorldPos;
+	return origin.add(offset.unit().scale(maxDistance));
 }
 
 function getSpaceJumpConfigLevel() {

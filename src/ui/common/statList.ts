@@ -1,6 +1,7 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { k } from "../../main"
 import { addThemedText } from "./text"
+import { UI_FONT_SIZES } from "./theme"
 
 export interface UiStatRow {
 	label: string
@@ -30,7 +31,7 @@ export function createUiStatList(parent: GameObj, props: UiStatListProps) {
 			text: row.value,
 			pos: k.vec2(0, y),
 			variant: "caption",
-			size: 9,
+			size: UI_FONT_SIZES.small,
 			width: props.width,
 			align: "right",
 		})

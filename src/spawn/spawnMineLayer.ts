@@ -9,7 +9,7 @@ import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
 } from "../services/threatService"
-import { registerHitAnimation } from "../shared"
+import { easeDirection, registerHitAnimation } from "../shared"
 import { tags } from "../tags"
 import { randomExplosion } from "../util"
 import { timescale } from "../comp/timescale"
@@ -25,7 +25,7 @@ export function spawnMineLayer(
 	const mineLayer = k.add([
 		k.pos(pos),
 		k.sprite("enemy_mine_layer"),
-		k.color(255, profile.elite ? 205 : 170, 55),
+		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),
 		k.health(profile.hp),
@@ -38,6 +38,7 @@ export function spawnMineLayer(
 			damage: profile.damage,
 			mineTimer: k.rand(0.6, 1.4),
 			orbitDirection: k.chance(0.5) ? 1 : -1,
+			moveDirection: k.vec2(0, 1),
 		},
 		tags.enemy,
 		tags.unit,
@@ -60,12 +61,18 @@ export function spawnMineLayer(
 				: k.vec2(0)
 		const movement = tangent.add(radial.scale(1.25))
 		if (movement.len() > 0) {
+			mineLayer.moveDirection = easeDirection(
+				mineLayer.moveDirection,
+				movement.unit(),
+				4,
+				delta
+			)
 			mineLayer.move(
-				movement.unit().scale(
+				mineLayer.moveDirection.scale(
 					85 * profile.speedMultiplier * velocityScale() * mineLayer.getTimescale()
 				)
 			)
-			mineLayer.angle = movement.angle() + 90
+			mineLayer.angle = mineLayer.moveDirection.angle() + 90
 		}
 
 		mineLayer.mineTimer -= delta
@@ -114,7 +121,7 @@ function spawnEnemyMine(pos: Vec2, damage: number, extraTags?: string[]) {
 		k.layer(layers.gameEffects),
 		k.rotate(k.rand(360)),
 		k.scale(0.72),
-		k.color(255, 170, 55),
+		k.color(k.WHITE),
 		k.opacity(0.9),
 		{
 			armedElapsed: 0,
@@ -136,7 +143,7 @@ function spawnEnemyMine(pos: Vec2, damage: number, extraTags?: string[]) {
 			return
 		}
 		if (mine.armedElapsed < 0.65) return
-		mine.color = triggered ? k.rgb(255, 55, 55) : k.rgb(255, 170, 55)
+		mine.color = k.WHITE
 		mine.opacity = triggered
 			? k.wave(0.3, 1, k.time() * 14)
 			: k.wave(0.6, 1, k.time() * 4)

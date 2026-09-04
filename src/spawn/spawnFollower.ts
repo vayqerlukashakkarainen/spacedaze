@@ -352,6 +352,8 @@ export function spawnFollower(props: Props) {
 			loops: 1,
 		});
 	});
+
+	return m;
 }
 
 export function refreshFollowerTypes() {

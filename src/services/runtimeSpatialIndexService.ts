@@ -7,6 +7,9 @@ import { SpatialHash } from "./spatialHash"
 const SPATIAL_CELL_SIZE = 96
 const LEGACY_POSITION_PADDING = 48
 const spatialHash = new SpatialHash<GameObj & { pos: Vec2 }>(SPATIAL_CELL_SIZE)
+const spatialObjects: Array<GameObj & { pos: Vec2 }> = []
+const spatialObjectIndices = new Map<number, number>()
+let registryInitialized = false
 
 export interface SpatialQueryOptions {
 	allTags?: string[]
@@ -15,8 +18,8 @@ export interface SpatialQueryOptions {
 }
 
 export function rebuildRuntimeSpatialIndex() {
-	const objects = k.get(tags.gameLoop) as Array<GameObj & { pos: Vec2 }>
-	spatialHash.rebuild(objects)
+	ensureSpatialObjectRegistry()
+	spatialHash.rebuild(spatialObjects)
 	setPerformanceCounter("spatialObjects", spatialHash.size)
 	setPerformanceCounter("spatialCells", spatialHash.activeCellCount)
 }
@@ -87,19 +90,50 @@ export function querySpatialNearby(
 function matchesTags(obj: GameObj, options: SpatialQueryOptions) {
 	if (options.allTags) {
 		for (const tag of options.allTags) {
-			if (!obj.tags.includes(tag)) return false
+			if (!obj.is(tag)) return false
 		}
 	}
 	if (options.anyTags && options.anyTags.length > 0) {
 		let found = false
 		for (const tag of options.anyTags) {
-			if (!obj.tags.includes(tag)) continue
+			if (!obj.is(tag)) continue
 			found = true
 			break
 		}
 		if (!found) return false
 	}
 	return true
+}
+
+function ensureSpatialObjectRegistry() {
+	if (registryInitialized) return
+	registryInitialized = true
+	for (const obj of k.get(tags.gameLoop) as Array<GameObj & { pos: Vec2 }>) {
+		registerSpatialObject(obj)
+	}
+	k.onAdd(tags.gameLoop, (obj) => {
+		registerSpatialObject(obj as GameObj & { pos: Vec2 })
+	})
+}
+
+function registerSpatialObject(obj: GameObj & { pos: Vec2 }) {
+	if (spatialObjectIndices.has(obj.id)) return
+	spatialObjectIndices.set(obj.id, spatialObjects.length)
+	spatialObjects.push(obj)
+	obj.onDestroy(() => unregisterSpatialObject(obj.id))
+}
+
+function unregisterSpatialObject(id: number) {
+	const index = spatialObjectIndices.get(id)
+	if (index === undefined) return
+	const lastIndex = spatialObjects.length - 1
+	const lastObject = spatialObjects[lastIndex]
+	if (index !== lastIndex) {
+		spatialObjects[index] = lastObject
+		spatialObjectIndices.set(lastObject.id, index)
+	}
+	spatialObjects.pop()
+	spatialObjectIndices.delete(id)
 }
 
 function isExcluded(

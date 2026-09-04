@@ -4,7 +4,7 @@ import { tags } from "../tags"
 import type { Reward } from "./rewardService"
 import { REWARD_RARITY_COLORS } from "./rewardService"
 import { createUiGrowingContainer } from "../ui/common/growingContainer"
-import { UI_COLORS } from "../ui/common/theme"
+import { UI_COLORS, UI_FONT_SIZES } from "../ui/common/theme"
 import { registerBatchedUiUpdate } from "./uiUpdateService"
 
 export interface PopoverOptions {
@@ -99,7 +99,7 @@ export function showPopover(options: PopoverOptions) {
 		text: options.title,
 		variant: "caption",
 		color: accent,
-		size: 8,
+		size: UI_FONT_SIZES.small,
 		gapAfter: 3,
 	})
 	title.use(k.opacity(0))
@@ -108,7 +108,7 @@ export function showPopover(options: PopoverOptions) {
 		text: options.message,
 		variant: "heading",
 		color: k.WHITE,
-		size: 11,
+		size: UI_FONT_SIZES.body,
 		gapAfter: options.description ? 3 : 0,
 	})
 	message.use(k.opacity(0))
@@ -118,7 +118,7 @@ export function showPopover(options: PopoverOptions) {
 			text: options.description,
 			variant: "muted",
 			color: k.rgb(150, 165, 175),
-			size: 8,
+			size: UI_FONT_SIZES.small,
 			lineHeight: 1.25,
 			gapAfter: 0,
 		})
@@ -141,13 +141,39 @@ export function showPopover(options: PopoverOptions) {
 
 export function showCollectedRewardPopover(reward: Reward) {
 	return showPopover({
-		title: `${reward.rarity.toUpperCase()} ${reward.kind.toUpperCase()} COLLECTED`,
+		title: reward.progression.persistence === "permanent"
+			? `${reward.rarity.toUpperCase()} PERMANENT UNLOCKED`
+			: `${reward.rarity.toUpperCase()} ${reward.kind === "activeModule" ? "ACTIVE MODULE" : reward.kind.toUpperCase()} COLLECTED`,
 		message: reward.name,
 		description: reward.description,
 		sprite: reward.sprite,
 		color: k.rgb(...REWARD_RARITY_COLORS[reward.rarity]),
 		duration: 5,
 	})
+}
+
+export function showDiscoveredRewardPopover(reward: Reward) {
+	return showPopover({
+		title: `${reward.rarity.toUpperCase()} ${getDiscoveryType(reward)} DISCOVERED`,
+		message: reward.name,
+		description: "NEW BLUEPRINT ADDED TO THE PHASE STATION",
+		sprite: reward.sprite,
+		color: k.rgb(...REWARD_RARITY_COLORS[reward.rarity]),
+		duration: 6,
+	})
+}
+
+function getDiscoveryType(reward: Reward) {
+	switch (reward.kind) {
+		case "activeModule":
+			return "MODULE"
+		case "powerup":
+			return "POWERUP"
+		case "item":
+			return "ITEM"
+		default:
+			return reward.kind.toUpperCase()
+	}
 }
 
 function ensurePopoverController() {

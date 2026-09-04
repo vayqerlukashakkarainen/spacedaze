@@ -7,7 +7,7 @@ import { createUiCheckbox } from "./common/checkbox";
 import { addThemedText } from "./common/text";
 import { createUiActionButton } from "./common/button";
 import { createUiSectionHeader } from "./common/sectionHeader";
-import { UI_COLORS } from "./common/theme";
+import { UI_COLORS, UI_FONT_SIZES } from "./common/theme";
 
 interface Props {
 	center: Vec2;
@@ -26,7 +26,7 @@ export function createVolumeControls({
 		pos: k.vec2(center.x, startY),
 		txt: "VOLUME",
 		color: k.WHITE,
-		fontSize: 16,
+		fontSize: UI_FONT_SIZES.heading,
 		tags,
 	});
 

@@ -45,7 +45,7 @@ export const PLAYTEST_BUILDS: readonly PlaytestBuild[] = [
 		upgrades: {
 			blaster: 1,
 			mouseAim: 0,
-			sprint: 1,
+			sprint: 0,
 			sprintSpeed: 1,
 			movespeed: 1,
 			spaceJump: 0,

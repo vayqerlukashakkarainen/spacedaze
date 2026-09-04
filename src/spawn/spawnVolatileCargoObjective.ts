@@ -7,6 +7,7 @@ import { audioService } from "../services/audioService"
 import { tags } from "../tags"
 import { spawnRing } from "./spawnRing"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { UI_FONT_SIZES } from "../ui/common"
 
 interface VolatileCargoObjectiveProps {
 	pos: Vec2
@@ -78,7 +79,7 @@ function spawnCollectionMessage(pos: Vec2) {
 	const message = k.add([
 		k.pos(pos.clone()),
 		k.text("CARGO SECURED // DO NOT TAKE HULL DAMAGE", {
-			size: 9,
+			size: UI_FONT_SIZES.small,
 			font: "unscii",
 		}),
 		k.anchor("center"),

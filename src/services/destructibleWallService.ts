@@ -8,6 +8,7 @@ export interface DestructibleWallState {
 }
 
 interface DestructibleWallRegistration extends DestructibleWallState {
+	worldPos?: Vec2
 	onDamaged?: (state: DestructibleWallState, impactPos?: Vec2) => void
 	onDestroyed?: (state: DestructibleWallState) => void
 }
@@ -18,6 +19,7 @@ export function registerDestructibleWall(options: {
 	gridKey: string
 	coord: { q: number; r: number }
 	maxHp: number
+	worldPos?: Vec2
 	onDamaged?: (state: DestructibleWallState, impactPos?: Vec2) => void
 	onDestroyed?: (state: DestructibleWallState) => void
 }) {
@@ -25,11 +27,33 @@ export function registerDestructibleWall(options: {
 		hp: options.maxHp,
 		maxHp: options.maxHp,
 		destroyed: false,
+		worldPos: options.worldPos?.clone(),
 		onDamaged: options.onDamaged,
 		onDestroyed: options.onDestroyed,
 	}
 	walls.set(wallKey(options.gridKey, options.coord), state)
 	return state
+}
+
+export function damageDestructibleWallsInRadius(
+	pos: Vec2,
+	radius: number,
+	damage: number
+) {
+	let hits = 0
+	for (const state of walls.values()) {
+		if (state.destroyed || !state.worldPos) continue
+		if (state.worldPos.dist(pos) > radius) continue
+		const appliedDamage = Math.min(state.hp, Math.max(0, damage))
+		state.hp = Math.max(0, state.hp - appliedDamage)
+		showDamageNumber(state.worldPos, appliedDamage)
+		state.onDamaged?.(state, state.worldPos)
+		hits++
+		if (state.hp > 0) continue
+		state.destroyed = true
+		state.onDestroyed?.(state)
+	}
+	return hits
 }
 
 export function damageDestructibleWall(

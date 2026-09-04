@@ -20,11 +20,23 @@ assert.equal(hardBezier.maxPasses, 1)
 assert.ok(hardBezier.speed > easyBezier.speed)
 assert.ok(hardBezier.bezierHitWindow < easyBezier.bezierHitWindow)
 
+const easyFrequency = createChestChallengeConfig(1, "frequency")
+const hardFrequency = createChestChallengeConfig(5, "frequency")
+assert.ok(hardFrequency.frequencyHitWindow < easyFrequency.frequencyHitWindow)
+assert.ok(hardFrequency.frequencyTuneSpeed > easyFrequency.frequencyTuneSpeed)
+
+const easyCapacitor = createChestChallengeConfig(1, "capacitor")
+const hardCapacitor = createChestChallengeConfig(5, "capacitor")
+assert.ok(hardCapacitor.capacitorChargeSpeed > easyCapacitor.capacitorChargeSpeed)
+assert.ok(hardCapacitor.capacitorPerfectCharge > easyCapacitor.capacitorPerfectCharge)
+
 assert.equal(createChestChallengeConfig(99, "linear").difficulty, 5)
 assert.equal(createChestChallengeConfig(-10, "linear").difficulty, 1)
 assert.equal(normalizeChestChallengeHits("linear", 1), 1)
 assert.equal(normalizeChestChallengeHits("bezier", 0), 0)
 assert.equal(normalizeChestChallengeHits("bezier", 1), 3)
+assert.equal(normalizeChestChallengeHits("frequency", 2), 2)
+assert.equal(normalizeChestChallengeHits("capacitor", 3), 3)
 
 setNextChestDifficulty(4)
 assert.equal(consumeNextChestDifficulty(), 4)

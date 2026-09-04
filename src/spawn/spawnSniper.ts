@@ -10,7 +10,7 @@ import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
 } from "../services/threatService"
-import { registerHitAnimation } from "../shared"
+import { easeDirection, registerHitAnimation } from "../shared"
 import { tags } from "../tags"
 import { randomExplosion } from "../util"
 import { timescale } from "../comp/timescale"
@@ -27,7 +27,7 @@ export function spawnSniper(
 	const sniper = k.add([
 		k.pos(pos),
 		k.sprite("enemy_sniper"),
-		k.color(profile.elite ? 175 : 210, 95, 255),
+		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),
 		k.health(profile.hp),
@@ -41,6 +41,8 @@ export function spawnSniper(
 			phase: "reposition" as SniperPhase,
 			phaseTimer: k.rand(0.4, 1.2),
 			strafeDirection: k.chance(0.5) ? 1 : -1,
+			moveDirection: k.vec2(0, 1),
+			facingDirection: k.vec2(0, 1),
 		},
 		tags.enemy,
 		tags.unit,
@@ -52,7 +54,7 @@ export function spawnSniper(
 		k.rect(1, 420),
 		k.pos(0, -218),
 		k.anchor("center"),
-		k.color(255, 70, 105),
+		k.color(k.WHITE),
 		k.opacity(0),
 		k.z(-1),
 	])
@@ -64,7 +66,13 @@ export function spawnSniper(
 		const toPlayer = playerObj.pos.sub(sniper.pos)
 		const distance = toPlayer.len()
 		const direction = distance > 0 ? toPlayer.unit() : k.vec2(0, 1)
-		sniper.angle = direction.angle() + 90
+		sniper.facingDirection = easeDirection(
+			sniper.facingDirection,
+			direction,
+			7,
+			delta
+		)
+		sniper.angle = sniper.facingDirection.angle() + 90
 
 		if (sniper.phase === "reposition") {
 			const tangent = k.vec2(-direction.y, direction.x).scale(sniper.strafeDirection)
@@ -75,8 +83,14 @@ export function spawnSniper(
 					: k.vec2(0)
 			const movement = tangent.scale(0.7).add(radial)
 			if (movement.len() > 0) {
+				sniper.moveDirection = easeDirection(
+					sniper.moveDirection,
+					movement.unit(),
+					4.5,
+					delta
+				)
 				sniper.move(
-					movement.unit().scale(
+					sniper.moveDirection.scale(
 						75 * profile.speedMultiplier * velocityScale() * sniper.getTimescale()
 					)
 				)
@@ -90,7 +104,7 @@ export function spawnSniper(
 			if (sniper.phaseTimer >= 1) {
 				const shot = spawnEnemyBlaster(
 					sniper.pos.clone(),
-					direction,
+					sniper.facingDirection,
 					sniper.angle,
 					sniper.damage,
 					{ name: "SNIPER", sprite: "enemy_sniper" }

@@ -59,7 +59,7 @@ const defaultStats: Record<string, number> = {
 	debreeValueMultiplier: 1,
 
 	// Survival
-	maxHealth: 2,
+	maxHealth: 3,
 	extraHealth: 0,
 
 	// Follower

@@ -4,6 +4,7 @@ import { uiState } from "../../ui/uiState";
 import { createUiLabel } from "../../ui/common/label";
 import { createUiButton } from "../../ui/common/button";
 import { uiHitRegion } from "../../ui/common/hitRegion";
+import { UI_FONT_SIZES } from "../../ui/common/theme";
 
 interface ModalButton {
 	text: string;
@@ -57,7 +58,7 @@ export function createModal(
 
 	// Title
 	modal.add([
-		k.text(title, { size: 16, font: "unscii" }),
+		k.text(title, { size: UI_FONT_SIZES.heading, font: "unscii" }),
 		k.pos(0, -modalHeight / 2 + 30),
 		k.color(255, 255, 255),
 		k.anchor("center"),
@@ -65,7 +66,7 @@ export function createModal(
 
 	// Content
 	modal.add([
-		k.text(content, { size: 12, font: "unscii" }),
+		k.text(content, { size: UI_FONT_SIZES.body, font: "unscii" }),
 		k.pos(0, -20),
 		k.color(200, 200, 200),
 		k.anchor("center"),
@@ -153,7 +154,7 @@ export function createInputModal(
 
 	// Title
 	modal.add([
-		k.text(title, { size: 16, font: "unscii" }),
+		k.text(title, { size: UI_FONT_SIZES.heading, font: "unscii" }),
 		k.pos(0, -modalHeight / 2 + 30),
 		k.color(255, 255, 255),
 		k.anchor("center"),
@@ -161,7 +162,7 @@ export function createInputModal(
 
 	// Format label (shows input format)
 	modal.add([
-		k.text(`Format: ${placeholder}`, { size: 10, font: "unscii" }),
+		k.text(`Format: ${placeholder}`, { size: UI_FONT_SIZES.label, font: "unscii" }),
 		k.pos(0, -30),
 		k.color(150, 150, 150),
 		k.anchor("center"),
@@ -187,7 +188,7 @@ export function createInputModal(
 	]);
 
 	const inputText = inputBg.add([
-		k.text("", { size: 12, font: "unscii" }),
+		k.text("", { size: UI_FONT_SIZES.body, font: "unscii" }),
 		k.anchor("center"),
 		k.color(255, 255, 255),
 	]);
@@ -312,7 +313,7 @@ export function createListModal(
 
 	// Title
 	modal.add([
-		k.text(title, { size: 16, font: "unscii" }),
+		k.text(title, { size: UI_FONT_SIZES.heading, font: "unscii" }),
 		k.pos(0, -modalHeight / 2 + 30),
 		k.color(255, 255, 255),
 		k.anchor("center"),

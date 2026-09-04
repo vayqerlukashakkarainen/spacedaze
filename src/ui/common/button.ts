@@ -1,12 +1,14 @@
 import { Vec2 } from "kaplay";
 import { k, layers } from "../../main";
 import { uiState } from "../uiState";
-import { UI_COLORS } from "./theme";
+import { UI_COLORS, UI_FONT_SIZES } from "./theme";
 import { uiHitRegion } from "./hitRegion";
 import {
 	playUiClickSound,
 	playUiHoverSound,
 } from "../../services/uiSoundService";
+import type { InputPromptAction } from "../../services/inputPromptService";
+import { createInputPromptRow } from "./inputPrompt";
 
 export interface UiActionButtonProps {
 	pos: Vec2;
@@ -15,8 +17,10 @@ export interface UiActionButtonProps {
 	size?: Vec2;
 	selected?: boolean;
 	disabled?: boolean;
+	notification?: boolean;
 	icon?: string;
 	iconSize?: number;
+	promptAction?: InputPromptAction;
 }
 
 export function createUiActionButton(parent: ReturnType<typeof k.add>, {
@@ -26,8 +30,10 @@ export function createUiActionButton(parent: ReturnType<typeof k.add>, {
 	size = k.vec2(120, 32),
 	selected = false,
 	disabled = false,
+	notification = false,
 	icon,
 	iconSize = 14,
+	promptAction,
 }: UiActionButtonProps) {
 	const button = parent.add([
 		k.pos(pos),
@@ -37,11 +43,19 @@ export function createUiActionButton(parent: ReturnType<typeof k.add>, {
 		k.outline(1, k.rgb(...(selected ? UI_COLORS.accent : UI_COLORS.border))),
 	]);
 	button.add([
-		k.text(text, { size: 8, font: "unscii" }),
-		k.pos(size.x / 2 + (icon ? 6 : 0), size.y / 2),
+		k.text(text, { size: UI_FONT_SIZES.tiny, font: "unscii" }),
+		k.pos(size.x / 2 + (icon || promptAction ? 6 : 0), size.y / 2),
 		k.anchor("center"),
 		k.color(...(disabled ? UI_COLORS.muted : UI_COLORS.text)),
 	]);
+	if (notification) {
+		button.add([
+			k.text("!", { size: UI_FONT_SIZES.tiny, font: "unscii" }),
+			k.pos(size.x - 9, 5),
+			k.anchor("topright"),
+			k.color(...UI_COLORS.warning),
+		]);
+	}
 	if (icon) {
 		button.add([
 			k.sprite(icon, { width: iconSize, height: iconSize }),
@@ -49,6 +63,15 @@ export function createUiActionButton(parent: ReturnType<typeof k.add>, {
 			k.anchor("center"),
 			k.color(...(disabled ? UI_COLORS.muted : UI_COLORS.text)),
 		]);
+	}
+	if (promptAction) {
+		createInputPromptRow(button, {
+			pos: k.vec2(14, size.y / 2),
+			prompts: [{ action: promptAction }],
+			align: "center",
+			color: disabled ? UI_COLORS.muted : UI_COLORS.text,
+			iconHeight: 20,
+		})
 	}
 	if (!disabled) {
 		button.onClick(() => {
@@ -109,7 +132,7 @@ export function createUiButton({
 	]);
 
 	btn.add([
-		k.text(txt, { size: 12, font: "unscii" }),
+		k.text(txt, { size: UI_FONT_SIZES.body, font: "unscii" }),
 		k.anchor("center"),
 		k.color(255, 255, 255),
 	]);

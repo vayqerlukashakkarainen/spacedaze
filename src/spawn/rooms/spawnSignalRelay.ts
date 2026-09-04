@@ -8,6 +8,7 @@ import { tags } from "../../tags"
 import { spawnBuilding } from "../spawnBuilding"
 import { spawnRing } from "../spawnRing"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { UI_FONT_SIZES } from "../../ui/common"
 
 interface SignalRelayProps {
 	pos: Vec2
@@ -29,11 +30,15 @@ export function spawnSignalRelay(props: SignalRelayProps) {
 		scale: 0.62,
 		interactRadius: 78,
 		interactPromptOffset: k.vec2(0, -84),
+		interactionPrompt: {
+			title: "SIGNAL RELAY",
+			action: "ACTIVATE RELAY",
+		},
 		onInteract: activateRelay,
 	})
 	relay.tag(props.tags ?? [])
 	const status = relay.add([
-		k.text("ACTIVATE RELAY", { size: 12, font: "unscii" }),
+		k.text("ACTIVATE RELAY", { size: UI_FONT_SIZES.body, font: "unscii" }),
 		k.pos(0, 81),
 		k.anchor("center"),
 		k.color(110, 205, 255),
@@ -57,7 +62,7 @@ export function spawnSignalRelay(props: SignalRelayProps) {
 			...(props.tags ?? []),
 		])
 		node.add([
-			k.text(String(index + 1), { size: 8, font: "unscii" }),
+			k.text(String(index + 1), { size: UI_FONT_SIZES.tiny, font: "unscii" }),
 			k.anchor("center"),
 			k.color(k.WHITE),
 			k.layer(layers.gameText),

@@ -1,6 +1,13 @@
 import type { GameObj } from "kaplay"
-import { changeGameState, GameState, k, layers } from "../main"
+import {
+	changeGameState,
+	GameState,
+	k,
+	layers,
+	resetGameProfile,
+} from "../main"
 import { getLifetimeStats } from "../services/runStatsService"
+import { getHubLevel } from "../services/hubProgressService"
 import { startMainMenuSpaceJump } from "../services/mainMenuTransitionService"
 import { createSpaceAmbience } from "../spawn/spaceAmbience"
 import { tags } from "../tags"
@@ -11,26 +18,31 @@ import {
 	createUiGrowingContainer,
 	createUiPanel,
 	createUiSectionHeader,
+	showUiConfirmationDialog,
 	createUiSurface,
 	createUiTelemetryStrip,
 	createUiVerticalFlow,
 	UI_COLORS,
+	UI_FONT_SIZES,
 } from "./common"
+import type { UiConfirmationDialogController } from "./common"
 import { createUiVolumeControls } from "./volumeControls"
 import { registerBatchedUiUpdate } from "../services/uiUpdateService"
 import { PLANET_CHUNK_SPRITES } from "../planetChunkSprites"
 import { audioService } from "../services/audioService"
+import { hasGameSave } from "../util"
 
 const MENU_WIDTH = 820
 const MENU_HEIGHT = 500
 const COMMAND_X = 52
-const COMMAND_WIDTH = 300
+const COMMAND_WIDTH = 360
 const CREDITS_PANEL_X = 440
 const MUSIC_CREDITS = [
 	"SCI-FI SURVIVAL DREAMSCAPE  //  ONDERWISH",
 	"KATANA BLASTER  //  BIG GIANT CIRCLES",
 	"ARCADIA  //  DUNDERPATRULLEN",
 	"FLIRT FLIRT OH IT HURTS  //  BOSSFIGHT",
+	"AMBIENT SPACE NOISE 1  //  THE TOOTHPASTE VAMPIRES",
 ] as const
 const SOUND_CREDITS = [
 	"CADERE SOUNDS  //  FREESOUND",
@@ -39,6 +51,9 @@ const SOUND_CREDITS = [
 	"SAANGOSU  //  FREESOUND",
 	"SLAMAXU  //  FREESOUND",
 	"HYKENFREAK  //  FREESOUND",
+	"TIMBRE  //  FREESOUND",
+	"HAMILTHON  //  FREESOUND",
+	"AUTISTIC LUCARIO  //  FREESOUND",
 ] as const
 
 export function enterMainMenu() {
@@ -88,7 +103,7 @@ export function enterMainMenu() {
 		pos: k.vec2(COMMAND_X, 198),
 		text: "SPACEDAZE",
 		variant: "display",
-		size: 42,
+		size: UI_FONT_SIZES.logo,
 		color: k.rgb(...UI_COLORS.text),
 	})
 	addThemedText(interfaceRoot, {
@@ -99,8 +114,10 @@ export function enterMainMenu() {
 	})
 
 	let transitioning = false
+	let confirmationDialog: UiConfirmationDialogController | undefined
+	const hasSavedProfile = hasGameSave("slot1")
 	const startRun = () => {
-		if (transitioning) return
+		if (transitioning || confirmationDialog?.isOpen()) return
 		transitioning = true
 		soundSettings.collapse()
 		creditsPanel.collapse()
@@ -118,13 +135,17 @@ export function enterMainMenu() {
 		pos: k.vec2(COMMAND_X, 278),
 		size: k.vec2(COMMAND_WIDTH, 44),
 		index: "01",
-		text: "START RUN",
+		text: hasSavedProfile ? "CONTINUE" : "START GAME",
 		trailingText: ">",
 		selected: true,
 		onClick: startRun,
 	})
 
-	addSavedProfileTelemetry(interfaceRoot)
+	let nextCommandY = 330
+	if (hasSavedProfile) {
+		addSavedProfileTelemetry(interfaceRoot)
+		nextCommandY = 372
+	}
 	const soundSettings = createUiCollapsible(interfaceRoot, {
 		pos: k.vec2(440, 270),
 		createContent: addOptionsPanel,
@@ -133,10 +154,39 @@ export function enterMainMenu() {
 		pos: k.vec2(CREDITS_PANEL_X, 258),
 		createContent: addCreditsPanel,
 	})
+	if (hasSavedProfile) {
+		createUiCommandButton(interfaceRoot, {
+			pos: k.vec2(COMMAND_X, nextCommandY),
+			size: k.vec2(COMMAND_WIDTH, 34),
+			index: "02",
+			text: "START NEW GAME",
+			trailingText: "RESET SAVE",
+			onClick: () => {
+				if (transitioning || confirmationDialog?.isOpen()) return
+				soundSettings.collapse()
+				creditsPanel.collapse()
+				confirmationDialog = showUiConfirmationDialog({
+					title: "START NEW GAME?",
+					message: "ALL SALVAGE, UPGRADES, UNLOCKS, RUN HISTORY, AND STATISTICS WILL BE ERASED. THIS CANNOT BE UNDONE.",
+					confirmText: "ERASE & START",
+					cancelText: "KEEP SAVE",
+					onConfirm: () => {
+						confirmationDialog = undefined
+						resetGameProfile()
+						startRun()
+					},
+					onCancel: () => {
+						confirmationDialog = undefined
+					},
+				})
+			},
+		})
+		nextCommandY += 42
+	}
 	createUiCommandButton(interfaceRoot, {
-		pos: k.vec2(COMMAND_X, 380),
+		pos: k.vec2(COMMAND_X, nextCommandY),
 		size: k.vec2(COMMAND_WIDTH, 36),
-		index: "02",
+		index: hasSavedProfile ? "03" : "02",
 		text: "OPTIONS",
 		trailingText: "AUDIO / VIDEO",
 		onClick: () => {
@@ -145,10 +195,11 @@ export function enterMainMenu() {
 			soundSettings.toggle()
 		},
 	})
+	nextCommandY += 42
 	createUiCommandButton(interfaceRoot, {
-		pos: k.vec2(COMMAND_X, 426),
+		pos: k.vec2(COMMAND_X, nextCommandY),
 		size: k.vec2(COMMAND_WIDTH, 36),
-		index: "03",
+		index: hasSavedProfile ? "04" : "03",
 		text: "CREDITS",
 		trailingText: "TEAM / AUDIO",
 		onClick: () => {
@@ -161,10 +212,12 @@ export function enterMainMenu() {
 	const enterController = k.onKeyPress("enter", startRun)
 	const spaceController = k.onKeyPress("space", startRun)
 	const escapeController = k.onKeyPress("escape", () => {
+		if (confirmationDialog?.isOpen()) return
 		soundSettings.collapse()
 		creditsPanel.collapse()
 	})
 	root.onDestroy(() => {
+		confirmationDialog?.close()
 		enterController.cancel()
 		spaceController.cancel()
 		escapeController.cancel()
@@ -302,7 +355,9 @@ function addSavedProfileTelemetry(parent: GameObj) {
 		width: COMMAND_WIDTH - 16,
 		gap: 10,
 		items: [
-			{ label: "TOTAL RUNS", value: formatStat(stats.runs) },
+			{ label: "RUNS", value: formatStat(stats.runs) },
+			{ label: "DEATHS", value: formatStat(stats.deaths) },
+			{ label: "LEVEL", value: formatStat(getHubLevel()) },
 			{ label: "PLAYTIME", value: formatPlaytime(stats.playtimeSeconds) },
 		],
 	})
@@ -348,29 +403,33 @@ function addCreditsPanel(parent: GameObj) {
 	content.addText({
 		text: "DESIGN & DEVELOPMENT",
 		variant: "eyebrow",
+		size: UI_FONT_SIZES.small,
 		gapAfter: 2,
 	})
 	content.addText({
 		text: "LUKAS HAKKARAINEN",
 		variant: "body",
+		size: UI_FONT_SIZES.small,
 		gapAfter: 8,
 	})
 	content.addText({
 		text: "FEATURED MUSIC",
 		variant: "eyebrow",
+		size: UI_FONT_SIZES.small,
 		gapAfter: 2,
 	})
 	addCreditRows(content, MUSIC_CREDITS)
 	content.addText({
 		text: "SELECT SOUND EFFECTS",
 		variant: "eyebrow",
+		size: UI_FONT_SIZES.small,
 		gapAfter: 2,
 	})
 	addCreditRows(content, SOUND_CREDITS)
 	content.addText({
 		text: "POWERED BY KAPLAY",
 		variant: "caption",
-		size: 8,
+		size: UI_FONT_SIZES.small,
 	})
 }
 
@@ -382,7 +441,7 @@ function addCreditRows(
 		flow.addText({
 			text,
 			variant: "body",
-			size: 8,
+			size: UI_FONT_SIZES.small,
 			gapAfter: index === rows.length - 1 ? 7 : 1,
 		})
 	}
@@ -393,7 +452,7 @@ function getCreditsPanelWidth() {
 	const contentWidth = Math.max(
 		...[...MUSIC_CREDITS, ...SOUND_CREDITS].map((text) => k.formatText({
 			text,
-			size: 8,
+			size: UI_FONT_SIZES.small,
 			font: "unscii",
 		}).width)
 	)

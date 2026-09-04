@@ -30,6 +30,8 @@ and makes child components use coordinates relative to their parent.
 - `createUiProgressBar` displays normalized progress and supports live updates.
 - `createUiStatList` aligns labels and values into stable lanes.
 - `createUiTelemetryStrip` creates an unboxed horizontal label/value readout.
+- `createUiDetailCard` creates an auto-sized title, description, and detail-row
+  card for tooltips and compact information panels.
 
 ## Example
 

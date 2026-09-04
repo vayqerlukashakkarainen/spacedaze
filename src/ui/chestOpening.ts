@@ -1,4 +1,4 @@
-import { GameObj, Vec2 } from "kaplay";
+import { AudioPlay, GameObj, Vec2 } from "kaplay";
 import {
 	getScore,
 	k,
@@ -9,6 +9,7 @@ import {
 import {
 	ChestReward,
 	generateChestRewardChoices,
+	generateWeaponChestRewardChoices,
 	Rarity,
 } from "../chestRewards";
 import { audioService } from "../services/audioService";
@@ -18,17 +19,22 @@ import { getUiEffects } from "../particles";
 import { addCollectedPowerup } from "./gameUi";
 import {
 	consumeNextChestDifficulty,
+	consumeNextChestRewardType,
 	createChestChallengeConfig,
 	normalizeChestChallengeHits,
+	type ChestChallengeConfig,
 	type ChestChallengeType,
 } from "./chestChallenge";
 import {
 	addThemedText,
+	createInputPromptRow,
 	createUiActionButton,
 	createUiBadge,
 	createUiPanel,
 	createUiSectionHeader,
 	createUiSelectableCard,
+	UI_COLORS,
+	UI_FONT_SIZES,
 } from "./common";
 import {
 	incrementPerformanceCounter,
@@ -39,6 +45,10 @@ import {
 	getRerollTokens,
 	spendRerollToken,
 } from "../player";
+import {
+	purchaseBurstParticleCount,
+	spawnCurrencyBurst,
+} from "../spawn/spawnCurrencyBurst";
 
 interface TimingZone {
 	start: number; // 0-1
@@ -50,6 +60,11 @@ interface RewardRevealProfile {
 	suspense: number;
 	postRevealHold: number;
 	riserSound?: string;
+	revealSound?: {
+		volume: number;
+		detune: number;
+		speed: number;
+	};
 	popScale: number;
 	duration: number;
 	particleCount: number;
@@ -89,6 +104,11 @@ const REWARD_REVEAL_PROFILES: Record<Rarity, RewardRevealProfile> = {
 		suspense: 0.5,
 		postRevealHold: 0.15,
 		riserSound: "reward_riser_epic",
+		revealSound: {
+			volume: 0.38,
+			detune: -100,
+			speed: 0.96,
+		},
 		popScale: 1.85,
 		duration: 0.5,
 		particleCount: 84,
@@ -99,6 +119,11 @@ const REWARD_REVEAL_PROFILES: Record<Rarity, RewardRevealProfile> = {
 		suspense: 1.3,
 		postRevealHold: 0.25,
 		riserSound: "reward_riser_legendary",
+		revealSound: {
+			volume: 0.82,
+			detune: 400,
+			speed: 1.05,
+		},
 		popScale: 2.2,
 		duration: 0.7,
 		particleCount: 130,
@@ -116,13 +141,33 @@ function isRarityAtLeast(rarity: Rarity, minimum: Rarity) {
 
 export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 	const center = k.center();
-	const challengeType: ChestChallengeType = k.rand() < 0.5
-		? "linear"
-		: "bezier";
+	const challengeTypes: ChestChallengeType[] = [
+		"linear",
+		"bezier",
+		"frequency",
+		"capacitor",
+	];
+	const challengeType = k.choose(challengeTypes);
 	const challengeConfig = createChestChallengeConfig(
 		consumeNextChestDifficulty(),
 		challengeType
 	);
+	const rewardType = consumeNextChestRewardType();
+	const generateRewards = (
+		successfulHits: number,
+		failedAttempts: number,
+		excludedRewardIds: readonly string[] = []
+	) => rewardType === "weapon"
+		? generateWeaponChestRewardChoices(
+			successfulHits,
+			failedAttempts,
+			excludedRewardIds
+		)
+		: generateChestRewardChoices(
+			successfulHits,
+			failedAttempts,
+			excludedRewardIds
+		);
 
 	// Dark overlay background
 	k.add([
@@ -156,6 +201,13 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			passes: 0,
 			maxPasses: challengeConfig.maxPasses,
 			bezierPoints: [] as Vec2[],
+			frequencyPosition: 0.5,
+			frequencyTarget: 0.5,
+			frequencyRound: 0,
+			capacitorCharge: 0,
+			capacitorCharging: false,
+			capacitorResolved: false,
+			capacitorChargeSound: null as AudioPlay | null,
 			uiContainer: null as GameObj | null,
 			borderBox: null as GameObj | null,
 			crateSprite: null as GameObj | null,
@@ -163,6 +215,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			explosionStarted: false,
 			explosionElapsed: 0,
 			explosionScale: 1,
+			challengeFinished: false,
+			challengeActive: false,
+			perfectOpenSoundPlayed: false,
 			spaceKeyHandler: undefined as any,
 			barScale: k.vec2(1, 1),
 			barTargetScale: k.vec2(1, 1),
@@ -174,7 +229,6 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		},
 		k.state("initial", [
 			"initial",
-			"countdown",
 			"timingGame",
 			"explosion",
 			"reveal",
@@ -193,6 +247,136 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		chestController.detailControllers = [];
 		chestController.detailObjects = [];
 	};
+	const stopCapacitorChargeSound = () => {
+		if (!chestController.capacitorChargeSound) return;
+		chestController.capacitorChargeSound.stop();
+		chestController.capacitorChargeSound = null;
+	};
+	const finishChallenge = () => {
+		if (chestController.challengeFinished) return;
+		chestController.challengeFinished = true;
+		stopCapacitorChargeSound();
+		const normalizedHits = normalizeChestChallengeHits(
+			challengeConfig.type,
+			chestController.successfulHits
+		);
+		const missedZones = Math.max(0, 3 - Math.floor(normalizedHits));
+		if (
+			chestController.failedAttempts + missedZones === 0 &&
+			!chestController.perfectOpenSoundPlayed
+		) {
+			chestController.perfectOpenSoundPlayed = true;
+			audioService.playSound("perfect_chest_open", {
+				volume: mainSoundVolume * 0.85,
+			});
+		}
+		chestController.enterState("explosion");
+		if (chestController.spaceKeyHandler) {
+			chestController.spaceKeyHandler.cancel();
+			chestController.spaceKeyHandler = undefined;
+		}
+	};
+	const registerChallengeHit = (amount: number = 1, zoneIndex?: number) => {
+		chestController.successfulHits = Math.min(
+			3,
+			chestController.successfulHits + amount
+		);
+		audioService.playSound("explosion1", {
+			volume: mainSoundVolume,
+			detune: chestController.successfulHits * 200,
+		});
+		k.shake(amount >= 3 ? 8 : 5);
+		chestController.barTargetScale = k.vec2(
+			amount >= 3 ? 8 : 6,
+			amount >= 3 ? 8 : 6
+		);
+		if (chestController.crateSprite?.shake) {
+			chestController.crateSprite.shake(amount >= 3 ? 14 : 10);
+		}
+		if (chestController.multiplierText) {
+			const hitCount = chestController.successfulHits;
+			chestController.multiplierText.text = `x${hitCount}`;
+			chestController.multiplierText.opacity = 1;
+			const targetScale = 1 + (hitCount - 1) * 0.3;
+			chestController.multiplierText.animate(
+				"scale",
+				[
+					k.vec2(targetScale),
+					k.vec2(targetScale * 1.5),
+					k.vec2(targetScale),
+				],
+				{
+					loops: 1,
+					duration: 0.3,
+					timing: [0, 0.3, 1],
+				}
+			);
+		}
+		if (zoneIndex !== undefined && chestController.zoneObjects[zoneIndex]) {
+			chestController.zoneObjects[zoneIndex].opacity = 0.3;
+		}
+		getUiEffects().explosionEmitter.pos = chestController.pos;
+		getUiEffects().explosionEmitter.emit(15 + amount * 5);
+	};
+	const registerChallengeMiss = () => {
+		chestController.failedAttempts++;
+		audioService.playSound("collect1", { volume: mainSoundVolume });
+		chestController.barTargetScale = k.vec2(0.3);
+	};
+	const startChallengeCountdown = async () => {
+		if (!chestController.uiContainer) return;
+		if (chestController.crateSprite) {
+			chestController.crateSprite.hidden = true;
+		}
+		const modeLabel = chestController.uiContainer.add([
+			k.text(
+				`${getChallengeTitle(challengeConfig.type)}  •  DIFFICULTY ${challengeConfig.difficulty}`,
+				{ size: UI_FONT_SIZES.subheading, font: "unscii" }
+			),
+			k.pos(0, -165),
+			k.anchor("center"),
+			k.color(150, 205, 255),
+			k.z(20),
+		]);
+		const countdown = chestController.uiContainer.add([
+			k.text("3", { size: UI_FONT_SIZES.countdown, font: "unscii" }),
+			k.pos(0, 0),
+			k.anchor("center"),
+			k.color(k.WHITE),
+			k.scale(1),
+			k.z(20),
+			k.animate(),
+		]);
+
+		for (const value of [3, 2, 1]) {
+			if (!chestController.exists() || chestController.state !== "timingGame") {
+				return;
+			}
+			countdown.text = `${value}`;
+			countdown.scale = k.vec2(1.45);
+			countdown.animate("scale", [k.vec2(1.45), k.vec2(1)], {
+				duration: 0.5,
+				loops: 1,
+				easing: k.easings.easeOutCubic,
+			});
+			audioService.playSound("collect1", {
+				volume: mainSoundVolume * 0.55,
+				detune: (3 - value) * 120,
+			});
+			await k.wait(0.65);
+		}
+
+		if (!countdown.exists() || chestController.state !== "timingGame") return;
+		countdown.text = "GO";
+		countdown.color = k.rgb(255, 165, 0);
+		await k.wait(0.3);
+		if (!chestController.exists() || chestController.state !== "timingGame") {
+			return;
+		}
+		k.destroy(countdown);
+		k.destroy(modeLabel);
+		chestController.challengeActive = true;
+	};
 
 	// State: Initial - Display chest briefly
 	chestController.onStateEnter("initial", async () => {
@@ -205,6 +389,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			k.anchor("center"),
 			k.color(0, 0, 0),
 			k.outline(4, new k.Color(255, 255, 255)),
+			k.z(-10),
 			k.scale(0.5),
 			k.opacity(0),
 			k.animate(),
@@ -236,10 +421,17 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			k.scale(1),
 			shake(),
 		]);
+		if (rewardType === "weapon") {
+			chestController.crateSprite.add([
+				k.sprite("weapon_standard_blaster", { width: 26, height: 26 }),
+				k.anchor("center"),
+				k.z(2),
+			]);
+		}
 
 		// Multiplier text below crate
 		chestController.multiplierText = chestController.uiContainer.add([
-			k.text("x0", { size: 24, font: "unscii" }),
+			k.text("x0", { size: UI_FONT_SIZES.display, font: "unscii" }),
 			k.pos(0, 50),
 			k.anchor("center"),
 			k.scale(1),
@@ -247,54 +439,11 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			k.animate(),
 		]);
 
-		chestController.enterState("countdown");
-	});
-
-	chestController.onStateEnter("countdown", async () => {
-		if (!chestController.uiContainer) return;
-		const modeLabel = chestController.uiContainer.add([
-			k.text(
-				`${challengeConfig.type === "bezier" ? "CURVE LOCK" : "TIMING LOCK"}  •  DIFFICULTY ${challengeConfig.difficulty}`,
-				{ size: 14, font: "unscii" }
-			),
-			k.pos(0, -115),
-			k.anchor("center"),
-			k.color(150, 205, 255),
-		]);
-		const countdown = chestController.uiContainer.add([
-			k.text("3", { size: 64, font: "unscii" }),
-			k.pos(0, 90),
-			k.anchor("center"),
-			k.color(k.WHITE),
-			k.scale(1),
-			k.animate(),
-		]);
-
-		for (const value of [3, 2, 1]) {
-			countdown.text = `${value}`;
-			countdown.scale = k.vec2(1.45);
-			countdown.animate("scale", [k.vec2(1.45), k.vec2(1)], {
-				duration: 0.5,
-				loops: 1,
-				easing: k.easings.easeOutCubic,
-			});
-			audioService.playSound("collect1", {
-				volume: mainSoundVolume * 0.55,
-				detune: (3 - value) * 120,
-			});
-			await k.wait(0.65);
-		}
-
-		countdown.text = "GO";
-		countdown.color = k.rgb(255, 165, 0);
-		await k.wait(0.3);
-		k.destroy(countdown);
-		k.destroy(modeLabel);
 		chestController.enterState("timingGame");
 	});
 
 	// State: Timing Game
-	chestController.onStateEnter("timingGame", async () => {
+	chestController.onStateEnter("timingGame", () => {
 		if (!chestController.uiContainer) return;
 
 		const barWidth = 300;
@@ -303,6 +452,131 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		const isBezier = challengeConfig.type === "bezier";
 		chestController.timingZones = [];
 		chestController.zoneObjects = [];
+		chestController.timingBarPosition = 0;
+		chestController.passes = 0;
+		chestController.successfulHits = 0;
+		chestController.failedAttempts = 0;
+		chestController.challengeFinished = false;
+		chestController.challengeActive = false;
+		chestController.perfectOpenSoundPlayed = false;
+
+		if (challengeConfig.type === "frequency") {
+			chestController.frequencyPosition = k.rand(0.2, 0.8);
+			chestController.frequencyTarget = k.rand(0.15, 0.85);
+			chestController.frequencyRound = 0;
+			chestController.uiContainer.add([
+				k.pos(0, 28),
+				{
+					draw() {
+						drawFrequencyTuner(
+							chestController.frequencyPosition,
+							chestController.frequencyTarget,
+							challengeConfig.frequencyHitWindow,
+							chestController.frequencyRound
+						);
+					},
+				},
+			]);
+			addChallengeInstructions(
+				chestController.uiContainer,
+				"FREQUENCY TUNING",
+				[
+					{ action: "tune", label: "TO TUNE" },
+					{ action: "lock", label: "TO LOCK" },
+				]
+			);
+			const lockFrequency = () => {
+				if (!chestController.challengeActive) return;
+				const distance = Math.abs(
+					chestController.frequencyPosition -
+					chestController.frequencyTarget
+				);
+				if (distance <= challengeConfig.frequencyHitWindow / 2) {
+					registerChallengeHit();
+				} else {
+					registerChallengeMiss();
+				}
+				chestController.frequencyRound++;
+				if (chestController.frequencyRound >= 3) {
+					finishChallenge();
+					return;
+				}
+				chestController.frequencyTarget = k.rand(0.12, 0.88);
+			};
+			chestController.spaceKeyHandler = k.onKeyPress(
+				"space",
+				lockFrequency
+			);
+			void startChallengeCountdown();
+			return;
+		}
+
+		if (challengeConfig.type === "capacitor") {
+			chestController.capacitorCharge = 0;
+			chestController.capacitorCharging = false;
+			chestController.capacitorResolved = false;
+			chestController.uiContainer.add([
+				k.pos(0, 65),
+				{
+					draw() {
+						drawRiskCapacitor(
+							chestController.capacitorCharge,
+							challengeConfig
+						);
+					},
+				},
+			]);
+			addChallengeInstructions(
+				chestController.uiContainer,
+				"RISK CAPACITOR",
+				[{ action: "charge", label: "HOLD / RELEASE TO CHARGE" }]
+			);
+			const resolveCapacitor = () => {
+				if (!chestController.challengeActive) return;
+				if (
+					chestController.capacitorResolved ||
+					!chestController.capacitorCharging
+				) return;
+				stopCapacitorChargeSound();
+				chestController.capacitorResolved = true;
+				chestController.capacitorCharging = false;
+				const charge = chestController.capacitorCharge;
+				const hits = charge >= challengeConfig.capacitorPerfectCharge
+					? 3
+					: charge >= challengeConfig.capacitorGoodCharge
+						? 2
+						: charge >= challengeConfig.capacitorMinimumCharge
+							? 1
+							: 0;
+				if (hits > 0) registerChallengeHit(hits);
+				else registerChallengeMiss();
+				finishChallenge();
+			};
+			const pressController = k.onKeyPress("space", () => {
+				if (!chestController.challengeActive) return;
+				if (chestController.capacitorResolved) return;
+				chestController.capacitorCharging = true;
+				stopCapacitorChargeSound();
+				chestController.capacitorChargeSound = audioService.playSound(
+					"wormhole_ambience",
+					{
+						volume: mainSoundVolume * 0.18,
+						loop: true,
+						speed: 0.75,
+						detune: -500,
+					}
+				);
+			});
+			const releaseController = k.onKeyRelease("space", resolveCapacitor);
+			chestController.spaceKeyHandler = {
+				cancel: () => {
+					pressController.cancel();
+					releaseController.cancel();
+				},
+			};
+			void startChallengeCountdown();
+			return;
+		}
 
 		if (isBezier) {
 			const curveDirection = k.rand() < 0.5 ? -1 : 1;
@@ -402,7 +676,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 
 		chestController.uiContainer.add([
 			k.text(isBezier ? "FOLLOW THE CURVE" : "TIME ALL THREE", {
-				size: 20,
+				size: UI_FONT_SIZES.title,
 				font: "unscii",
 			}),
 			k.pos(0, -120),
@@ -410,20 +684,17 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		]);
 
 		// Add help text
-		chestController.uiContainer.add([
-			k.text("PRESS SPACE", { size: 12, font: "unscii" }),
-			k.pos(0, isBezier ? 175 : barY + 30),
-			k.anchor("center"),
-		]);
-
-		// Reset timing state
-		chestController.timingBarPosition = 0;
-		chestController.passes = 0;
-		chestController.successfulHits = 0;
-		chestController.failedAttempts = 0;
+		createInputPromptRow(chestController.uiContainer, {
+			pos: k.vec2(0, isBezier ? 175 : barY + 30),
+			prompts: [{ action: "timingHit", label: "HIT" }],
+			color: [255, 255, 255],
+			fontSize: UI_FONT_SIZES.body,
+			iconHeight: 28,
+		});
 
 		// Handle space key press
 		const checkTimingHit = () => {
+			if (!chestController.challengeActive) return;
 			const barWidth = 300;
 			const barY = 80;
 			let hitZone = false;
@@ -495,20 +766,82 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				chestController.barTargetScale = k.vec2(0.3, 0.3);
 			}
 			if (chestController.timingZones.every((z) => z.hit)) {
-				if (chestController.spaceKeyHandler) {
-					chestController.spaceKeyHandler.cancel();
-				}
-				chestController.enterState("explosion");
+				finishChallenge();
 			}
 		};
 
 		chestController.spaceKeyHandler = k.onKeyPress("space", checkTimingHit);
-
-		// Wait briefly then transition to timing game
-		await k.wait(0.5);
+		void startChallengeCountdown();
 	});
 
 	chestController.onStateUpdate("timingGame", () => {
+		if (!chestController.challengeActive) return;
+		if (challengeConfig.type === "frequency") {
+			chestController.timingBarPosition += k.dt();
+			if (chestController.timingBarPosition >= 6) {
+				chestController.failedAttempts +=
+					3 - chestController.frequencyRound;
+				finishChallenge();
+				return;
+			}
+			const direction =
+				(k.isKeyDown("d") || k.isKeyDown("right") ? 1 : 0) -
+				(k.isKeyDown("a") || k.isKeyDown("left") ? 1 : 0);
+			chestController.frequencyPosition = k.clamp(
+				chestController.frequencyPosition +
+					direction * challengeConfig.frequencyTuneSpeed * k.dt(),
+				0,
+				1
+			);
+			return;
+		}
+
+		if (challengeConfig.type === "capacitor") {
+			chestController.timingBarPosition += k.dt();
+			if (
+				chestController.timingBarPosition >= 5 &&
+				!chestController.capacitorResolved
+			) {
+				chestController.capacitorResolved = true;
+				registerChallengeMiss();
+				finishChallenge();
+				return;
+			}
+			if (
+				chestController.capacitorCharging &&
+				!chestController.capacitorResolved
+			) {
+				chestController.capacitorCharge +=
+					challengeConfig.capacitorChargeSpeed * k.dt();
+				if (chestController.capacitorChargeSound) {
+					const chargeProgress = k.clamp(
+						chestController.capacitorCharge,
+						0,
+						1
+					);
+					chestController.capacitorChargeSound.detune = k.lerp(
+						-500,
+						1000,
+						chargeProgress
+					);
+					chestController.capacitorChargeSound.speed = k.lerp(
+						0.75,
+						1.25,
+						chargeProgress
+					);
+				}
+				if (chestController.capacitorCharge >= 1) {
+					chestController.capacitorCharge = 1;
+					chestController.capacitorResolved = true;
+					chestController.capacitorCharging = false;
+					registerChallengeMiss();
+					k.shake(9);
+					finishChallenge();
+				}
+			}
+			return;
+		}
+
 		const barWidth = 300;
 		chestController.timingBarPosition +=
 			chestController.timingBarSpeed * k.dt();
@@ -518,10 +851,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			chestController.passes++;
 
 			if (chestController.passes >= chestController.maxPasses) {
-				if (chestController.spaceKeyHandler) {
-					chestController.spaceKeyHandler.cancel();
-				}
-				chestController.enterState("explosion");
+				finishChallenge();
 				return;
 			}
 		}
@@ -577,7 +907,43 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		chestController.explosionStarted = true;
 		chestController.explosionElapsed = 0;
 		chestController.explosionScale = 1;
+		if (chestController.crateSprite) {
+			chestController.crateSprite.hidden = false;
+		}
+		k.wait(0.35, () => {
+			if (
+				chestController.exists() &&
+				chestController.state === "explosion"
+			) {
+				completeChestExplosion();
+			}
+		});
 	});
+
+	const completeChestExplosion = () => {
+		if (!chestController.explosionStarted) return;
+		chestController.explosionStarted = false;
+
+		spawnCurrencyBurst(chestController.pos, {
+			particleCount: 96,
+			fixed: true,
+			tags: ["chestUI"],
+		});
+		spawnChestExplosionEffect(chestController.pos);
+		k.shake(7);
+		if (chestController.borderBox?.shake) {
+			chestController.borderBox.shake(5);
+		}
+
+		audioService.playSound("explosion4", { volume: mainSoundVolume });
+
+		if (chestController.crateSprite) {
+			k.destroy(chestController.crateSprite);
+			chestController.crateSprite = null;
+		}
+
+		chestController.enterState("reveal");
+	};
 
 	chestController.onStateUpdate("explosion", () => {
 		const scaleDuration = 0.3;
@@ -597,25 +963,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		}
 
 		if (t >= 1 && chestController.explosionStarted) {
-			chestController.explosionStarted = false;
-
-			spawnChestGravityBurst(chestController.pos);
-			spawnChestExplosionEffect(chestController.pos);
-			k.shake(7);
-			if (chestController.borderBox?.shake) {
-				chestController.borderBox.shake(5);
-			}
-
-			// Play explosion sound
-			audioService.playSound("explosion4", { volume: mainSoundVolume });
-
-			// Remove crate sprite
-			if (chestController.crateSprite) {
-				k.destroy(chestController.crateSprite);
-				chestController.crateSprite = null;
-			}
-
-			chestController.enterState("reveal");
+			completeChestExplosion();
 		}
 	});
 
@@ -626,7 +974,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			chestController.successfulHits
 		);
 		chestController.normalizedHits = normalizedHits;
-		const result = generateChestRewardChoices(
+		const result = generateRewards(
 			normalizedHits,
 			chestController.failedAttempts
 		);
@@ -647,7 +995,10 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		}
 
 		chestController.uiContainer.add([
-			k.text("CRATE OPENED", { size: 22, font: "unscii" }),
+			k.text(
+				rewardType === "weapon" ? "WEAPON CACHE OPENED" : "CRATE OPENED",
+				{ size: UI_FONT_SIZES.display, font: "unscii" }
+			),
 			k.pos(0, -150),
 			k.anchor("center"),
 		]);
@@ -666,7 +1017,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				k.opacity(0.85),
 			]);
 			slot.add([
-				k.text("?", { size: 30, font: "unscii" }),
+				k.text("?", { size: UI_FONT_SIZES.hero, font: "unscii" }),
 				k.anchor("center"),
 				k.color(100, 100, 110),
 			]);
@@ -730,7 +1081,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			);
 			const rarityColor = REWARD_RARITY_COLORS[reward.rarity];
 			chestController.uiContainer.add([
-				k.text(reward.rarity, { size: 9, font: "unscii" }),
+				k.text(reward.rarity, { size: UI_FONT_SIZES.small, font: "unscii" }),
 				k.pos(target.x, target.y + 52),
 				k.anchor("center"),
 				k.color(...rarityColor),
@@ -741,10 +1092,18 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				loops: 1,
 			});
 
-			audioService.playSound("powerup1", {
-				volume: mainSoundVolume,
-				detune: profile.detune,
-			});
+			if (profile.revealSound) {
+				audioService.playSound("high_rarity_reveal", {
+					volume: mainSoundVolume * profile.revealSound.volume,
+					detune: profile.revealSound.detune,
+					speed: profile.revealSound.speed,
+				});
+			} else {
+				audioService.playSound("powerup1", {
+					volume: mainSoundVolume,
+					detune: profile.detune,
+				});
+			}
 			if (isRarityAtLeast(reward.rarity, Rarity.Epic)) {
 				audioService.playSound("explosion2", {
 					volume:
@@ -795,7 +1154,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		await k.wait(0.18);
 		if (!chestController.exists()) return;
 		clearDetailInteractions();
-		const result = generateChestRewardChoices(
+		const result = generateRewards(
 			chestController.normalizedHits,
 			chestController.failedAttempts,
 			chestController.rerollExcludedIds
@@ -812,7 +1171,6 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		clearDetailInteractions();
 		chestController.uiContainer.removeAll();
 		if (chestController.borderBox) chestController.borderBox.opacity = 0;
-
 		const choiceCount = chestController.rewards.length;
 		const performanceLabel = chestController.totalFailures === 0
 			? "PERFECT OPEN"
@@ -834,7 +1192,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			pos: k.vec2(16, 12),
 			width: panelWidth - 32,
 			eyebrow: performanceLabel,
-			title: `SELECT REWARD  /  1 OF ${choiceCount}`,
+			title: rewardType === "weapon"
+				? `SELECT WEAPON  /  1 OF ${choiceCount}`
+				: `SELECT REWARD  /  1 OF ${choiceCount}`,
 			action: `${rerollTokenCount} REROLL TOKEN${rerollTokenCount === 1 ? "" : "S"}`,
 		});
 
@@ -897,6 +1257,10 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		const retryChallenge = () => {
 			if (accepted || !spendScore(CHEST_RETRY_COST)) return;
 			accepted = true;
+			spawnCurrencyBurst(k.mousePos(), {
+				particleCount: purchaseBurstParticleCount(CHEST_RETRY_COST),
+				fixed: true,
+			});
 			clearDetailInteractions();
 			audioService.playSound("purchase1", { volume: mainSoundVolume });
 			chestController.removeAll();
@@ -908,27 +1272,57 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			chestController.rewardSprite = null;
 			chestController.enterState("initial");
 		};
+		const discardWeapons = () => {
+			if (accepted || rewardType !== "weapon") return;
+			accepted = true;
+			clearDetailInteractions();
+			audioService.playSound("collect1", {
+				volume: mainSoundVolume * 0.45,
+				detune: -350,
+			});
+			chestController.removeAll();
+			k.destroyAll("chestUI");
+			if (chestController.onComplete) chestController.onComplete();
+		};
 		const tokenLabel = rerollTokenCount === 1 ? "TOKEN" : "TOKENS";
 		const actionGap = 12;
-		const actionWidth = Math.min(240, (panelWidth - 64 - actionGap) / 2);
-		const actionRowWidth = actionWidth * 2 + actionGap;
+		const actionCount = rewardType === "weapon" ? 3 : 2;
+		const actionWidth = Math.min(
+			240,
+			(panelWidth - 64 - actionGap * (actionCount - 1)) / actionCount
+		);
+		const actionRowWidth =
+			actionWidth * actionCount + actionGap * (actionCount - 1);
 		const actionStartX = (panelWidth - actionRowWidth) / 2;
 		createUiActionButton(panel, {
 			pos: k.vec2(actionStartX, panelHeight - 50),
 			size: k.vec2(actionWidth, 32),
-			text: `PRESS R TO REROLL  //  ${rerollTokenCount} ${tokenLabel}`,
+			text: `REROLL  //  ${rerollTokenCount} ${tokenLabel}`,
 			disabled: rerollTokenCount === 0,
-			icon: "reroll_token",
+			promptAction: "reroll",
 			onClick: rerollRewards,
 		});
 		createUiActionButton(panel, {
 			pos: k.vec2(actionStartX + actionWidth + actionGap, panelHeight - 50),
 			size: k.vec2(actionWidth, 32),
-			text: `PRESS T TO RETRY  //  ${CHEST_RETRY_COST}`,
+			text: `RETRY  //  ${CHEST_RETRY_COST} SALVAGE`,
 			disabled: availableSalvage < CHEST_RETRY_COST,
-			icon: "debree_part1",
+			promptAction: "retry",
 			onClick: retryChallenge,
 		});
+		if (rewardType === "weapon") {
+			createUiActionButton(panel, {
+				pos: k.vec2(
+					actionStartX + (actionWidth + actionGap) * 2,
+					panelHeight - 50
+				),
+				size: k.vec2(actionWidth, 32),
+				text: "DISCARD  //  KEEP LOADOUT",
+				promptAction: "skip",
+				onClick: discardWeapons,
+			});
+			acceptControllers.push(k.onKeyPress("escape", discardWeapons));
+		}
 		if (rerollTokenCount > 0) {
 			acceptControllers.push(k.onKeyPress("r", rerollRewards));
 		}
@@ -938,6 +1332,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 
 		chestController.rewards.forEach((reward, index) => {
 			const rarityColor = REWARD_RARITY_COLORS[reward.rarity];
+			const isPermanent = reward.progression.persistence === "permanent";
 			const cardCenterX = panelWidth / 2 + layout.cardX(index);
 			const animationDelay = index * cardStagger;
 			const cardReveal = panel.add([
@@ -967,6 +1362,14 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				timing: [0, 0.72, 1],
 				easing: k.easings.easeOutCubic,
 			});
+			if (isPermanent) {
+				card.add([
+					k.pos(4, 4),
+					k.rect(cardWidth - 8, cardHeight - 8, { fill: false }),
+					k.outline(1, k.WHITE),
+					k.z(2),
+				]);
+			}
 
 			card.add([
 				k.sprite(reward.sprite, { width: 56, height: 56 }),
@@ -977,14 +1380,22 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			createUiBadge(card, {
 				pos: k.vec2(12, 76),
 				width: cardWidth - 24,
-				text: `${reward.rarity} ${reward.kind.toUpperCase()}`,
+				text: `${reward.rarity} ${reward.kind === "activeModule" ? "SECONDARY WEAPON" : reward.kind === "weapon" ? "PRIMARY WEAPON" : reward.kind.toUpperCase()}`,
 				color: rarityColor,
 			});
+			if (isPermanent) {
+				createUiBadge(card, {
+					pos: k.vec2(12, cardHeight - 66),
+					width: cardWidth - 24,
+					text: "PERMANENT",
+					color: [255, 255, 255],
+				});
+			}
 			addThemedText(card, {
 				text: reward.name,
 				pos: k.vec2(12, 108),
 				variant: "heading",
-				size: 12,
+				size: UI_FONT_SIZES.body,
 				width: cardWidth - 24,
 				align: "center",
 				lineHeight: 1.45,
@@ -995,7 +1406,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				text: reward.description,
 				pos: k.vec2(14, 174),
 				variant: "body",
-				size: 9,
+				size: UI_FONT_SIZES.small,
 				width: cardWidth - 28,
 				align: "center",
 				lineHeight: 1.4,
@@ -1008,19 +1419,19 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				text: rewardStats,
 				pos: k.vec2(14, 250),
 				variant: "stat",
-				size: 9,
+				size: UI_FONT_SIZES.small,
 				width: cardWidth - 28,
 				align: "center",
 				color: k.rgb(100, 200, 255),
 				z: 3,
 			});
-			addThemedText(card, {
-				text: `PRESS ${index + 1} TO SELECT`,
-				pos: k.vec2(14, cardHeight - 28),
-				variant: "caption",
-				width: cardWidth - 28,
-				align: "center",
-				z: 3,
+			createInputPromptRow(card, {
+				pos: k.vec2(cardWidth / 2, cardHeight - 28),
+				prompts: [{
+					action: `select${index + 1}` as "select1" | "select2" | "select3",
+					label: "TO SELECT",
+				}],
+				color: UI_COLORS.accent,
 			});
 			if (reward.rarity === Rarity.Legendary) {
 				addLegendaryCardSweep(
@@ -1040,6 +1451,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 
 	// Start state machine
 	chestController.enterState("initial");
+	chestController.onDestroy(stopCapacitorChargeSound);
 }
 
 function addLegendaryCardSweep(
@@ -1298,6 +1710,164 @@ function getRewardCardLayout(boxWidth: number, choiceCount: number) {
 	};
 }
 
+function getChallengeTitle(type: ChestChallengeType) {
+	switch (type) {
+		case "bezier":
+			return "CURVE LOCK";
+		case "frequency":
+			return "FREQUENCY TUNING";
+		case "capacitor":
+			return "RISK CAPACITOR";
+		default:
+			return "TIMING LOCK";
+	}
+}
+
+function addChallengeInstructions(
+	parent: GameObj,
+	title: string,
+	prompts: readonly {
+		action: "tune" | "lock" | "charge"
+		label: string
+	}[]
+) {
+	parent.add([
+		k.text(title, { size: UI_FONT_SIZES.title, font: "unscii" }),
+		k.pos(0, -120),
+		k.anchor("center"),
+	]);
+	createInputPromptRow(parent, {
+		pos: k.vec2(0, 150),
+		prompts,
+		color: [150, 205, 255],
+		fontSize: UI_FONT_SIZES.body,
+		iconHeight: 28,
+	})
+}
+
+function drawFrequencyTuner(
+	position: number,
+	target: number,
+	hitWindow: number,
+	round: number,
+	opacity: number = 1
+) {
+	const width = 300;
+	const left = -width / 2;
+	const targetStart = left + (target - hitWindow / 2) * width;
+	k.drawRect({
+		pos: k.vec2(left, 54),
+		width,
+		height: 8,
+		color: k.rgb(45, 60, 70),
+		opacity: 0.8 * opacity,
+	});
+	k.drawRect({
+		pos: k.vec2(targetStart, 54),
+		width: hitWindow * width,
+		height: 8,
+		color: k.rgb(255, 165, 0),
+		opacity: 0.9 * opacity,
+	});
+	k.drawRect({
+		pos: k.vec2(left + position * width - 2, 47),
+		width: 4,
+		height: 22,
+		color: k.WHITE,
+		opacity,
+	});
+
+	const targetWave: Vec2[] = [];
+	const currentWave: Vec2[] = [];
+	for (let index = 0; index <= 40; index++) {
+		const progress = index / 40;
+		const x = left + progress * width;
+		targetWave.push(k.vec2(
+			x,
+			Math.sin(progress * Math.PI * (4 + target * 8)) * 16 - 12
+		));
+		currentWave.push(k.vec2(
+			x,
+			Math.sin(progress * Math.PI * (4 + position * 8)) * 16 - 12
+		));
+	}
+	k.drawLines({
+		pts: targetWave,
+		width: 2,
+		color: k.rgb(255, 165, 0),
+		opacity: 0.5 * opacity,
+	});
+	k.drawLines({
+		pts: currentWave,
+		width: 2,
+		color: k.rgb(150, 215, 255),
+		opacity,
+	});
+	for (let index = 0; index < 3; index++) {
+		k.drawCircle({
+			pos: k.vec2(-14 + index * 14, 82),
+			radius: 3,
+			color: index < round ? k.rgb(150, 215, 255) : k.rgb(55, 70, 78),
+			opacity,
+			anchor: "center",
+		});
+	}
+}
+
+function drawRiskCapacitor(
+	charge: number,
+	config: ChestChallengeConfig,
+	opacity: number = 1
+) {
+	const width = 300;
+	const left = -width / 2;
+	const clampedCharge = k.clamp(charge, 0, 1);
+	k.drawRect({
+		pos: k.vec2(left, 0),
+		width,
+		height: 18,
+		color: k.rgb(35, 45, 52),
+		opacity,
+	});
+	k.drawRect({
+		pos: k.vec2(left + config.capacitorMinimumCharge * width, 0),
+		width: (config.capacitorGoodCharge - config.capacitorMinimumCharge) * width,
+		height: 18,
+		color: k.rgb(70, 150, 255),
+		opacity: 0.35 * opacity,
+	});
+	k.drawRect({
+		pos: k.vec2(left + config.capacitorGoodCharge * width, 0),
+		width: (config.capacitorPerfectCharge - config.capacitorGoodCharge) * width,
+		height: 18,
+		color: k.rgb(190, 90, 255),
+		opacity: 0.45 * opacity,
+	});
+	k.drawRect({
+		pos: k.vec2(left + config.capacitorPerfectCharge * width, 0),
+		width: (1 - config.capacitorPerfectCharge) * width,
+		height: 18,
+		color: k.rgb(255, 185, 45),
+		opacity: 0.55 * opacity,
+	});
+	k.drawRect({
+		pos: k.vec2(left, 3),
+		width: clampedCharge * width,
+		height: 12,
+		color: clampedCharge >= config.capacitorPerfectCharge
+			? k.rgb(255, 230, 140)
+			: k.rgb(120, 210, 255),
+		opacity: 0.9 * opacity,
+	});
+	k.drawRect({
+		pos: k.vec2(left + width - 3, -5),
+		width: 3,
+		height: 28,
+		color: k.rgb(255, 70, 55),
+		opacity,
+	});
+}
+
 function cubicBezierPoint(
 	p0: Vec2,
 	p1: Vec2,
@@ -1372,39 +1942,6 @@ function spawnRewardRevealBurst(
 			easing: k.easings.easeOutCubic,
 		}
 	);
-}
-
-function spawnChestGravityBurst(pos: Vec2) {
-	const burst = k.add([
-		k.pos(pos),
-		k.fixed(),
-		k.layer(layers.uiEffects),
-		k.opacity(1),
-		k.lifespan(4),
-		k.particles(
-			{
-				max: 128,
-				speed: [150, 340],
-				acceleration: [k.vec2(-18, 100), k.vec2(18, 230)],
-				lifeTime: [1.8, 3.2],
-				angle: [0, 360],
-				angularVelocity: [-260, 260],
-				colors: [k.WHITE],
-				opacities: [1, 1, 0.8, 0],
-				scales: [2.6, 2, 1.1, 0.2],
-				texture: k.getSprite("particle4")!.data!.frames[0].tex,
-				quads: [k.getSprite("particle4")!.data!.frames[0].q],
-			},
-			{
-				rate: 0,
-				direction: -90,
-				spread: 360,
-				position: k.vec2(0, 0),
-			}
-		),
-		"chestUI",
-	]);
-	burst.emit(96);
 }
 
 function spawnChestExplosionEffect(pos: Vec2) {

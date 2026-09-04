@@ -10,7 +10,7 @@ import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
 } from "../services/threatService"
-import { registerHitAnimation } from "../shared"
+import { easeDirection, registerHitAnimation } from "../shared"
 import { tags } from "../tags"
 import { randomExplosion } from "../util"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
@@ -26,6 +26,11 @@ interface SwarmCommand {
 const MINIMUM_COORDINATED_SWARM = 5
 const RECRUIT_RADIUS = 640
 const STAGING_DISTANCE = 185
+const SWARM_DRONE_BASE_SCALE = 0.5
+const SWARM_HIVEMIND_BASE_SCALE = 0.72
+const SWARM_TURN_RESPONSE = 4.5
+const SWARM_CHARGE_TURN_RESPONSE = 9
+const HIVEMIND_TURN_RESPONSE = 3.5
 
 /**
  * The most basic mobile enemy. Without a living hivemind it has no tactics: it
@@ -38,11 +43,11 @@ export function spawnSwarmEnemy(
 	hiveMind?: GameObj
 ) {
 	const profile = createEnemySpawnProfile(hp, 1, 1, options)
-	const spriteScale = profile.elite ? 2 : 1
+	const spriteScale = profile.scale * SWARM_DRONE_BASE_SCALE
 	const enemy = k.add([
 		k.pos(pos),
 		k.sprite("enemy_swarm_drone"),
-		k.color(...profile.tint),
+		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),
 		k.health(profile.hp),
@@ -53,6 +58,7 @@ export function spawnSwarmEnemy(
 		{
 			hb: 9 * spriteScale,
 			damage: profile.damage,
+			moveDirection: k.vec2(0, -1),
 			hiveMind,
 			swarmCommand: undefined as SwarmCommand | undefined,
 		},
@@ -67,7 +73,7 @@ export function spawnSwarmEnemy(
 		k.rect(2 / spriteScale, 2 / spriteScale),
 		k.pos(0, -3 / spriteScale),
 		k.anchor("center"),
-		k.color(205, 55, 55),
+		k.color(k.WHITE),
 	])
 
 	registerHitAnimation(enemy)
@@ -86,14 +92,25 @@ export function spawnSwarmEnemy(
 		const toTarget = target.sub(enemy.pos)
 		const distance = toTarget.len()
 		if (distance > 1) {
-			const direction = toTarget.unit()
+			const desiredDirection = toTarget.unit()
+			const turnResponse = command?.charging
+				? SWARM_CHARGE_TURN_RESPONSE
+				: SWARM_TURN_RESPONSE
+			enemy.moveDirection = easeDirection(
+				enemy.moveDirection,
+				desiredDirection,
+				turnResponse,
+				k.dt() * enemy.getTimescale()
+			)
 			const speed = hasHive && command
 				? command.speed
 				: 48 * profile.speedMultiplier
 			enemy.move(
-				direction.scale(speed * velocityScale() * enemy.getTimescale())
+				enemy.moveDirection.scale(
+					speed * velocityScale() * enemy.getTimescale()
+				)
 			)
-			enemy.angle = direction.angle() + 90
+			enemy.angle = enemy.moveDirection.angle() + 90
 		}
 
 		checkProjectileIntersection(enemy.pos, enemy.hb, tags.friendly, (projectile) => {
@@ -132,11 +149,11 @@ export function spawnHiveMind(
 	options: EnemySpawnOptions = {}
 ) {
 	const profile = createEnemySpawnProfile(9, 1, 1, options)
-	const spriteScale = profile.elite ? 2 : 1
+	const spriteScale = profile.scale * SWARM_HIVEMIND_BASE_SCALE
 	const hive = k.add([
 		k.pos(pos),
 		k.sprite("enemy_swarm_hivemind"),
-		k.color(...profile.tint),
+		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),
 		k.health(profile.hp),
@@ -147,6 +164,7 @@ export function spawnHiveMind(
 		{
 			hb: 22 * spriteScale,
 			damage: profile.damage,
+			moveDirection: k.vec2(0, -1),
 			members: [] as GameObj[],
 			phase: "gather" as SwarmPhase,
 			phaseTimer: 0,
@@ -164,19 +182,19 @@ export function spawnHiveMind(
 	hive.add([
 		k.circle(3 / spriteScale),
 		k.anchor("center"),
-		k.color(170, 70, 205),
+		k.color(k.WHITE),
 	])
 	const innerPulse = hive.add([
 		k.circle(14 / spriteScale, { fill: false }),
 		k.anchor("center"),
-		k.outline(1, k.rgb(215, 95, 235)),
+		k.outline(1, k.WHITE),
 		k.opacity(0.8),
 		k.z(-1),
 	])
 	const outerPulse = hive.add([
 		k.circle(22 / spriteScale, { fill: false }),
 		k.anchor("center"),
-		k.outline(1, k.rgb(145, 55, 180)),
+		k.outline(1, k.WHITE),
 		k.opacity(0.35),
 		k.z(-1),
 	])
@@ -351,13 +369,26 @@ function moveHiveMind(hive: GameObj, speedMultiplier: number) {
 	const target = playerObj.pos.sub(direction.scale(targetDistance))
 	const toTarget = target.sub(hive.pos)
 	if (toTarget.len() > 4) {
-		const movement = toTarget.unit()
-		hive.move(
-			movement.scale(54 * speedMultiplier * velocityScale() * hive.getTimescale())
+		hive.moveDirection = easeDirection(
+			hive.moveDirection,
+			toTarget.unit(),
+			HIVEMIND_TURN_RESPONSE,
+			k.dt() * hive.getTimescale()
 		)
-		hive.angle = movement.angle() + 90
+		hive.move(
+			hive.moveDirection.scale(
+				54 * speedMultiplier * velocityScale() * hive.getTimescale()
+			)
+		)
+		hive.angle = hive.moveDirection.angle() + 90
 	} else {
-		hive.angle = direction.angle() + 90
+		hive.moveDirection = easeDirection(
+			hive.moveDirection,
+			direction,
+			HIVEMIND_TURN_RESPONSE,
+			k.dt() * hive.getTimescale()
+		)
+		hive.angle = hive.moveDirection.angle() + 90
 	}
 }
 

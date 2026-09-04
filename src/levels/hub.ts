@@ -9,22 +9,28 @@ import { spawnChest } from "../spawn/spawnChest";
 import { spawnCrate } from "../spawn/spawnCrate";
 import { playerObj, projectiles } from "../game";
 import { tags } from "../tags";
-import { spawnRecoveryShop } from "../spawn/spawnRecoveryShop";
 import { interactable } from "../comp/interactable";
 import {
+	createInteractionPrompt,
+	UI_COLORS,
+	UI_FONT_SIZES,
+} from "../ui/common";
+import {
 	buildFacility,
+	consumeHubGhostChest,
+	getHubGhostChestCapacity,
+	getHubGhostChestStock,
+	getHubLevel,
+	hasUnseenBlueprints,
 	HUB_FACILITIES,
 	HubFacilityDefinition,
 	HubFacilityId,
 	isFacilityBuilt,
+	isFacilityUnlocked,
 } from "../services/hubProgressService";
 import {
-	showBlueprintArchive,
-	showTrainingRange,
-	showContractTerminal,
-	showRunDebrief,
-	showSalvageForge,
-	showWarpZoneRegistry,
+	showPhaseStation,
+	showRunTerminal,
 } from "../ui/hubFacilities";
 import { saveGame } from "../util";
 import { starsEmitter } from "../particles";
@@ -39,6 +45,11 @@ import { spawnGravityPull } from "../spawn/spawnGravityPull";
 import { spawnHealthOrb } from "../spawn/spawnHealthOrb";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import { PLANET_CHUNK_SPRITES } from "../planetChunkSprites";
+import {
+	purchaseBurstParticleCount,
+	spawnCurrencyBurst,
+} from "../spawn/spawnCurrencyBurst";
+import { showPendingRunEndSummary } from "../ui/runEndSummary";
 
 let lvlData: any = {};
 let bgAsteroidTimer = 0;
@@ -54,6 +65,8 @@ const trainingDummyRespawnDelay = 1.5;
 const hubFacilityScale = 1.35;
 const hubFacilityInteractRadius = 120;
 const hubFacilityLabelOffsetY = 126;
+const ghostChestCosts = [15, 30, 50] as const;
+const ghostWeaponChestCost = 30;
 const hubFacilitySprites: Record<
 	HubFacilityId,
 	{ built: string; destroyed: string }
@@ -62,6 +75,10 @@ const hubFacilitySprites: Record<
 		built: "facility_contract_terminal",
 		destroyed: "facility_contract_terminal_destroyed",
 	},
+	trainingRange: {
+		built: "facility_training_range",
+		destroyed: "facility_training_range_destroyed",
+	},
 	salvageForge: {
 		built: "facility_salvage_forge",
 		destroyed: "facility_salvage_forge_destroyed",
@@ -69,18 +86,6 @@ const hubFacilitySprites: Record<
 	debriefTerminal: {
 		built: "facility_debrief_terminal",
 		destroyed: "facility_debrief_terminal_destroyed",
-	},
-	trainingRange: {
-		built: "facility_training_range",
-		destroyed: "facility_training_range_destroyed",
-	},
-	blueprintArchive: {
-		built: "facility_blueprint_archive",
-		destroyed: "facility_blueprint_archive_destroyed",
-	},
-	warpZones: {
-		built: "facility_warp_zones",
-		destroyed: "facility_warp_zones_destroyed",
 	},
 };
 export const hub: Level = {
@@ -132,7 +137,8 @@ export const hub: Level = {
 		wormhole.onDestroy(() => {
 			if (wormholeGravity.exists()) k.destroy(wormholeGravity);
 		});
-		spawnChest(k.center().add(-60, 20));
+		spawnHubGhostChest(k.center().add(-60, 20));
+		spawnHubGhostWeaponChest(k.center().add(80, 20));
 		spawnCrate({
 			pos: k.center().add(-300, -50),
 			am: 4,
@@ -153,11 +159,12 @@ export const hub: Level = {
 		});
 		const healthOrb = spawnHealthOrb(k.center().add(-330, 90));
 		healthOrb.speed = 0;
-		spawnRecoveryShop(k.center().add(-690, -280));
 		spawnDebreeValues(k.center().add(90, 55), [1, 2, 3, 4, 5]);
 		spawnHubFacilities();
 		spawnHubBackgroundDepth();
 		spawnPhaseShiftAsteroidField();
+		saveGame("slot1");
+		k.wait(0.45, showPendingRunEndSummary);
 	},
 	lvlUpd: () => {
 		const center = k.center();
@@ -224,6 +231,36 @@ export const hub: Level = {
 		}
 	},
 };
+
+function spawnHubGhostChest(pos: Vec2) {
+	const stock = getHubGhostChestStock("salvage");
+	if (stock <= 0) return;
+	const purchaseIndex = getHubGhostChestCapacity("salvage") - stock;
+	const cost = ghostChestCosts[purchaseIndex];
+	if (cost === undefined) return;
+	spawnChest(pos, 1, {
+		ghostCost: cost,
+		debreeBurstCount: 12 + Math.round(cost * 0.7),
+		onPurchased: () => {
+			consumeHubGhostChest("salvage");
+			saveGame("slot1");
+		},
+		onOpened: () => spawnHubGhostChest(pos),
+	});
+}
+
+function spawnHubGhostWeaponChest(pos: Vec2) {
+	if (getHubGhostChestStock("weapon") <= 0) return;
+	spawnChest(pos, 1, {
+		rewardType: "weapon",
+		ghostCost: ghostWeaponChestCost,
+		debreeBurstCount: 12 + Math.round(ghostWeaponChestCost * 0.7),
+		onPurchased: () => {
+			consumeHubGhostChest("weapon");
+			saveGame("slot1");
+		},
+	});
+}
 
 function spawnHubBackgroundDepth() {
 	const center = k.center();
@@ -472,11 +509,9 @@ function spawnHubFacilities() {
 	const center = k.center();
 	const positions: Record<HubFacilityId, ReturnType<typeof k.vec2>> = {
 		contractTerminal: center.add(160, -300),
-		salvageForge: center.add(-650, 170),
-		debriefTerminal: center.add(-260, -300),
 		trainingRange: center.add(570, 260),
-		blueprintArchive: center.add(-190, 300),
-		warpZones: center.add(650, -250),
+		salvageForge: center.add(-360, -260),
+		debriefTerminal: center.add(-560, 100),
 	};
 
 	for (const facility of HUB_FACILITIES) {
@@ -489,13 +524,20 @@ function spawnHubFacility(
 	pos: ReturnType<typeof k.vec2>
 ) {
 	let built = isFacilityBuilt(facility.id);
+	const unlocked = () => isFacilityUnlocked(facility.id);
 	const sprites = hubFacilitySprites[facility.id];
 	const building = k.add([
 		k.pos(pos),
 		interactable(hubFacilityInteractRadius, () => {
 			if (!built) {
+				if (!unlocked()) return;
 				if (!spendScore(facility.cost)) return;
-				buildFacility(facility.id);
+				if (facility.cost > 0) {
+					spawnCurrencyBurst(building.pos.clone(), {
+						particleCount: purchaseBurstParticleCount(facility.cost),
+					});
+				}
+				if (!buildFacility(facility.id)) return;
 				saveGame("slot1");
 				built = true;
 				buildingVisual.use(k.sprite(sprites.built));
@@ -521,45 +563,74 @@ function spawnHubFacility(
 		k.color(built ? k.WHITE : k.rgb(100, 110, 120)),
 		k.opacity(built ? 1 : 0.68),
 	]);
+	const newInfoMarker = facility.id === "trainingRange"
+		? building.add([
+			k.text("!", { size: UI_FONT_SIZES.display, font: "unscii" }),
+			k.pos(0, -150),
+			k.anchor("center"),
+			k.color(...UI_COLORS.warning),
+			k.opacity(1),
+			k.layer(layers.gameText),
+			k.z(210),
+		])
+		: undefined;
+	if (newInfoMarker) {
+		newInfoMarker.hidden = !built || !hasUnseenBlueprints();
+	}
 	if (built && facility.id === "trainingRange") {
 		spawnTrainingDummies(pos);
 	}
-	const label = building.add([
-		k.text("", {
-			size: 9,
-			font: "unscii",
-			width: 220,
-			align: "center",
-		}),
-		k.pos(0, hubFacilityLabelOffsetY),
-		k.anchor("center"),
-		k.layer(layers.gameText),
-		k.color(k.WHITE),
-		k.opacity(0),
-	]);
+	const prompt = createInteractionPrompt({
+		target: building,
+		offset: k.vec2(0, hubFacilityLabelOffsetY),
+		width: 280,
+		content: () => built
+			? {
+				title: facility.name,
+				notification: facility.id === "trainingRange" && hasUnseenBlueprints(),
+				action: "OPEN FACILITY",
+			}
+			: !unlocked()
+				? {
+					title: facility.name,
+					action: "RESTORATION LOCKED",
+					detailLeft: `REQUIRES HUB LEVEL ${facility.requiredHubLevel}`,
+					detailRight: `LEVEL ${getHubLevel()}`,
+				}
+				: {
+				title: facility.name,
+				action: "BUILD FACILITY",
+				detailLeft: facility.cost === 0
+					? "FREE"
+					: `COST ${facility.cost} SCRAP`,
+				detailRight: `${getScore()} AVAILABLE`,
+			},
+	});
 
 	registerBatchedEntityUpdate("world", building, () => {
-		label.opacity = building.isInRange ? 1 : 0;
-		label.text = built
-			? `F  ${facility.name}`
-			: facility.cost === 0
-				? `F  BUILD ${facility.name}\nFREE`
-				: `F  BUILD ${facility.name}\n${facility.cost} SCRAP  |  ${getScore()} AVAILABLE`;
+		if (newInfoMarker) {
+			const visible = built && hasUnseenBlueprints();
+			newInfoMarker.hidden = !visible;
+			if (visible) {
+				newInfoMarker.pos.y = -150 + Math.sin(k.time() * 3.2) * 4;
+				newInfoMarker.opacity = k.wave(0.55, 1, k.time() * 5);
+			}
+		}
+		prompt.update(building.isInRange);
 	});
 }
 
 function openHubFacility(id: HubFacilityId) {
-	if (id === "contractTerminal") showContractTerminal();
-	if (id === "salvageForge") showSalvageForge();
-	if (id === "debriefTerminal") showRunDebrief();
-	if (id === "trainingRange") showTrainingRange();
-	if (id === "blueprintArchive") showBlueprintArchive();
-	if (id === "warpZones") showWarpZoneRegistry();
+	if (id === "contractTerminal") showRunTerminal("contracts");
+	if (id === "salvageForge") showRunTerminal("forge");
+	if (id === "debriefTerminal") showRunTerminal("debrief");
+	if (id === "trainingRange") showPhaseStation();
 }
 
 function spawnTrainingDummies(facilityPos: ReturnType<typeof k.vec2>) {
 	const hubSession = lvlData;
-	for (const offsetX of [-60, 0, 60]) {
+	const offsets = getHubLevel() >= 5 ? [-60, 0, 60] : [0];
+	for (const offsetX of offsets) {
 		spawnTrainingDummy(facilityPos, offsetX, hubSession);
 	}
 }

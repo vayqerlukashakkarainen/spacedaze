@@ -20,6 +20,25 @@ export const UI_SPACING = {
 	xl: 24,
 } as const
 
+export const UI_FONT_SIZES = {
+	micro: 7,
+	tiny: 9,
+	small: 9,
+	label: 10,
+	body: 12,
+	subheading: 14,
+	heading: 16,
+	sectionTitle: 18,
+	title: 20,
+	display: 24,
+	hero: 32,
+	logo: 42,
+	countdown: 64,
+	death: 72,
+} as const
+
+export type UiFontSize = typeof UI_FONT_SIZES[keyof typeof UI_FONT_SIZES]
+
 export const UI_SIZES = {
 	border: 1,
 	selectionRail: 3,

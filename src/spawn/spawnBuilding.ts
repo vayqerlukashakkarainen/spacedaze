@@ -11,6 +11,10 @@ import { k, layers } from "../main";
 import { tags } from "../tags";
 import { interactable, InteractableComp } from "../comp/interactable";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import {
+	createInteractionPrompt,
+	type InteractionPromptSource,
+} from "../ui/common";
 
 interface SpawnBuildingOptions {
 	pos: Vec2;
@@ -21,6 +25,7 @@ interface SpawnBuildingOptions {
 	anchor?: Anchor;
 	scale?: number;
 	interactPromptOffset?: Vec2;
+	interactionPrompt?: InteractionPromptSource | false;
 }
 
 export function spawnBuilding(
@@ -35,6 +40,10 @@ export function spawnBuilding(
 		anchor = "center",
 		scale = 1,
 		interactPromptOffset = k.vec2(0, -40),
+		interactionPrompt = {
+			title: "INTERACTION",
+			action: "INTERACT",
+		},
 	} = options;
 
 	const building = k.add([
@@ -49,19 +58,17 @@ export function spawnBuilding(
 		tags.props,
 	]);
 
-	const interactPrompt = building.add([
-		k.text("F", { size: 12 }),
-		k.layer(layers.gameText),
-		k.pos(interactPromptOffset),
-		k.anchor("center"),
-		k.color(255, 255, 255),
-		k.z(100),
-		k.opacity(0),
-	]);
+	const prompt = interactionPrompt === false
+		? undefined
+		: createInteractionPrompt({
+			target: building,
+			offset: interactPromptOffset,
+			content: interactionPrompt,
+		});
 
 	registerBatchedEntityUpdate("world", building, () => {
 		const interactable = building as any;
-		interactPrompt.opacity = interactable.isInRange ? 1 : 0;
+		prompt?.update(interactable.isInRange);
 	});
 
 	return building;

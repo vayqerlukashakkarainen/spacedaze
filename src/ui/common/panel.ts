@@ -1,6 +1,6 @@
 import { Vec2 } from "kaplay"
 import { k, layers } from "../../main"
-import { UI_COLORS } from "./theme"
+import { UI_COLORS, UI_FONT_SIZES } from "./theme"
 
 interface UiPanelProps {
 	pos: Vec2
@@ -60,7 +60,7 @@ export function createUiPanel({
 
 	if (title) {
 		panel.add([
-			k.text(title, { size: 8, font: "unscii" }),
+			k.text(title, { size: UI_FONT_SIZES.tiny, font: "unscii" }),
 			k.pos(left + 8, top + 8),
 			k.color(...UI_COLORS.accent),
 		])

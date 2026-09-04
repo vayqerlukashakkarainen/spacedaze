@@ -3,6 +3,10 @@ import { k, mainSoundVolume } from "../main"
 import { getFinaleDefinition, type FinaleId } from "../finales/finaleRegistry"
 import type { FinaleDefinition, FinaleEvent, RunPhase } from "../finales/finaleTypes"
 import { audioService } from "./audioService"
+import {
+	captureRunFinaleBattleZone,
+	clearRunFinaleBattleZone,
+} from "./runFinaleArenaService"
 
 let finale: FinaleDefinition | undefined
 let events: FinaleEvent[] = []
@@ -29,6 +33,7 @@ export function prepareRunFinale(
 
 export function activateRunFinale() {
 	if (!finale || phase !== "exploration") return false
+	captureRunFinaleBattleZone()
 	elapsedMilliseconds = 0
 	nextEventIndex = 0
 	transitionElapsedMilliseconds = 0
@@ -125,6 +130,7 @@ export function getRunFinaleRampProgress() {
 }
 
 export function resetRunFinale() {
+	clearRunFinaleBattleZone()
 	transitionRampSound?.stop()
 	transitionRampSound = undefined
 	finale?.reset()

@@ -1,7 +1,7 @@
 import type { Color, GameObj, Vec2 } from "kaplay"
 import { k } from "../../main"
 import { addThemedText } from "./text"
-import { UI_COLORS } from "./theme"
+import { UI_COLORS, UI_FONT_SIZES } from "./theme"
 
 export interface UiTelemetryItem {
 	label: string
@@ -39,7 +39,7 @@ export function createUiTelemetryStrip(
 			pos: k.vec2(x, 15),
 			text: item.value,
 			variant: "stat",
-			size: 9,
+			size: UI_FONT_SIZES.small,
 			width: columnWidth,
 			color: item.valueColor ?? k.rgb(...UI_COLORS.text),
 		})

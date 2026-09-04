@@ -4,6 +4,7 @@ import { uiState } from "../../ui/uiState";
 import { createUiButton } from "../../ui/common/button";
 import { createUiLabel } from "../../ui/common/label";
 import { uiHitRegion } from "../../ui/common/hitRegion";
+import { UI_FONT_SIZES } from "../../ui/common/theme";
 import {
 	clearGrid,
 	generateCave,
@@ -93,7 +94,7 @@ export function createActionBar(
 	});
 
 	const seedInputText = seedInputBg.add([
-		k.text("seed: random", { size: 10, font: "unscii" }),
+		k.text("seed: random", { size: UI_FONT_SIZES.label, font: "unscii" }),
 		k.anchor("center"),
 		k.color(150, 150, 150),
 	]);

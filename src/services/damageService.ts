@@ -50,7 +50,7 @@ export function applyDamage(
 	}
 	if (
 		target.tags.includes(tags.player) &&
-		isPlayerDamageInvulnerable()
+		(isPlayerDamageInvulnerable() || target.activeModuleInvulnerable === true)
 	) return false
 	if (tryBlockPlayerDamage(target, damage)) return false
 

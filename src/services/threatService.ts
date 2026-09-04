@@ -1,6 +1,11 @@
 const THREAT_TIER_DURATION = 75
-const DEPTH_TIME_OFFSET = 30
+const BASE_DEPTH_TIME_OFFSET = 30
+const NESTED_RUN_THREAT_REDUCTION = 0.6
+const DEPTH_TIME_OFFSET = BASE_DEPTH_TIME_OFFSET * (
+	1 - NESTED_RUN_THREAT_REDUCTION
+)
 const MAX_THREAT_TIER = 5
+const THREAT_ECONOMY_STEP = 0.25
 
 export interface ThreatSnapshot {
 	active: boolean
@@ -12,6 +17,7 @@ export interface ThreatSnapshot {
 	spawnCountMultiplier: number
 	healthMultiplier: number
 	damageMultiplier: number
+	economyMultiplier: number
 }
 
 export interface EnemySpawnOptions {
@@ -27,7 +33,6 @@ export interface EnemySpawnProfile {
 	scale: number
 	speedMultiplier: number
 	elite: boolean
-	tint: [number, number, number]
 	rewardMultiplier: number
 }
 
@@ -87,7 +92,23 @@ export function getThreatSnapshot(): ThreatSnapshot {
 		spawnCountMultiplier: active ? 1 + (tier - 1) * 0.18 : 1,
 		healthMultiplier: active ? 1 + (tier - 1) * 0.1 : 1,
 		damageMultiplier: active ? 1 + (tier - 1) * 0.07 : 1,
+		economyMultiplier: active ? 1 + (tier - 1) * THREAT_ECONOMY_STEP : 1,
 	}
+}
+
+export function scaleThreatChestCost(baseCost: number) {
+	return Math.max(
+		1,
+		Math.round(baseCost * getThreatSnapshot().economyMultiplier)
+	)
+}
+
+export function scaleThreatDebreeAmount(baseAmount: number) {
+	if (baseAmount <= 0) return 0
+	return Math.max(
+		1,
+		Math.round(baseAmount * getThreatSnapshot().economyMultiplier)
+	)
 }
 
 export function scaleThreatSpawnCount(baseCount: number) {
@@ -120,7 +141,6 @@ export function createEnemySpawnProfile(
 		scale: baseScale * eliteScaleMultiplier,
 		speedMultiplier: elite ? 1.08 : 1,
 		elite,
-		tint: elite ? [105, 175, 255] : [255, 255, 255],
 		rewardMultiplier: elite ? 1.75 : 1,
 	}
 }

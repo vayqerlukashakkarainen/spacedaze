@@ -10,6 +10,11 @@ import { spawnBuilding } from "../spawnBuilding"
 import { spawnDamageNumber } from "../spawnDamageNumber"
 import { spawnRing } from "../spawnRing"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { UI_FONT_SIZES } from "../../ui/common"
+import {
+	purchaseBurstParticleCount,
+	spawnCurrencyBurst,
+} from "../spawnCurrencyBurst"
 
 interface RepairStationProps {
 	pos: Vec2
@@ -29,12 +34,17 @@ export function spawnRepairStation(props: RepairStationProps) {
 		sprite: "room_repair_station",
 		scale: 0.62,
 		interactRadius: 75,
-		interactPromptOffset: k.vec2(0, -108),
+		interactPromptOffset: k.vec2(0, -138),
+		interactionPrompt: () => ({
+			title: "REPAIR STATION",
+			action: "START REPAIR",
+			detailLeft: `COST ${props.cost} SCRAP`,
+		}),
 		onInteract: beginRepair,
 	})
 	station.tag(props.tags ?? [])
 	const status = station.add([
-		k.text(`REPAIR ${props.cost}`, { size: 12, font: "unscii" }),
+		k.text(`REPAIR ${props.cost}`, { size: UI_FONT_SIZES.body, font: "unscii" }),
 		k.pos(0, -86),
 		k.anchor("center"),
 		k.color(90, 255, 135),
@@ -97,6 +107,9 @@ export function spawnRepairStation(props: RepairStationProps) {
 			status.text = `NEED ${props.cost} SALVAGE`
 			return
 		}
+		spawnCurrencyBurst(station.pos.clone(), {
+			particleCount: purchaseBurstParticleCount(props.cost),
+		})
 		repairing = true
 		status.text = "REPAIRING"
 		addThreatTime(8)

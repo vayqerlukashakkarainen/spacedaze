@@ -1,5 +1,5 @@
 import kaplay, { GameObj, Vec2 } from "kaplay";
-import { init, loadGame, saveGame } from "./util";
+import { deleteGameSave, init, loadGame, saveGame } from "./util";
 import {
 	clearGame,
 	exitRunToHub,
@@ -15,6 +15,7 @@ import {
 	grantRunUpgrade,
 	isToolKey,
 	setLoadout,
+	setLoadoutRarity,
 } from "./upg";
 import {
 	getRerollTokens,
@@ -65,16 +66,21 @@ import {
 import { commandService } from "./services/commandService";
 import { playerObj } from "./game";
 import { activeLevelKey, transitionToLevel } from "./levels/levels";
-import { getSelectedContract } from "./services/contractService";
+import {
+	clearSelectedContract,
+	getSelectedContract,
+} from "./services/contractService";
 import {
 	recordPlaytime,
 	recordRunSalvage,
+	resetRunStats,
 	runStatsActive,
 } from "./services/runStatsService";
 import {
 	getGeneratedRunSummary,
 	revealEntireGeneratedRunMap,
 	setNextGeneratedRunSeed,
+	teleportPlayerToNearestDebreeDeposit,
 	teleportPlayerToGeneratedRunExit,
 } from "./levels/runMap";
 import {
@@ -85,6 +91,7 @@ import {
 	getAllRewardDefinitions,
 	getRewardDefinition,
 	createDirectUpgradeReward,
+	RewardRarity,
 	RewardSource,
 } from "./services/rewardService";
 import { spawnRewardPickup } from "./spawn/spawnPowerup";
@@ -96,7 +103,7 @@ import {
 import {
 	hideHubFacilityPanel,
 	hubFacilityPanelOpen,
-	showTrainingRange,
+	showPhaseStation,
 } from "./ui/hubFacilities";
 import {
 	beginRunSession,
@@ -169,6 +176,39 @@ import { updateBatchedEntities } from "./services/entityUpdateService";
 import { rebuildRuntimeSpatialIndex } from "./services/runtimeSpatialIndexService";
 import { updateBatchedUi } from "./services/uiUpdateService";
 import { updateUiPointerRegions } from "./services/uiPointerService";
+import { dialogOpen } from "./services/dialogService";
+import { setupQuestTracker } from "./ui/questTracker";
+import {
+	createLoadingScreen,
+	trackInitialAssets,
+} from "./ui/loadingScreen";
+import {
+	resetNarrativeProgress,
+	shouldStartPrologue,
+} from "./services/narrativeService";
+import {
+	getHubChestLuck,
+	getHubLevel,
+	getHubLifetimeDeposited,
+	recordHubDeposit,
+	resetHubProgress,
+	restockHubGhostChests,
+	setHubLevelForDebug,
+} from "./services/hubProgressService";
+import { resetWarpZoneProgress } from "./services/warpZoneService";
+import { resetWeaponInventory } from "./services/weaponService";
+import {
+	addAvailableDebree,
+	DEFAULT_DEPOSITED_DEBREE,
+	getAvailableDebree,
+	loadDepositedDebree,
+	resetDebreeEconomy,
+	spendAvailableDebree,
+} from "./services/debreeEconomyService";
+import { clearPendingRunEndSummary } from "./services/runCompletionService";
+import {
+	debreeDepositPanelOpen,
+} from "./ui/debreeDepositPanel";
 
 export const layers = {
 	bg: "bg",
@@ -189,7 +229,6 @@ export const GameState = {
 };
 
 const borderOffset = -22;
-export let score = 60;
 export const BULLET_SPEED = 320;
 export const ROCKET_SPEED = 280;
 export let timeSeconds = 0;
@@ -215,10 +254,12 @@ let timescaleLerpDuration = 0.3; // seconds
 let timescaleLerpProgress = 0;
 let audioFollowsTimescale = true;
 let runLoopFrame = 0;
+const loadingScreen = createLoadingScreen();
 
 export const k = kaplay({
 	background: "#000000",
 	global: false,
+	loadingScreen: false,
 	scale: UI_ZOOM,
 	pixelDensity: Math.min(window.devicePixelRatio || 1, 2),
 	crisp: true,
@@ -262,13 +303,14 @@ export function audioPlaybackSpeed() {
 	return audioFollowsTimescale ? timeScale : 1;
 }
 
-init(k).then(() => {
+init(trackInitialAssets(k, loadingScreen)).then(() => {
 	audioService.syncSettings();
 	initParticles();
 	initUiEffects();
 	upgradeService.initialize();
 	loadGameSlot();
 	setupStatsWindow();
+	setupQuestTracker();
 	initDebug();
 	k.setLayers(
 		[
@@ -289,6 +331,7 @@ init(k).then(() => {
 	registerRunLoopSystems();
 
 	changeGameState(GameState.MainMenu);
+	loadingScreen.finish();
 
 	k.onUpdate(() => {
 		beginDrawCallProfilerFrame();
@@ -311,6 +354,8 @@ init(k).then(() => {
 
 	// Pause toggle with Escape key
 	k.onKeyPress("escape", () => {
+		if (debreeDepositPanelOpen()) return;
+		if (dialogOpen()) return;
 		if (tacticalMapOpen()) {
 			hideTacticalMap();
 			return;
@@ -333,6 +378,8 @@ init(k).then(() => {
 	});
 
 	k.onKeyPress("tab", () => {
+		if (debreeDepositPanelOpen()) return;
+		if (dialogOpen()) return;
 		if (commandService.isCapturingInput()) return;
 		if (gameState !== GameState.Playing) return;
 		if (playerDeathSequenceActive()) return;
@@ -342,6 +389,8 @@ init(k).then(() => {
 
 	for (const consoleKey of ["§", "`"]) {
 		k.onKeyPress(consoleKey, () => {
+			if (debreeDepositPanelOpen()) return;
+			if (dialogOpen()) return;
 			if (tacticalMapOpen()) return;
 			if (hubFacilityPanelOpen()) return;
 			if (recoveryShopOpen()) return;
@@ -533,6 +582,7 @@ function updateTimescale(context: RunFrameContext) {
 function canUpdateGameplay() {
 	return gameState == GameState.Playing &&
 		!isPaused &&
+		!dialogOpen() &&
 		!commandConsoleOpen() &&
 		!recoveryShopOpen() &&
 		!hubFacilityPanelOpen() &&
@@ -586,6 +636,25 @@ export function changeGameState(state: number) {
 	}
 }
 
+export function resetGameProfile() {
+	deleteGameSave("slot1")
+	resetDebreeEconomy()
+	timeSeconds = 0
+	clearAllUpgrades()
+	resetSession()
+	resetPowerupRuntime()
+	clearRunInventory()
+	clearRecoveryOffers()
+	clearSelectedContract()
+	resetWeaponInventory()
+	resetHubProgress()
+	clearPendingRunEndSummary()
+	resetWarpZoneProgress()
+	resetRunStats()
+	resetNarrativeProgress()
+	loadPlayer()
+}
+
 function setGameLoopPaused(paused: boolean) {
 	for (const obj of k.get<GameObj>(tags.gameLoop)) {
 		obj.paused = paused;
@@ -597,25 +666,33 @@ export function addScore(am: number) {
 		? getSelectedContract()?.salvageMultiplier ?? 1
 		: 1;
 	const adjustedAmount = Math.max(0, Math.round(am * multiplier));
-	score += adjustedAmount;
+	addAvailableDebree(adjustedAmount);
 	recordRunSalvage(adjustedAmount);
 	return adjustedAmount;
 }
 
 export function spendScore(amount: number) {
-	if (!Number.isFinite(amount) || amount < 0 || score < amount) return false;
-	score -= amount;
-	return true;
+	return spendAvailableDebree(amount);
 }
 
 export function getScore() {
-	return score;
+	return getAvailableDebree();
 }
 
 function registerDebugCommands() {
 	commandService.register("help", "List available commands", () => {
 		return commandService.list().join("\n");
 	});
+
+	commandService.register(
+		"intro",
+		"intro reset - Replay the first-run prologue on the next start",
+		(args) => {
+			if (args[0]?.toLowerCase() !== "reset") return "Usage: intro reset";
+			resetNarrativeProgress();
+			return "Intro progress reset. Return to the menu and start again.";
+		}
+	);
 
 	commandService.register("builds", "List curated playtest builds", () => {
 		return formatPlaytestBuildList();
@@ -895,9 +972,9 @@ function registerDebugCommands() {
 		showRecoveryShop();
 	});
 
-	commandService.register("training", "Open the Training Range systems", () => {
+	commandService.register("training", "Open the Phase Station", () => {
 		hideCommandConsole();
-		showTrainingRange();
+		showPhaseStation();
 	});
 
 	commandService.register("map", "map [seed] - Preview a generated run", (args) => {
@@ -975,6 +1052,14 @@ function registerDebugCommands() {
 		return "Jumped to the run exit";
 	});
 
+	commandService.register("relay", "Jump to the nearest debree relay", () => {
+		if (!teleportPlayerToNearestDebreeDeposit()) {
+			return "No debree relay is currently available";
+		}
+		hideCommandConsole();
+		return "Jumped to the nearest debree relay";
+	});
+
 	commandService.register(
 		"revealmap",
 		"Reveal the entire current tactical map",
@@ -1001,6 +1086,30 @@ function registerDebugCommands() {
 		if (!Number.isFinite(amount)) return "Invalid score amount";
 		addScore(amount);
 		return `Added ${amount} score`;
+	});
+
+	commandService.register("hublevel", "hublevel [1-8] - Show or set hub level", (args) => {
+		if (args.length === 0) {
+			return `Hub level ${getHubLevel()} | XP ${getHubLifetimeDeposited()} | Chest luck +${Math.round(getHubChestLuck() * 100)}%`;
+		}
+		const level = Number(args[0]);
+		if (!Number.isInteger(level) || level < 1 || level > 8) {
+			return "Hub level must be between 1 and 8";
+		}
+		setHubLevelForDebug(level);
+		return `Hub level set to ${level}`;
+	});
+
+	commandService.register("hubxp", "hubxp <amount> - Add deposited hub XP", (args) => {
+		const amount = Number(args[0]);
+		if (!Number.isFinite(amount) || amount <= 0) return "Hub XP must be positive";
+		const result = recordHubDeposit(amount);
+		return `Added ${result.deposited} hub XP | Level ${result.currentLevel}`;
+	});
+
+	commandService.register("hubstock", "Restock unlocked hub ghost chests", () => {
+		restockHubGhostChests();
+		return "Hub ghost chest stock restored";
 	});
 
 	commandService.register(
@@ -1052,17 +1161,30 @@ function registerDebugCommands() {
 		}
 	);
 
-	commandService.register("reward", "reward <id> - Spawn a reward", (args) => {
-		const definition = getRewardDefinition(args[0] ?? "");
-		if (definition && !canReceiveReward(definition)) {
-			return getRewardLockReason(definition) ?? "Reward is locked";
+	commandService.register(
+		"reward",
+		"reward <id> [rarity] - Spawn a reward",
+		(args) => {
+			const definition = getRewardDefinition(args[0] ?? "");
+			if (definition && !canReceiveReward(definition)) {
+				return getRewardLockReason(definition) ?? "Reward is locked";
+			}
+			const rarityName = args[1]?.toUpperCase();
+			const rarity = rarityName
+				? Object.values(RewardRarity).find((value) => value === rarityName)
+				: undefined;
+			if (rarityName && !rarity) {
+				return "Rarity must be common, uncommon, rare, epic, or legendary";
+			}
+			const reward = definition
+				? createReward(definition.id, rarity)
+				: undefined;
+			if (!reward) return "Unknown reward. Use rewards to list them.";
+			hideCommandConsole();
+			spawnRewardPickup(playerObj.pos.clone(), reward);
+			return `Spawned ${reward.name}`;
 		}
-		const reward = definition ? createReward(definition.id) : undefined;
-		if (!reward) return "Unknown reward. Use rewards to list them.";
-		hideCommandConsole();
-		spawnRewardPickup(playerObj.pos.clone(), reward);
-		return `Spawned ${reward.name}`;
-	});
+	);
 }
 
 function addPlaytestBuildToArsenal(build: PlaytestBuild) {
@@ -1142,10 +1264,14 @@ function addBuildPowerups(
 
 function loadGameSlot() {
 	var slot = loadGame("slot1");
-	if (!slot) return;
+	if (!slot) {
+		if (!shouldStartPrologue()) saveGame("slot1")
+		return;
+	}
 
 	setLoadout(slot.loadout);
-	score = slot.score;
+	setLoadoutRarity(slot.loadoutRarity ?? {});
+	loadDepositedDebree(slot.score ?? DEFAULT_DEPOSITED_DEBREE);
 	timeSeconds = slot.time;
 	loadPlayer();
 }
@@ -1225,6 +1351,25 @@ function exitPausedRun() {
 function quitPausedGame() {
 	hidePauseMenu();
 	isPaused = false;
-	k.destroyAll(tags.gameLoop);
+	destroyGameLoopObjects();
 	clearGame();
+}
+
+function destroyGameLoopObjects() {
+	const objects = k.get<GameObj>(tags.gameLoop).sort(
+		(a, b) => gameObjectDepth(b) - gameObjectDepth(a)
+	);
+	for (const object of objects) {
+		if (object.exists()) k.destroy(object);
+	}
+}
+
+function gameObjectDepth(object: GameObj) {
+	let depth = 0;
+	let parent = object.parent;
+	while (parent) {
+		depth++;
+		parent = parent.parent;
+	}
+	return depth;
 }

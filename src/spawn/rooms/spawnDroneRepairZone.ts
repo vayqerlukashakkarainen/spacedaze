@@ -8,6 +8,11 @@ import { tags } from "../../tags"
 import { spawnRing } from "../spawnRing"
 import { spawnRepairStation } from "./spawnRepairStation"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { UI_FONT_SIZES } from "../../ui/common"
+import {
+	purchaseBurstParticleCount,
+	spawnCurrencyBurst,
+} from "../spawnCurrencyBurst"
 
 interface DroneRepairZoneProps {
 	pos: Vec2
@@ -75,7 +80,7 @@ function spawnBrokenDrone(props: BrokenDroneProps) {
 		...props.tags,
 	])
 	const prompt = wreck.add([
-		k.text(`F  REPAIR  ${props.cost}`, { size: 9, font: "unscii" }),
+		k.text(`F  REPAIR  ${props.cost}`, { size: UI_FONT_SIZES.small, font: "unscii" }),
 		k.layer(layers.gameText),
 		k.pos(0, -19),
 		k.anchor("center"),
@@ -128,6 +133,9 @@ function spawnBrokenDrone(props: BrokenDroneProps) {
 			messageElapsed = 1.4
 			return
 		}
+		spawnCurrencyBurst(wreck.pos.clone(), {
+			particleCount: purchaseBurstParticleCount(props.cost),
+		})
 		repairing = true
 		wreck.setInteractRadius(0)
 		prompt.text = "REBOOTING"

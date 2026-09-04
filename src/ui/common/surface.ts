@@ -35,3 +35,12 @@ export function createUiSurface(parent: GameObj, props: UiSurfaceProps) {
 		...(props.tags ?? []),
 	])
 }
+
+export function setUiTreeOpacity(root: GameObj, factor: number) {
+	const opacityFactor = k.clamp(factor, 0, 1)
+	const nodes = [root, ...root.get("*", { recursive: true })]
+	for (const node of nodes) {
+		if (!node.has("opacity")) node.use(k.opacity(1))
+		node.opacity *= opacityFactor
+	}
+}

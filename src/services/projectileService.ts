@@ -94,7 +94,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	const finalSpeed = config.speed * (config.speedMultiplier ?? 1);
 	const damagesDestructibleWalls = config.tags.includes(tags.friendly);
 	const projectileScale = damagesDestructibleWalls
-		? PLAYER_PROJECTILE_SCALE
+		? PLAYER_PROJECTILE_SCALE * (config.visualScale ?? 1)
 		: 1;
 
 	// Build component list
@@ -1817,7 +1817,6 @@ function applyPaintEffect(target: GameObj, config: PaintModifier) {
 		(target.projectilePaintStacks ?? 0) + 1
 	);
 	target.projectilePaintRemaining = config.duration;
-	applyProjectilePaintTint(target, config.maxStacks);
 	spawnFlash(target.pos, 2 + target.projectilePaintStacks, k.rgb(255, 220, 80));
 
 	if (target.hasProjectilePaintUpdate) return;
@@ -1829,46 +1828,5 @@ function applyPaintEffect(target: GameObj, config: PaintModifier) {
 		if (target.projectilePaintRemaining > 0) return;
 		target.projectilePaintRemaining = 0;
 		target.projectilePaintStacks = 0;
-		clearProjectilePaintTint(target);
 	});
-}
-
-function applyProjectilePaintTint(target: GameObj, maxStacks: number) {
-	if (!target.projectilePaintOriginalColor) {
-		target.projectilePaintAddedColor = !target.has("color");
-		if (target.projectilePaintAddedColor) {
-			target.use(k.color(k.WHITE));
-		}
-		target.projectilePaintOriginalColor = {
-			r: target.color.r,
-			g: target.color.g,
-			b: target.color.b,
-		};
-	}
-
-	const original = target.projectilePaintOriginalColor;
-	const stackProgress = k.clamp(
-		target.projectilePaintStacks / Math.max(1, maxStacks),
-		0,
-		1
-	);
-	const tintStrength = k.lerp(0.58, 0.82, stackProgress);
-	target.color = k.rgb(
-		k.lerp(original.r, 255, tintStrength),
-		k.lerp(original.g, 45, tintStrength),
-		k.lerp(original.b, 45, tintStrength)
-	);
-}
-
-function clearProjectilePaintTint(target: GameObj) {
-	const original = target.projectilePaintOriginalColor;
-	if (!original) return;
-
-	if (target.projectilePaintAddedColor) {
-		target.unuse("color");
-	} else {
-		target.color = k.rgb(original.r, original.g, original.b);
-	}
-	delete target.projectilePaintOriginalColor;
-	delete target.projectilePaintAddedColor;
 }

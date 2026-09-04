@@ -29,7 +29,7 @@ export function spawnGenericVehicle(
 	const m = k.add([
 		k.pos(pos),
 		k.sprite(sprite),
-		k.color(...profile.tint),
+		k.color(k.WHITE),
 		k.rotate(dir.angle() - 90),
 		k.anchor("center"),
 		k.health(profile.hp),

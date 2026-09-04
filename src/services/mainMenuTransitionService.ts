@@ -8,6 +8,10 @@ import type {
 import { k, layers, mainSoundVolume } from "../main"
 import { tags } from "../tags"
 import { audioService } from "./audioService"
+import {
+	createSpaceJumpStreaks,
+	drawSpaceJump,
+} from "./spaceJumpVisualService"
 
 type AnimatedMenuObject = GameObj<PosComp | OpacityComp>
 type AnimatedPlanet = GameObj<PosComp | ScaleComp | OpacityComp>
@@ -17,14 +21,6 @@ interface MainMenuSpaceJumpOptions {
 	planet: AnimatedPlanet
 	planetTargetPos: Vec2
 	onJump: () => void
-}
-
-interface JumpStreak {
-	angle: number
-	phase: number
-	speed: number
-	width: number
-	cyan: boolean
 }
 
 const FADE_DURATION = 0.5
@@ -44,7 +40,7 @@ export function startMainMenuSpaceJump(
 	const planetStartPos = options.planet.pos.clone()
 	const planetStartScale = options.planet.scale.clone()
 	const planetStartOpacity = options.planet.opacity
-	const streaks = createJumpStreaks(120)
+	const streaks = createSpaceJumpStreaks(120)
 	let elapsed = 0
 	let jumped = false
 	let warpSoundStarted = false
@@ -148,37 +144,6 @@ export function startMainMenuSpaceJump(
 	return effect
 }
 
-function drawSpaceJump(
-	streaks: readonly JumpStreak[],
-	elapsed: number,
-	intensity: number
-) {
-	if (intensity <= 0) return
-	const center = k.center()
-	const maxRadius = Math.hypot(k.width(), k.height()) * 0.72
-	k.drawRect({
-		pos: k.vec2(0, 0),
-		width: k.width(),
-		height: k.height(),
-		color: k.rgb(0, 34, 48),
-		opacity: intensity * 0.24,
-	})
-	for (const streak of streaks) {
-		const acceleration = elapsed * 0.2 + intensity * intensity * 5.2
-		const progress = (streak.phase + acceleration * streak.speed) % 1
-		const distance = 16 + progress * progress * maxRadius
-		const length = (12 + progress * 280) * intensity
-		const direction = k.Vec2.fromAngle(streak.angle)
-		k.drawLine({
-			p1: center.add(direction.scale(distance)),
-			p2: center.add(direction.scale(distance + length)),
-			width: streak.width,
-			color: streak.cyan ? k.rgb(0, 207, 255) : k.WHITE,
-			opacity: intensity * (0.42 + progress * 0.58),
-		})
-	}
-}
-
 function collectFadingObjects(root: GameObj) {
 	return [root, ...root.get("*", { recursive: true })].map((object) => {
 		if (!object.has("opacity")) object.use(k.opacity(1))
@@ -188,21 +153,6 @@ function collectFadingObjects(root: GameObj) {
 			startOpacity: fadingObject.opacity,
 		}
 	})
-}
-
-function createJumpStreaks(count: number): JumpStreak[] {
-	let state = 41
-	const random = () => {
-		state = (state * 1664525 + 1013904223) >>> 0
-		return state / 0x100000000
-	}
-	return Array.from({ length: count }, () => ({
-		angle: random() * 360,
-		phase: random(),
-		speed: 0.55 + random() * 1.6,
-		width: random() > 0.9 ? 3 : random() > 0.72 ? 2 : 1,
-		cyan: random() > 0.8,
-	}))
 }
 
 function easeInQuad(value: number) {

@@ -9,7 +9,7 @@ export interface SpatialItem {
 }
 
 export class SpatialHash<T extends SpatialItem> {
-	private buckets = new Map<string, T[]>()
+	private buckets = new Map<number, Map<number, T[]>>()
 	private activeBuckets: T[][] = []
 	private indexedCount = 0
 
@@ -28,11 +28,17 @@ export class SpatialHash<T extends SpatialItem> {
 			if (!item.pos || !Number.isFinite(item.pos.x) || !Number.isFinite(item.pos.y)) {
 				continue
 			}
-			const key = this.keyFor(item.pos.x, item.pos.y)
-			let bucket = this.buckets.get(key)
+			const cellX = Math.floor(item.pos.x / this.cellSize)
+			const cellY = Math.floor(item.pos.y / this.cellSize)
+			let column = this.buckets.get(cellX)
+			if (!column) {
+				column = new Map<number, T[]>()
+				this.buckets.set(cellX, column)
+			}
+			let bucket = column.get(cellY)
 			if (!bucket) {
 				bucket = []
-				this.buckets.set(key, bucket)
+				column.set(cellY, bucket)
 			}
 			if (bucket.length === 0) this.activeBuckets.push(bucket)
 			bucket.push(item)
@@ -54,7 +60,7 @@ export class SpatialHash<T extends SpatialItem> {
 
 		for (let cellY = minY; cellY <= maxY; cellY++) {
 			for (let cellX = minX; cellX <= maxX; cellX++) {
-				const bucket = this.buckets.get(`${cellX},${cellY}`)
+				const bucket = this.buckets.get(cellX)?.get(cellY)
 				if (!bucket || bucket.length === 0) continue
 				for (let index = 0; index < bucket.length; index++) {
 					if (visitor(bucket[index]) === false) return false
@@ -72,8 +78,4 @@ export class SpatialHash<T extends SpatialItem> {
 		return this.activeBuckets.length
 	}
 
-	private keyFor(x: number, y: number) {
-		return `${Math.floor(x / this.cellSize)},${Math.floor(y / this.cellSize)}`
-	}
 }
-

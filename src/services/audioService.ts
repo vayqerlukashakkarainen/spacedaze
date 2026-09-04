@@ -148,7 +148,7 @@ function spatialGain(sound: PlayingSound) {
 	if (!sound.spatial) return 1;
 	const source = sound.spatial.source();
 	const listener = sound.spatial.listener();
-	if (!source || !listener) return 0;
+	if (!validPosition(source) || !validPosition(listener)) return 0;
 	const distance = source.dist(listener);
 	if (distance <= sound.spatial.minDistance) return 1;
 	if (distance >= sound.spatial.maxDistance) return 0;
@@ -161,18 +161,24 @@ function spatialPan(sound: PlayingSound) {
 	if (!sound.spatial) return sound.basePan;
 	const source = sound.spatial.source();
 	const listener = sound.spatial.listener();
-	if (!source || !listener) return 0;
+	if (!validPosition(source) || !validPosition(listener)) return 0;
 	const directionalPan = (source.x - listener.x) / sound.spatial.panDistance;
 	return k.clamp(sound.basePan + directionalPan, -1, 1);
 }
 
 function updatePlayingSound(sound: PlayingSound) {
-	sound.audio.volume =
+	const volume =
 		sound.baseVolume *
 		audioSettings.soundVolume *
 		masterVolume() *
 		spatialGain(sound);
-	sound.audio.pan = spatialPan(sound);
+	const pan = spatialPan(sound);
+	sound.audio.volume = Number.isFinite(volume) ? clampVolume(volume) : 0;
+	sound.audio.pan = Number.isFinite(pan) ? k.clamp(pan, -1, 1) : 0;
+}
+
+function validPosition(position: Vec2 | undefined): position is Vec2 {
+	return !!position && Number.isFinite(position.x) && Number.isFinite(position.y);
 }
 
 function updatePositionalAudio() {
@@ -254,6 +260,18 @@ export const audioService = {
 			rolloff: Math.max(0.01, options.rolloff ?? 1.5),
 			panDistance: Math.max(1, options.panDistance ?? 300),
 		});
+	},
+
+	updateSound(audio: AudioPlay, options: Pick<SoundOptions, "volume" | "speed" | "detune">) {
+		const sound = playingSounds.find((entry) => entry.audio === audio);
+		if (!sound) return;
+		if (options.volume !== undefined) sound.baseVolume = options.volume;
+		if (options.speed !== undefined) {
+			sound.baseSpeed = options.speed;
+			audio.speed = options.speed * audioPlaybackSpeed();
+		}
+		if (options.detune !== undefined) audio.detune = options.detune;
+		updatePlayingSound(sound);
 	},
 
 	playMusic(

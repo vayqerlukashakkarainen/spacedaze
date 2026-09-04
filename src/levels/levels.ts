@@ -6,19 +6,14 @@ import { k } from "../main";
 import { tags } from "../tags";
 import { clearRecoveryOffers } from "../services/runInventoryService";
 import { hideRecoveryShop } from "../ui/recoveryShop";
-import {
-	finishRunStats,
-} from "../services/runStatsService";
 import type { CaveGenConfigOverrides } from "../generation/generationTypes";
 import {
-	endRunSession,
 	getRunRouteSnapshot,
 	runSessionActive,
 } from "../services/runDirectorService";
 import { getWarpZone } from "../services/warpZoneService";
-import { audioService } from "../services/audioService";
 import { musicVolume } from "../main";
-import { loadSongData } from "../web";
+import { playZoneExplorationMusic } from "../services/explorationMusicService";
 import {
 	prepareRunFinale,
 	resetRunFinale,
@@ -26,6 +21,12 @@ import {
 } from "../services/runFinaleService";
 import { extractVolatileCargo } from "../services/shipUpgradeService";
 import { spawnGameplaySpaceAmbience } from "../spawn/spaceAmbience";
+import { saveGame } from "../util";
+import {
+	extractDebreeRun,
+	loseCarriedDebree,
+} from "../services/debreeEconomyService";
+import { completeRun } from "../services/runCompletionService";
 
 const levels = {
 	hub,
@@ -56,6 +57,7 @@ export function loadLevel(levelKey: LevelKey) {
 	currentLvl = lvl;
 	currentLevelKey = levelKey;
 	const zoneId = getRunRouteSnapshot()?.zoneId;
+	const runDepth = getRunRouteSnapshot()?.depth;
 	const zone = zoneId ? getWarpZone(zoneId) : undefined;
 	prepareRunFinale(
 		currentLvl.mapGeneration ? zone?.finaleId : undefined,
@@ -66,16 +68,11 @@ export function loadLevel(levelKey: LevelKey) {
 		currentLvl.onStart();
 	}
 	if (currentLvl.mapGeneration && zone?.explorationMusic) {
-		const song = zone.explorationMusic;
-		void audioService
-			.playOptionalMusic(song.music, song.path, {
-				volume: musicVolume,
-				loop: true,
-			})
-			.then((started) => {
-				if (!started) return;
-				loadSongData(song.title, song.author, song.albumCover ?? "");
-			});
+		void playZoneExplorationMusic(
+			zone.id,
+			runDepth === 1,
+			musicVolume
+		);
 	}
 }
 
@@ -85,8 +82,8 @@ export function transitionToLevel(levelKey: LevelKey) {
 		if (cargoReward > 0) {
 			console.log(`Volatile cargo delivered for ${cargoReward} salvage`);
 		}
-		finishRunStats("EXTRACTED");
-		endRunSession();
+		completeRun("EXTRACTED", extractDebreeRun());
+		saveGame("slot1");
 	}
 	if (currentLvl === hub && levelKey !== "hub") {
 		hideRecoveryShop(false);
@@ -147,8 +144,7 @@ export function activeLevelKey() {
 export function resetCurrentLevel() {
 	if (!currentLvl) return;
 	if (runSessionActive()) {
-		finishRunStats("DESTROYED");
-		endRunSession();
+		completeRun("DESTROYED", loseCarriedDebree());
 	}
 	resetLvlData(currentLvl);
 	currentLvl = null;

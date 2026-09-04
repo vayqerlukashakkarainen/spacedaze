@@ -6,6 +6,7 @@ import {
 	setFrameProfilerEnabled,
 } from "../services/frameProfilerService";
 import { getPerformanceBenchmarkStatus } from "../services/performanceBenchmarkService";
+import { UI_FONT_SIZES } from "../ui/common";
 
 let debugVisible = false;
 let debugLabels: {
@@ -33,7 +34,7 @@ export function initDebug() {
  */
 function createDebugLabels() {
 	debugLabels.performance = k.add([
-		k.text("", { size: 8, font: "unscii", lineSpacing: 1 }),
+		k.text("", { size: UI_FONT_SIZES.tiny, font: "unscii", lineSpacing: 1 }),
 		k.pos(12, 12),
 		k.anchor("topleft"),
 		k.color(k.WHITE),

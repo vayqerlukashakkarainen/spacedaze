@@ -6,6 +6,7 @@ export type GeneratedContentSlot = RoomRole | GeneratedFeatureSlot
 export type GeneratedContentId =
 	| "combat_assassins"
 	| "reward_chest"
+	| "weapon_chest"
 	| "asteroid_field"
 	| "capture_shrine"
 	| "damage_shrine"
@@ -29,7 +30,8 @@ export interface GeneratedContentDefinition {
 
 export const GENERATED_CONTENT_REGISTRY: readonly GeneratedContentDefinition[] = [
 	{ id: "combat_assassins", slot: "combat", weight: 1 },
-	{ id: "reward_chest", slot: "reward", weight: 1 },
+	{ id: "reward_chest", slot: "reward", weight: 4 },
+	{ id: "weapon_chest", slot: "reward", weight: 1 },
 	{ id: "asteroid_field", slot: "asteroid", weight: 1 },
 	{ id: "capture_shrine", slot: "shrine", weight: 1 },
 	{ id: "damage_shrine", slot: "shrine", weight: 1, minDepth: 2 },

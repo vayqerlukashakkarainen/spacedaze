@@ -23,6 +23,7 @@ const regions = new DensePool<UiPointerRegion>((region) => region.id)
 let nextRegionId = 1
 let pointerController: GameObj | undefined
 let pressController: KEventController | undefined
+let clickDispatchActive = false
 
 export function createUiPointerRegion(size: Vec2, centered = false) {
 	const region: UiPointerRegion = {
@@ -115,13 +116,21 @@ function ensurePointerController() {
 }
 
 function dispatchClick() {
+	if (clickDispatchActive) return
 	for (let index = regions.size - 1; index >= 0; index--) {
 		const region = regions.items[index]
 		const obj = region?.obj
 		if (!obj?.exists() || isHidden(obj)) continue
 		if (!containsScreenPoint(region, k.mousePos())) continue
 		if (region.clickCallbacks.size === 0) continue
-		callCallbacks(region.clickCallbacks)
+		clickDispatchActive = true
+		try {
+			callCallbacks(region.clickCallbacks)
+		} finally {
+			queueMicrotask(() => {
+				clickDispatchActive = false
+			})
+		}
 		return
 	}
 }

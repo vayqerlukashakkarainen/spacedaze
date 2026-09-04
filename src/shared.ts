@@ -39,6 +39,17 @@ export function lerpAngleBetweenPos(
 	};
 }
 
+export function easeDirection(
+	current: Vec2,
+	desired: Vec2,
+	response: number,
+	delta: number
+) {
+	const blend = 1 - Math.exp(-response * delta);
+	const eased = current.lerp(desired, blend);
+	return eased.len() > 0.001 ? eased.unit() : desired;
+}
+
 export function steerMoveRotateAndLean(
 	m: GameObj<PosComp | RotateComp | ScaleComp | any>,
 	lerp: number,

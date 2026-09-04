@@ -11,6 +11,7 @@ import {
 	createUiScrollable,
 	UiScrollableControl,
 } from "./common/scrollable";
+import { UI_FONT_SIZES } from "./common";
 
 let isOpen = false;
 let history: string[] = [];
@@ -47,6 +48,7 @@ export function showCommandConsole() {
 		pos: k.vec2(36, 36),
 		width: outputViewportWidth,
 		height: consoleHeight - 92,
+		captureWheel: true,
 		layer: layers.uiEffects,
 		tags: [tags.commandConsole],
 	});
@@ -55,7 +57,7 @@ export function showCommandConsole() {
 	outputObj = outputScroll.content.add([
 		k.text(initialOutput.text, {
 			font: "unscii",
-			size: 9,
+			size: UI_FONT_SIZES.small,
 			lineSpacing: 2,
 		}),
 		k.pos(0, 0),
@@ -67,7 +69,7 @@ export function showCommandConsole() {
 	inputObj = k.add([
 		k.text("> ", {
 			font: "unscii",
-			size: 18,
+			size: UI_FONT_SIZES.sectionTitle,
 			width: consoleWidth - 32,
 		}),
 		k.textInput(true, 100),
@@ -147,7 +149,12 @@ function refreshConsoleOutput(scrollToEnd: boolean) {
 		Math.max(outputViewportWidth, longestLine * 9 + 12)
 	);
 	renderConsoleSprites(output.sprites);
-	outputScroll.setContentHeight(outputObj.height + 8, scrollToEnd);
+	const lineCount = output.text.split("\n").length;
+	const lineHeight = UI_FONT_SIZES.small + 2;
+	outputScroll.setContentHeight(
+		Math.max(outputObj.height, lineCount * lineHeight) + 8,
+		scrollToEnd
+	);
 }
 
 function renderConsoleSprites(sprites: ConsoleInlineSprite[]) {

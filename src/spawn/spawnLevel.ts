@@ -7,6 +7,7 @@ import { LevelKey } from "../levels/levels";
 import { startLevelTransition } from "../services/levelTransitionService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import { audioService } from "../services/audioService";
+import { UI_FONT_SIZES } from "../ui/common";
 
 interface Props {
 	pos: Vec2;
@@ -58,7 +59,7 @@ export function spawnLevel(props: Props) {
 	}
 
 	const portalLabel = m.add([
-		k.text(props.label ?? "START RUN", { size: 8, font: "unscii" }),
+		k.text(props.label ?? "START RUN", { size: UI_FONT_SIZES.tiny, font: "unscii" }),
 		k.pos(0, props.visual === "wormhole" ? -78 : -28),
 		k.anchor("center"),
 		k.color(k.WHITE),

@@ -3,10 +3,16 @@ import { k } from "../main"
 import { tags } from "../tags"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 
-const PLAYER_DEATH_DEBRIS_COUNT = 18
+const BASE_PLAYER_DEATH_DEBRIS_COUNT = 18
+const MAX_PLAYER_DEATH_DEBRIS_COUNT = 84
 
-export function spawnPlayerDeathDebris(pos: Vec2) {
-	for (let index = 0; index < PLAYER_DEATH_DEBRIS_COUNT; index++) {
+export function spawnPlayerDeathDebris(pos: Vec2, carriedDebree = 0) {
+	const debrisCount = Math.min(
+		MAX_PLAYER_DEATH_DEBRIS_COUNT,
+		BASE_PLAYER_DEATH_DEBRIS_COUNT + Math.ceil(Math.max(0, carriedDebree) * 0.7)
+	)
+	const burstScale = 1 + Math.min(1.6, Math.sqrt(Math.max(0, carriedDebree)) * 0.08)
+	for (let index = 0; index < debrisCount; index++) {
 		const direction = k.Vec2.fromAngle(k.rand(0, 360))
 		const fragment = k.add([
 			k.pos(pos.add(direction.scale(k.rand(1, 7)))),
@@ -18,7 +24,7 @@ export function spawnPlayerDeathDebris(pos: Vec2) {
 			k.opacity(1),
 			k.offscreen({ destroy: true }),
 			{
-				velocity: direction.scale(k.rand(18, 48)),
+				velocity: direction.scale(k.rand(18, 48) * burstScale),
 				angularVelocity: k.rand(-150, 150),
 			},
 			tags.props,

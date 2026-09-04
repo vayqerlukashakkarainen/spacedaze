@@ -14,7 +14,6 @@ import {
 } from "../main";
 import { transitionToLevel, type LevelKey } from "../levels/levels";
 import { starsEmitter } from "../particles";
-import { spawnRing } from "../spawn/spawnRing";
 import { tags } from "../tags";
 import { audioService } from "./audioService";
 import { profileSection } from "./frameProfilerService";
@@ -207,11 +206,4 @@ function setPortalIntensity(portal: GameObj, intensity: number) {
 function spawnArrivalEffect(pos: Vec2) {
 	starsEmitter.emitter.position = pos;
 	starsEmitter.emit(32);
-	spawnRing({
-		pos,
-		speed: 420,
-		intensity: 0.65,
-		maxRadius: 160,
-		visualize: true,
-	});
 }

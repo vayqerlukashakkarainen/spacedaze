@@ -6,6 +6,7 @@ import { editorState } from "../state/editorState";
 import { drawWallCell, getHexCenter } from "./wallRenderer";
 import { tags } from "../../tags";
 import { uiHitRegion } from "../../ui/common/hitRegion";
+import { UI_FONT_SIZES } from "../../ui/common/theme";
 
 /**
  * Tracks which cells are currently rendered
@@ -234,7 +235,7 @@ function drawSpawnMarkers(): void {
 		// Label showing spawn type
 		k.add([
 			k.pos(spawn.pos.add(0, -15)),
-			k.text(spawn.type.toUpperCase(), { size: 8, font: "unscii" }),
+			k.text(spawn.type.toUpperCase(), { size: UI_FONT_SIZES.tiny, font: "unscii" }),
 			k.color(color),
 			k.anchor("center"),
 			k.opacity(0.9),

@@ -13,6 +13,13 @@ export interface WarpZoneDefinition {
 		author: string
 		albumCover?: string
 	}
+	firstExplorationMusic?: {
+		music: string
+		path: string
+		title: string
+		author: string
+		albumCover?: string
+	}
 	finaleTransitionSeconds: number
 }
 
@@ -29,6 +36,12 @@ export const WARP_ZONES: readonly WarpZoneDefinition[] = [
 			title: "Katana Blaster",
 			author: "Big Giant Circles",
 		},
+		firstExplorationMusic: {
+			music: "ambientSpaceNoise",
+			path: "songs/ambient-space-noise.mp3",
+			title: "Ambient Space Noise 1",
+			author: "THe TooTHPaSTe VaMPiReS",
+		},
 		finaleTransitionSeconds: 5,
 	},
 ]
@@ -40,6 +53,11 @@ interface WarpZoneProgress {
 }
 
 let progress = loadProgress()
+
+export function resetWarpZoneProgress() {
+	progress = createDefaultProgress()
+	localStorage.removeItem(WARP_ZONE_PROGRESS_KEY)
+}
 
 export function getUnlockedWarpZones() {
 	return WARP_ZONES.filter((zone) => isWarpZoneUnlocked(zone.id))
@@ -62,9 +80,7 @@ export function unlockWarpZone(id: string) {
 }
 
 function loadProgress(): WarpZoneProgress {
-	const fallback: WarpZoneProgress = {
-		unlockedZoneIds: ["zone1"],
-	}
+	const fallback = createDefaultProgress()
 	const saved = localStorage.getItem(WARP_ZONE_PROGRESS_KEY)
 	if (!saved) return fallback
 
@@ -72,6 +88,12 @@ function loadProgress(): WarpZoneProgress {
 	const unlockedZoneIds = parsed.unlockedZoneIds ?? []
 	if (!unlockedZoneIds.includes("zone1")) unlockedZoneIds.unshift("zone1")
 	return { unlockedZoneIds }
+}
+
+function createDefaultProgress(): WarpZoneProgress {
+	return {
+		unlockedZoneIds: ["zone1"],
+	}
 }
 
 function saveProgress() {

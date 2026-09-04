@@ -1,6 +1,6 @@
 import type { Color, GameObj, Vec2 } from "kaplay"
 import { k } from "../../main"
-import { UI_COLORS } from "./theme"
+import { UI_COLORS, UI_FONT_SIZES, type UiFontSize } from "./theme"
 
 export type UiTextVariant =
 	| "eyebrow"
@@ -14,28 +14,28 @@ export type UiTextVariant =
 	| "button"
 
 interface UiTextStyle {
-	size: number
+	size: UiFontSize
 	lineHeight: number
 	color: readonly [number, number, number]
 }
 
 const UI_TEXT_STYLES: Record<UiTextVariant, UiTextStyle> = {
-	eyebrow: { size: 8, lineHeight: 1.25, color: UI_COLORS.muted },
-	display: { size: 20, lineHeight: 1.15, color: UI_COLORS.text },
-	title: { size: 12, lineHeight: 1.25, color: UI_COLORS.text },
-	caption: { size: 8, lineHeight: 1.25, color: UI_COLORS.accent },
-	heading: { size: 10, lineHeight: 1.4, color: UI_COLORS.accent },
-	body: { size: 8, lineHeight: 1.4, color: UI_COLORS.text },
-	muted: { size: 8, lineHeight: 1.4, color: UI_COLORS.muted },
-	stat: { size: 8, lineHeight: 1.35, color: UI_COLORS.text },
-	button: { size: 10, lineHeight: 1.2, color: UI_COLORS.text },
+	eyebrow: { size: UI_FONT_SIZES.small, lineHeight: 1.25, color: UI_COLORS.muted },
+	display: { size: UI_FONT_SIZES.title, lineHeight: 1.15, color: UI_COLORS.text },
+	title: { size: UI_FONT_SIZES.body, lineHeight: 1.25, color: UI_COLORS.text },
+	caption: { size: UI_FONT_SIZES.small, lineHeight: 1.25, color: UI_COLORS.accent },
+	heading: { size: UI_FONT_SIZES.label, lineHeight: 1.4, color: UI_COLORS.accent },
+	body: { size: UI_FONT_SIZES.small, lineHeight: 1.4, color: UI_COLORS.text },
+	muted: { size: UI_FONT_SIZES.small, lineHeight: 1.4, color: UI_COLORS.muted },
+	stat: { size: UI_FONT_SIZES.small, lineHeight: 1.35, color: UI_COLORS.text },
+	button: { size: UI_FONT_SIZES.label, lineHeight: 1.2, color: UI_COLORS.text },
 }
 
 export interface ThemedTextProps {
 	text: string
 	pos?: Vec2
 	variant?: UiTextVariant
-	size?: number
+	size?: UiFontSize
 	width?: number
 	align?: "left" | "center" | "right"
 	color?: Color

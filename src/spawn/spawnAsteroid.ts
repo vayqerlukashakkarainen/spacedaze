@@ -50,7 +50,7 @@ export function spawnMeteorite(props: Props) {
 	const m = k.add([
 		k.pos(props.pos),
 		k.sprite(spriteName),
-		k.color(...profile.tint),
+		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),
 		k.scale(profile.scale),

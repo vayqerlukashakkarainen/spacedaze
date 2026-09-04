@@ -17,18 +17,29 @@ import { uiState } from "./uiState";
 import { recordRunReward } from "../services/runInventoryService";
 import { discoverBlueprint } from "../services/hubProgressService";
 import { recordRunReward as recordRunRewardStat } from "../services/runStatsService";
-import { showCollectedRewardPopover } from "../services/popoverService";
+import {
+	showCollectedRewardPopover,
+	showDiscoveredRewardPopover,
+} from "../services/popoverService";
 import { createUiPanel } from "./common/panel";
-import { UI_COLORS } from "./common/theme";
+import { createUiDetailCard } from "./common/detailCard";
+import { UI_COLORS, UI_FONT_SIZES } from "./common/theme";
 import { registerBatchedUiUpdate } from "../services/uiUpdateService";
 import { uiHitRegion } from "./common/hitRegion";
 import { getRerollTokens } from "../player";
+import type { ActiveModuleDefinition } from "../services/activeModuleService";
+import { getEquippedWeapon } from "../services/weaponService";
+import { debreeRunActive } from "../services/debreeEconomyService";
 
 let healthBars: GameObj<OpacityComp>[] = [];
 let specialBar: GameObj<RectComp> | null = null;
 let missileCooldownGroup: GameObj | null = null;
+let activeModuleIcon: GameObj | null = null;
+let primaryWeaponIcon: GameObj | null = null;
+let secondaryWarning: GameObj<OpacityComp> | null = null;
+let secondaryEmptyRing: GameObj<OpacityComp> | null = null;
 let phaseJumpIcon: GameObj<OpacityComp> | null = null;
-let phaseJumpCooldownBar: GameObj<RectComp> | null = null;
+let phaseJumpSegments: GameObj<OpacityComp>[] = [];
 let phaseJumpChargeLabel: GameObj | null = null;
 let shipStatusPanel: GameObj | null = null;
 let salvageDisplay: GameObj | null = null;
@@ -36,33 +47,41 @@ let rerollDisplay: GameObj | null = null;
 let systemsPanel: GameObj | null = null;
 let runLoadoutPanel: GameObj | null = null;
 let loadoutIconsContainer: GameObj | null = null;
-let loadoutLabelsContainer: GameObj | null = null;
 const collectedItems = new Map<
 	string,
 	{
 		count: number;
 		countLabel: GameObj;
 		reward: Reward;
+		tile: GameObj;
 		icon: GameObj;
 	}
 >();
 
 const rewardTooltipTag = "rewardTooltip";
 
-const statusPanelWidth = 180;
-const statusPanelHeight = 58;
-const systemsPanelWidth = 170;
-const systemsPanelHeight = 58;
-const runLoadoutPanelWidth = 340;
-const runLoadoutPanelHeight = 82;
-const abilityBarWidth = 52;
+const statusPanelWidth = 228;
+const statusPanelHeight = 30;
+const systemsPanelWidth = 242;
+const systemsPanelHeight = 32;
+const abilityBarWidth = 100;
+const weaponSocketSize = 28;
+const weaponSocketGap = 14;
+const secondaryCooldownWidth = 24;
+const upgradeTileSize = 28;
+const upgradeTileGap = 6;
+const phaseJumpSegmentCount = 10;
 const HUD_SCALE = 1.5;
 const HUD_MARGIN = 12;
 const SALVAGE_GAIN_LIFETIME = 0.7;
 let displayedSalvage = Number.NaN;
+let displayedDebreeMode = "";
 let displayedRerollTokens = Number.NaN;
 let displayedSpecialWidth = Number.NaN;
 let displayedMissileVisibility: boolean | undefined;
+let displayedActiveModuleId = "";
+let displayedPrimaryWeaponId = "";
+let emptySecondaryFlashRemaining = 0;
 let displayedJumpCharges = Number.NaN;
 let displayedJumpMaxCharges = Number.NaN;
 let displayedJumpProgress = Number.NaN;
@@ -78,12 +97,17 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		scale: HUD_SCALE,
 	});
 	shipStatusPanel.add([
-		k.text("HULL", { size: 8, font: "unscii" }),
-		k.pos(8, 25),
-		k.color(k.WHITE),
+		k.pos(116, 5),
+		k.rect(1, 20),
+		k.color(...UI_COLORS.border),
+	]);
+	shipStatusPanel.add([
+		k.pos(180, 5),
+		k.rect(1, 20),
+		k.color(...UI_COLORS.border),
 	]);
 	salvageDisplay = shipStatusPanel.add([
-		k.pos(statusPanelWidth - 8, 27),
+		k.pos(172, 15),
 		k.scale(1),
 		{
 			pulseScale: 1,
@@ -91,18 +115,24 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 	]);
 	const salvageIcon = salvageDisplay.add([
 		k.sprite("debree_part1", { width: 18, height: 18 }),
-		k.pos(-36, 0),
+		k.pos(-33, 0),
 		k.anchor("center"),
 		k.color(...UI_COLORS.accent),
 	]);
 	const salvageLabel = salvageDisplay.add([
-		k.text("", { size: 9, font: "unscii" }),
+		k.text("", { size: UI_FONT_SIZES.small, font: "unscii" }),
 		k.pos(0, 0),
 		k.anchor("right"),
 		k.color(...UI_COLORS.accent),
 	]);
+	const salvageModeLabel = salvageDisplay.add([
+		k.text("", { size: UI_FONT_SIZES.micro, font: "unscii" }),
+		k.pos(0, -10),
+		k.anchor("right"),
+		k.color(...UI_COLORS.muted),
+	]);
 	rerollDisplay = shipStatusPanel.add([
-		k.pos(statusPanelWidth - 68, 27),
+		k.pos(statusPanelWidth - 5, 15),
 		k.scale(1),
 		{
 			pulseScale: 1,
@@ -115,13 +145,18 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		k.color(190, 75, 255),
 	]);
 	const rerollLabel = rerollDisplay.add([
-		k.text("", { size: 9, font: "unscii" }),
+		k.text("", { size: UI_FONT_SIZES.small, font: "unscii" }),
 		k.pos(0, 0),
 		k.anchor("right"),
 		k.color(190, 75, 255),
 	]);
 	registerBatchedUiUpdate("hud", salvageDisplay, () => {
 		const score = getScore();
+		const debreeMode = debreeRunActive() ? "CARRIED" : "SAFE";
+		if (debreeMode !== displayedDebreeMode) {
+			displayedDebreeMode = debreeMode;
+			salvageModeLabel.text = debreeMode;
+		}
 		if (score !== displayedSalvage) {
 			displayedSalvage = score;
 			salvageLabel.text = `${score}`;
@@ -164,47 +199,80 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		frameless: true,
 		scale: HUD_SCALE,
 	});
-	missileCooldownGroup = systemsPanel.add([
-		k.pos(0, 0),
-	]);
-	missileCooldownGroup.hidden = !missilesUnlocked;
-	missileCooldownGroup.add([
-		k.sprite("rocket_upg1", { width: 16, height: 16 }),
-		k.pos(14, 36),
+	primaryWeaponIcon = systemsPanel.add([
+		k.sprite(getEquippedWeapon().icon, { width: 20, height: 20 }),
+		k.pos(weaponSocketSize / 2, weaponSocketSize / 2),
 		k.anchor("center"),
 	]);
-	missileCooldownGroup.add([
-		k.text("MISSILE", { size: 8, font: "unscii" }),
-		k.pos(27, 25),
-		k.color(k.WHITE),
+	systemsPanel.add([
+		k.pos(34, 4),
+		k.rect(1, 22),
+		k.color(...UI_COLORS.border),
+	]);
+	missileCooldownGroup = systemsPanel.add([
+		k.pos(weaponSocketSize + weaponSocketGap, 0),
+	]);
+	secondaryEmptyRing = missileCooldownGroup.add([
+		k.pos(weaponSocketSize / 2, weaponSocketSize / 2 - 1),
+		k.circle(9),
+		k.anchor("center"),
+		k.color(...UI_COLORS.muted),
+		k.opacity(missilesUnlocked ? 0 : 0.18),
+		k.outline(1, k.rgb(...UI_COLORS.muted)),
+	]);
+	activeModuleIcon = missileCooldownGroup.add([
+		k.sprite("rocket_upg1", { width: 20, height: 20 }),
+		k.pos(weaponSocketSize / 2, weaponSocketSize / 2 - 2),
+		k.anchor("center"),
+		k.opacity(missilesUnlocked ? 1 : 0),
 	]);
 	missileCooldownGroup.add([
-		k.pos(27, 40),
-		k.rect(abilityBarWidth, 5),
+		k.pos(2, weaponSocketSize - 3),
+		k.rect(secondaryCooldownWidth, 3),
 		k.color(...UI_COLORS.muted),
 	]);
 	specialBar = missileCooldownGroup.add([
-		k.pos(27, 40),
-		k.rect(abilityBarWidth, 5),
+		k.pos(2, weaponSocketSize - 3),
+		k.rect(secondaryCooldownWidth, 3),
 		k.color(...UI_COLORS.accent),
 	]);
+	secondaryWarning = missileCooldownGroup.add([
+		k.pos(0, 0),
+		k.rect(weaponSocketSize, weaponSocketSize),
+		k.color(...UI_COLORS.danger),
+		k.opacity(0),
+	]);
+	systemsPanel.add([
+		k.pos(76, 4),
+		k.rect(1, 22),
+		k.color(...UI_COLORS.border),
+	]);
+	registerBatchedUiUpdate("hud", systemsPanel, () => {
+		if (!secondaryWarning) return;
+		if (emptySecondaryFlashRemaining <= 0) {
+			secondaryWarning.opacity = 0;
+			return;
+		}
+		emptySecondaryFlashRemaining = Math.max(
+			0,
+			emptySecondaryFlashRemaining - k.dt()
+		);
+		const envelope = emptySecondaryFlashRemaining / 0.42;
+		secondaryWarning.opacity =
+			k.wave(0.08, 0.34, k.time() * 26) * envelope;
+	});
 
 	runLoadoutPanel = createUiPanel({
 		pos: k.vec2(
 			HUD_MARGIN,
-			k.height() -
-				(statusPanelHeight + runLoadoutPanelHeight) * HUD_SCALE -
-				HUD_MARGIN * 2
+			k.height() - statusPanelHeight * HUD_SCALE - HUD_MARGIN * 2 -
+				upgradeTileSize * HUD_SCALE
 		),
-		size: k.vec2(
-			Math.min(runLoadoutPanelWidth * HUD_SCALE, k.width() - HUD_MARGIN * 2),
-			runLoadoutPanelHeight * HUD_SCALE
-		),
+		size: k.vec2(k.width() - HUD_MARGIN * 2, upgradeTileSize * HUD_SCALE),
 		tags: [tags.gameLoopUi],
 		frameless: true,
 	});
 	loadoutIconsContainer = runLoadoutPanel.add([k.pos(0, 0)]);
-	loadoutLabelsContainer = runLoadoutPanel.add([k.pos(0, 0), k.z(1)]);
 
 	for (let i = 0; i < health; i++) {
 		addHealthBar(i);
@@ -225,7 +293,7 @@ export function showSalvageGain(
 	}
 
 	const gain = k.add([
-		k.text(`+${amount}`, { size: 8, font: "unscii" }),
+		k.text(`+${amount}`, { size: UI_FONT_SIZES.tiny, font: "unscii" }),
 		k.pos(pos.add(k.rand(-7, 7), k.rand(-25, -19))),
 		k.anchor("center"),
 		k.color(color),
@@ -258,11 +326,11 @@ export function showSalvageGain(
 
 export function addHealthBar(healthValue: number) {
 	if (!shipStatusPanel) return;
-	const pipWidth = 10;
+	const pipWidth = 8;
 	const pipGap = 3;
 	const c = shipStatusPanel.add([
-		k.pos(8 + healthValue * (pipWidth + pipGap), 39),
-		k.rect(pipWidth, 9),
+		k.pos(0 + healthValue * (pipWidth + pipGap), 11),
+		k.rect(pipWidth, 8),
 		k.color(k.WHITE),
 		k.opacity(1),
 	]);
@@ -293,17 +361,34 @@ export function syncPlayerHealthBarCapacity(maxHealth: number) {
 export function updateSpecialBar(
 	current: number,
 	max: number,
-	missilesUnlocked = true
+	module?: ActiveModuleDefinition
 ) {
-	if (missileCooldownGroup && displayedMissileVisibility !== missilesUnlocked) {
-		displayedMissileVisibility = missilesUnlocked;
-		missileCooldownGroup.hidden = !missilesUnlocked;
+	const weapon = getEquippedWeapon();
+	if (weapon.id !== displayedPrimaryWeaponId) {
+		displayedPrimaryWeaponId = weapon.id;
+		if (primaryWeaponIcon) primaryWeaponIcon.sprite = weapon.icon;
+	}
+	const moduleAvailable = module !== undefined;
+	if (missileCooldownGroup && displayedMissileVisibility !== moduleAvailable) {
+		displayedMissileVisibility = moduleAvailable;
+		if (activeModuleIcon) activeModuleIcon.opacity = moduleAvailable ? 1 : 0;
+		if (secondaryEmptyRing) secondaryEmptyRing.opacity = moduleAvailable ? 0 : 0.18;
+	}
+	if (module && displayedActiveModuleId !== module.id) {
+		displayedActiveModuleId = module.id;
+		if (activeModuleIcon) activeModuleIcon.sprite = module.icon;
 	}
 	if (!specialBar) return;
-	const width = abilityBarWidth * k.clamp(current / max, 0, 1);
+	const width = moduleAvailable
+		? secondaryCooldownWidth * k.clamp(current / max, 0, 1)
+		: 0;
 	if (Math.abs(width - displayedSpecialWidth) < 0.05) return;
 	displayedSpecialWidth = width;
 	specialBar.width = width;
+}
+
+export function flashEmptySecondarySocket() {
+	emptySecondaryFlashRemaining = 0.42;
 }
 
 export function updatePhaseJumpUi(
@@ -314,32 +399,33 @@ export function updatePhaseJumpUi(
 	if (!phaseJumpIcon && systemsPanel) {
 		phaseJumpIcon = systemsPanel.add([
 			k.sprite("space_jump_upg1", { width: 16, height: 16 }),
-			k.pos(99, 36),
+			k.pos(88, 15),
 			k.anchor("center"),
 			k.opacity(1),
 		]);
 
 		systemsPanel.add([
-			k.text("JUMP", { size: 8, font: "unscii" }),
-			k.pos(112, 25),
+			k.text("PHASE JUMP", { size: UI_FONT_SIZES.tiny, font: "unscii" }),
+			k.pos(101, 1),
 			k.color(k.WHITE),
 		]);
 
-		systemsPanel.add([
-			k.pos(112, 40),
-			k.rect(abilityBarWidth - 12, 5),
-			k.color(...UI_COLORS.muted),
-		]);
-
-		phaseJumpCooldownBar = systemsPanel.add([
-			k.pos(112, 40),
-			k.rect(abilityBarWidth - 12, 5),
-			k.color(...UI_COLORS.accent),
-		]);
+		const segmentGap = 2;
+		const segmentWidth =
+			(abilityBarWidth - segmentGap * (phaseJumpSegmentCount - 1)) /
+			phaseJumpSegmentCount;
+		for (let index = 0; index < phaseJumpSegmentCount; index++) {
+			phaseJumpSegments.push(systemsPanel.add([
+				k.pos(101 + index * (segmentWidth + segmentGap), 19),
+				k.rect(segmentWidth, 7),
+				k.color(...UI_COLORS.accent),
+				k.opacity(0.22),
+			]));
+		}
 
 		phaseJumpChargeLabel = systemsPanel.add([
-			k.text("", { size: 8, font: "unscii" }),
-			k.pos(160, 25),
+			k.text("", { size: UI_FONT_SIZES.tiny, font: "unscii" }),
+			k.pos(systemsPanelWidth, 18),
 			k.anchor("right"),
 			k.color(k.WHITE),
 		]);
@@ -354,12 +440,12 @@ export function updatePhaseJumpUi(
 	displayedJumpMaxCharges = maxCharges;
 	displayedJumpProgress = rechargeProgress;
 	phaseJumpIcon.opacity = charges > 0 ? 1 : 0.25;
-	if (phaseJumpCooldownBar) {
-		phaseJumpCooldownBar.width =
-			(abilityBarWidth - 12) * k.clamp(rechargeProgress, 0, 1);
+	const filledSegments = rechargeProgress * phaseJumpSegmentCount;
+	for (let index = 0; index < phaseJumpSegments.length; index++) {
+		phaseJumpSegments[index].opacity = index < filledSegments ? 1 : 0.22;
 	}
 	if (phaseJumpChargeLabel) {
-		phaseJumpChargeLabel.text = maxCharges > 1 ? `${charges}/${maxCharges}` : "";
+		phaseJumpChargeLabel.text = `${charges}/${maxCharges}`;
 	}
 }
 
@@ -368,89 +454,117 @@ export function addCollectedPowerup(rewardOrId: Reward | string) {
 		? getRewardDefinition(rewardOrId)
 		: rewardOrId;
 	if (!reward) return;
-	showCollectedRewardPopover(reward);
+	showRewardAcquisitionPopover(reward);
 	recordRunReward(reward);
-	const blueprintKey = reward.upgradeKey ?? reward.powerupKey ?? reward.id;
-	discoverBlueprint(blueprintKey);
 	recordRunRewardStat(reward.rarity);
 	const collectionKey = reward.weaponId
 		? "primaryWeapon"
+		: reward.activeModuleId
+			? "secondaryWeapon"
 		: reward.upgradeKey ?? reward.powerupKey ?? reward.id;
 
 	const existing = collectedItems.get(collectionKey);
 	if (existing) {
-		existing.count = reward.weaponId ? 1 : existing.count + 1;
+		const replacesLoadoutSlot = reward.weaponId || reward.activeModuleId;
+		existing.count = replacesLoadoutSlot ? 1 : existing.count + 1;
 		existing.reward = reward;
-		if (reward.weaponId) {
+		if (replacesLoadoutSlot) {
 			existing.icon.use(k.sprite(reward.sprite, {
 				width: 22 * HUD_SCALE,
 				height: 22 * HUD_SCALE,
 			}));
 		}
-		existing.icon.color = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
+		existing.tile.outline.color = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
 		existing.countLabel.text = `x${existing.count}`;
-		if (existing.icon.isHovering()) {
+		if (existing.tile.isHovering()) {
 			showRewardTooltip(
 				existing.reward,
 				existing.count,
-				(runLoadoutPanel?.pos.x ?? 0) + existing.icon.pos.x
+				(runLoadoutPanel?.pos.x ?? 0) + existing.tile.pos.x
 			);
 		}
 		return;
 	}
 
-	if (!runLoadoutPanel || !loadoutIconsContainer || !loadoutLabelsContainer) {
+	if (!runLoadoutPanel || !loadoutIconsContainer) {
 		return;
 	}
-	const index = collectedItems.size;
-	const panelWidth = Math.min(
-		runLoadoutPanelWidth * HUD_SCALE,
-		k.width() - HUD_MARGIN * 2
-	);
-	const iconStride = 29 * HUD_SCALE;
-	const columns = Math.max(
-		1,
-		Math.floor((panelWidth - 16 * HUD_SCALE) / iconStride)
-	);
-	const column = index % columns;
-	const row = Math.floor(index / columns);
 	const rarityColor = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
-	const icon = loadoutIconsContainer.add([
-		k.sprite(reward.sprite, { width: 22 * HUD_SCALE, height: 22 * HUD_SCALE }),
-		k.color(rarityColor),
+	const tileSize = upgradeTileSize * HUD_SCALE;
+	const tile = loadoutIconsContainer.add([
+		k.rect(tileSize, tileSize),
+		k.color(...UI_COLORS.panel),
+		k.opacity(0.88),
 		k.outline(1, rarityColor),
-		k.pos(
-			(18 + column * 29) * HUD_SCALE,
-			(30 + row * 29) * HUD_SCALE
-		),
+		k.pos(0, 0),
 		k.anchor("center"),
-		uiHitRegion(k.vec2(22 * HUD_SCALE), true),
+		uiHitRegion(k.vec2(tileSize), true),
 	]);
-	const countLabel = loadoutLabelsContainer.add([
-		k.text("x1", { size: 8 * HUD_SCALE, font: "unscii" }),
-		k.pos(
-			icon.pos.x + 10 * HUD_SCALE,
-			icon.pos.y + 10 * HUD_SCALE
-		),
+	const icon = tile.add([
+		k.sprite(reward.sprite, { width: 20 * HUD_SCALE, height: 20 * HUD_SCALE }),
+		k.pos(0, 0),
 		k.anchor("center"),
-		k.color(rarityColor),
+		k.color(k.WHITE),
+	]);
+	const countLabel = tile.add([
+		k.text("x1", { size: UI_FONT_SIZES.tiny * HUD_SCALE, font: "unscii" }),
+		k.pos(tileSize / 2 - 1, tileSize / 2 - 1),
+		k.anchor("center"),
+		k.color(k.WHITE),
 	]);
 
-	const collectedItem = { count: 1, countLabel, reward, icon };
+	const collectedItem = { count: 1, countLabel, reward, tile, icon };
 	collectedItems.set(collectionKey, collectedItem);
+	layoutCollectedUpgrades();
 
-	icon.onHover(() => {
+	tile.onHover(() => {
 		uiState.isOverUI = true;
 		showRewardTooltip(
 			collectedItem.reward,
 			collectedItem.count,
-			runLoadoutPanel!.pos.x + icon.pos.x
+			runLoadoutPanel!.pos.x + tile.pos.x
 		);
 	});
-	icon.onHoverEnd(() => {
+	tile.onHoverEnd(() => {
 		uiState.isOverUI = false;
 		hideRewardTooltip();
 	});
+}
+
+export function showRewardAcquisitionPopover(reward: Reward) {
+	const blueprintKey = reward.upgradeKey ?? reward.powerupKey ?? reward.id;
+	if (discoverBlueprint(blueprintKey)) {
+		showDiscoveredRewardPopover(reward);
+		return;
+	}
+	showCollectedRewardPopover(reward);
+}
+
+function layoutCollectedUpgrades() {
+	if (!runLoadoutPanel) return;
+	const tileSize = upgradeTileSize * HUD_SCALE;
+	const stride = (upgradeTileSize + upgradeTileGap) * HUD_SCALE;
+	const availableWidth = k.width() - HUD_MARGIN * 2;
+	const columns = Math.max(
+		1,
+		Math.floor((availableWidth + upgradeTileGap * HUD_SCALE) / stride)
+	);
+	const rows = Math.max(1, Math.ceil(collectedItems.size / columns));
+
+	runLoadoutPanel.pos.y =
+		k.height() - statusPanelHeight * HUD_SCALE - HUD_MARGIN * 2 -
+			(rows - 1) * stride - tileSize;
+
+	let index = 0;
+	for (const item of collectedItems.values()) {
+		const column = index % columns;
+		const row = Math.floor(index / columns);
+		item.tile.pos = k.vec2(
+			tileSize / 2 + column * stride,
+			tileSize / 2 + row * stride
+		);
+		index++;
+	}
 }
 
 function showRewardTooltip(
@@ -460,98 +574,43 @@ function showRewardTooltip(
 ) {
 	hideRewardTooltip();
 	const panelWidth = 400;
-	const titleFontSize = 15;
-	const bodyFontSize = 11;
-	const contentWidth = panelWidth - 28;
-	const titleLines = Math.max(
-		1,
-		Math.ceil(reward.name.length / Math.floor(contentWidth / titleFontSize))
-	);
-	const descriptionLines = Math.max(
-		1,
-		Math.ceil(reward.description.length / Math.floor(contentWidth / bodyFontSize))
-	);
-	const titleHeight = titleLines * 17;
-	const descriptionHeight = descriptionLines * 13;
-	const statEntries = Object.entries(reward.stats);
-	const panelHeight =
-		69 + titleHeight + descriptionHeight + statEntries.length * 16;
-	const panelX = k.clamp(
-		iconX,
-		panelWidth / 2 + 8,
-		k.width() - panelWidth / 2 - 8
-	);
-	const panelY =
-		k.height() - statusPanelHeight * HUD_SCALE - HUD_MARGIN - panelHeight / 2;
 	const rarityColor = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
-	const panel = k.add([
-		k.rect(panelWidth, panelHeight),
-		k.pos(panelX, panelY),
-		k.anchor("center"),
-		k.color(0, 0, 0),
-		k.opacity(0.96),
-		k.outline(2, rarityColor),
+	const root = k.add([
+		k.pos(0, 0),
 		k.fixed(),
 		k.layer(layers.uiEffects),
+		k.z(300),
 		tags.gameLoopUi,
 		rewardTooltipTag,
 	]);
-
-	panel.add([
-		k.text(reward.name, {
-			font: "unscii",
-			size: titleFontSize,
-			width: contentWidth,
-			align: "center",
-		}),
-		k.pos(0, -panelHeight / 2 + 12),
-		k.anchor("top"),
-		k.color(k.WHITE),
-	]);
-
 	const levelText =
 		reward.levelIndex === undefined ? "" : `  LEVEL ${reward.levelIndex + 1}`;
-	const metadataY = -panelHeight / 2 + 12 + titleHeight + 6;
-	panel.add([
-		k.text(`${reward.rarity.toUpperCase()}  x${count}${levelText}`, {
-			font: "unscii",
-			size: 10,
-		}),
-		k.pos(0, metadataY),
-		k.anchor("center"),
-		k.color(rarityColor),
-	]);
-
-	const descriptionY = metadataY + 22;
-	panel.add([
-		k.text(reward.description, {
-			font: "unscii",
-			size: bodyFontSize,
-			width: contentWidth,
-			align: "center",
-		}),
-		k.pos(0, descriptionY),
-		k.anchor("top"),
-		k.color(k.WHITE),
-	]);
-
-	const statsY = descriptionY + descriptionHeight + 12;
-	panel.add([
-		k.text("EFFECT", { font: "unscii", size: 10 }),
-		k.pos(-panelWidth / 2 + 14, statsY),
-		k.color(rarityColor),
-	]);
-
-	statEntries.forEach(([stat, value], index) => {
-		panel.add([
-			k.text(`${formatRewardStat(stat)}  ${value}`, {
-				font: "unscii",
-				size: bodyFontSize,
-			}),
-			k.pos(-panelWidth / 2 + 14, statsY + 18 + index * 16),
-			k.color(k.WHITE),
-		]);
+	const card = createUiDetailCard(root, {
+		pos: k.vec2(0, 0),
+		width: panelWidth,
+		minHeight: 72,
+		anchor: "center",
+		title: reward.name.toUpperCase(),
+		meta: `${reward.rarity.toUpperCase()}  x${count}${levelText}`,
+		description: reward.description,
+		sectionTitle: "EFFECT",
+		rows: Object.entries(reward.stats).map(([stat, value]) =>
+			`${formatRewardStat(stat)}  ${value}`
+		),
+		icon: reward.sprite,
+		accent: rarityColor,
+		frameless: true,
+		iconBorder: true,
 	});
+	const panelHeight = card.getHeight();
+	root.pos = k.vec2(
+		k.clamp(
+			iconX,
+			panelWidth / 2 + 8,
+			k.width() - panelWidth / 2 - 8
+		),
+		(runLoadoutPanel?.pos.y ?? 0) - panelHeight / 2 - 8
+	);
 }
 
 function hideRewardTooltip() {
@@ -570,8 +629,12 @@ export function clearGameLoopUi() {
 	healthBars = [];
 	specialBar = null;
 	missileCooldownGroup = null;
+	activeModuleIcon = null;
+	primaryWeaponIcon = null;
+	secondaryWarning = null;
+	secondaryEmptyRing = null;
 	phaseJumpIcon = null;
-	phaseJumpCooldownBar = null;
+	phaseJumpSegments = [];
 	phaseJumpChargeLabel = null;
 	shipStatusPanel = null;
 	salvageDisplay = null;
@@ -579,11 +642,14 @@ export function clearGameLoopUi() {
 	systemsPanel = null;
 	runLoadoutPanel = null;
 	loadoutIconsContainer = null;
-	loadoutLabelsContainer = null;
 	displayedSalvage = Number.NaN;
+	displayedDebreeMode = "";
 	displayedRerollTokens = Number.NaN;
 	displayedSpecialWidth = Number.NaN;
 	displayedMissileVisibility = undefined;
+	displayedActiveModuleId = "";
+	displayedPrimaryWeaponId = "";
+	emptySecondaryFlashRemaining = 0;
 	displayedJumpCharges = Number.NaN;
 	displayedJumpMaxCharges = Number.NaN;
 	displayedJumpProgress = Number.NaN;

@@ -6,6 +6,7 @@ import { createUiLabel } from "../../ui/common/label";
 import { createSlider } from "../../ui/common/slider";
 import { tags } from "../../tags";
 import { uiHitRegion } from "../../ui/common/hitRegion";
+import { UI_FONT_SIZES } from "../../ui/common/theme";
 
 /**
  * Create status bar UI at bottom of screen
@@ -41,7 +42,7 @@ export function createStatusBar(): void {
 	// Help text
 	createUiLabel({
 		pos: k.vec2(20, screenHeight - 60),
-		txt: "Shift+Arrows: Resize  R: Apply  [/]: Switch Layer  WASD: Camera",
+		txt: "Shift+Arrows: Resize  R: Apply  Slash: Switch Layer  WASD: Camera",
 		color: k.Color.fromHex("#c8c8c8"),
 		tags: [tags.levelEditor, "helpLabel"],
 	});
@@ -177,7 +178,7 @@ export function drawLayerToggles(): void {
 
 		const label = btn.add([
 			k.text(`L${i + 1}`, {
-				size: 10,
+				size: UI_FONT_SIZES.label,
 				font: "unscii",
 			}),
 			k.anchor("center"),

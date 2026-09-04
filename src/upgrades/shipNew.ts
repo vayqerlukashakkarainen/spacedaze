@@ -100,17 +100,6 @@ export const sprint: UpgradeDefinition = {
 				],
 			},
 		},
-		{
-			name: "Level 2",
-			desc: "Increase speed when overclocking thrusters",
-			sprite: "overclock_thrusters_upg1",
-			price: 32,
-			effects: {
-				modifiers: [
-					{ stat: "sprintSpeedMultiplier", value: 1.4, type: "multiply" },
-				],
-			},
-		},
 	],
 };
 
@@ -308,7 +297,7 @@ export const maxHealth: UpgradeDefinition = {
 			sprite: "hull_upg1",
 			price: 32,
 			effects: {
-				modifiers: [{ stat: "maxHealth", value: 3, type: "base" }],
+				modifiers: [{ stat: "maxHealth", value: 4, type: "base" }],
 			},
 		},
 		{
@@ -317,7 +306,7 @@ export const maxHealth: UpgradeDefinition = {
 			sprite: "hull_upg1",
 			price: 32,
 			effects: {
-				modifiers: [{ stat: "maxHealth", value: 4, type: "base" }],
+				modifiers: [{ stat: "maxHealth", value: 5, type: "base" }],
 			},
 		},
 		{
@@ -326,7 +315,7 @@ export const maxHealth: UpgradeDefinition = {
 			sprite: "hull_upg1",
 			price: 32,
 			effects: {
-				modifiers: [{ stat: "maxHealth", value: 5, type: "base" }],
+				modifiers: [{ stat: "maxHealth", value: 6, type: "base" }],
 			},
 		},
 		{
@@ -335,7 +324,7 @@ export const maxHealth: UpgradeDefinition = {
 			sprite: "hull_upg1",
 			price: 32,
 			effects: {
-				modifiers: [{ stat: "maxHealth", value: 6, type: "base" }],
+				modifiers: [{ stat: "maxHealth", value: 7, type: "base" }],
 			},
 		},
 		{
@@ -344,7 +333,7 @@ export const maxHealth: UpgradeDefinition = {
 			sprite: "hull_upg1",
 			price: 32,
 			effects: {
-				modifiers: [{ stat: "maxHealth", value: 7, type: "base" }],
+				modifiers: [{ stat: "maxHealth", value: 8, type: "base" }],
 			},
 		},
 		{
@@ -353,20 +342,11 @@ export const maxHealth: UpgradeDefinition = {
 			sprite: "hull_upg1",
 			price: 32,
 			effects: {
-				modifiers: [{ stat: "maxHealth", value: 8, type: "base" }],
-			},
-		},
-		{
-			name: "Level 7",
-			desc: "Upgrade hull and increase health by one",
-			sprite: "hull_upg1",
-			price: 32,
-			effects: {
 				modifiers: [{ stat: "maxHealth", value: 9, type: "base" }],
 			},
 		},
 		{
-			name: "Level 8",
+			name: "Level 7",
 			desc: "Upgrade hull and increase health by one",
 			sprite: "hull_upg1",
 			price: 32,

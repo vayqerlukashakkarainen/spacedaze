@@ -7,7 +7,11 @@ import { PowerupKey } from "../powerups";
 import { tags } from "../tags";
 import { Vec2 } from "kaplay";
 import { timescale } from "../comp/timescale";
-import { addCollectedPowerup } from "../ui/gameUi";
+import {
+	addCollectedPowerup,
+	showRewardAcquisitionPopover,
+} from "../ui/gameUi";
+import { UI_FONT_SIZES } from "../ui/common";
 import {
 	applyReward,
 	createReward,
@@ -16,7 +20,6 @@ import {
 	RewardRarity,
 } from "../services/rewardService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
-import { showCollectedRewardPopover } from "../services/popoverService";
 
 interface RarityFeedback {
 	tier: number;
@@ -30,6 +33,7 @@ interface RarityFeedback {
 }
 
 const REWARD_PICKUP_SCALE = 0.7;
+const POWERUP_PICKUP_VOLUME = 0.8;
 
 const RARITY_FEEDBACK: Record<RewardRarity, RarityFeedback> = {
 	[RewardRarity.Common]: {
@@ -160,7 +164,7 @@ export function spawnRewardPickup(
 		m.add([
 			k.text(options.label, {
 				font: "unscii",
-				size: 8,
+				size: UI_FONT_SIZES.tiny,
 				width: 140,
 				align: "center",
 			}),
@@ -179,7 +183,7 @@ export function spawnRewardPickup(
 		starsEmitter.emitter.position = powerupPos;
 		starsEmitter.emit(feedback.pickupParticles);
 		audioService.playSound("powerup1", {
-			volume: mainSoundVolume,
+			volume: mainSoundVolume * POWERUP_PICKUP_VOLUME,
 			detune: feedback.soundDetune,
 		});
 		if (feedback.pickupShake > 0) k.shake(feedback.pickupShake);
@@ -189,7 +193,7 @@ export function spawnRewardPickup(
 			: applyReward(reward, powerupPos);
 		if (!applied) return;
 		if (reward.kind === "item" && reward.id === "rerollToken") {
-			showCollectedRewardPopover(reward);
+			showRewardAcquisitionPopover(reward);
 		} else {
 			addCollectedPowerup(reward);
 		}

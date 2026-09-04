@@ -10,9 +10,15 @@ export interface UiSelectableRowProps {
 	width: number
 	title: string
 	meta?: string
+	description?: string
 	status?: string
+	statusColor?: readonly [number, number, number]
+	icon?: string
+	iconText?: string
+	iconSize?: number
 	selected?: boolean
 	disabled?: boolean
+	notification?: boolean
 	height?: number
 	onClick?: () => void
 }
@@ -40,19 +46,57 @@ export function createUiSelectableRow(
 		k.rect(props.width, 1),
 		k.color(...(selected ? UI_COLORS.accent : UI_COLORS.border)),
 	])
-	const textLeft = UI_SPACING.md
+	const iconSize = props.iconSize ?? 24
+	const hasIcon = props.icon !== undefined || props.iconText !== undefined
+	const textLeft = hasIcon
+		? UI_SPACING.md + iconSize + UI_SPACING.md
+		: UI_SPACING.md
+	if (props.icon) {
+		row.add([
+			k.sprite(props.icon, { width: iconSize, height: iconSize }),
+			k.pos(UI_SPACING.md + iconSize / 2, height / 2),
+			k.anchor("center"),
+			k.opacity(props.disabled ? 0.35 : 1),
+		])
+	}
+	if (!props.icon && props.iconText) {
+		addThemedText(row, {
+			text: props.iconText,
+			pos: k.vec2(UI_SPACING.md, height / 2 - 7),
+			variant: "muted",
+			width: iconSize,
+			align: "center",
+		})
+	}
 	addThemedText(row, {
 		text: props.title,
-		pos: k.vec2(textLeft, props.meta ? 9 : 15),
+		pos: k.vec2(textLeft, props.description ? 5 : props.meta ? 9 : 15),
 		variant: props.disabled ? "muted" : "body",
 		width: props.width - 100,
 	})
+	if (props.notification) {
+		addThemedText(row, {
+			text: "!",
+			pos: k.vec2(props.width - UI_SPACING.md, 5),
+			variant: "caption",
+			align: "right",
+			color: k.rgb(...UI_COLORS.warning),
+		})
+	}
 	if (props.meta) {
 		addThemedText(row, {
 			text: props.meta,
-			pos: k.vec2(textLeft, 24),
+			pos: k.vec2(textLeft, props.description ? 18 : 24),
 			variant: "eyebrow",
 			width: props.width - 100,
+		})
+	}
+	if (props.description) {
+		addThemedText(row, {
+			text: props.description,
+			pos: k.vec2(textLeft, 31),
+			variant: props.disabled ? "muted" : "body",
+			width: props.width - textLeft - UI_SPACING.md,
 		})
 	}
 	const statusText = props.status
@@ -60,8 +104,11 @@ export function createUiSelectableRow(
 			text: props.status,
 			pos: k.vec2(textLeft, 16),
 			variant: selected ? "caption" : "eyebrow",
-			width: props.width - UI_SPACING.xl,
+			width: props.width - textLeft - UI_SPACING.md,
 			align: "right",
+			color: props.statusColor
+				? k.rgb(...props.statusColor)
+				: undefined,
 		})
 		: undefined
 
@@ -72,7 +119,9 @@ export function createUiSelectableRow(
 		rail.opacity = selected ? 1 : 0
 		if (statusText) {
 			statusText.color = k.rgb(...(
-				selected ? UI_COLORS.accent : UI_COLORS.muted
+				props.statusColor ?? (
+					selected ? UI_COLORS.accent : UI_COLORS.muted
+				)
 			))
 		}
 	}

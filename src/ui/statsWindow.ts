@@ -4,6 +4,7 @@ import { commandService } from "../services/commandService";
 import { getPlayerPowerupStatus } from "../powerups";
 import { getEquippedWeapon } from "../services/weaponService";
 import { uiState } from "./uiState";
+import { UI_FONT_SIZES } from "./common";
 
 let isStatsWindowOpen = false;
 
@@ -83,13 +84,13 @@ function openStatsWindow() {
 
 	// Title
 	window.add([
-		k.text("PLAYER STATS", { size: 24, font: "unscii" }),
+		k.text("PLAYER STATS", { size: UI_FONT_SIZES.display, font: "unscii" }),
 		k.pos(0, -windowHeight / 2 + 30),
 		k.anchor("center"),
 	]);
 	window.add([
 		k.text(`PRIMARY: ${getEquippedWeapon().name}`, {
-			size: 10,
+			size: UI_FONT_SIZES.label,
 			font: "unscii",
 		}),
 		k.pos(0, -windowHeight / 2 + 52),
@@ -108,7 +109,7 @@ function openStatsWindow() {
 	const rowHeight = 14;
 	const labelX = 0;
 	const valueX = Math.min(225, windowWidth * 0.28);
-	const statFontSize = 9;
+	const statFontSize = UI_FONT_SIZES.small;
 
 	stats.forEach(([key, value], index) => {
 		const yPos = index * rowHeight;
@@ -146,7 +147,7 @@ function openStatsWindow() {
 		k.color(70, 70, 70),
 	]);
 	window.add([
-		k.text("POWERUPS", { size: 18, font: "unscii" }),
+		k.text("POWERUPS", { size: UI_FONT_SIZES.sectionTitle, font: "unscii" }),
 		k.pos(powerupX, powerupY),
 		k.color(k.WHITE),
 	]);
@@ -155,7 +156,7 @@ function openStatsWindow() {
 		const yPos = powerupY + 38 + index * 48;
 		window.add([
 			k.text(name.toUpperCase(), {
-				size: 11,
+				size: UI_FONT_SIZES.body,
 				font: "unscii",
 				width: windowWidth * 0.34,
 			}),
@@ -163,7 +164,7 @@ function openStatsWindow() {
 			k.color(k.WHITE),
 		]);
 		window.add([
-			k.text(value, { size: 14, font: "unscii" }),
+			k.text(value, { size: UI_FONT_SIZES.subheading, font: "unscii" }),
 			k.pos(powerupX, yPos + 18),
 			k.color(100, 200, 255),
 		]);
@@ -171,7 +172,7 @@ function openStatsWindow() {
 
 	// Close instruction
 	window.add([
-		k.text("Press I to close", { size: 12, font: "unscii" }),
+		k.text("Press I to close", { size: UI_FONT_SIZES.body, font: "unscii" }),
 		k.pos(0, windowHeight / 2 - 20),
 		k.anchor("center"),
 		k.opacity(0.7),

@@ -17,6 +17,7 @@ import {
 import { trySpawnHealthOrb } from "./spawnHealthOrb";
 import { trySpawnHackedAlly } from "./spawnHackedAlly";
 import { tags } from "../tags";
+import { spawnEnemyDeathEffect } from "./spawnEnemyDeathEffect";
 
 export function onEnemyHit(m: GameObj, p: GameObj) {
 	// Use new projectile damage system
@@ -42,6 +43,7 @@ export function enemyOnDeath(
 	allowHack: boolean = true
 ) {
 	if (runStatsActive()) recordRunKill();
+	spawnEnemyDeathEffect(pos, Math.sqrt(Math.max(1, powerupMultiplier)));
 	for (const follower of k.get(tags.follower) as GameObj[]) {
 		if (!follower.exists() || follower.droneType !== "medic") continue;
 		follower.medicKillCharge = Math.min(
