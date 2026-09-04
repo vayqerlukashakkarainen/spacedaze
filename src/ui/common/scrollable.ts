@@ -11,6 +11,7 @@ interface ScrollableProps {
 	contentWidth?: number
 	contentHeight?: number
 	scrollStep?: number
+	wheelEnabled?: boolean
 	captureWheel?: boolean
 	layer?: string
 	zIndex?: number
@@ -44,6 +45,7 @@ export function createUiScrollable({
 	contentWidth = width,
 	contentHeight = height,
 	scrollStep = 38,
+	wheelEnabled = true,
 	captureWheel = false,
 	layer = layers.ui,
 	zIndex = 0,
@@ -122,7 +124,10 @@ export function createUiScrollable({
 				height * (height / measuredContentHeight)
 			)
 			const travel = height - verticalThumb.height
-			verticalThumb.pos.y = (scroll / verticalMaximum) * travel
+			verticalThumb.pos = k.vec2(
+				verticalThumb.pos.x,
+				(scroll / verticalMaximum) * travel
+			)
 		}
 		if (horizontallyScrollable) {
 			horizontalThumb.width = Math.max(
@@ -130,18 +135,21 @@ export function createUiScrollable({
 				width * (width / measuredContentWidth)
 			)
 			const travel = width - horizontalThumb.width
-			horizontalThumb.pos.x = (scrollX / horizontalMaximum) * travel
+			horizontalThumb.pos = k.vec2(
+				(scrollX / horizontalMaximum) * travel,
+				horizontalThumb.pos.y
+			)
 		}
 	}
 
 	const setScroll = (value: number) => {
 		scroll = k.clamp(value, 0, maxScroll())
-		content.pos.y = -scroll
+		content.pos = k.vec2(content.pos.x, -scroll)
 		updateScrollbar()
 	}
 	const setScrollX = (value: number) => {
 		scrollX = k.clamp(value, 0, maxScrollX())
-		content.pos.x = -scrollX
+		content.pos = k.vec2(-scrollX, content.pos.y)
 		updateScrollbar()
 	}
 
@@ -159,6 +167,7 @@ export function createUiScrollable({
 	}
 
 	const wheelController = k.onScroll((delta) => {
+		if (!wheelEnabled) return
 		if (!captureWheel && !viewport.isHovering()) return
 		if (delta.x !== 0 || k.isKeyDown("shift")) {
 			const amount = delta.x !== 0 ? delta.x : delta.y

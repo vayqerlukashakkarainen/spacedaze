@@ -1139,7 +1139,7 @@ function registerDebugCommands() {
 			const rewards = getAllRewardDefinitions(source);
 			if (rewards.length === 0) return "No rewards for this source";
 			const lines = [
-				"## Rewards",
+				`## Rewards (${rewards.length})`,
 				"| Icon | Reward | Type | Rarity | OK | Effect | C | E | B |",
 				"| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: |",
 			];

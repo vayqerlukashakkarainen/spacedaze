@@ -22,6 +22,7 @@ let outputObj: GameObj<TextComp> | null = null;
 let outputSpriteObjs: GameObj[] = [];
 let outputScroll: UiScrollableControl | null = null;
 let outputViewportWidth = 0;
+let consoleWheelHandler: ((event: WheelEvent) => void) | null = null;
 
 export function showCommandConsole() {
 	if (isOpen) return;
@@ -48,10 +49,25 @@ export function showCommandConsole() {
 		pos: k.vec2(36, 36),
 		width: outputViewportWidth,
 		height: consoleHeight - 92,
-		captureWheel: true,
+		wheelEnabled: false,
 		layer: layers.uiEffects,
 		tags: [tags.commandConsole],
 	});
+	consoleWheelHandler = (event) => {
+		if (!outputScroll) return;
+		const deltaScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+			? 24
+			: event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+				? consoleHeight - 92
+				: 1;
+		if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+			const delta = event.deltaX !== 0 ? event.deltaX : event.deltaY;
+			outputScroll.scrollByX(delta * deltaScale);
+			return;
+		}
+		outputScroll.scrollBy(event.deltaY * deltaScale);
+	};
+	k.canvas.addEventListener("wheel", consoleWheelHandler, { passive: false });
 
 	const initialOutput = formatConsoleOutput();
 	outputObj = outputScroll.content.add([
@@ -94,6 +110,10 @@ export function hideCommandConsole() {
 	isOpen = false;
 	commandService.setCapturingInput(false);
 	uiState.modalOpen = false;
+	if (consoleWheelHandler) {
+		k.canvas.removeEventListener("wheel", consoleWheelHandler);
+		consoleWheelHandler = null;
+	}
 	if (outputScroll) outputScroll.destroy();
 	outputScroll = null;
 	inputObj = null;

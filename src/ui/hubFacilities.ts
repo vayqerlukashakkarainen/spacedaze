@@ -1051,14 +1051,12 @@ function renderUpgradeDetails(
 		const badgeText = currentRarity === scaleRarity
 			? `${scaleRarity} *`
 			: scaleRarity
-		const badgeWidth = Math.max(72, badgeText.length * 6 + 16)
-		createUiBadge(details, {
+		const badge = createUiBadge(details, {
 			pos: k.vec2(rarityLeft, 92),
-			width: badgeWidth,
 			text: badgeText,
 			color: REWARD_RARITY_COLORS[scaleRarity],
 		})
-		rarityLeft += badgeWidth + 8
+		rarityLeft += badge.width + 8
 	}
 	addThemedText(details, {
 		text: currentRarity

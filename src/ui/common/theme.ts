@@ -21,7 +21,7 @@ export const UI_SPACING = {
 } as const
 
 export const UI_FONT_SIZES = {
-	micro: 7,
+	micro: 9,
 	tiny: 9,
 	small: 9,
 	label: 10,
