@@ -5,11 +5,21 @@ import { player, session } from "../player"
 import { spawnFlash } from "../spawn/spawnFlash"
 import { spawnRing } from "../spawn/spawnRing"
 import { tags } from "../tags"
+import { reduceActiveModuleCooldown } from "./activeModuleService"
 
 const VOLATILE_CARGO_REWARD = 40
 
 export function tryBlockPlayerDamage(target: GameObj, damage: number) {
 	if (!target.tags.includes(tags.player)) return false
+
+	if (
+		player.salvageBattery !== undefined &&
+		session.salvageBatteryShieldCharges > 0
+	) {
+		session.salvageBatteryShieldCharges--
+		spawnDefensePulse(target, k.rgb(80, 255, 175))
+		return true
+	}
 
 	if (player.scrapArmor !== undefined && session.scrapArmorCharges > 0) {
 		session.scrapArmorCharges--
@@ -38,6 +48,28 @@ export function tryBlockPlayerDamage(target: GameObj, damage: number) {
 	return false
 }
 
+export function chargeSalvageBattery(target: GameObj, salvageValue: number) {
+	if (
+		player.salvageBattery === undefined ||
+		!Number.isFinite(salvageValue) ||
+		salvageValue <= 0
+	) return
+
+	const cooldownSeconds = salvageValue * 0.18
+	const excessSeconds = reduceActiveModuleCooldown(cooldownSeconds)
+	if (excessSeconds <= 0) return
+	const excessSalvage = excessSeconds / 0.18
+	session.salvageBatteryProgress += excessSalvage
+	if (session.salvageBatteryProgress < 12) return
+
+	session.salvageBatteryProgress -= 12
+	session.salvageBatteryShieldCharges = Math.min(
+		2,
+		session.salvageBatteryShieldCharges + 1
+	)
+	spawnDefensePulse(target, k.rgb(80, 255, 175))
+}
+
 export function extractVolatileCargo() {
 	if (
 		!session.volatileCargoActive ||
@@ -53,6 +85,16 @@ export function extractVolatileCargo() {
 	starsEmitter.emitter.position = k.getCamPos()
 	starsEmitter.emit(40)
 	return reward
+}
+
+export function deliverVolatileCargoPackage() {
+	if (
+		!session.volatileCargoActive ||
+		!session.volatileCargoIntact ||
+		session.volatileCargoDelivered
+	) return false
+	session.volatileCargoDelivered = true
+	return true
 }
 
 export function collectVolatileCargo() {

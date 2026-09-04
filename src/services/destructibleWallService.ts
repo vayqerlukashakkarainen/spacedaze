@@ -8,6 +8,8 @@ export interface DestructibleWallState {
 }
 
 interface DestructibleWallRegistration extends DestructibleWallState {
+	gridKey: string
+	coord: { q: number; r: number }
 	worldPos?: Vec2
 	onDamaged?: (state: DestructibleWallState, impactPos?: Vec2) => void
 	onDestroyed?: (state: DestructibleWallState) => void
@@ -24,6 +26,8 @@ export function registerDestructibleWall(options: {
 	onDestroyed?: (state: DestructibleWallState) => void
 }) {
 	const state: DestructibleWallRegistration = {
+		gridKey: options.gridKey,
+		coord: { ...options.coord },
 		hp: options.maxHp,
 		maxHp: options.maxHp,
 		destroyed: false,
@@ -33,6 +37,25 @@ export function registerDestructibleWall(options: {
 	}
 	walls.set(wallKey(options.gridKey, options.coord), state)
 	return state
+}
+
+export function getNearestDestructibleWall(pos: Vec2, range: number) {
+	let nearest: DestructibleWallRegistration | undefined
+	let nearestDistance = range
+	for (const state of walls.values()) {
+		if (state.destroyed || !state.worldPos) continue
+		const distance = state.worldPos.dist(pos)
+		if (distance >= nearestDistance) continue
+		nearest = state
+		nearestDistance = distance
+	}
+	if (!nearest?.worldPos) return undefined
+	return {
+		gridKey: nearest.gridKey,
+		coord: { ...nearest.coord },
+		pos: nearest.worldPos.clone(),
+		distance: nearestDistance,
+	}
 }
 
 export function damageDestructibleWallsInRadius(

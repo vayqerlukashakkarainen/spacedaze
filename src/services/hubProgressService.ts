@@ -30,15 +30,22 @@ export interface HubDepositResult {
 	unlocks: string[]
 }
 
+export interface HubFacilityConstruction {
+	facilityId: HubFacilityId
+	startedAt: number
+}
+
+export const HUB_FACILITY_BUILD_DURATION_MS = 15000
+
 export const HUB_LEVELS: readonly HubLevelDefinition[] = [
-	{ level: 1, requiredDeposited: 0, chestLuck: 0, unlocks: ["PHASE STATION", "SALVAGE GHOST CHEST"] },
-	{ level: 2, requiredDeposited: 75, chestLuck: 0.03, unlocks: ["CONTRACT TERMINAL", "SECOND SALVAGE GHOST CHEST"] },
-	{ level: 3, requiredDeposited: 200, chestLuck: 0.06, unlocks: ["SALVAGE FORGE", "GHOST WEAPON CACHE"] },
-	{ level: 4, requiredDeposited: 400, chestLuck: 0.09, unlocks: ["POST-RUN DEBRIEF TERMINAL"] },
-	{ level: 5, requiredDeposited: 700, chestLuck: 0.12, unlocks: ["TRAINING RANGE EXPANSION", "THIRD SALVAGE GHOST CHEST"] },
-	{ level: 6, requiredDeposited: 1100, chestLuck: 0.15, unlocks: [] },
-	{ level: 7, requiredDeposited: 1600, chestLuck: 0.18, unlocks: [] },
-	{ level: 8, requiredDeposited: 2250, chestLuck: 0.2, unlocks: ["HUB RESTORATION COMPLETE"] },
+	{ level: 1, requiredDeposited: 0, chestLuck: 0, unlocks: ["PHASE STATION", "SALVAGE GHOST CHEST", "EMERGENCY SERVICE DRONE"] },
+	{ level: 2, requiredDeposited: 75, chestLuck: 0.03, unlocks: ["CONTRACT TERMINAL", "SECOND SALVAGE GHOST CHEST", "COURIER TRAFFIC"] },
+	{ level: 3, requiredDeposited: 200, chestLuck: 0.06, unlocks: ["SALVAGE FORGE", "GHOST WEAPON CACHE", "SALVAGE HAULERS"] },
+	{ level: 4, requiredDeposited: 400, chestLuck: 0.09, unlocks: ["POST-RUN DEBRIEF TERMINAL", "SIGNAL ARRAY"] },
+	{ level: 5, requiredDeposited: 700, chestLuck: 0.12, unlocks: ["TRAINING RANGE EXPANSION", "THIRD SALVAGE GHOST CHEST", "MAINTENANCE WING"] },
+	{ level: 6, requiredDeposited: 1100, chestLuck: 0.15, unlocks: ["DOCKING GANTRIES"] },
+	{ level: 7, requiredDeposited: 1600, chestLuck: 0.18, unlocks: ["OUTPOST TRAFFIC GRID"] },
+	{ level: 8, requiredDeposited: 2250, chestLuck: 0.2, unlocks: ["HUB RESTORATION COMPLETE", "PHASE CROWN"] },
 ]
 
 export const HUB_FACILITIES: readonly HubFacilityDefinition[] = [
@@ -52,6 +59,7 @@ const HUB_PROGRESS_KEY = "spacedaze_hub_progress_v2"
 
 interface HubProgress {
 	builtFacilities: HubFacilityId[]
+	facilityConstruction?: HubFacilityConstruction
 	forgeLevel: number
 	discoveredBlueprints: string[]
 	unseenBlueprints: string[]
@@ -136,14 +144,45 @@ export function isFacilityUnlocked(id: HubFacilityId) {
 }
 
 export function isFacilityBuilt(id: HubFacilityId) {
+	finishElapsedFacilityConstruction()
 	return progress.builtFacilities.includes(id)
 }
 
 export function buildFacility(id: HubFacilityId) {
 	if (!isFacilityUnlocked(id) || isFacilityBuilt(id)) return false
 	progress.builtFacilities.push(id)
+	if (progress.facilityConstruction?.facilityId === id) {
+		progress.facilityConstruction = undefined
+	}
 	saveProgress()
 	return true
+}
+
+export function startFacilityConstruction(id: HubFacilityId) {
+	finishElapsedFacilityConstruction()
+	if (!isFacilityUnlocked(id) || isFacilityBuilt(id)) return false
+	if (progress.facilityConstruction) return false
+	progress.facilityConstruction = {
+		facilityId: id,
+		startedAt: Date.now(),
+	}
+	saveProgress()
+	return true
+}
+
+export function getFacilityConstruction() {
+	finishElapsedFacilityConstruction()
+	if (!progress.facilityConstruction) return undefined
+	return { ...progress.facilityConstruction }
+}
+
+export function getFacilityConstructionRemainingMs(id: HubFacilityId) {
+	finishElapsedFacilityConstruction()
+	if (progress.facilityConstruction?.facilityId !== id) return 0
+	return Math.max(
+		0,
+		progress.facilityConstruction.startedAt + HUB_FACILITY_BUILD_DURATION_MS - Date.now()
+	)
 }
 
 export function getHubGhostChestCapacity(type: HubGhostChestType) {
@@ -238,8 +277,25 @@ function loadProgress(): HubProgress {
 	const salvageCapacity = level >= 5 ? 3 : level >= 2 ? 2 : 1
 	const weaponCapacity = level >= 3 ? 1 : 0
 	const discoveredBlueprints = parsed.discoveredBlueprints ?? []
+	const savedConstruction = parsed.facilityConstruction
+	const facilityConstruction = savedConstruction &&
+		HUB_FACILITIES.some((facility) => facility.id === savedConstruction.facilityId) &&
+		Number.isFinite(savedConstruction.startedAt)
+		? savedConstruction
+		: undefined
+	if (
+		facilityConstruction &&
+		Date.now() - facilityConstruction.startedAt >= HUB_FACILITY_BUILD_DURATION_MS &&
+		!builtFacilities.includes(facilityConstruction.facilityId)
+	) {
+		builtFacilities.push(facilityConstruction.facilityId)
+	}
 	return {
 		builtFacilities,
+		facilityConstruction: facilityConstruction &&
+			Date.now() - facilityConstruction.startedAt < HUB_FACILITY_BUILD_DURATION_MS
+			? facilityConstruction
+			: undefined,
 		forgeLevel: parsed.forgeLevel ?? 0,
 		discoveredBlueprints,
 		unseenBlueprints: (parsed.unseenBlueprints ?? []).filter(
@@ -254,6 +310,7 @@ function loadProgress(): HubProgress {
 function createDefaultProgress(): HubProgress {
 	return {
 		builtFacilities: ["trainingRange"],
+		facilityConstruction: undefined,
 		forgeLevel: 0,
 		discoveredBlueprints: [],
 		unseenBlueprints: [],
@@ -261,6 +318,17 @@ function createDefaultProgress(): HubProgress {
 		salvageGhostChestStock: 1,
 		weaponGhostChestStock: 0,
 	}
+}
+
+function finishElapsedFacilityConstruction() {
+	const construction = progress.facilityConstruction
+	if (!construction) return
+	if (Date.now() - construction.startedAt < HUB_FACILITY_BUILD_DURATION_MS) return
+	progress.facilityConstruction = undefined
+	if (!progress.builtFacilities.includes(construction.facilityId)) {
+		progress.builtFacilities.push(construction.facilityId)
+	}
+	saveProgress()
 }
 
 function clampStock(value: number | undefined, capacity: number) {

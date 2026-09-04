@@ -39,6 +39,7 @@ import {
 	evaluateRequirements,
 } from "./services/upgradeRequirementService";
 import { RewardRarity } from "./types/rewardTypes";
+import { getEquippedMobilityAbilityId } from "./services/abilityLoadoutService";
 import {
 	getHigherRarity,
 	scaleUpgradeEffects,
@@ -76,7 +77,12 @@ import {
 import {
 	afterburnerWake,
 	enemyHacker,
+	glassReactor,
+	packIntelligence,
+	phaseEcho,
+	reactivePlating,
 	sacrificialProtocol,
+	salvageBattery,
 	scrapArmor,
 } from "./upgrades/systems"
 
@@ -94,8 +100,6 @@ export const PERMANENT_UPGRADE_KEYS = [
 	"blaster",
 	"blasterParallel",
 	"debreeDist",
-	"sprint",
-	"spaceJump",
 	"maxHealth",
 	"mouseAim",
 ] as const;
@@ -142,6 +146,11 @@ export const upgrades = {
 	afterburnerWake,
 	sacrificialProtocol,
 	enemyHacker,
+	phaseEcho,
+	salvageBattery,
+	reactivePlating,
+	packIntelligence,
+	glassReactor,
 
 	armorPiercing,
 	cryoRounds,
@@ -193,6 +202,11 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	afterburnerWake: undefined,
 	sacrificialProtocol: undefined,
 	enemyHacker: undefined,
+	phaseEcho: undefined,
+	salvageBattery: undefined,
+	reactivePlating: undefined,
+	packIntelligence: undefined,
+	glassReactor: undefined,
 	rocketShards: undefined,
 	sprintSpeed: undefined,
 	spaceJump: undefined,
@@ -251,6 +265,11 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	afterburnerWake: undefined,
 	sacrificialProtocol: undefined,
 	enemyHacker: undefined,
+	phaseEcho: undefined,
+	salvageBattery: undefined,
+	reactivePlating: undefined,
+	packIntelligence: undefined,
+	glassReactor: undefined,
 	rocketShards: undefined,
 	sprintSpeed: undefined,
 	spaceJump: undefined,
@@ -420,9 +439,16 @@ export function isPermanentUpgradeKey(
 export function evaluateUpgradeRequirements(
 	definition: UpgradeDefinition,
 	resolveLevel: (toolKey: string) => number | undefined = (toolKey) =>
-		isToolKey(toolKey) ? getEffectiveUpgradeLevel(toolKey) : undefined
+		resolveUpgradeOrAbilityLevel(toolKey)
 ) {
 	return evaluateRequirements(definition, resolveLevel, getUpgradeName);
+}
+
+function resolveUpgradeOrAbilityLevel(toolKey: string) {
+	const mobilityAbilityId = getEquippedMobilityAbilityId();
+	if (toolKey === "sprint" && mobilityAbilityId === "thrusterOverdrive") return 0;
+	if (toolKey === "spaceJump" && mobilityAbilityId === "phaseJump") return 0;
+	return isToolKey(toolKey) ? getEffectiveUpgradeLevel(toolKey) : undefined;
 }
 
 export function getUpgradeRequirementText(key: ToolKey): string | undefined {
@@ -536,6 +562,11 @@ export function resetLevelLoadout() {
 		afterburnerWake: undefined,
 		sacrificialProtocol: undefined,
 		enemyHacker: undefined,
+		phaseEcho: undefined,
+		salvageBattery: undefined,
+		reactivePlating: undefined,
+		packIntelligence: undefined,
+		glassReactor: undefined,
 		rocketShards: undefined,
 		sprintSpeed: undefined,
 		spaceJump: undefined,

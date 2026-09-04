@@ -14,6 +14,7 @@ import {
 	createUiPanel,
 	createUiProgressBar,
 	createUiSectionHeader,
+	createUiTelemetryStrip,
 	UI_COLORS,
 	UI_FONT_SIZES,
 } from "./common"
@@ -147,23 +148,29 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 	})
 	const levelLabel = addThemedText(panel, {
 		text: `HUB LEVEL ${summary.hub.previousLevel}`,
-		pos: k.vec2(left + 32, top + 178),
+		pos: k.vec2(left + 32, top + 174),
 		variant: "body",
 		width: panelSize.x - 64,
 	})
-	addThemedText(panel, {
-		text: "DEBRIS LOST",
-		pos: k.vec2(left + 32, top + 204),
-		variant: "muted",
+	createUiTelemetryStrip(panel, {
+		pos: k.vec2(left + 32, top + 198),
 		width: panelSize.x - 64,
-	})
-	addThemedText(panel, {
-		text: `${summary.debree.lost}`,
-		pos: k.vec2(left + 32, top + 204),
-		variant: "body",
-		width: panelSize.x - 64,
-		align: "right",
-		color: k.rgb(...UI_COLORS.danger),
+		gap: 12,
+		items: [
+			{
+				label: "RUN TIME",
+				value: summary.run
+					? formatDuration(summary.run.durationSeconds)
+					: "--:--",
+			},
+			{ label: "KILLS", value: `${summary.run?.kills ?? 0}` },
+			{ label: "REWARDS", value: `${summary.run?.rewardsCollected ?? 0}` },
+			{
+				label: "DEBRIS LOST",
+				value: `${summary.debree.lost}`,
+				valueColor: k.rgb(...UI_COLORS.danger),
+			},
+		],
 	})
 
 	let elapsed = 0
@@ -224,6 +231,12 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 			}
 		}
 	})
+}
+
+function formatDuration(durationSeconds: number) {
+	const minutes = Math.floor(durationSeconds / 60)
+	const seconds = durationSeconds % 60
+	return `${minutes}:${seconds.toString().padStart(2, "0")}`
 }
 
 function getProgressAtXp(xp: number) {

@@ -47,6 +47,38 @@ export const enemyHacker: Tool = singleLevelTool(
 	}
 )
 
+export const phaseEcho: Tool = singleLevelTool(
+	"Phase echo", "Phase Echo",
+	"Phase jump leaves a decoy that pulls enemies in and detonates",
+	"phase_echo_upg1", 36, { allOf: [{ toolKey: "spaceJump" }] }
+)
+
+export const salvageBattery: Tool = singleLevelTool(
+	"Salvage battery", "Salvage Battery",
+	"Collected debris cools your secondary; excess charge forms a shield",
+	"salvage_battery_upg1", 34,
+	{ anyOf: [{ toolKey: "debreeDist" }, { toolKey: "debreeValue" }] }
+)
+
+export const reactivePlating: Tool = singleLevelTool(
+	"Reactive plating", "Reactive Plating",
+	"Hull damage releases a close-range armor blast, with a short cooldown",
+	"reactive_plating_upg1", 34
+)
+
+export const packIntelligence: Tool = singleLevelTool(
+	"Pack intelligence", "Pack Intelligence",
+	"Drones gain damage when several focus the same target",
+	"pack_intelligence_upg1", 38,
+	{ anyOf: [{ toolKey: "followerBlasterDmg" }] }
+)
+
+export const glassReactor: Tool = singleLevelTool(
+	"Glass reactor", "Glass Reactor",
+	"Double all damage dealt, but maximum hull is locked to one",
+	"glass_reactor_upg1", 48
+)
+
 function singleLevelTool(
 	toolName: string,
 	name: string,

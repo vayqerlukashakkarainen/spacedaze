@@ -8,6 +8,9 @@ import { spawnExplosionEffect } from "../spawnFlash"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 import { querySpatialNearby } from "../../services/runtimeSpatialIndexService"
 
+const MINE_WARNING_RADIUS = 90
+const MINE_TRIGGER_RADIUS = 28
+
 interface MinefieldProps {
 	pos: Vec2
 	radius: number
@@ -51,14 +54,29 @@ function spawnProximityMine(pos: Vec2, damage: number, extraTags?: string[]) {
 		mine.angle += k.dt() * 18
 		armedElapsed += k.dt()
 		if (armedElapsed < 0.7) return
+		const playerDistance = mine.pos.dist(playerObj.pos)
+		const warningProgress = k.clamp(
+			(MINE_WARNING_RADIUS - playerDistance) /
+				(MINE_WARNING_RADIUS - MINE_TRIGGER_RADIUS),
+			0,
+			1
+		)
 		mine.color = triggered
 			? k.rgb(255, 65, 65)
-			: k.rgb(210, 210, 210)
+			: k.rgb(
+				k.lerp(210, 255, warningProgress),
+				k.lerp(210, 65, warningProgress),
+				k.lerp(210, 65, warningProgress)
+			)
 		mine.opacity = triggered
 			? k.wave(0.35, 1, k.time() * 12)
-			: k.wave(0.65, 1, k.time() * 3)
+			: k.wave(
+				k.lerp(0.65, 0.42, warningProgress),
+				1,
+				k.time() * k.lerp(3, 10, warningProgress)
+			)
 
-		if (!triggered && mine.pos.dist(playerObj.pos) < 28) triggered = true
+		if (!triggered && playerDistance < MINE_TRIGGER_RADIUS) triggered = true
 		checkProjectileIntersection(mine.pos, 10, tags.friendly, (projectile) => {
 			if (projectile.exists()) k.destroy(projectile)
 			triggered = true

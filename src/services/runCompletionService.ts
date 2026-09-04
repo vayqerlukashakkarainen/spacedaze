@@ -7,14 +7,15 @@ export interface RunEndSummary {
 	outcome: RunStats["outcome"]
 	debree: DebreeRunOutcome
 	hub: HubDepositResult
+	run?: RunStats
 }
 
 let pendingSummary: RunEndSummary | undefined
 
 export function completeRun(outcome: RunStats["outcome"], debree: DebreeRunOutcome) {
-	finishRunStats(outcome, debree)
+	const run = finishRunStats(outcome, debree)
 	const hub = recordHubDeposit(debree.deposited)
-	pendingSummary = { outcome, debree, hub }
+	pendingSummary = { outcome, debree, hub, run }
 	endRunSession()
 	return pendingSummary
 }

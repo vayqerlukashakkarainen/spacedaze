@@ -7,6 +7,7 @@ import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import {
 	createEnemySpawnProfile,
+	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService"
 import { easeDirection, registerHitAnimation } from "../shared"
@@ -15,6 +16,9 @@ import { randomExplosion } from "../util"
 import { timescale } from "../comp/timescale"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { spawnExplosionEffect } from "./spawnFlash"
+
+const ENEMY_MINE_WARNING_RADIUS = 96
+const ENEMY_MINE_TRIGGER_RADIUS = 34
 
 export function spawnMineLayer(
 	pos: Vec2,
@@ -36,12 +40,15 @@ export function spawnMineLayer(
 		{
 			hb: 15 * profile.scale,
 			damage: profile.damage,
+			threatRank: ENEMY_THREAT_RANK.mineLayer,
 			mineTimer: k.rand(0.6, 1.4),
 			orbitDirection: k.chance(0.5) ? 1 : -1,
 			moveDirection: k.vec2(0, 1),
 		},
 		tags.enemy,
 		tags.unit,
+		tags.enemyRoleController,
+		tags.enemyRoleTerrain,
 		...(profile.elite ? [tags.elite] : []),
 		tags.gameLoop,
 		...(options.tags ?? []),
@@ -79,9 +86,16 @@ export function spawnMineLayer(
 		if (mineLayer.mineTimer <= 0 && distance < 440) {
 			spawnEnemyMine(
 				mineLayer.pos.clone(),
-				profile.damage,
+				mineLayer.damage,
 				options.tags
 			)
+			audioService.playPositionalSound("lay_mine", mineLayer.pos.clone(), {
+				volume: mainSoundVolume * 0.7,
+				detune: k.rand(-35, 35),
+				minDistance: 45,
+				maxDistance: 540,
+				panDistance: 260,
+			})
 			mineLayer.mineTimer = profile.elite ? 2 : 2.8
 		}
 
@@ -92,7 +106,7 @@ export function spawnMineLayer(
 			!isPlayerDamageInvulnerable() &&
 			mineLayer.pos.dist(playerObj.pos) < mineLayer.hb + 8
 		) {
-			applyDamage(playerObj, profile.damage, {
+			applyDamage(playerObj, mineLayer.damage, {
 				source: { name: "MINE LAYER", sprite: "enemy_mine_layer" },
 			})
 			applyDamage(mineLayer, mineLayer.hp)
@@ -143,12 +157,29 @@ function spawnEnemyMine(pos: Vec2, damage: number, extraTags?: string[]) {
 			return
 		}
 		if (mine.armedElapsed < 0.65) return
-		mine.color = k.WHITE
+		const playerDistance = mine.pos.dist(playerObj.pos)
+		const warningProgress = k.clamp(
+			(ENEMY_MINE_WARNING_RADIUS - playerDistance) /
+				(ENEMY_MINE_WARNING_RADIUS - ENEMY_MINE_TRIGGER_RADIUS),
+			0,
+			1
+		)
+		mine.color = triggered
+			? k.rgb(255, 55, 55)
+			: k.rgb(
+				k.lerp(255, 255, warningProgress),
+				k.lerp(255, 65, warningProgress),
+				k.lerp(255, 65, warningProgress)
+			)
 		mine.opacity = triggered
 			? k.wave(0.3, 1, k.time() * 14)
-			: k.wave(0.6, 1, k.time() * 4)
+			: k.wave(
+				k.lerp(0.6, 0.42, warningProgress),
+				1,
+				k.time() * k.lerp(4, 10, warningProgress)
+			)
 
-		if (!triggered && mine.pos.dist(playerObj.pos) < 34) triggered = true
+		if (!triggered && playerDistance < ENEMY_MINE_TRIGGER_RADIUS) triggered = true
 		checkProjectileIntersection(mine.pos, 10, tags.friendly, (projectile) => {
 			if (projectile.exists()) k.destroy(projectile)
 			triggered = true

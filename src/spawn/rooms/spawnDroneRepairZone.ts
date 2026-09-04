@@ -13,6 +13,7 @@ import {
 	purchaseBurstParticleCount,
 	spawnCurrencyBurst,
 } from "../spawnCurrencyBurst"
+import { playRequirementErrorSound } from "../../services/uiSoundService"
 
 interface DroneRepairZoneProps {
 	pos: Vec2
@@ -131,6 +132,7 @@ function spawnBrokenDrone(props: BrokenDroneProps) {
 			prompt.color = k.rgb(255, 110, 90)
 			prompt.opacity = 1
 			messageElapsed = 1.4
+			playRequirementErrorSound()
 			return
 		}
 		spawnCurrencyBurst(wreck.pos.clone(), {

@@ -14,6 +14,7 @@ export interface UiActionButtonProps {
 	pos: Vec2;
 	text: string;
 	onClick: () => void;
+	onDisabledClick?: () => void;
 	size?: Vec2;
 	selected?: boolean;
 	disabled?: boolean;
@@ -27,6 +28,7 @@ export function createUiActionButton(parent: ReturnType<typeof k.add>, {
 	pos,
 	text,
 	onClick,
+	onDisabledClick,
 	size = k.vec2(120, 32),
 	selected = false,
 	disabled = false,
@@ -73,7 +75,9 @@ export function createUiActionButton(parent: ReturnType<typeof k.add>, {
 			iconHeight: 20,
 		})
 	}
-	if (!disabled) {
+	if (disabled) {
+		if (onDisabledClick) button.onClick(onDisabledClick);
+	} else {
 		button.onClick(() => {
 			playUiClickSound();
 			onClick();

@@ -17,6 +17,7 @@ import { onEnemyHit } from "./enemyShared";
 import { timescale } from "../comp/timescale";
 import {
 	createEnemySpawnProfile,
+	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
@@ -53,9 +54,11 @@ export function spawnShip1(
 			hb,
 			elite: profile.elite,
 			damage: profile.damage,
+			threatRank: ENEMY_THREAT_RANK.fighter,
 		},
 		tags.enemy,
 		tags.unit,
+		tags.enemyRolePressure,
 		...(profile.elite ? [tags.elite] : []),
 		tags.gameLoop,
 		...(options.tags ?? []),
@@ -115,7 +118,11 @@ export function spawnShip1(
 			}
 		);
 
-		if (Math.floor(k.rand(0, 500)) == 10) {
+		const fireRollRange = Math.max(
+			1,
+			Math.round(500 / (m.shieldFireRateMultiplier ?? 1))
+		);
+		if (Math.floor(k.rand(0, fireRollRange)) == 10) {
 			spawnEnemyBlaster(
 				m.pos,
 				k.Vec2.fromAngle(m.angle - 90),

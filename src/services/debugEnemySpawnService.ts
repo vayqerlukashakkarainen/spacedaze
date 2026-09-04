@@ -7,11 +7,21 @@ import { spawnAssasin } from "../spawn/spawnAssasin"
 import { spawnMeteorite } from "../spawn/spawnAsteroid"
 import { spawnBoss1 } from "../spawn/spawnBoss1"
 import { spawnMineLayer } from "../spawn/spawnMineLayer"
+import { spawnGravityWarden } from "../spawn/spawnGravityWarden"
+import { spawnOrbitLancer } from "../spawn/spawnOrbitLancer"
 import { spawnRammer } from "../spawn/spawnRammer"
+import { spawnRepairSkiff } from "../spawn/spawnRepairSkiff"
+import { spawnSiegeBarge } from "../spawn/spawnSiegeBarge"
 import { spawnShieldDrone } from "../spawn/spawnShieldDrone"
 import { spawnShip1 } from "../spawn/spawnShip1"
 import { spawnSniper } from "../spawn/spawnSniper"
+import { spawnSplitter } from "../spawn/spawnSplitter"
 import { spawnHiveMind, spawnSwarmEnemy } from "../spawn/spawnSwarm"
+import { spawnTetherDrone } from "../spawn/spawnTetherDrone"
+import { spawnPhaseSkirmisher } from "../spawn/spawnPhaseSkirmisher"
+import { spawnSalvageScavenger } from "../spawn/spawnSalvageScavenger"
+import { spawnSuppressor } from "../spawn/spawnSuppressor"
+import { spawnBreachCrawler } from "../spawn/spawnBreachCrawler"
 
 export type DebugEnemyType =
 	| "ship"
@@ -19,6 +29,16 @@ export type DebugEnemyType =
 	| "rammer"
 	| "sniper"
 	| "mine-layer"
+	| "orbit-lancer"
+	| "siege-barge"
+	| "tether-drone"
+	| "repair-skiff"
+	| "splitter"
+	| "gravity-warden"
+	| "phase-skirmisher"
+	| "salvage-scavenger"
+	| "suppressor"
+	| "breach-crawler"
 	| "shield"
 	| "swarm"
 	| "hivemind"
@@ -31,6 +51,16 @@ const DEBUG_ENEMY_TYPES: readonly DebugEnemyType[] = [
 	"rammer",
 	"sniper",
 	"mine-layer",
+	"orbit-lancer",
+	"siege-barge",
+	"tether-drone",
+	"repair-skiff",
+	"splitter",
+	"gravity-warden",
+	"phase-skirmisher",
+	"salvage-scavenger",
+	"suppressor",
+	"breach-crawler",
 	"shield",
 	"swarm",
 	"hivemind",
@@ -45,13 +75,14 @@ export function getDebugEnemyTypes() {
 export function spawnDebugEnemies(
 	count: number,
 	type: DebugEnemyType | "random",
-	center: Vec2
+	center: Vec2,
+	indexOffset: number = 0
 ) {
 	for (let index = 0; index < count; index++) {
 		const enemyType = type === "random"
 			? DEBUG_ENEMY_TYPES[Math.floor(k.rand(DEBUG_ENEMY_TYPES.length))]
 			: type
-		const pos = findSpawnPosition(center, index)
+		const pos = findSpawnPosition(center, index + indexOffset)
 		spawnDebugEnemy(enemyType, pos)
 	}
 }
@@ -86,6 +117,38 @@ function spawnDebugEnemy(type: DebugEnemyType, pos: Vec2) {
 			return
 		case "mine-layer":
 			spawnMineLayer(pos, 5, persistOptions)
+			return
+		case "orbit-lancer":
+			spawnOrbitLancer(pos, 3, persistOptions)
+			return
+		case "siege-barge":
+			spawnSiegeBarge(pos, 10, persistOptions)
+			return
+		case "tether-drone":
+			spawnTetherDrone(pos, 4, persistOptions)
+			return
+		case "repair-skiff": {
+			spawnShip1(pos, direction, 4, 4, 1, 48, persistOptions)
+			spawnRepairSkiff(pos.add(42, 0), 3, persistOptions)
+			return
+		}
+		case "splitter":
+			spawnSplitter(pos, 7, persistOptions)
+			return
+		case "gravity-warden":
+			spawnGravityWarden(pos, 6, persistOptions)
+			return
+		case "phase-skirmisher":
+			spawnPhaseSkirmisher(pos, 5, persistOptions)
+			return
+		case "salvage-scavenger":
+			spawnSalvageScavenger(pos, 4, persistOptions)
+			return
+		case "suppressor":
+			spawnSuppressor(pos, 6, persistOptions)
+			return
+		case "breach-crawler":
+			spawnBreachCrawler(pos, 8, persistOptions)
 			return
 		case "shield": {
 			const protectedTarget = spawnShip1(

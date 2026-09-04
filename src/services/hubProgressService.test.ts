@@ -3,6 +3,8 @@ import {
 	buildFacility,
 	consumeHubGhostChest,
 	discoverBlueprint,
+	getFacilityConstruction,
+	getFacilityConstructionRemainingMs,
 	getHubChestLuck,
 	getHubGhostChestCapacity,
 	getHubGhostChestStock,
@@ -16,6 +18,7 @@ import {
 	recordHubDeposit,
 	resetHubProgress,
 	setHubLevelForDebug,
+	startFacilityConstruction,
 } from "./hubProgressService"
 
 resetHubProgress()
@@ -50,6 +53,14 @@ assert.equal(levelThree.currentLevel, 3)
 assert.equal(getHubGhostChestStock("salvage"), 2)
 assert.equal(getHubGhostChestStock("weapon"), 1)
 assert.equal(getHubChestLuck(), 0.06)
+
+assert.equal(startFacilityConstruction("salvageForge"), true)
+assert.equal(getFacilityConstruction()?.facilityId, "salvageForge")
+assert.ok(getFacilityConstructionRemainingMs("salvageForge") > 0)
+assert.equal(startFacilityConstruction("salvageForge"), false)
+assert.equal(isFacilityBuilt("salvageForge"), false)
+assert.equal(buildFacility("salvageForge"), true)
+assert.equal(getFacilityConstruction(), undefined)
 
 setHubLevelForDebug(5)
 assert.equal(getHubGhostChestCapacity("salvage"), 3)

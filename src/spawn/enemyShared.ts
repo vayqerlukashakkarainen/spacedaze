@@ -8,7 +8,6 @@ import {
 	rollDropReward,
 } from "../services/rewardService";
 import { spawnRewardPickup } from "./spawnPowerup";
-import { getSelectedContract } from "../services/contractService";
 import { getForgeDropMultiplier } from "../services/hubProgressService";
 import {
 	recordRunKill,
@@ -18,6 +17,12 @@ import { trySpawnHealthOrb } from "./spawnHealthOrb";
 import { trySpawnHackedAlly } from "./spawnHackedAlly";
 import { tags } from "../tags";
 import { spawnEnemyDeathEffect } from "./spawnEnemyDeathEffect";
+import { grantUltimateCharge } from "../services/ultimateAbilityService";
+
+interface EnemyDeathVisualOptions {
+	intensity?: number;
+	starCount?: number;
+}
 
 export function onEnemyHit(m: GameObj, p: GameObj) {
 	// Use new projectile damage system
@@ -40,10 +45,19 @@ export function enemyOnDeath(
 	score: number,
 	powerupMultiplier: number,
 	rewardSource: Exclude<RewardSource, "crate"> = "enemy",
-	allowHack: boolean = true
+	allowHack: boolean = true,
+	visuals: EnemyDeathVisualOptions = {}
 ) {
 	if (runStatsActive()) recordRunKill();
-	spawnEnemyDeathEffect(pos, Math.sqrt(Math.max(1, powerupMultiplier)));
+	grantUltimateCharge(
+		rewardSource === "boss"
+			? 40
+			: Math.min(14, 5 + Math.sqrt(Math.max(1, powerupMultiplier)) * 2)
+	);
+	spawnEnemyDeathEffect(
+		pos,
+		visuals.intensity ?? Math.sqrt(Math.max(1, powerupMultiplier))
+	);
 	for (const follower of k.get(tags.follower) as GameObj[]) {
 		if (!follower.exists() || follower.droneType !== "medic") continue;
 		follower.medicKillCharge = Math.min(
@@ -52,13 +66,10 @@ export function enemyOnDeath(
 		);
 	}
 	starsEmitter.emitter.position = pos;
-	starsEmitter.emit(20);
+	starsEmitter.emit(visuals.starCount ?? 20);
 	spawnDebree(pos, score);
-	const contractMultiplier = runStatsActive()
-		? getSelectedContract()?.rewardDropMultiplier ?? 1
-		: 1;
 	const dropMultiplier =
-		powerupMultiplier * contractMultiplier * getForgeDropMultiplier();
+		powerupMultiplier * getForgeDropMultiplier();
 	trySpawnHealthOrb(pos, dropMultiplier);
 	const reward = rollDropReward(
 		rewardSource,

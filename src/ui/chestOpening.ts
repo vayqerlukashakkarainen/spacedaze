@@ -14,7 +14,12 @@ import {
 } from "../chestRewards";
 import { audioService } from "../services/audioService";
 import { shake } from "../comp/shake";
-import { applyReward, REWARD_RARITY_COLORS } from "../services/rewardService";
+import {
+	applyReward,
+	getAbilityRewardDefinitionIds,
+	isAbilityReward,
+	REWARD_RARITY_COLORS,
+} from "../services/rewardService";
 import { getUiEffects } from "../particles";
 import { addCollectedPowerup } from "./gameUi";
 import {
@@ -49,6 +54,7 @@ import {
 	purchaseBurstParticleCount,
 	spawnCurrencyBurst,
 } from "../spawn/spawnCurrencyBurst";
+import { playRequirementErrorSound } from "../services/uiSoundService";
 
 interface TimingZone {
 	start: number; // 0-1
@@ -226,6 +232,8 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			detailControllers: [] as { cancel: () => void }[],
 			detailObjects: [] as GameObj[],
 			rerollExcludedIds: [] as string[],
+			claimedDiscoveryIds: [] as string[],
+			fixedDiscoveries: [] as ChestReward[],
 		},
 		k.state("initial", [
 			"initial",
@@ -251,6 +259,28 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		if (!chestController.capacitorChargeSound) return;
 		chestController.capacitorChargeSound.stop();
 		chestController.capacitorChargeSound = null;
+	};
+	const claimDiscoveryReward = (reward: ChestReward) => {
+		if (
+			!isAbilityReward(reward) ||
+			chestController.claimedDiscoveryIds.includes(reward.id)
+		) return;
+		if (!applyReward(reward, k.center())) return;
+		chestController.claimedDiscoveryIds.push(reward.id);
+		addCollectedPowerup(reward);
+	};
+	const claimDiscoveryRewards = (rewards: readonly ChestReward[]) => {
+		for (const reward of rewards) claimDiscoveryReward(reward);
+	};
+	let sequenceFinished = false;
+	const finishSequence = () => {
+		if (sequenceFinished) return;
+		sequenceFinished = true;
+		clearDetailInteractions();
+		stopCapacitorChargeSound();
+		chestController.removeAll();
+		k.destroyAll("chestUI");
+		chestController.onComplete?.();
 	};
 	const finishChallenge = () => {
 		if (chestController.challengeFinished) return;
@@ -976,16 +1006,27 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		chestController.normalizedHits = normalizedHits;
 		const result = generateRewards(
 			normalizedHits,
-			chestController.failedAttempts
+			chestController.failedAttempts,
+			chestController.fixedDiscoveries.length > 0
+				? getAbilityRewardDefinitionIds()
+				: []
 		);
-		chestController.rewards = result.rewards;
+		if (chestController.fixedDiscoveries.length === 0) {
+			chestController.fixedDiscoveries = result.discoveries.slice(0, 1);
+		}
+		const selectableSlotCount = Math.max(
+			0,
+			result.rewards.length - chestController.fixedDiscoveries.length
+		);
+		chestController.rewards = [
+			...chestController.fixedDiscoveries,
+			...result.choices.slice(0, selectableSlotCount),
+		];
 		chestController.totalFailures = result.failures;
 		chestController.quality = result.quality;
 
 		if (chestController.rewards.length === 0) {
-			if (chestController.onComplete) {
-				chestController.onComplete();
-			}
+			finishSequence();
 			return;
 		}
 
@@ -1127,6 +1168,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			await k.wait(
 				profile.duration * 0.35 + profile.postRevealHold
 			);
+			claimDiscoveryReward(reward);
 		}
 
 		await k.wait(0.15);
@@ -1154,12 +1196,36 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		await k.wait(0.18);
 		if (!chestController.exists()) return;
 		clearDetailInteractions();
+		const retainedDiscoveries = chestController.rewards.filter(isAbilityReward);
 		const result = generateRewards(
 			chestController.normalizedHits,
 			chestController.failedAttempts,
-			chestController.rerollExcludedIds
+			[
+				...chestController.rerollExcludedIds,
+				...(retainedDiscoveries.length > 0
+					? getAbilityRewardDefinitionIds()
+					: []),
+			]
 		);
-		chestController.rewards = result.rewards;
+		const selectableCount = Math.max(
+			0,
+			chestController.rewards.length - retainedDiscoveries.length
+		);
+		const rerolledChoices = result.rewards
+			.filter((reward) => !isAbilityReward(reward))
+			.slice(0, selectableCount);
+		const newDiscoveries = retainedDiscoveries.length === 0
+			? result.rewards.filter(isAbilityReward).slice(0, 1)
+			: [];
+		if (newDiscoveries.length > 0) {
+			chestController.fixedDiscoveries = newDiscoveries;
+		}
+		chestController.rewards = [
+			...retainedDiscoveries,
+			...newDiscoveries,
+			...rerolledChoices,
+		];
+		claimDiscoveryRewards(newDiscoveries);
 		chestController.totalFailures = result.failures;
 		chestController.quality = result.quality;
 		chestController.enterState("showDetails");
@@ -1167,11 +1233,18 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 
 	// State: Show Details
 	chestController.onStateEnter("showDetails", () => {
-		if (!chestController.uiContainer || chestController.rewards.length === 0) return;
+		if (!chestController.uiContainer || chestController.rewards.length === 0) {
+			finishSequence();
+			return;
+		}
 		clearDetailInteractions();
 		chestController.uiContainer.removeAll();
 		if (chestController.borderBox) chestController.borderBox.opacity = 0;
-		const choiceCount = chestController.rewards.length;
+		const selectableRewards = chestController.rewards.filter(
+			(reward) => !isAbilityReward(reward)
+		);
+		const choiceCount = selectableRewards.length;
+		const slotCount = chestController.rewards.length;
 		const performanceLabel = chestController.totalFailures === 0
 			? "PERFECT OPEN"
 			: `${chestController.totalFailures} FAILURE${chestController.totalFailures === 1 ? "" : "S"}`;
@@ -1192,15 +1265,15 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			pos: k.vec2(16, 12),
 			width: panelWidth - 32,
 			eyebrow: performanceLabel,
-			title: rewardType === "weapon"
-				? `SELECT WEAPON  /  1 OF ${choiceCount}`
-				: `SELECT REWARD  /  1 OF ${choiceCount}`,
+			title: choiceCount > 0
+				? `SELECT REWARD  /  1 OF ${choiceCount}`
+				: "DISCOVERY SECURED",
 			action: `${rerollTokenCount} REROLL TOKEN${rerollTokenCount === 1 ? "" : "S"}`,
 		});
 
 		const layout = getRewardCardLayout(
 			panelWidth - 32,
-			choiceCount
+			slotCount
 		);
 		const { cardWidth, cardHeight } = layout;
 		const cardTop = 82;
@@ -1221,7 +1294,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		let accepted = false;
 		const acceptControllers = chestController.detailControllers;
 		const acceptReward = (reward: ChestReward) => {
-			if (accepted) return;
+			if (accepted || isAbilityReward(reward)) return;
 			accepted = true;
 
 			if (!applyReward(reward, k.center())) {
@@ -1233,21 +1306,16 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			// Play purchase sound
 			audioService.playSound("purchase1", { volume: mainSoundVolume });
 
-			clearDetailInteractions();
-
-			// Kaplay doesn't recursively destroy child objects with destroyAll().
-			// Remove the controller tree first so reward visuals cannot linger.
-			chestController.removeAll();
-			k.destroyAll("chestUI");
-
-			if (chestController.onComplete) {
-				chestController.onComplete();
-			}
+			finishSequence();
 		};
 		const rerollRewards = () => {
-			if (accepted || !spendRerollToken()) return;
+			if (accepted) return;
+			if (!spendRerollToken()) {
+				playRequirementErrorSound();
+				return;
+			}
 			accepted = true;
-			chestController.rerollExcludedIds = chestController.rewards.map(
+			chestController.rerollExcludedIds = selectableRewards.map(
 				(reward) => reward.id
 			);
 			clearDetailInteractions();
@@ -1255,7 +1323,11 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			chestController.enterState("reroll");
 		};
 		const retryChallenge = () => {
-			if (accepted || !spendScore(CHEST_RETRY_COST)) return;
+			if (accepted) return;
+			if (!spendScore(CHEST_RETRY_COST)) {
+				playRequirementErrorSound();
+				return;
+			}
 			accepted = true;
 			spawnCurrencyBurst(k.mousePos(), {
 				particleCount: purchaseBurstParticleCount(CHEST_RETRY_COST),
@@ -1272,21 +1344,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			chestController.rewardSprite = null;
 			chestController.enterState("initial");
 		};
-		const discardWeapons = () => {
-			if (accepted || rewardType !== "weapon") return;
-			accepted = true;
-			clearDetailInteractions();
-			audioService.playSound("collect1", {
-				volume: mainSoundVolume * 0.45,
-				detune: -350,
-			});
-			chestController.removeAll();
-			k.destroyAll("chestUI");
-			if (chestController.onComplete) chestController.onComplete();
-		};
 		const tokenLabel = rerollTokenCount === 1 ? "TOKEN" : "TOKENS";
 		const actionGap = 12;
-		const actionCount = rewardType === "weapon" ? 3 : 2;
+		const actionCount = 2;
 		const actionWidth = Math.min(
 			240,
 			(panelWidth - 64 - actionGap * (actionCount - 1)) / actionCount
@@ -1294,45 +1354,38 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		const actionRowWidth =
 			actionWidth * actionCount + actionGap * (actionCount - 1);
 		const actionStartX = (panelWidth - actionRowWidth) / 2;
-		createUiActionButton(panel, {
-			pos: k.vec2(actionStartX, panelHeight - 50),
-			size: k.vec2(actionWidth, 32),
-			text: `REROLL  //  ${rerollTokenCount} ${tokenLabel}`,
-			disabled: rerollTokenCount === 0,
-			promptAction: "reroll",
-			onClick: rerollRewards,
-		});
-		createUiActionButton(panel, {
-			pos: k.vec2(actionStartX + actionWidth + actionGap, panelHeight - 50),
-			size: k.vec2(actionWidth, 32),
-			text: `RETRY  //  ${CHEST_RETRY_COST} SALVAGE`,
-			disabled: availableSalvage < CHEST_RETRY_COST,
-			promptAction: "retry",
-			onClick: retryChallenge,
-		});
-		if (rewardType === "weapon") {
+		if (choiceCount > 0) {
 			createUiActionButton(panel, {
-				pos: k.vec2(
-					actionStartX + (actionWidth + actionGap) * 2,
-					panelHeight - 50
-				),
+				pos: k.vec2(actionStartX, panelHeight - 50),
 				size: k.vec2(actionWidth, 32),
-				text: "DISCARD  //  KEEP LOADOUT",
-				promptAction: "skip",
-				onClick: discardWeapons,
+				text: `REROLL  //  ${rerollTokenCount} ${tokenLabel}`,
+				disabled: rerollTokenCount === 0,
+				onDisabledClick: playRequirementErrorSound,
+				promptAction: "reroll",
+				onClick: rerollRewards,
 			});
-			acceptControllers.push(k.onKeyPress("escape", discardWeapons));
+			createUiActionButton(panel, {
+				pos: k.vec2(actionStartX + actionWidth + actionGap, panelHeight - 50),
+				size: k.vec2(actionWidth, 32),
+				text: `RETRY  //  ${CHEST_RETRY_COST} SALVAGE`,
+				disabled: availableSalvage < CHEST_RETRY_COST,
+				onDisabledClick: playRequirementErrorSound,
+				promptAction: "retry",
+				onClick: retryChallenge,
+			});
 		}
-		if (rerollTokenCount > 0) {
+		if (choiceCount > 0 && rerollTokenCount > 0) {
 			acceptControllers.push(k.onKeyPress("r", rerollRewards));
 		}
-		if (availableSalvage >= CHEST_RETRY_COST) {
+		if (choiceCount > 0 && availableSalvage >= CHEST_RETRY_COST) {
 			acceptControllers.push(k.onKeyPress("t", retryChallenge));
 		}
 
 		chestController.rewards.forEach((reward, index) => {
 			const rarityColor = REWARD_RARITY_COLORS[reward.rarity];
 			const isPermanent = reward.progression.persistence === "permanent";
+			const isDiscovery = isAbilityReward(reward);
+			const selectableIndex = selectableRewards.indexOf(reward);
 			const cardCenterX = panelWidth / 2 + layout.cardX(index);
 			const animationDelay = index * cardStagger;
 			const cardReveal = panel.add([
@@ -1344,6 +1397,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			const cardControl = createUiSelectableCard(cardReveal, {
 				pos: k.vec2(-cardWidth / 2, -cardHeight / 2),
 				size: k.vec2(cardWidth, cardHeight),
+				disabled: isDiscovery,
 				onClick: () => {
 					if (cardReveal.opacity < 1) return;
 					acceptReward(reward);
@@ -1380,15 +1434,19 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			createUiBadge(card, {
 				pos: k.vec2(12, 76),
 				width: cardWidth - 24,
-				text: `${reward.rarity} ${reward.kind === "activeModule" ? "SECONDARY WEAPON" : reward.kind === "weapon" ? "PRIMARY WEAPON" : reward.kind.toUpperCase()}`,
+				text: `${reward.rarity} ${reward.abilitySlot
+					? `${reward.abilitySlot.toUpperCase()} ABILITY`
+					: reward.kind.toUpperCase()}`,
 				color: rarityColor,
 			});
 			if (isPermanent) {
 				createUiBadge(card, {
 					pos: k.vec2(12, cardHeight - 66),
 					width: cardWidth - 24,
-					text: "PERMANENT",
-					color: [255, 255, 255],
+					text: isDiscovery
+						? "DISCOVERED  //  ADDED TO PHASE STATION"
+						: "PERMANENT",
+					color: isDiscovery ? UI_COLORS.success : [255, 255, 255],
 				});
 			}
 			addThemedText(card, {
@@ -1425,14 +1483,16 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				color: k.rgb(100, 200, 255),
 				z: 3,
 			});
-			createInputPromptRow(card, {
-				pos: k.vec2(cardWidth / 2, cardHeight - 28),
-				prompts: [{
-					action: `select${index + 1}` as "select1" | "select2" | "select3",
-					label: "TO SELECT",
-				}],
-				color: UI_COLORS.accent,
-			});
+			if (!isDiscovery) {
+				createInputPromptRow(card, {
+					pos: k.vec2(cardWidth / 2, cardHeight - 28),
+					prompts: [{
+						action: `select${selectableIndex + 1}` as "select1" | "select2" | "select3",
+						label: "TO SELECT",
+					}],
+					color: UI_COLORS.accent,
+				});
+			}
 			if (reward.rarity === Rarity.Legendary) {
 				addLegendaryCardSweep(
 					card,
@@ -1441,12 +1501,22 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 					animationDelay + 0.18
 				);
 			}
-			acceptControllers.push(k.onKeyPress(`${index + 1}`, () => acceptReward(reward)));
+			if (!isDiscovery) {
+				acceptControllers.push(
+					k.onKeyPress(`${selectableIndex + 1}`, () => acceptReward(reward))
+				);
+			}
 		});
 
-		acceptControllers.push(k.onKeyPress("enter", () => {
-			acceptReward(chestController.rewards[0]);
-		}));
+		if (selectableRewards.length > 0) {
+			acceptControllers.push(k.onKeyPress("enter", () => {
+				acceptReward(selectableRewards[0]);
+			}));
+		} else {
+			k.wait(1.2, () => {
+				if (chestController.exists()) finishSequence();
+			});
+		}
 	});
 
 	// Start state machine

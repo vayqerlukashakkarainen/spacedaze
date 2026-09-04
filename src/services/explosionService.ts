@@ -52,6 +52,7 @@ export function createExplosion(options: ExplosionOptions) {
 		hits: [],
 		targets: suppliedTargets ?? [],
 	}
+	if (player.glassReactor !== undefined) context.damage *= 2
 	for (const modifier of explosionModifiers) modifier(context)
 	if (!suppliedTargets) {
 		context.targets = querySpatialNearby(context.pos, context.radius, {

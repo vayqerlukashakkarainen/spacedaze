@@ -18,10 +18,13 @@ interface LostConvoyProps {
 	pos: Vec2
 	health: number
 	enemySpacing: number
+	enemyWaveMultiplier?: number
 	getDestination: () => Vec2 | undefined
 	onComplete?: (pos: Vec2) => void
 	tags?: string[]
 }
+
+const DELIVERY_COMPLETION_RADIUS = 400
 
 export function spawnLostConvoy(props: LostConvoyProps) {
 	let active = false
@@ -82,14 +85,21 @@ export function spawnLostConvoy(props: LostConvoyProps) {
 		waveTimer -= k.dt() * drone.getTimescale()
 		if (waveTimer <= 0) {
 			waveTimer = 6
-			const spawnPos = drone.pos.add(
-				k.Vec2.fromAngle(k.rand(360)).scale(190)
-			)
-			spawnThreatEncounter(spawnPos, props.enemySpacing)
+			const encounterCount = Math.max(1, Math.round(props.enemyWaveMultiplier ?? 1))
+			const baseAngle = k.rand(360)
+			for (let index = 0; index < encounterCount; index++) {
+				const spawnPos = drone.pos.add(
+					k.Vec2.fromAngle(baseAngle + index * (360 / encounterCount)).scale(190)
+				)
+				spawnThreatEncounter(spawnPos, props.enemySpacing)
+			}
 		}
 
 		const destination = props.getDestination()
-		if (!destination || drone.pos.dist(destination) > 120) return
+		if (
+			!destination ||
+			drone.pos.dist(destination) > DELIVERY_COMPLETION_RADIUS
+		) return
 		completed = true
 		spawnRing({
 			pos: drone.pos,

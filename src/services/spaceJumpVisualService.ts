@@ -30,11 +30,11 @@ export function spawnSpaceJumpBackdrop(
 	return k.add([
 		k.pos(0, 0),
 		k.fixed(),
-		k.layer(layers.gameEffects),
+		k.layer(layers.gameText),
 		k.z(options.z ?? 9000),
 		...(options.tags ?? []),
 		{
-			coverOpacity: 0.96,
+			coverOpacity: 1,
 			washOpacity: 1,
 			speedProgress: 0,
 			update() {

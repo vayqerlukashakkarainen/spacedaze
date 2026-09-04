@@ -9,6 +9,8 @@ interface PlayingSound {
 	baseVolume: number;
 	baseSpeed: number;
 	basePan: number;
+	lastVolume?: number;
+	lastPan?: number;
 	spatial?: SpatialSound;
 }
 
@@ -68,8 +70,12 @@ let positionalAudioUpdate: KEventController | null = null;
 let pendingMusic: PendingMusic | null = null;
 let audioUnlockListening = false;
 let audioUnlocked = false;
+let positionalAudioElapsed = 0;
 
 const AUDIO_UNLOCK_EVENTS = ["pointerdown", "keydown", "touchstart"] as const;
+const POSITIONAL_AUDIO_UPDATE_INTERVAL = 1 / 30;
+const POSITIONAL_VOLUME_EPSILON = 0.004;
+const POSITIONAL_PAN_EPSILON = 0.008;
 
 function clampVolume(value: number) {
 	return Math.max(0, Math.min(1, value));
@@ -144,37 +150,54 @@ function defaultPositionalListener() {
 	return listener?.pos ?? k.getCamPos();
 }
 
-function spatialGain(sound: PlayingSound) {
-	if (!sound.spatial) return 1;
+function spatialMix(sound: PlayingSound) {
+	if (!sound.spatial) return { gain: 1, pan: sound.basePan };
 	const source = sound.spatial.source();
 	const listener = sound.spatial.listener();
-	if (!validPosition(source) || !validPosition(listener)) return 0;
+	if (!validPosition(source) || !validPosition(listener)) {
+		return { gain: 0, pan: 0 };
+	}
 	const distance = source.dist(listener);
-	if (distance <= sound.spatial.minDistance) return 1;
-	if (distance >= sound.spatial.maxDistance) return 0;
-	const range = sound.spatial.maxDistance - sound.spatial.minDistance;
-	const progress = (distance - sound.spatial.minDistance) / range;
-	return Math.pow(1 - progress, sound.spatial.rolloff);
-}
-
-function spatialPan(sound: PlayingSound) {
-	if (!sound.spatial) return sound.basePan;
-	const source = sound.spatial.source();
-	const listener = sound.spatial.listener();
-	if (!validPosition(source) || !validPosition(listener)) return 0;
+	let gain = 1;
+	if (distance >= sound.spatial.maxDistance) {
+		gain = 0;
+	} else if (distance > sound.spatial.minDistance) {
+		const range = sound.spatial.maxDistance - sound.spatial.minDistance;
+		const progress = (distance - sound.spatial.minDistance) / range;
+		gain = Math.pow(1 - progress, sound.spatial.rolloff);
+	}
 	const directionalPan = (source.x - listener.x) / sound.spatial.panDistance;
-	return k.clamp(sound.basePan + directionalPan, -1, 1);
+	return {
+		gain,
+		pan: k.clamp(sound.basePan + directionalPan, -1, 1),
+	};
 }
 
-function updatePlayingSound(sound: PlayingSound) {
+function updatePlayingSound(sound: PlayingSound, force = false) {
+	const mix = spatialMix(sound);
 	const volume =
 		sound.baseVolume *
 		audioSettings.soundVolume *
 		masterVolume() *
-		spatialGain(sound);
-	const pan = spatialPan(sound);
-	sound.audio.volume = Number.isFinite(volume) ? clampVolume(volume) : 0;
-	sound.audio.pan = Number.isFinite(pan) ? k.clamp(pan, -1, 1) : 0;
+		mix.gain;
+	const nextVolume = Number.isFinite(volume) ? clampVolume(volume) : 0;
+	const nextPan = Number.isFinite(mix.pan) ? k.clamp(mix.pan, -1, 1) : 0;
+	if (
+		force ||
+		sound.lastVolume === undefined ||
+		Math.abs(nextVolume - sound.lastVolume) >= POSITIONAL_VOLUME_EPSILON
+	) {
+		sound.audio.volume = nextVolume;
+		sound.lastVolume = nextVolume;
+	}
+	if (
+		force ||
+		sound.lastPan === undefined ||
+		Math.abs(nextPan - sound.lastPan) >= POSITIONAL_PAN_EPSILON
+	) {
+		sound.audio.pan = nextPan;
+		sound.lastPan = nextPan;
+	}
 }
 
 function validPosition(position: Vec2 | undefined): position is Vec2 {
@@ -182,6 +205,9 @@ function validPosition(position: Vec2 | undefined): position is Vec2 {
 }
 
 function updatePositionalAudio() {
+	positionalAudioElapsed += k.dt();
+	if (positionalAudioElapsed < POSITIONAL_AUDIO_UPDATE_INTERVAL) return;
+	positionalAudioElapsed %= POSITIONAL_AUDIO_UPDATE_INTERVAL;
 	let hasPositionalSounds = false;
 	for (const sound of playingSounds) {
 		if (!sound.spatial) continue;
@@ -191,10 +217,12 @@ function updatePositionalAudio() {
 	if (hasPositionalSounds || !positionalAudioUpdate) return;
 	positionalAudioUpdate.cancel();
 	positionalAudioUpdate = null;
+	positionalAudioElapsed = 0;
 }
 
 function ensurePositionalAudioUpdate() {
 	if (positionalAudioUpdate) return;
+	positionalAudioElapsed = POSITIONAL_AUDIO_UPDATE_INTERVAL;
 	positionalAudioUpdate = k.onUpdate(() => profileSection(
 		"external:positionalAudio",
 		updatePositionalAudio
@@ -225,7 +253,7 @@ function playTrackedSound(
 		spatial,
 	};
 	sound.audio.speed = baseSpeed * audioPlaybackSpeed();
-	updatePlayingSound(sound);
+	updatePlayingSound(sound, true);
 	playingSounds.push(sound);
 	if (spatial) ensurePositionalAudioUpdate();
 
@@ -271,7 +299,7 @@ export const audioService = {
 			audio.speed = options.speed * audioPlaybackSpeed();
 		}
 		if (options.detune !== undefined) audio.detune = options.detune;
-		updatePlayingSound(sound);
+		updatePlayingSound(sound, true);
 	},
 
 	playMusic(
@@ -407,7 +435,7 @@ export const audioService = {
 
 	setSoundVolume(volume: number) {
 		audioSettings.soundVolume = clampVolume(volume);
-		for (const sound of playingSounds) updatePlayingSound(sound);
+		for (const sound of playingSounds) updatePlayingSound(sound, true);
 		saveAudioSettings();
 	},
 
@@ -426,7 +454,7 @@ export const audioService = {
 			currentMusic.volume =
 				currentMusicBaseVolume * audioSettings.musicVolume * masterVolume();
 		}
-		for (const sound of playingSounds) updatePlayingSound(sound);
+		for (const sound of playingSounds) updatePlayingSound(sound, true);
 		saveAudioSettings();
 	},
 

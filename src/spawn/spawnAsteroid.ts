@@ -13,6 +13,7 @@ import { applyDamage } from "../services/damageService";
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState";
 import {
 	createEnemySpawnProfile,
+	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService";
 import { gridRegistry } from "../grid/gridRegistry";
@@ -69,9 +70,11 @@ export function spawnMeteorite(props: Props) {
 			hb,
 			elite: profile.elite,
 			damage: profile.damage,
+			threatRank: ENEMY_THREAT_RANK.asteroid,
 			bounceGridKey: props.bounceGridKey,
 		},
 		tags.enemy,
+		tags.enemyRoleTerrain,
 		tags.unit,
 		...(profile.elite ? [tags.elite] : []),
 		tags.gameLoop,

@@ -17,6 +17,7 @@ import { onEnemyHit } from "./enemyShared";
 import { lerpAngleBetweenPos } from "../shared";
 import { loopService } from "../services/loopService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { ENEMY_THREAT_RANK } from "../services/threatService";
 
 const blasterOffset = [22, -2];
 const headOffset = 25;
@@ -57,12 +58,14 @@ export function spawnBoss1(
 		]),
 		{
 			hb,
+			threatRank: ENEMY_THREAT_RANK.boss,
 			entryPos: spawnPos.clone(),
 			targetPos,
 			baseScale: scale,
 		},
 		tags.enemy,
 		tags.unit,
+		tags.enemyRolePressure,
 		tags.gameLoop,
 		...(options.tags ?? []),
 	]);

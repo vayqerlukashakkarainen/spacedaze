@@ -29,7 +29,6 @@ import { initParticles, initUiEffects } from "./particles";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
 import { upgradeService } from "./services/upgradeService";
-import { spawnTimescaleZone } from "./spawn/spawnTimescaleZone";
 import { spawnRing } from "./spawn/spawnRing";
 import { startChestOpeningSequence } from "./ui/chestOpening";
 import { generateCave } from "./generation/caveGenerator";
@@ -68,13 +67,11 @@ import { playerObj } from "./game";
 import { activeLevelKey, transitionToLevel } from "./levels/levels";
 import {
 	clearSelectedContract,
-	getSelectedContract,
 } from "./services/contractService";
 import {
 	recordPlaytime,
 	recordRunSalvage,
 	resetRunStats,
-	runStatsActive,
 } from "./services/runStatsService";
 import {
 	getGeneratedRunSummary,
@@ -197,6 +194,8 @@ import {
 } from "./services/hubProgressService";
 import { resetWarpZoneProgress } from "./services/warpZoneService";
 import { resetWeaponInventory } from "./services/weaponService";
+import { resetAbilityLoadout } from "./services/abilityLoadoutService";
+import { resetActiveModule } from "./services/activeModuleService";
 import {
 	addAvailableDebree,
 	DEFAULT_DEPOSITED_DEBREE,
@@ -405,6 +404,14 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 		submitCommand();
 	});
 
+	k.onKeyPress("f", () => {
+		if (hubFacilityPanelOpen()) {
+			hideHubFacilityPanel();
+			return;
+		}
+		if (recoveryShopOpen()) hideRecoveryShop();
+	});
+
 	k.onKeyPress("up", () => {
 		if (!commandConsoleOpen()) return;
 		moveCommandHistory(-1);
@@ -433,38 +440,6 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 	k.onKeyPress("end", () => {
 		if (!commandConsoleOpen()) return;
 		scrollCommandConsoleToEnd();
-	});
-
-	// Slow motion controls
-	k.onKeyPress("q", () => {
-		if (commandConsoleOpen()) return;
-		setTimescale(0.5);
-		audioService.playSound("slowdown", { volume: 1 });
-		spawnRing({
-			speed: 400,
-			intensity: 0.2,
-			maxRadius: Math.max(k.width(), k.height()),
-			visualize: true,
-			pos: k.center(),
-		});
-	});
-
-	k.onKeyPress("e", () => {
-		if (commandConsoleOpen()) return;
-		setTimescale(1);
-	});
-
-	// Temporary: Spawn timescale zone at mouse position (for testing)
-	k.onKeyPress("q", () => {
-		if (commandConsoleOpen()) return;
-		if (gameState !== GameState.Playing) return;
-		const mousePos = k.mousePos();
-		spawnTimescaleZone({
-			pos: mousePos,
-			radius: 100,
-			timescaleValue: 0.3,
-			duration: 5,
-		});
 	});
 
 	// Temporary: Test chest opening sequence with K key
@@ -647,6 +622,8 @@ export function resetGameProfile() {
 	clearRecoveryOffers()
 	clearSelectedContract()
 	resetWeaponInventory()
+	resetActiveModule()
+	resetAbilityLoadout()
 	resetHubProgress()
 	clearPendingRunEndSummary()
 	resetWarpZoneProgress()
@@ -662,10 +639,7 @@ function setGameLoopPaused(paused: boolean) {
 }
 
 export function addScore(am: number) {
-	const multiplier = runStatsActive()
-		? getSelectedContract()?.salvageMultiplier ?? 1
-		: 1;
-	const adjustedAmount = Math.max(0, Math.round(am * multiplier));
+	const adjustedAmount = Math.max(0, Math.round(am));
 	addAvailableDebree(adjustedAmount);
 	recordRunSalvage(adjustedAmount);
 	return adjustedAmount;
@@ -1021,26 +995,50 @@ function registerDebugCommands() {
 
 	commandService.register(
 		"spawn",
-		"spawn <count> <type> - Spawn enemies near the player",
+		"spawn <count> <type> [count type...] - Spawn chained enemy groups",
 		(args) => {
-			const count = Number(args[0]);
-			const type = args[1]?.toLowerCase() ?? "";
 			const availableTypes = getDebugEnemyTypes().join(", ");
-			if (!Number.isInteger(count) || count < 1 || count > 100) {
-				return `Usage: spawn <count 1-100> <type>. Types: ${availableTypes}`;
+			const tokens = args
+				.flatMap((arg) => arg.split(/[,+;]/))
+				.map((token) => token.trim().toLowerCase())
+				.filter((token) => token && token !== "spawn");
+			const usage = `Usage: spawn <count> <type> [count type...]. Types: ${availableTypes}`;
+			if (tokens.length === 0 || tokens.length % 2 !== 0) return usage;
+
+			const groups: Array<{
+				count: number;
+				type: Parameters<typeof spawnDebugEnemies>[1];
+			}> = [];
+			for (let index = 0; index < tokens.length; index += 2) {
+				const count = Number(tokens[index]);
+				const type = tokens[index + 1];
+				if (!Number.isInteger(count) || count < 1 || count > 100) {
+					return `Count must be an integer from 1-100 near "${tokens[index]}". ${usage}`;
+				}
+				if (!isDebugEnemyType(type)) {
+					return `Unknown enemy type: ${type || "(missing)"}. Types: ${availableTypes}`;
+				}
+				groups.push({ count, type });
 			}
-			if (!isDebugEnemyType(type)) {
-				return `Unknown enemy type: ${type || "(missing)"}. Types: ${availableTypes}`;
+			const totalCount = groups.reduce((total, group) => total + group.count, 0);
+			if (totalCount > 100) {
+				return `A chained spawn is limited to 100 enemies total; requested ${totalCount}`;
 			}
 			if (!playerObj || !playerObj.exists()) return "No active player";
 
-			spawnDebugEnemies(count, type, playerObj.pos);
-			const label = count === 1
-				? type
-				: type === "boss"
-					? "bosses"
-					: `${type}s`;
-			return `Spawned ${count} ${label}`;
+			let indexOffset = 0;
+			for (const group of groups) {
+				spawnDebugEnemies(group.count, group.type, playerObj.pos, indexOffset);
+				indexOffset += group.count;
+			}
+			return `Spawned ${groups.map(({ count, type }) => {
+				const label = count === 1
+					? type
+					: type === "boss"
+						? "bosses"
+						: `${type}s`;
+				return `${count} ${label}`;
+			}).join(", ")}`;
 		}
 	);
 

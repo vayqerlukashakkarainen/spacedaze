@@ -9,6 +9,7 @@ import {
 import { getScore, k, layers } from "../main";
 import {
 	getRewardDefinition,
+	isAbilityReward,
 	Reward,
 	REWARD_RARITY_COLORS,
 } from "../services/rewardService";
@@ -30,6 +31,11 @@ import { getRerollTokens } from "../player";
 import type { ActiveModuleDefinition } from "../services/activeModuleService";
 import { getEquippedWeapon } from "../services/weaponService";
 import { debreeRunActive } from "../services/debreeEconomyService";
+import type { AbilityDefinition } from "../services/abilityRegistry";
+import { getAbilityDefinition } from "../services/abilityRegistry";
+import {
+	getEquippedMobilityAbilityId,
+} from "../services/abilityLoadoutService";
 
 let healthBars: GameObj<OpacityComp>[] = [];
 let specialBar: GameObj<RectComp> | null = null;
@@ -38,9 +44,15 @@ let activeModuleIcon: GameObj | null = null;
 let primaryWeaponIcon: GameObj | null = null;
 let secondaryWarning: GameObj<OpacityComp> | null = null;
 let secondaryEmptyRing: GameObj<OpacityComp> | null = null;
-let phaseJumpIcon: GameObj<OpacityComp> | null = null;
+let phaseJumpIcon: GameObj | null = null;
 let phaseJumpSegments: GameObj<OpacityComp>[] = [];
 let phaseJumpChargeLabel: GameObj | null = null;
+let mobilityNameLabel: GameObj | null = null;
+let mobilityWarning: GameObj<OpacityComp> | null = null;
+let ultimateIcon: GameObj | null = null;
+let ultimateEmptyRing: GameObj<OpacityComp> | null = null;
+let ultimateBar: GameObj<RectComp> | null = null;
+let ultimateWarning: GameObj<OpacityComp> | null = null;
 let shipStatusPanel: GameObj | null = null;
 let salvageDisplay: GameObj | null = null;
 let rerollDisplay: GameObj | null = null;
@@ -62,12 +74,13 @@ const rewardTooltipTag = "rewardTooltip";
 
 const statusPanelWidth = 228;
 const statusPanelHeight = 30;
-const systemsPanelWidth = 242;
+const systemsPanelWidth = 286;
 const systemsPanelHeight = 32;
 const abilityBarWidth = 100;
 const weaponSocketSize = 28;
 const weaponSocketGap = 14;
 const secondaryCooldownWidth = 24;
+const ultimateBarWidth = 24;
 const upgradeTileSize = 28;
 const upgradeTileGap = 6;
 const phaseJumpSegmentCount = 10;
@@ -82,9 +95,14 @@ let displayedMissileVisibility: boolean | undefined;
 let displayedActiveModuleId = "";
 let displayedPrimaryWeaponId = "";
 let emptySecondaryFlashRemaining = 0;
+let emptyMobilityFlashRemaining = 0;
+let emptyUltimateFlashRemaining = 0;
 let displayedJumpCharges = Number.NaN;
 let displayedJumpMaxCharges = Number.NaN;
 let displayedJumpProgress = Number.NaN;
+let displayedMobilityId = "";
+let displayedUltimateId = "";
+let displayedUltimateProgress = Number.NaN;
 export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 	shipStatusPanel = createUiPanel({
 		pos: k.vec2(
@@ -152,7 +170,7 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 	]);
 	registerBatchedUiUpdate("hud", salvageDisplay, () => {
 		const score = getScore();
-		const debreeMode = debreeRunActive() ? "CARRIED" : "SAFE";
+		const debreeMode = debreeRunActive() ? "CARRIED" : "";
 		if (debreeMode !== displayedDebreeMode) {
 			displayedDebreeMode = debreeMode;
 			salvageModeLabel.text = debreeMode;
@@ -248,18 +266,18 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		k.color(...UI_COLORS.border),
 	]);
 	registerBatchedUiUpdate("hud", systemsPanel, () => {
-		if (!secondaryWarning) return;
-		if (emptySecondaryFlashRemaining <= 0) {
-			secondaryWarning.opacity = 0;
-			return;
-		}
-		emptySecondaryFlashRemaining = Math.max(
-			0,
-			emptySecondaryFlashRemaining - k.dt()
+		emptySecondaryFlashRemaining = updateEmptySlotWarning(
+			secondaryWarning,
+			emptySecondaryFlashRemaining
 		);
-		const envelope = emptySecondaryFlashRemaining / 0.42;
-		secondaryWarning.opacity =
-			k.wave(0.08, 0.34, k.time() * 26) * envelope;
+		emptyMobilityFlashRemaining = updateEmptySlotWarning(
+			mobilityWarning,
+			emptyMobilityFlashRemaining
+		);
+		emptyUltimateFlashRemaining = updateEmptySlotWarning(
+			ultimateWarning,
+			emptyUltimateFlashRemaining
+		);
 	});
 
 	runLoadoutPanel = createUiPanel({
@@ -391,21 +409,49 @@ export function flashEmptySecondarySocket() {
 	emptySecondaryFlashRemaining = 0.42;
 }
 
+export function flashEmptyMobilitySocket() {
+	emptyMobilityFlashRemaining = 0.42;
+}
+
+export function flashEmptyUltimateSocket() {
+	emptyUltimateFlashRemaining = 0.42;
+}
+
+function updateEmptySlotWarning(
+	warning: GameObj<OpacityComp> | null,
+	remaining: number
+) {
+	if (!warning) return remaining;
+	if (remaining <= 0) {
+		warning.opacity = 0;
+		return 0;
+	}
+	const nextRemaining = Math.max(0, remaining - k.dt());
+	const envelope = nextRemaining / 0.42;
+	warning.opacity = k.wave(0.08, 0.34, k.time() * 26) * envelope;
+	return nextRemaining;
+}
+
 export function updatePhaseJumpUi(
 	charges: number,
 	maxCharges: number,
 	rechargeProgress: number
 ) {
+	const mobilityId = getEquippedMobilityAbilityId();
+	const mobility = mobilityId ? getAbilityDefinition(mobilityId) : undefined;
 	if (!phaseJumpIcon && systemsPanel) {
 		phaseJumpIcon = systemsPanel.add([
-			k.sprite("space_jump_upg1", { width: 16, height: 16 }),
+			k.sprite(mobility?.icon ?? "space_jump_upg1", { width: 16, height: 16 }),
 			k.pos(88, 15),
 			k.anchor("center"),
 			k.opacity(1),
 		]);
 
-		systemsPanel.add([
-			k.text("PHASE JUMP", { size: UI_FONT_SIZES.tiny, font: "unscii" }),
+		mobilityNameLabel = systemsPanel.add([
+			k.text(mobility?.name ?? "EMPTY MOBILITY", {
+				size: UI_FONT_SIZES.tiny,
+				font: "unscii",
+			}),
 			k.pos(101, 1),
 			k.color(k.WHITE),
 		]);
@@ -425,10 +471,24 @@ export function updatePhaseJumpUi(
 
 		phaseJumpChargeLabel = systemsPanel.add([
 			k.text("", { size: UI_FONT_SIZES.tiny, font: "unscii" }),
-			k.pos(systemsPanelWidth, 18),
+			k.pos(240, 18),
 			k.anchor("right"),
 			k.color(k.WHITE),
 		]);
+		mobilityWarning = systemsPanel.add([
+			k.pos(79, 0),
+			k.rect(166, weaponSocketSize),
+			k.color(...UI_COLORS.danger),
+			k.opacity(0),
+			k.z(20),
+		]);
+	}
+	if (mobilityId !== displayedMobilityId) {
+		displayedMobilityId = mobilityId ?? "";
+		if (phaseJumpIcon && mobility) phaseJumpIcon.sprite = mobility.icon;
+		if (mobilityNameLabel) {
+			mobilityNameLabel.text = mobility?.name ?? "EMPTY MOBILITY";
+		}
 	}
 
 	if (
@@ -439,13 +499,79 @@ export function updatePhaseJumpUi(
 	displayedJumpCharges = charges;
 	displayedJumpMaxCharges = maxCharges;
 	displayedJumpProgress = rechargeProgress;
-	phaseJumpIcon.opacity = charges > 0 ? 1 : 0.25;
+	phaseJumpIcon.opacity = mobility ? charges > 0 ? 1 : 0.25 : 0.18;
 	const filledSegments = rechargeProgress * phaseJumpSegmentCount;
 	for (let index = 0; index < phaseJumpSegments.length; index++) {
 		phaseJumpSegments[index].opacity = index < filledSegments ? 1 : 0.22;
 	}
 	if (phaseJumpChargeLabel) {
-		phaseJumpChargeLabel.text = `${charges}/${maxCharges}`;
+		phaseJumpChargeLabel.text = mobilityId === "thrusterOverdrive"
+			? "READY"
+			: mobility ? `${charges}/${maxCharges}` : "EMPTY";
+	}
+}
+
+export function updateUltimateUi(
+	progress: number,
+	ability?: AbilityDefinition
+) {
+	if (!systemsPanel) return;
+	if (!ultimateIcon) {
+		systemsPanel.add([
+			k.pos(248, 4),
+			k.rect(1, 22),
+			k.color(...UI_COLORS.border),
+		]);
+		ultimateEmptyRing = systemsPanel.add([
+			k.pos(267, 13),
+			k.circle(9),
+			k.anchor("center"),
+			k.color(...UI_COLORS.muted),
+			k.opacity(0.18),
+			k.outline(1, k.rgb(...UI_COLORS.muted)),
+		]);
+		ultimateIcon = systemsPanel.add([
+			k.sprite(ability?.icon ?? "space_jump_upg1", { width: 18, height: 18 }),
+			k.pos(267, 12),
+			k.anchor("center"),
+			k.opacity(ability ? 1 : 0),
+		]);
+		systemsPanel.add([
+			k.pos(255, 27),
+			k.rect(ultimateBarWidth, 3),
+			k.color(...UI_COLORS.muted),
+		]);
+		ultimateBar = systemsPanel.add([
+			k.pos(255, 27),
+			k.rect(0, 3),
+			k.color(190, 90, 255),
+		]);
+		ultimateWarning = systemsPanel.add([
+			k.pos(251, 0),
+			k.rect(32, weaponSocketSize),
+			k.color(...UI_COLORS.danger),
+			k.opacity(0),
+			k.z(20),
+		]);
+	}
+	const abilityId = ability?.id ?? "";
+	if (abilityId !== displayedUltimateId) {
+		displayedUltimateId = abilityId;
+		if (ability && ultimateIcon) ultimateIcon.sprite = ability.icon;
+		if (ultimateIcon) ultimateIcon.opacity = ability ? 1 : 0;
+		if (ultimateEmptyRing) ultimateEmptyRing.opacity = ability ? 0 : 0.18;
+	}
+	const normalizedProgress = ability ? k.clamp(progress, 0, 1) : 0;
+	if (Math.abs(normalizedProgress - displayedUltimateProgress) >= 0.001) {
+		displayedUltimateProgress = normalizedProgress;
+		if (ultimateBar) ultimateBar.width = ultimateBarWidth * normalizedProgress;
+	}
+	if (ultimateIcon) {
+		ultimateIcon.opacity = ability
+			? normalizedProgress >= 1
+				? k.wave(0.65, 1, k.time() * 8)
+				: 0.45 + normalizedProgress * 0.55
+			: 0;
 	}
 }
 
@@ -457,6 +583,7 @@ export function addCollectedPowerup(rewardOrId: Reward | string) {
 	showRewardAcquisitionPopover(reward);
 	recordRunReward(reward);
 	recordRunRewardStat(reward.rarity);
+	if (isAbilityReward(reward)) return;
 	const collectionKey = reward.weaponId
 		? "primaryWeapon"
 		: reward.activeModuleId
@@ -532,6 +659,11 @@ export function addCollectedPowerup(rewardOrId: Reward | string) {
 }
 
 export function showRewardAcquisitionPopover(reward: Reward) {
+	if (reward.newDiscovery) {
+		reward.newDiscovery = false;
+		showDiscoveredRewardPopover(reward);
+		return;
+	}
 	const blueprintKey = reward.upgradeKey ?? reward.powerupKey ?? reward.id;
 	if (discoverBlueprint(blueprintKey)) {
 		showDiscoveredRewardPopover(reward);
@@ -636,6 +768,12 @@ export function clearGameLoopUi() {
 	phaseJumpIcon = null;
 	phaseJumpSegments = [];
 	phaseJumpChargeLabel = null;
+	mobilityNameLabel = null;
+	mobilityWarning = null;
+	ultimateIcon = null;
+	ultimateEmptyRing = null;
+	ultimateBar = null;
+	ultimateWarning = null;
 	shipStatusPanel = null;
 	salvageDisplay = null;
 	rerollDisplay = null;
@@ -650,8 +788,13 @@ export function clearGameLoopUi() {
 	displayedActiveModuleId = "";
 	displayedPrimaryWeaponId = "";
 	emptySecondaryFlashRemaining = 0;
+	emptyMobilityFlashRemaining = 0;
+	emptyUltimateFlashRemaining = 0;
 	displayedJumpCharges = Number.NaN;
 	displayedJumpMaxCharges = Number.NaN;
 	displayedJumpProgress = Number.NaN;
+	displayedMobilityId = "";
+	displayedUltimateId = "";
+	displayedUltimateProgress = Number.NaN;
 	collectedItems.clear();
 }

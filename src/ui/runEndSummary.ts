@@ -109,10 +109,26 @@ function showRunEndSummary(summary: RunEndSummary) {
 		align: "right",
 	})
 
+	const runDuration = summary.run
+		? formatDuration(summary.run.durationSeconds)
+		: "--:--"
+	const columnGap = 24
+	const statColumnWidth = (panelSize.x - 64 - columnGap) / 2
 	createUiStatList(panel, {
 		pos: k.vec2(left + 32, top + 205),
-		width: panelSize.x - 64,
-		rowHeight: 28,
+		width: statColumnWidth,
+		rowHeight: 24,
+		rows: [
+			{ label: "RUN DURATION", value: runDuration },
+			{ label: "HOSTILES DESTROYED", value: `${summary.run?.kills ?? 0}` },
+			{ label: "REWARDS COLLECTED", value: `${summary.run?.rewardsCollected ?? 0}` },
+			{ label: "HIGHEST RARITY", value: summary.run?.highestRarity ?? "NONE" },
+		],
+	})
+	createUiStatList(panel, {
+		pos: k.vec2(left + 32 + statColumnWidth + columnGap, top + 205),
+		width: statColumnWidth,
+		rowHeight: 24,
 		rows: [
 			{
 				label: "HUB LEVEL",
@@ -120,6 +136,7 @@ function showRunEndSummary(summary: RunEndSummary) {
 					? `${summary.hub.previousLevel}  >  ${summary.hub.currentLevel}`
 					: `${summary.hub.currentLevel}`,
 			},
+			{ label: "DEBRIS RECOVERED", value: `${summary.run?.salvageEarned ?? 0}` },
 			{ label: "DEBRIS LOST", value: `${summary.debree.lost}` },
 			{ label: "CHEST LUCK", value: `+${Math.round(levelDefinition.chestLuck * 100)}%` },
 		],
@@ -165,4 +182,10 @@ function showRunEndSummary(summary: RunEndSummary) {
 		})
 		k.shake(3)
 	}
+}
+
+function formatDuration(durationSeconds: number) {
+	const minutes = Math.floor(durationSeconds / 60)
+	const seconds = durationSeconds % 60
+	return `${minutes}:${seconds.toString().padStart(2, "0")}`
 }

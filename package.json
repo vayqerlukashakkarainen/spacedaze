@@ -5,12 +5,16 @@
 		"node": ">=24.0.0 <25"
 	},
 	"scripts": {
+		"test:player-status": "tsx src/services/playerStatusEffectService.test.ts",
+		"test:enemy-budgets": "tsx src/services/enemyEncounterBudgetService.test.ts",
 		"build": "vite build",
 		"dev": "vite",
 		"preview": "vite preview",
 		"zip": "npm run build && mkdir -p dist && zip -r dist/game.zip dist -x \"**/.DS_Store\"",
-		"test": "npm run test:sprites && npm run test:generation && npm run test:run-pool && npm run test:wall-tiles && npm run test:upgrade-requirements && npm run test:projectile-behaviors && npm run test:reward-quality && npm run test:console-markdown && npm run test:threat && npm run test:chest-challenge && npm run test:hub-progress && npm run test:shrine-level && npm run test:drone-roles && npm run test:performance-profiler && npm run test:run-loop && npm run test:dense-pool && npm run test:spatial-hash && npm run test:quest && npm run test:debree-economy",
+		"test": "npm run test:sprites && npm run test:enemy-budgets && npm run test:player-status && npm run test:generation && npm run test:run-pool && npm run test:wall-tiles && npm run test:upgrade-requirements && npm run test:projectile-behaviors && npm run test:reward-quality && npm run test:ability-loadout && npm run test:ultimate-ability && npm run test:console-markdown && npm run test:threat && npm run test:chest-challenge && npm run test:hub-progress && npm run test:shrine-level && npm run test:drone-roles && npm run test:performance-profiler && npm run test:run-loop && npm run test:dense-pool && npm run test:spatial-hash && npm run test:quest && npm run test:debree-economy",
 		"test:reward-quality": "tsx src/services/rewardQualityService.test.ts",
+		"test:ability-loadout": "tsx src/services/abilityLoadoutService.test.ts",
+		"test:ultimate-ability": "tsx src/services/ultimateAbilityService.test.ts",
 		"test:sprites": "swift scripts/normalizeSpritePngs.swift public/sprites --check",
 		"sprites:normalize": "swift scripts/normalizeSpritePngs.swift public/sprites --write",
 		"test:generation": "tsx src/generation/test/generation.test.ts",

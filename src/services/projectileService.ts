@@ -10,6 +10,7 @@ import { audioService } from "./audioService";
 import { timescale } from "../comp/timescale";
 import { pickUnitInDistance, projectiles } from "../game";
 import { tags } from "../tags";
+import { applyPlayerStatusEffect } from "./playerStatusEffectService";
 import { spawnFlash } from "../spawn/spawnFlash";
 import { spawnChainProjectile } from "../spawn/spawnLink";
 import {
@@ -64,6 +65,7 @@ import type { HexGrid } from "../grid/hexGrid";
 import { damageDestructibleWall } from "./destructibleWallService";
 import { spawnRing } from "../spawn/spawnRing";
 import { randomExplosion } from "../util";
+import { player } from "../player";
 import { applyDamage } from "./damageService";
 import {
 	createExplosion,
@@ -1377,6 +1379,10 @@ export function applyProjectileDamage(
 	// Apply impact damage with crit
 	if (projectile.impactDamage !== undefined) {
 		let damage = projectile.impactDamage;
+		if (
+			player.glassReactor !== undefined &&
+			projectile.tags.includes(tags.friendly)
+		) damage *= 2;
 		let critical = false;
 		projectile.didCrit = false;
 		if (
@@ -1419,6 +1425,9 @@ export function applyProjectileDamage(
 			critical,
 			source: projectile.projectileConfig?.damageSource,
 		});
+		if (target.tags.includes(tags.player) && projectile.playerStatusEffect) {
+			applyPlayerStatusEffect(projectile.playerStatusEffect);
+		}
 		if (critical && projectile.criticalShatterConfig) {
 			spawnCriticalShards(projectile);
 		}

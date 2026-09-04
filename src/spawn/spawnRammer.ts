@@ -8,6 +8,7 @@ import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import {
 	createEnemySpawnProfile,
+	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService"
 import { easeDirection, registerHitAnimation } from "../shared"
@@ -24,6 +25,8 @@ const CHARGE_SOUND_DURATION = 3.34
 const RAMMER_APPROACH_SPEED = 95
 const RAMMER_CHARGE_SPEED = 390
 const RAMMER_RECOVERY_DURATION = 0.9
+const RAMMER_WINDUP_Y_SCALE = 0.8
+const RAMMER_WINDUP_X_SCALE = 1.08
 
 export function spawnRammer(
 	pos: Vec2,
@@ -48,6 +51,7 @@ export function spawnRammer(
 		{
 			hb: 12 * profile.scale,
 			damage: profile.damage,
+			threatRank: ENEMY_THREAT_RANK.rammer,
 			phase: "approach" as RammerPhase,
 			phaseTimer: 0,
 			lockedDirection: k.vec2(0, 1),
@@ -56,6 +60,7 @@ export function spawnRammer(
 		},
 		tags.enemy,
 		tags.unit,
+		tags.enemyRolePressure,
 		...(profile.elite ? [tags.elite] : []),
 		tags.gameLoop,
 		...(options.tags ?? []),
@@ -110,7 +115,11 @@ export function spawnRammer(
 			faceDirection(rammer, rammer.lockedDirection)
 			const chargeProgress = k.clamp(rammer.phaseTimer / chargeWindup, 0, 1)
 			const pulse = 1 + Math.sin(k.time() * 34) * 0.025 * chargeProgress
-			rammer.scale = k.vec2(profile.scale * pulse)
+			const anticipation = chargeProgress * chargeProgress
+			rammer.scale = k.vec2(
+				profile.scale * k.lerp(1, RAMMER_WINDUP_X_SCALE, anticipation) * pulse,
+				profile.scale * k.lerp(1, RAMMER_WINDUP_Y_SCALE, anticipation) * pulse
+			)
 			const flashRate = k.lerp(2.5, 9, chargeProgress)
 			const flashPhase = rammer.phaseTimer * flashRate % 1
 			rammer.opacity = flashPhase < 0.55 ? 1 : 0.25
@@ -121,6 +130,7 @@ export function spawnRammer(
 				rammer.trailTimer = 0
 				rammer.steeringDirection = rammer.lockedDirection
 				rammer.opacity = 1
+				rammer.scale = k.vec2(profile.scale)
 				chargeLine.opacity = 0
 				emitRammerLaunchBurst(
 					rammer.pos,
@@ -138,7 +148,6 @@ export function spawnRammer(
 						panDistance: 280,
 					}
 				)
-				audioService.playSound("shoot1", { volume: mainSoundVolume * 0.65 })
 			}
 		} else if (rammer.phase === "charge") {
 			faceDirection(rammer, rammer.lockedDirection)

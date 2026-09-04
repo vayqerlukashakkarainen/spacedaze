@@ -88,3 +88,86 @@ export const enemyHacker: UpgradeDefinition = {
 		},
 	],
 }
+
+export const phaseEcho: UpgradeDefinition = {
+	toolKey: "phaseEcho",
+	toolName: "Phase echo",
+	category: "movement",
+	type: "passive",
+	requirements: { allOf: [{ toolKey: "spaceJump" }] },
+	levels: [{
+		name: "Phase Echo",
+		desc: "Phase jump leaves a decoy that pulls enemies in and detonates",
+		sprite: "phase_echo_upg1",
+		price: 36,
+		effects: {
+			unlocks: [{ unlockId: "phaseEcho", description: "Phase jumps leave explosive decoys" }],
+		},
+	}],
+}
+
+export const salvageBattery: UpgradeDefinition = {
+	toolKey: "salvageBattery",
+	toolName: "Salvage battery",
+	category: "resources",
+	type: "passive",
+	requirements: { anyOf: [{ toolKey: "debreeDist" }, { toolKey: "debreeValue" }] },
+	levels: [{
+		name: "Salvage Battery",
+		desc: "Collected debris cools your secondary; excess charge forms a shield",
+		sprite: "salvage_battery_upg1",
+		price: 34,
+		effects: {
+			unlocks: [{ unlockId: "salvageBattery", description: "Salvage powers the secondary and shields" }],
+		},
+	}],
+}
+
+export const reactivePlating: UpgradeDefinition = {
+	toolKey: "reactivePlating",
+	toolName: "Reactive plating",
+	category: "survival",
+	type: "passive",
+	levels: [{
+		name: "Reactive Plating",
+		desc: "Hull damage releases a close-range armor blast, with a short cooldown",
+		sprite: "reactive_plating_upg1",
+		price: 34,
+		effects: {
+			unlocks: [{ unlockId: "reactivePlating", description: "Taking damage releases an armor blast" }],
+		},
+	}],
+}
+
+export const packIntelligence: UpgradeDefinition = {
+	toolKey: "packIntelligence",
+	toolName: "Pack intelligence",
+	category: "combat",
+	type: "passive",
+	requirements: { anyOf: [{ toolKey: "followerBlasterDmg" }] },
+	levels: [{
+		name: "Pack Intelligence",
+		desc: "Drones gain 20% damage for each other drone focusing their target",
+		sprite: "pack_intelligence_upg1",
+		price: 38,
+		effects: {
+			unlocks: [{ unlockId: "packIntelligence", description: "Focused drone packs deal more damage" }],
+		},
+	}],
+}
+
+export const glassReactor: UpgradeDefinition = {
+	toolKey: "glassReactor",
+	toolName: "Glass reactor",
+	category: "special",
+	type: "passive",
+	levels: [{
+		name: "Glass Reactor",
+		desc: "Double all damage dealt, but maximum hull is locked to one",
+		sprite: "glass_reactor_upg1",
+		price: 48,
+		effects: {
+			unlocks: [{ unlockId: "glassReactor", description: "Double damage at one maximum hull" }],
+		},
+	}],
+}

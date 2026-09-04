@@ -18,6 +18,7 @@ interface ShrineProps {
 	enemySpawnInterval?: number;
 	enemySpawnDistance?: number;
 	enemySpawnSpacing?: number;
+	enemyWaveMultiplier?: number;
 	onComplete?: (pos: Vec2) => void;
 	tags?: string[];
 }
@@ -119,25 +120,28 @@ export function spawnShrine(props: ShrineProps) {
 
 	function spawnShrineEnemyWave() {
 		const spawnDistance = props.enemySpawnDistance ?? props.radius + 120;
-		const angle = k.rand(0, 360);
-		const spawnPos = shrine.pos.add(
-			k.Vec2.fromAngle(angle).scale(spawnDistance)
-		);
+		const baseAngle = k.rand(0, 360);
+		const encounterCount = Math.max(1, Math.round(props.enemyWaveMultiplier ?? 1));
 		shrine.wavesSpawned++;
 
-		k.add([
-			k.pos(spawnPos),
-			k.circle((props.enemySpawnSpacing ?? 48) * 0.55, { fill: false }),
-			k.outline(3, k.rgb(255, 70, 70)),
-			k.anchor("center"),
-			k.opacity(0.9),
-			k.layer(layers.gameEffects),
-			k.lifespan(0.8, { fade: 0.55 }),
-			tags.gameLoop,
-			...(props.tags ?? []),
-		]);
-
-		spawnThreatEncounter(spawnPos, props.enemySpawnSpacing ?? 48);
+		for (let index = 0; index < encounterCount; index++) {
+			const angle = baseAngle + index * (360 / encounterCount);
+			const spawnPos = shrine.pos.add(
+				k.Vec2.fromAngle(angle).scale(spawnDistance)
+			);
+			k.add([
+				k.pos(spawnPos),
+				k.circle((props.enemySpawnSpacing ?? 48) * 0.55, { fill: false }),
+				k.outline(3, k.rgb(255, 70, 70)),
+				k.anchor("center"),
+				k.opacity(0.9),
+				k.layer(layers.gameEffects),
+				k.lifespan(0.8, { fade: 0.55 }),
+				tags.gameLoop,
+				...(props.tags ?? []),
+			]);
+			spawnThreatEncounter(spawnPos, props.enemySpawnSpacing ?? 48);
+		}
 	}
 
 	return shrine;

@@ -42,7 +42,11 @@ import {
 	spawnRerollTokenPickup,
 	spawnRewardPickup,
 } from "../spawn/spawnPowerup";
-import { rollMapEventReward } from "../services/rewardService";
+import {
+	getRewardDefinitions,
+	isAbilityReward,
+	rollMapEventReward,
+} from "../services/rewardService";
 import type { GeneratedMapConfig } from "./levels";
 import {
 	activateRunFinale,
@@ -90,6 +94,12 @@ import { spawnMinefield } from "../spawn/rooms/spawnMinefield";
 import { spawnLostConvoy } from "../spawn/rooms/spawnLostConvoy";
 import { spawnSignalRelay } from "../spawn/rooms/spawnSignalRelay";
 import { spawnVolatileCargoObjective } from "../spawn/spawnVolatileCargoObjective";
+import {
+	contractChallengeActive,
+	getContractChallengeMultiplier,
+	getContractChallengeRewardCount,
+} from "../services/contractService";
+import { deliverVolatileCargoPackage } from "../services/shipUpgradeService";
 import {
 	addThreatTime,
 	getThreatRomanNumeral,
@@ -921,6 +931,9 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 	interface RenderChunk {
 		walls: RockWallTile[];
 		cavernCovers: Array<{ corners: Vec2[]; cavern: HiddenCavern }>;
+		staticPicture?: ReturnType<typeof k.endPicture>;
+		staticPictureDirty: boolean;
+		staticPrimitiveCount: number;
 	}
 
 	const chunks = new Map<string, RenderChunk>();
@@ -938,7 +951,12 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		const chunkKey = getRunRenderChunkKey(genCell.coord.q, genCell.coord.r);
 		let chunk = chunks.get(chunkKey);
 		if (!chunk) {
-			chunk = { walls: [], cavernCovers: [] };
+			chunk = {
+				walls: [],
+				cavernCovers: [],
+				staticPictureDirty: true,
+				staticPrimitiveCount: 0,
+			};
 			chunks.set(chunkKey, chunk);
 		}
 		const hiddenCavern = currentHiddenCaverns.find((cavern) =>
@@ -998,6 +1016,7 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		if (!chunk) return;
 		const visual = createWallVisual(genCell);
 		chunk.walls.push(visual);
+		chunk.staticPictureDirty = true;
 		wallVisuals.set(runMapCellKey(genCell.coord), { chunk, visual });
 	};
 
@@ -1012,6 +1031,7 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 			if (existing) {
 				const index = existing.chunk.walls.indexOf(existing.visual);
 				if (index >= 0) existing.chunk.walls.splice(index, 1);
+				existing.chunk.staticPictureDirty = true;
 				wallVisuals.delete(key);
 			}
 
@@ -1020,20 +1040,30 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		}
 	};
 
-	let visibleWalls: RockWallTile[] = [];
+	let visibleChunks: RenderChunk[] = [];
+	let visibleDynamicWalls: RockWallTile[] = [];
 	let visibleCavernCovers: Array<{
 		corners: Vec2[];
 		cavern: HiddenCavern;
 	}> = [];
 	let visibleChunkSignature = "";
 
-	k.add([
+	const wallRenderer = k.add([
 		k.pos(0, 0),
 		k.layer(layers.game2),
 		{
 			draw() {
 				const startedAt = performance.now();
-				for (const visual of visibleWalls) {
+				for (const chunk of visibleChunks) {
+					buildStaticWallPicture(chunk);
+					if (!chunk.staticPicture) continue;
+					incrementPerformanceCounter(
+						"wallPrimitives",
+						chunk.staticPrimitiveCount
+					);
+					k.drawPicture(chunk.staticPicture, {});
+				}
+				for (const visual of visibleDynamicWalls) {
 					if (visual.destructible?.destroyed) continue;
 					incrementPerformanceCounter("wallPrimitives");
 					k.drawPolygon({
@@ -1072,6 +1102,59 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		tags.runMap,
 		tags.gameLoop,
 	]);
+	wallRenderer.onDestroy(() => {
+		for (const chunk of chunks.values()) chunk.staticPicture?.free();
+	});
+
+	const buildStaticWallPicture = (chunk: RenderChunk) => {
+		if (!chunk.staticPictureDirty) return;
+		chunk.staticPicture?.free();
+		chunk.staticPicture = undefined;
+		chunk.staticPrimitiveCount = 0;
+		k.beginPicture();
+		for (const visual of chunk.walls) {
+			if (visual.destructible) continue;
+			chunk.staticPrimitiveCount++;
+			k.drawPolygon({
+				pts: visual.corners,
+				color: k.BLACK,
+			});
+			for (const edge of visual.edges) {
+				if (edge.outline.length >= 2) {
+					chunk.staticPrimitiveCount++;
+					k.drawLines({
+						pts: edge.outline,
+						width: 2,
+						color: k.WHITE,
+						opacity: 0.95,
+						join: "miter",
+					});
+				}
+				if (edge.ridge.length >= 2) {
+					chunk.staticPrimitiveCount++;
+					k.drawLines({
+						pts: edge.ridge,
+						width: 1,
+						color: k.WHITE,
+						opacity: 0.5,
+						join: "miter",
+					});
+				}
+				for (const crack of edge.cracks) {
+					chunk.staticPrimitiveCount++;
+					k.drawLine({
+						p1: crack.p1,
+						p2: crack.p2,
+						width: 1,
+						color: k.WHITE,
+						opacity: 0.42,
+					});
+				}
+			}
+		}
+		chunk.staticPicture = k.endPicture();
+		chunk.staticPictureDirty = false;
+	};
 
 	const updateVisibleChunks = () => {
 		const visibleRange = getVisibleRunChunkRange(grid);
@@ -1084,7 +1167,8 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		if (signature === visibleChunkSignature) return;
 		visibleChunkSignature = signature;
 
-		visibleWalls = [];
+		visibleChunks = [];
+		visibleDynamicWalls = [];
 		visibleCavernCovers = [];
 		for (
 			let chunkQ = visibleRange.minChunkQ;
@@ -1098,7 +1182,10 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 			) {
 				const chunk = chunks.get(`${chunkQ},${chunkR}`);
 				if (!chunk) continue;
-				visibleWalls.push(...chunk.walls);
+				visibleChunks.push(chunk);
+				visibleDynamicWalls.push(
+					...chunk.walls.filter((wall) => wall.destructible)
+				);
 				visibleCavernCovers.push(...chunk.cavernCovers);
 			}
 		}
@@ -1438,16 +1525,24 @@ function spawnGeneratedContent(
 			});
 			return;
 		case "weapon_chest":
-			spawnChest(pos, depth, {
-				rewardType: "weapon",
-				purchaseCost: () => scaleThreatChestCost(30),
-			});
+			if (hasAvailableWeaponCacheReward()) {
+				spawnChest(pos, depth, {
+					rewardType: "weapon",
+					purchaseCost: () => scaleThreatChestCost(30),
+				});
+			} else {
+				spawnChest(pos, depth, {
+					purchaseCost: () => scaleThreatChestCost(12),
+				});
+			}
 			return;
 		case "asteroid_field":
-			spawnAsteroidFieldTrigger(grid, map, coord, pos, hexSize);
+			spawnAsteroidField(grid, map, coord, hexSize);
 			return;
 		case "capture_shrine":
 			const shrineConfig = getShrineLevelConfig(depth, hexSize);
+			const shrineEnemyMultiplier = getContractChallengeMultiplier("overchargedShrines");
+			const shrineRewardCount = getContractChallengeRewardCount("overchargedShrines");
 			spawnShrine({
 				pos,
 				radius: shrineConfig.radius,
@@ -1457,7 +1552,8 @@ function spawnGeneratedContent(
 				enemySpawnInterval: shrineConfig.enemySpawnInterval,
 				enemySpawnDistance: shrineConfig.enemySpawnDistance,
 				enemySpawnSpacing: shrineConfig.enemySpawnSpacing,
-				onComplete: spawnShrineReward,
+				enemyWaveMultiplier: shrineEnemyMultiplier,
+				onComplete: (rewardPos) => spawnMapChallengeRewards(rewardPos, shrineRewardCount),
 				tags: [tags.runMap],
 			});
 			return;
@@ -1466,7 +1562,12 @@ function spawnGeneratedContent(
 				pos,
 				health: 18 + depth * 5,
 				depleteRate: 2 + depth * 0.25,
-				onComplete: spawnShrineReward,
+				enemyWaveMultiplier: contractChallengeActive("overchargedShrines") ? 2 : 0,
+				enemySpawnSpacing: hexSize,
+				onComplete: (rewardPos) => spawnMapChallengeRewards(
+					rewardPos,
+					getContractChallengeRewardCount("overchargedShrines")
+				),
 				tags: [tags.runMap],
 			});
 			return;
@@ -1509,7 +1610,11 @@ function spawnGeneratedContent(
 				health: 6 + depth * 2,
 				enemySpacing: hexSize,
 				getDestination: () => currentFloorExitPosition?.clone(),
-				onComplete: spawnShrineReward,
+				enemyWaveMultiplier: getContractChallengeMultiplier("convoySiege"),
+				onComplete: (rewardPos) => spawnMapChallengeRewards(
+					rewardPos,
+					getContractChallengeRewardCount("convoySiege")
+				),
 				tags: [tags.runMap],
 			});
 			return;
@@ -1521,7 +1626,7 @@ function spawnGeneratedContent(
 				enemySpacing: hexSize,
 				onComplete: (relayPos) => {
 					revealEntireGeneratedRunMap();
-					spawnShrineReward(relayPos);
+					spawnMapChallengeRewards(relayPos);
 				},
 				tags: [tags.runMap],
 			});
@@ -1556,13 +1661,25 @@ function spawnGeneratedContent(
 	}
 }
 
-function spawnShrineReward(pos: Vec2) {
-	const reward = rollMapEventReward(2);
-	if (!reward) return;
-	spawnRewardPickup(pos, reward, {
-		stationary: true,
-		armWhenPlayerLeaves: true,
-	});
+function hasAvailableWeaponCacheReward() {
+	return getRewardDefinitions("crate").some(
+		(reward) => isAbilityReward(reward)
+	);
+}
+
+function spawnMapChallengeRewards(pos: Vec2, count = 1) {
+	for (let index = 0; index < count; index++) {
+		const reward = rollMapEventReward(2);
+		if (!reward) continue;
+		const angle = count === 1 ? 0 : -90 + index * (360 / count);
+		const rewardPos = count === 1
+			? pos
+			: pos.add(k.Vec2.fromAngle(angle).scale(26));
+		spawnRewardPickup(rewardPos, reward, {
+			stationary: true,
+			armWhenPlayerLeaves: true,
+		});
+	}
 	if (k.chance(0.15)) {
 		spawnRerollTokenPickup(pos.add(24, 0), { stationary: true });
 	}
@@ -1644,6 +1761,18 @@ function spawnFloorExit(pos: Vec2) {
 					starsEmitter.emitter.position = portal.pos.clone();
 					starsEmitter.emit(28);
 				}
+				cancel();
+				return;
+			}
+			if (
+				contractChallengeActive("fragileDelivery") &&
+				deliverVolatileCargoPackage()
+			) {
+				spawnMapChallengeRewards(
+					portal.pos.clone(),
+					getContractChallengeRewardCount("fragileDelivery")
+				);
+				portal.setPortalState("active", "PACKAGE DELIVERED // COLLECT REWARDS");
 				cancel();
 				return;
 			}
@@ -1800,77 +1929,57 @@ function promoteExitToBossRoom(map: GenerationMap) {
 	}
 }
 
-function spawnAsteroidFieldTrigger(
+function spawnAsteroidField(
 	grid: HexGrid,
 	map: GenerationMap,
 	anchorCoord: { q: number; r: number },
-	pos: Vec2,
 	hexSize: number
 ) {
-	let triggered = false;
-	const trigger = k.add([
-		k.pos(pos),
-		{
-			triggerRadius: hexSize * 6,
-		},
-		tags.runMap,
-		tags.gameLoop,
-	]);
+	const fieldCells = map
+		.getAllCells()
+		.filter(
+			(cell) =>
+				!cell.solid &&
+				cell.tags.has(roomRoleTag("asteroid")) &&
+				(cell.coord.q !== anchorCoord.q || cell.coord.r !== anchorCoord.r)
+		)
+		.sort((a, b) => a.coord.q - b.coord.q || a.coord.r - b.coord.r)
+	const threat = getThreatSnapshot()
+	const baseAsteroidCount = Math.max(24, fieldCells.length)
+	const asteroidCount = Math.min(
+		64,
+		scaleThreatSpawnCount(baseAsteroidCount)
+	)
+	const movingChance = 0.22 + (threat.tier - 1) * 0.07
 
-	registerBatchedEntityUpdate("world", trigger, () => {
-		if (triggered || trigger.pos.dist(playerObj.pos) > trigger.triggerRadius) {
-			return;
-		}
-
-		triggered = true;
-		const fieldCells = map
-			.getAllCells()
-			.filter(
-				(cell) =>
-					!cell.solid &&
-					cell.tags.has(roomRoleTag("asteroid")) &&
-					(cell.coord.q !== anchorCoord.q || cell.coord.r !== anchorCoord.r)
-			)
-			.sort((a, b) => a.coord.q - b.coord.q || a.coord.r - b.coord.r);
-		const threat = getThreatSnapshot();
-		const baseAsteroidCount = Math.max(24, fieldCells.length);
-		const asteroidCount = Math.min(
-			64,
-			scaleThreatSpawnCount(baseAsteroidCount)
-		);
-		const movingChance = 0.22 + (threat.tier - 1) * 0.07;
-
-		for (let index = 0; index < asteroidCount; index++) {
-			const cell = fieldCells[index % fieldCells.length];
-			if (!cell) break;
-			const hash = Math.abs(
-				cell.coord.q * 73 + cell.coord.r * 151 + index * 379
-			);
-			const angle = ((hash % 360) * Math.PI) / 180;
-			const offsetDistance = 4 + ((hash >>> 3) % 100) / 100 * hexSize * 0.3;
-			const offset = k.vec2(Math.cos(angle), Math.sin(angle)).scale(
-				offsetDistance
-			);
-			const isMoving = ((hash >>> 7) % 1000) / 1000 < movingChance;
-			const moveAngle = (hash * 47) % 360;
-			const moveSpeed = isMoving
-				? 12 + ((hash >>> 5) % 17) + (threat.tier - 1) * 5
-				: 0;
-			spawnMeteorite({
-				pos: grid.hexToScreen(cell.coord).add(offset),
-				dir: isMoving ? k.Vec2.fromAngle(moveAngle) : k.vec2(0, 0),
-				scoreOnKill: 1,
-				hp: 3 + (hash % 3),
-				speed: moveSpeed,
-				splitOnDeath: 0,
-				destroyOffscreen: false,
-				tags: [tags.runMap],
-				bounceGridKey: isMoving ? RUN_GRID_KEY : undefined,
-			});
-		}
-
-		k.destroy(trigger);
-	});
+	for (let index = 0; index < asteroidCount; index++) {
+		const cell = fieldCells[index % fieldCells.length]
+		if (!cell) break
+		const hash = Math.abs(
+			cell.coord.q * 73 + cell.coord.r * 151 + index * 379
+		)
+		const angle = ((hash % 360) * Math.PI) / 180
+		const offsetDistance = 4 + ((hash >>> 3) % 100) / 100 * hexSize * 0.3
+		const offset = k.vec2(Math.cos(angle), Math.sin(angle)).scale(
+			offsetDistance
+		)
+		const isMoving = ((hash >>> 7) % 1000) / 1000 < movingChance
+		const moveAngle = (hash * 47) % 360
+		const moveSpeed = isMoving
+			? 12 + ((hash >>> 5) % 17) + (threat.tier - 1) * 5
+			: 0
+		spawnMeteorite({
+			pos: grid.hexToScreen(cell.coord).add(offset),
+			dir: isMoving ? k.Vec2.fromAngle(moveAngle) : k.vec2(0, 0),
+			scoreOnKill: 1,
+			hp: 3 + (hash % 3),
+			speed: moveSpeed,
+			splitOnDeath: 0,
+			destroyOffscreen: false,
+			tags: [tags.runMap],
+			bounceGridKey: isMoving ? RUN_GRID_KEY : undefined,
+		})
+	}
 }
 
 function spawnCombatRoomTrigger(pos: Vec2, hexSize: number) {
@@ -1890,7 +1999,7 @@ function spawnCombatRoomTrigger(pos: Vec2, hexSize: number) {
 		}
 		triggered = true;
 		addThreatTime(10);
-		spawnThreatEncounter(pos, hexSize);
+		spawnThreatEncounter(pos, hexSize, { allowTerrainEnemies: true });
 		k.destroy(trigger);
 	});
 }

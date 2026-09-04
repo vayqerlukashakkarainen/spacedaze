@@ -11,6 +11,16 @@ import {
 import { PLANET_CHUNK_SPRITES } from "./planetChunkSprites";
 import { getDepositedDebree } from "./services/debreeEconomyService";
 import { isBlueprintDiscovered } from "./services/hubProgressService";
+import {
+	getAbilityLoadout,
+	setAbilityLoadout,
+	type AbilityLoadout,
+} from "./services/abilityLoadoutService";
+import {
+	getDefaultMobilityFromLegacyLoadout,
+	isAbilityIdForSlot,
+	migrateLegacyAbilityDiscoveries,
+} from "./services/abilityRegistry";
 
 const SAVE_VERSION = 2;
 const LEGACY_SAVE_KEYS = [
@@ -28,6 +38,8 @@ interface SaveSlot {
 	weaponInventoryVersion?: number;
 	ownedWeaponIds: string[];
 	equippedWeaponId: string;
+	abilityLoadoutVersion?: number;
+	abilityLoadout?: Partial<AbilityLoadout>;
 }
 
 function atlasEntry(index: number) {
@@ -60,9 +72,21 @@ export async function init(k: KAPLAYCtx) {
 		"sprites/facilities/v2/facility-contract-terminal-destroyed.png"
 	);
 	await k.loadSprite(
+		"facility_contract_terminal_1bit",
+		"sprites/facilities/v3/facility-contract-terminal-1bit-512.png"
+	)
+	await k.loadSprite(
+		"facility_contract_terminal_destroyed_1bit",
+		"sprites/facilities/v3/facility-contract-terminal-destroyed-1bit-512.png"
+	)
+	await k.loadSprite(
 		"facility_training_range",
 		"sprites/facilities/v2/facility-training-range.png"
 	);
+	await k.loadSprite(
+		"facility_phase_station_minimal",
+		"sprites/facilities/v3/facility-phase-station-minimal-512.png"
+	)
 	await k.loadSprite(
 		"facility_training_range_destroyed",
 		"sprites/facilities/v2/facility-training-range-destroyed.png"
@@ -76,6 +100,14 @@ export async function init(k: KAPLAYCtx) {
 		"sprites/facilities/v2/facility-salvage-forge-destroyed.png"
 	);
 	await k.loadSprite(
+		"facility_salvage_forge_1bit",
+		"sprites/facilities/v3/facility-salvage-forge-1bit-512.png"
+	)
+	await k.loadSprite(
+		"facility_salvage_forge_destroyed_1bit",
+		"sprites/facilities/v3/facility-salvage-forge-destroyed-1bit-512.png"
+	)
+	await k.loadSprite(
 		"facility_debrief_terminal",
 		"sprites/facilities/v2/facility-debrief-terminal.png"
 	);
@@ -83,6 +115,18 @@ export async function init(k: KAPLAYCtx) {
 		"facility_debrief_terminal_destroyed",
 		"sprites/facilities/v2/facility-debrief-terminal-destroyed.png"
 	);
+	await k.loadSprite(
+		"facility_debrief_terminal_1bit",
+		"sprites/facilities/v3/facility-debrief-terminal-1bit-512.png"
+	)
+	await k.loadSprite(
+		"facility_debrief_terminal_destroyed_1bit",
+		"sprites/facilities/v3/facility-debrief-terminal-destroyed-1bit-512.png"
+	)
+	await k.loadSprite(
+		"recovery_shop_1bit",
+		"sprites/shops/v3/recovery-shop-1bit-512.png"
+	)
 	await k.loadSprite("bullet1", "sprites/bullet1.png");
 	await k.loadSprite("rocket1", "sprites/rocket1.png");
 	await k.loadSpriteAtlas("sprites/swarm-atlas.png", {
@@ -160,6 +204,32 @@ export async function init(k: KAPLAYCtx) {
 		"enemy_swarm_hivemind",
 		"sprites/enemies/swarm-hivemind.png"
 	)
+	await k.loadSprite("enemy_orbit_lancer", "sprites/enemies/orbit-lancer.png")
+	await k.loadSprite("enemy_siege_barge", "sprites/enemies/siege-barge.png")
+	await k.loadSprite("enemy_tether_drone", "sprites/enemies/tether-drone.png")
+	await k.loadSprite("enemy_repair_skiff", "sprites/enemies/repair-skiff.png")
+	await k.loadSprite("enemy_splitter", "sprites/enemies/splitter.png")
+	await k.loadSprite("enemy_gravity_warden", "sprites/enemies/gravity-warden.png")
+	await k.loadSprite("enemy_phase_skirmisher", "sprites/enemies/phase-skirmisher.png")
+	await k.loadSprite("enemy_salvage_scavenger", "sprites/enemies/salvage-scavenger.png")
+	await k.loadSprite("enemy_suppressor", "sprites/enemies/suppressor.png")
+	await k.loadSprite("enemy_breach_crawler", "sprites/enemies/breach-crawler.png")
+	await k.loadSprite(
+		"hub_progression_lamp",
+		"sprites/hub/progression-lamp.png"
+	)
+	await k.loadSprite(
+		"hub_progression_lamp_broken",
+		"sprites/hub/progression-lamp-broken.png"
+	)
+	await k.loadSprite(
+		"hub_progression_lamp_rock",
+		"sprites/hub/progression-lamp-rock.png"
+	)
+	await k.loadSprite(
+		"hub_salvage_hauler",
+		"sprites/hub/salvage-hauler.png"
+	)
 
 	await k.loadSprite("particle1", "sprites/particle1.png");
 	await k.loadSprite("particle2", "sprites/particle2.png");
@@ -207,6 +277,14 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite(
 		"active_drone_beacon",
 		"sprites/active-modules/drone-beacon.png"
+	);
+	await k.loadSprite(
+		"active_repair_pulse",
+		"sprites/active-modules/repair-pulse.png"
+	);
+	await k.loadSprite(
+		"active_emp_beacon",
+		"sprites/active-modules/emp-beacon.png"
 	);
 	await k.loadSprite(
 		"blaster_upg_speed1",
@@ -306,6 +384,16 @@ export async function init(k: KAPLAYCtx) {
 		await k.loadSprite(sprite, `sprites/upgrades/${sprite}.png`);
 	}
 	await k.loadSprite("start_run", "sprites/upgrades/start_run.png");
+	const systemUpgradeSprites = [
+		"phase_echo_upg1",
+		"salvage_battery_upg1",
+		"reactive_plating_upg1",
+		"pack_intelligence_upg1",
+		"glass_reactor_upg1",
+	];
+	for (const sprite of systemUpgradeSprites) {
+		await k.loadSprite(sprite, `sprites/upgrades/${sprite}.png`);
+	}
 
 	await k.loadSprite("bg_moon1", "sprites/bg/moon1.png");
 	await k.loadSprite("bg_building1", "sprites/bg/building1.png");
@@ -328,6 +416,7 @@ export async function init(k: KAPLAYCtx) {
 
 	await k.loadSound("shoot1", "sounds/shoot1.wav");
 	await k.loadSound("rammer_launch", "sounds/rammer-launch.wav");
+	await k.loadSound("lay_mine", "sounds/lay-mine.wav");
 	await k.loadSound("fire_rocket1", "sounds/rocket_fire1.wav");
 
 	await k.loadSound("explosion1", "sounds/explosion1.wav");
@@ -702,6 +791,8 @@ export function saveGame(slot: string) {
 		weaponInventoryVersion: 1,
 		ownedWeaponIds: getOwnedWeaponIds(),
 		equippedWeaponId: getEquippedWeaponId(),
+		abilityLoadoutVersion: 1,
+		abilityLoadout: getAbilityLoadout(),
 	};
 	localStorage.setItem(slot, JSON.stringify(save));
 }
@@ -735,12 +826,39 @@ export function loadGame(slot: string): SaveSlot | null {
 		return null;
 	}
 
-	const ownedWeaponIds = save.weaponInventoryVersion === 1
+	const savedWeaponIds = save.weaponInventoryVersion === 1
 		? save.ownedWeaponIds ?? []
 		: WEAPONS.filter((weapon) =>
 			weapon.id === "standardBlaster" ||
 			isBlueprintDiscovered(`weapon:${weapon.id}`)
 		).map((weapon) => weapon.id);
+	const discoveredWeaponIds = WEAPONS.filter((weapon) =>
+		weapon.id === "standardBlaster" ||
+		isBlueprintDiscovered(`weapon:${weapon.id}`)
+	).map((weapon) => weapon.id);
+	const ownedWeaponIds = [...new Set([
+		...savedWeaponIds,
+		...discoveredWeaponIds,
+	])];
 	setWeaponInventory(ownedWeaponIds, save.equippedWeaponId ?? "");
+	migrateLegacyAbilityDiscoveries(ownedWeaponIds, save.loadout ?? {});
+	const savedAbilities = save.abilityLoadoutVersion === 1
+		? save.abilityLoadout
+		: undefined;
+	setAbilityLoadout({
+		primary: isAbilityIdForSlot(savedAbilities?.primary, "primary") &&
+			ownedWeaponIds.includes(savedAbilities.primary)
+			? savedAbilities.primary
+			: getEquippedWeaponId(),
+		secondary: isAbilityIdForSlot(savedAbilities?.secondary, "secondary")
+			? savedAbilities.secondary
+			: undefined,
+		mobility: isAbilityIdForSlot(savedAbilities?.mobility, "mobility")
+			? savedAbilities.mobility
+			: getDefaultMobilityFromLegacyLoadout(save.loadout ?? {}),
+		ultimate: isAbilityIdForSlot(savedAbilities?.ultimate, "ultimate")
+			? savedAbilities.ultimate
+			: undefined,
+	});
 	return save as SaveSlot;
 }

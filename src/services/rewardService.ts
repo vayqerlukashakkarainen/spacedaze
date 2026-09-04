@@ -29,20 +29,13 @@ import {
 	getAllUpgradeDefinitions,
 } from "../upgrades/upgradeRegistry"
 import {
-	getEquippedWeapon,
-	getEquippedWeaponId,
 	getWeaponTriggerModifier,
 	type WeaponDefinition,
 	type WeaponId,
-	unlockWeapon,
 	WEAPONS,
 } from "./weaponService"
 import {
 	ACTIVE_MODULES,
-	equipActiveModule,
-	ensureDefaultActiveModule,
-	getEquippedActiveModule,
-	getEquippedActiveModuleId,
 	isRocketPodEquipped,
 	type ActiveModuleDefinition,
 	type ActiveModuleId,
@@ -54,6 +47,17 @@ import {
 	scaleUpgradeEffects,
 } from "./rewardQualityService"
 import { getHubChestLuck, getHubLevel } from "./hubProgressService"
+import {
+	ABILITIES,
+	discoverAbility,
+	getAbilityDefinition,
+	isAbilityDiscovered,
+	type AbilityDefinition,
+} from "./abilityRegistry"
+import type {
+	AbilityId,
+	AbilitySlot,
+} from "./abilityLoadoutService"
 
 export { RewardRarity }
 export type { RewardKind, RewardSource }
@@ -84,6 +88,8 @@ export interface RewardDefinition {
 	upgradeKey?: string
 	weaponId?: WeaponId
 	activeModuleId?: ActiveModuleId
+	abilityId?: AbilityId
+	abilitySlot?: AbilitySlot
 	levelIndex?: number
 	canReceive?: () => boolean
 }
@@ -102,11 +108,16 @@ export interface Reward {
 	upgradeKey?: string
 	weaponId?: WeaponId
 	activeModuleId?: ActiveModuleId
+	abilityId?: AbilityId
+	abilitySlot?: AbilitySlot
 	levelIndex?: number
+	newDiscovery?: boolean
 }
 
 export interface CrateRewardResult {
 	rewards: Reward[]
+	discoveries: Reward[]
+	choices: Reward[]
 	failures: number
 	quality: number
 }
@@ -252,6 +263,12 @@ export function getAllRewardDefinitions(
 	const itemRewards = Object.values(itemRewardRegistry)
 	const weaponRewards = WEAPONS.map(buildWeaponReward)
 	const activeModuleRewards = ACTIVE_MODULES.map(buildActiveModuleReward)
+	const mobilityRewards = ABILITIES
+		.filter((ability) => ability.slot === "mobility")
+		.map(buildAbilityReward)
+	const ultimateRewards = ABILITIES
+		.filter((ability) => ability.slot === "ultimate")
+		.map(buildAbilityReward)
 	const upgradeRewards = getAllUpgradeDefinitions()
 		.map(buildCurrentUpgradeReward)
 		.filter((reward): reward is RewardDefinition => reward !== undefined)
@@ -261,6 +278,8 @@ export function getAllRewardDefinitions(
 		...itemRewards,
 		...weaponRewards,
 		...activeModuleRewards,
+		...mobilityRewards,
+		...ultimateRewards,
 		...upgradeRewards,
 	].filter((definition) => {
 		return !source || definition.allowedSources.includes(source)
@@ -269,6 +288,10 @@ export function getAllRewardDefinitions(
 
 export function canReceiveReward(definition: RewardDefinition): boolean {
 	if (getHubLevel() < getRewardMinimumHubLevel(definition)) return false
+	if (definition.abilityId) {
+		const ability = getAbilityDefinition(definition.abilityId)
+		if (!ability || isAbilityDiscovered(ability)) return false
+	}
 	if (isRocketDependentReward(definition) && !isRocketPodEquipped()) return false
 	return definition.canReceive ? definition.canReceive() : true
 }
@@ -285,6 +308,7 @@ export function getRewardLockReason(
 	if (getHubLevel() < minimumHubLevel) {
 		return `Requires Hub Level ${minimumHubLevel}`
 	}
+	if (definition.abilityId) return "Already discovered"
 	if (
 		definition.upgradeKey &&
 		requiresStandardDrone(definition.upgradeKey) &&
@@ -322,6 +346,14 @@ export function getRewardDefinition(id: string): RewardDefinition | undefined {
 		(candidate) => `weapon:${candidate.id}`.toLowerCase() === normalizedId
 	)
 	if (weapon) return buildWeaponReward(weapon)
+
+	const ability = ABILITIES.find(
+		(candidate) =>
+			candidate.slot !== "primary" &&
+			candidate.slot !== "secondary" &&
+			`${candidate.slot}:${candidate.id}`.toLowerCase() === normalizedId
+	)
+	if (ability) return buildAbilityReward(ability)
 
 	const currentUpgrade = getAllUpgradeDefinitions().find(
 		(definition) => definition.toolKey.toLowerCase() === normalizedId
@@ -376,18 +408,22 @@ export function rollCrateRewardChoices(
 
 	for (let index = 0; index < choiceCount; index++) {
 		const selectedIds = rewards.map((current) => current.id)
+		const abilityExclusions = rewards.some(isAbilityReward)
+			? getAbilityRewardDefinitionIds()
+			: []
+		const requiredExclusions = [...selectedIds, ...abilityExclusions]
 		let reward = rollCrateRewardForQuality(
 			quality,
-			[...excludedRewardIds, ...selectedIds]
+			[...excludedRewardIds, ...requiredExclusions]
 		)
 		if (!reward && excludedRewardIds.length > 0) {
-			reward = rollCrateRewardForQuality(quality, selectedIds)
+			reward = rollCrateRewardForQuality(quality, requiredExclusions)
 		}
 		if (!reward) break
 		rewards.push(reward)
 	}
 
-	return { rewards, failures, quality }
+	return createCrateRewardResult(rewards, failures, quality)
 }
 
 export function rollWeaponChestRewardChoices(
@@ -398,14 +434,12 @@ export function rollWeaponChestRewardChoices(
 	const missedZones = Math.max(0, 3 - Math.floor(successfulHits))
 	const failures = Math.max(0, Math.floor(failedAttempts)) + missedZones
 	const quality = k.clamp(3 - failures, 0, 3)
-	const choiceCount = quality >= 2 ? 2 : 1
 	const rewards: Reward[] = []
 	const available = getRewardDefinitions("crate").filter(
-		(definition) =>
-			definition.kind === "weapon" || definition.kind === "activeModule"
+		(definition) => definition.abilityId !== undefined
 	)
 
-	for (let index = 0; index < choiceCount; index++) {
+	for (let index = 0; index < 1; index++) {
 		let candidates = available.filter(
 			(definition) =>
 				!excludedRewardIds.includes(definition.id) &&
@@ -430,7 +464,37 @@ export function rollWeaponChestRewardChoices(
 		rewards.push(reward)
 	}
 
-	return { rewards, failures, quality }
+	return createCrateRewardResult(rewards, failures, quality)
+}
+
+function createCrateRewardResult(
+	rewards: Reward[],
+	failures: number,
+	quality: number
+): CrateRewardResult {
+	return {
+		rewards,
+		discoveries: rewards.filter(isAbilityReward),
+		choices: rewards.filter((reward) => !isAbilityReward(reward)),
+		failures,
+		quality,
+	}
+}
+
+export function isAbilityReward(
+	reward: Pick<Reward, "abilityId" | "abilitySlot">
+) {
+	return reward.abilityId !== undefined && reward.abilitySlot !== undefined
+}
+
+export function getAbilityRewardDefinitionIds() {
+	return ABILITIES
+		.filter((ability) => !ability.defaultUnlocked)
+		.map((ability) => `${ability.slot === "primary"
+			? "weapon"
+			: ability.slot === "secondary"
+				? "active"
+				: ability.slot}:${ability.id}`)
 }
 
 export function rollDropReward(
@@ -473,6 +537,11 @@ function rollDropRarity(
 }
 
 export function applyReward(reward: Reward, pos: Vec2): boolean {
+	if (reward.abilityId && reward.abilitySlot) {
+		reward.newDiscovery = discoverAbility(reward.abilityId)
+		return true
+	}
+
 	if (reward.kind === "item" && reward.id === "rerollToken") {
 		grantRerollTokens(reward.quantity ?? 1)
 		return true
@@ -505,16 +574,7 @@ export function applyReward(reward: Reward, pos: Vec2): boolean {
 		)
 		if (grantedLevel === undefined) return false
 		loadPlayer()
-		ensureDefaultActiveModule(player.rocketsLvl !== undefined)
 		return true
-	}
-
-	if (reward.kind === "weapon" && reward.weaponId) {
-		return unlockWeapon(reward.weaponId)
-	}
-
-	if (reward.kind === "activeModule" && reward.activeModuleId) {
-		return equipActiveModule(reward.activeModuleId)
 	}
 
 	return false
@@ -523,26 +583,28 @@ export function applyReward(reward: Reward, pos: Vec2): boolean {
 function buildActiveModuleReward(
 	module: ActiveModuleDefinition
 ): RewardDefinition {
-	const currentModule = getEquippedActiveModule()
 	return {
 		id: `active:${module.id}`,
 		kind: "activeModule",
 		activeModuleId: module.id,
+		abilityId: module.id,
+		abilitySlot: "secondary",
 		name: module.name,
-		description: `${module.description} Replaces your current secondary weapon.`,
+		description: `${module.description} Unlocks for your next run.`,
 		stats: {
-			REPLACES: currentModule?.name ?? "EMPTY SLOT",
+			SLOT: "SECONDARY",
 			...module.stats,
 		},
 		sprite: module.icon,
 		rarity: module.rarity,
-		progression: fixedProgression(module.rarity, "replace"),
-		allowedSources: ["crate"],
-		weights: { crate: module.crateWeight },
+		progression: fixedProgression(module.rarity, "once", "permanent"),
+		allowedSources: ["crate", "enemy", "boss"],
+		weights: {
+			crate: module.crateWeight,
+			enemy: Math.max(6, Math.round(module.crateWeight * 0.12)),
+			boss: Math.max(35, Math.round(module.crateWeight * 0.55)),
+		},
 		minimumHubLevel: module.minimumHubLevel,
-		canReceive: () =>
-			getEquippedActiveModuleId() !== module.id &&
-			(module.id !== "rocketPod" || player.rocketsLvl !== undefined),
 	}
 }
 
@@ -576,10 +638,12 @@ function buildWeaponReward(weapon: WeaponDefinition): RewardDefinition {
 		id: `weapon:${weapon.id}`,
 		kind: "weapon",
 		weaponId: weapon.id,
+		abilityId: weapon.id,
+		abilitySlot: "primary",
 		name: weapon.name,
-		description: `${weapon.description} Replaces your current primary weapon.`,
+		description: `${weapon.description} Unlocks for your next run.`,
 		stats: {
-			REPLACES: getEquippedWeapon().name,
+			SLOT: "PRIMARY",
 			DAMAGE: formatMultiplier(weapon.damageMultiplier),
 			"FIRE RATE": fireRate,
 			PRESET: preset,
@@ -592,12 +656,37 @@ function buildWeaponReward(weapon: WeaponDefinition): RewardDefinition {
 			weapon.id === "standardBlaster"
 				? RewardRarity.Common
 				: RewardRarity.Rare,
-			"replace"
+			"once",
+			"permanent"
 		),
-		allowedSources: ["crate"],
-		weights: { crate: weapon.id === "standardBlaster" ? 90 : 140 },
+		allowedSources: ["crate", "enemy", "boss"],
+		weights: weapon.id === "standardBlaster"
+			? {}
+			: { crate: 120, enemy: 14, boss: 75 },
 		minimumHubLevel: weapon.minimumHubLevel,
-		canReceive: () => getEquippedWeaponId() !== weapon.id,
+	}
+}
+
+function buildAbilityReward(
+	ability: AbilityDefinition
+): RewardDefinition {
+	return {
+		id: `${ability.slot}:${ability.id}`,
+		kind: ability.slot === "ultimate" ? "ultimate" : "mobility",
+		abilityId: ability.id,
+		abilitySlot: ability.slot,
+		name: ability.name,
+		description: `${ability.description} Unlocks for your next run.`,
+		stats: {
+			SLOT: ability.slot.toUpperCase(),
+			RESOURCE: ability.resource.type.toUpperCase(),
+		},
+		sprite: ability.icon,
+		rarity: ability.rarity,
+		progression: fixedProgression(ability.rarity, "once", "permanent"),
+		allowedSources: ["crate", "enemy", "boss"],
+		weights: ability.weights,
+		minimumHubLevel: ability.minimumHubLevel,
 	}
 }
 
@@ -876,6 +965,8 @@ function toReward(
 		upgradeKey: definition.upgradeKey,
 		weaponId: definition.weaponId,
 		activeModuleId: definition.activeModuleId,
+		abilityId: definition.abilityId,
+		abilitySlot: definition.abilitySlot,
 		levelIndex: definition.levelIndex,
 	}
 }

@@ -14,6 +14,7 @@ import type { Vec2 } from "kaplay";
 import { timescale } from "../comp/timescale";
 import {
 	createEnemySpawnProfile,
+	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
@@ -43,11 +44,13 @@ export function spawnAssasin(
 			hb,
 			elite: profile.elite,
 			damage: profile.damage,
+			threatRank: ENEMY_THREAT_RANK.assassin,
 			targetPos: k.rand(k.vec2(k.width(), k.height())),
 		},
 		k.state("retreat", ["attack", "retreat"]),
 		tags.enemy,
 		tags.unit,
+		tags.enemyRolePressure,
 		...(profile.elite ? [tags.elite] : []),
 		tags.gameLoop,
 		...(options.tags ?? []),
@@ -74,7 +77,11 @@ export function spawnAssasin(
 		if (dist < 50) {
 			m.enterState("retreat");
 		} else if (dist > 50 && dist < 200) {
-			if (Math.floor(k.rand(0, 200)) == 1) {
+			const fireRollRange = Math.max(
+				1,
+				Math.round(200 / (m.shieldFireRateMultiplier ?? 1))
+			);
+			if (Math.floor(k.rand(0, fireRollRange)) == 1) {
 				spawnEnemyBlaster(
 					m.pos,
 					k.Vec2.fromAngle(m.angle - 90),

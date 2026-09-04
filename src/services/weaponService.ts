@@ -1,3 +1,8 @@
+import {
+	equipAbility,
+	getEquippedPrimaryAbilityId,
+} from "./abilityLoadoutService"
+
 export type WeaponId =
 	| "standardBlaster"
 	| "breachCannon"
@@ -220,14 +225,13 @@ const DEFAULT_WEAPON_ID: WeaponId = "standardBlaster"
 const ALL_WEAPON_IDS = WEAPONS.map((weapon) => weapon.id)
 
 let ownedWeaponIds: WeaponId[] = [DEFAULT_WEAPON_ID]
-let equippedWeaponId: WeaponId = DEFAULT_WEAPON_ID
 
 export function getWeaponDefinition(id: WeaponId) {
 	return WEAPONS.find((weapon) => weapon.id === id) ?? WEAPONS[0]
 }
 
 export function getEquippedWeapon() {
-	return getWeaponDefinition(equippedWeaponId)
+	return getWeaponDefinition(getEquippedPrimaryAbilityId())
 }
 
 export function getWeaponTriggerModifier(
@@ -240,7 +244,7 @@ export function getWeaponTriggerModifier(
 }
 
 export function getEquippedWeaponId() {
-	return equippedWeaponId
+	return getEquippedPrimaryAbilityId()
 }
 
 export function getOwnedWeaponIds() {
@@ -253,23 +257,23 @@ export function isWeaponOwned(id: WeaponId) {
 
 export function equipWeapon(id: WeaponId) {
 	if (!isWeaponOwned(id)) return false
-	equippedWeaponId = id
+	equipAbility("primary", id)
 	return true
 }
 
-export function unlockWeapon(id: WeaponId) {
+export function unlockWeapon(id: WeaponId, equip = true) {
 	if (!isWeaponOwned(id)) ownedWeaponIds.push(id)
-	equippedWeaponId = id
+	if (equip) equipAbility("primary", id)
 	return true
 }
 
 export function resetEquippedWeapon() {
-	equippedWeaponId = DEFAULT_WEAPON_ID
+	equipAbility("primary", DEFAULT_WEAPON_ID)
 }
 
 export function resetWeaponInventory() {
 	ownedWeaponIds = [DEFAULT_WEAPON_ID]
-	equippedWeaponId = DEFAULT_WEAPON_ID
+	equipAbility("primary", DEFAULT_WEAPON_ID)
 }
 
 export function setWeaponInventory(
@@ -280,9 +284,12 @@ export function setWeaponInventory(
 	ownedWeaponIds = validOwnedIds.includes(DEFAULT_WEAPON_ID)
 		? validOwnedIds
 		: [DEFAULT_WEAPON_ID, ...validOwnedIds]
-	equippedWeaponId = isWeaponId(equippedId) && isWeaponOwned(equippedId)
-		? equippedId
-		: DEFAULT_WEAPON_ID
+	equipAbility(
+		"primary",
+		isWeaponId(equippedId) && isWeaponOwned(equippedId)
+			? equippedId
+			: DEFAULT_WEAPON_ID
+	)
 }
 
 function isWeaponId(id: string): id is WeaponId {

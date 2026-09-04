@@ -3,13 +3,13 @@ import { k } from "../main"
 import { showRecoveryShop } from "../ui/recoveryShop"
 import { spawnBuilding } from "./spawnBuilding"
 
-const recoveryShopScale = 1
+const recoveryShopScale = 0.5
 const recoveryShopLabelOffsetY = 150
 
 export function spawnRecoveryShop(pos: Vec2) {
 	const shop = spawnBuilding({
 		pos,
-		sprite: "recovery_shop",
+		sprite: "recovery_shop_1bit",
 		scale: recoveryShopScale,
 		interactRadius: 180,
 		interactPromptOffset: k.vec2(0, -recoveryShopLabelOffsetY),
@@ -19,6 +19,6 @@ export function spawnRecoveryShop(pos: Vec2) {
 		},
 		onInteract: showRecoveryShop,
 	})
-	shop.use(k.color(185, 185, 185))
+	shop.use(k.color(145, 160, 170))
 	return shop
 }

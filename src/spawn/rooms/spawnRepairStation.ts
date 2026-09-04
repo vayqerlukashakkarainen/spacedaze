@@ -15,6 +15,7 @@ import {
 	purchaseBurstParticleCount,
 	spawnCurrencyBurst,
 } from "../spawnCurrencyBurst"
+import { playRequirementErrorSound } from "../../services/uiSoundService"
 
 interface RepairStationProps {
 	pos: Vec2
@@ -101,10 +102,12 @@ export function spawnRepairStation(props: RepairStationProps) {
 		if (repairing || repaired) return
 		if (playerObj.hp >= playerObj.maxHP) {
 			status.text = "HULL FULL"
+			playRequirementErrorSound()
 			return
 		}
 		if (!spendScore(props.cost)) {
 			status.text = `NEED ${props.cost} SALVAGE`
+			playRequirementErrorSound()
 			return
 		}
 		spawnCurrencyBurst(station.pos.clone(), {

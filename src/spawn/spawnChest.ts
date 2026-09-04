@@ -18,6 +18,7 @@ import {
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import { audioService } from "../services/audioService";
 import { spawnCurrencyBurst } from "./spawnCurrencyBurst";
+import { playRequirementErrorSound } from "../services/uiSoundService";
 
 const CHEST_SCALE = 0.75;
 
@@ -84,9 +85,7 @@ export function spawnChest(
 			if (!purchased && requiresPurchase) {
 				const purchaseCost = getPurchaseCost();
 				if (!spendScore(purchaseCost)) {
-					audioService.playSound("error", {
-						volume: mainSoundVolume * 0.5,
-					});
+					playRequirementErrorSound();
 					return;
 				}
 				purchased = true;

@@ -8,6 +8,7 @@ import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import {
 	createEnemySpawnProfile,
+	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService"
 import { easeDirection, registerHitAnimation } from "../shared"
@@ -58,6 +59,7 @@ export function spawnSwarmEnemy(
 		{
 			hb: 9 * spriteScale,
 			damage: profile.damage,
+			threatRank: ENEMY_THREAT_RANK.swarmDrone,
 			moveDirection: k.vec2(0, -1),
 			hiveMind,
 			swarmCommand: undefined as SwarmCommand | undefined,
@@ -65,6 +67,8 @@ export function spawnSwarmEnemy(
 		tags.enemy,
 		tags.unit,
 		tags.swarmEnemy,
+		tags.enemyRolePressure,
+		tags.enemyRoleSwarm,
 		...(profile.elite ? [tags.elite] : []),
 		tags.gameLoop,
 		...(options.tags ?? []),
@@ -128,8 +132,15 @@ export function spawnSwarmEnemy(
 	})
 
 	enemy.onDeath(() => {
-		enemyOnDeath(enemy.pos, 2 * profile.rewardMultiplier, profile.rewardMultiplier)
-		audioService.playSound(randomExplosion(), { volume: subSoundVolume * 0.7 })
+		enemyOnDeath(
+			enemy.pos,
+			2 * profile.rewardMultiplier,
+			profile.rewardMultiplier,
+			"enemy",
+			true,
+			{ intensity: 0.42, starCount: 5 }
+		)
+		audioService.playSound(randomExplosion(), { volume: subSoundVolume * 0.25 })
 		k.destroy(enemy)
 	})
 	enemy.onHurt(() => {
@@ -164,6 +175,7 @@ export function spawnHiveMind(
 		{
 			hb: 22 * spriteScale,
 			damage: profile.damage,
+			threatRank: ENEMY_THREAT_RANK.hiveMind,
 			moveDirection: k.vec2(0, -1),
 			members: [] as GameObj[],
 			phase: "gather" as SwarmPhase,
@@ -175,6 +187,8 @@ export function spawnHiveMind(
 		tags.enemy,
 		tags.unit,
 		tags.hiveMind,
+		tags.enemyRoleSupport,
+		tags.enemyRoleSwarm,
 		...(profile.elite ? [tags.elite] : []),
 		tags.gameLoop,
 		...(options.tags ?? []),

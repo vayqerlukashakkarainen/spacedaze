@@ -136,6 +136,7 @@ export function finishRunStats(
 	activeRun = undefined
 	clearSelectedContract()
 	localStorage.setItem(LAST_RUN_KEY, JSON.stringify(lastRun))
+	return lastRun
 }
 
 export function getLastRunStats() {

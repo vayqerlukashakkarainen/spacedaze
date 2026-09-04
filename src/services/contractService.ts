@@ -1,10 +1,15 @@
+export type ContractChallenge =
+	| "fragileDelivery"
+	| "overchargedShrines"
+	| "convoySiege"
+
 export interface RunContract {
 	id: string
 	name: string
 	description: string
 	seed: number
-	salvageMultiplier: number
-	rewardDropMultiplier: number
+	challenge: ContractChallenge
+	rewardCount: number
 }
 
 let selectedContract: RunContract | undefined
@@ -12,28 +17,28 @@ let selectedContract: RunContract | undefined
 export function getContractOffers(): RunContract[] {
 	return [
 		{
-			id: "patrol",
-			name: "STANDARD PATROL",
-			description: "A balanced expedition with standard rewards",
+			id: "delivery",
+			name: "FRAGILE DELIVERY",
+			description: "Deliver the package without taking hull damage. Awards 2 rewards",
 			seed: randomSeed(),
-			salvageMultiplier: 1,
-			rewardDropMultiplier: 1,
+			challenge: "fragileDelivery",
+			rewardCount: 2,
 		},
 		{
-			id: "salvage",
-			name: "SALVAGE STORM",
-			description: "Debris is worth 50% more salvage",
+			id: "shrines",
+			name: "SHRINE OVERLOAD",
+			description: "Shrines deploy twice as many hostiles. Awards 2 rewards",
 			seed: randomSeed(),
-			salvageMultiplier: 1.5,
-			rewardDropMultiplier: 1,
+			challenge: "overchargedShrines",
+			rewardCount: 2,
 		},
 		{
-			id: "signal",
-			name: "SIGNAL HUNT",
-			description: "Reward drops are 75% more likely",
+			id: "convoy",
+			name: "CONVOY SIEGE",
+			description: "Lost convoys draw twice as many attackers. Awards 2 rewards",
 			seed: randomSeed(),
-			salvageMultiplier: 1,
-			rewardDropMultiplier: 1.75,
+			challenge: "convoySiege",
+			rewardCount: 2,
 		},
 	]
 }
@@ -44,6 +49,20 @@ export function selectContract(contract: RunContract) {
 
 export function getSelectedContract() {
 	return selectedContract
+}
+
+export function contractChallengeActive(challenge: ContractChallenge) {
+	return selectedContract?.challenge === challenge
+}
+
+export function getContractChallengeMultiplier(challenge: ContractChallenge) {
+	return selectedContract?.challenge === challenge ? 2 : 1
+}
+
+export function getContractChallengeRewardCount(challenge: ContractChallenge) {
+	return selectedContract?.challenge === challenge
+		? selectedContract.rewardCount
+		: 1
 }
 
 export function clearSelectedContract() {

@@ -26,7 +26,7 @@ interface InteractionPromptOptions {
 }
 
 const DEFAULT_PROMPT_WIDTH = 220
-const PROMPT_HEIGHT = 76
+const MIN_PROMPT_HEIGHT = 76
 const PROMPT_SCALE = 0.8
 
 export function createInteractionPrompt({
@@ -37,6 +37,8 @@ export function createInteractionPrompt({
 }: InteractionPromptOptions) {
 	let reveal = 0
 	let renderedContent = ""
+	let promptWidth = width
+	let promptHeight = MIN_PROMPT_HEIGHT
 	const root = k.add([
 		k.pos(target.pos.add(offset)),
 		k.scale(PROMPT_SCALE * 0.9),
@@ -46,24 +48,24 @@ export function createInteractionPrompt({
 		tags.gameLoop,
 	])
 	root.hidden = true
-	createUiSurface(root, {
+	const surface = createUiSurface(root, {
 		pos: k.vec2(0, 0),
-		size: k.vec2(width, PROMPT_HEIGHT),
+		size: k.vec2(promptWidth, promptHeight),
 		anchor: "center",
 		borderColor: UI_COLORS.accent,
 		opacity: 0.97,
 	})
 	const title = addThemedText(root, {
 		text: "",
-		pos: k.vec2(-width / 2 + 10, -PROMPT_HEIGHT / 2 + 8),
+		pos: k.vec2(-promptWidth / 2 + 10, -promptHeight / 2 + 8),
 		variant: "eyebrow",
 		size: UI_FONT_SIZES.micro,
-		width: width - 20,
+		width: promptWidth - 20,
 		color: k.rgb(...UI_COLORS.text),
 	})
 	const notification = addThemedText(root, {
 		text: "!",
-		pos: k.vec2(width / 2 - 10, -PROMPT_HEIGHT / 2 + 8),
+		pos: k.vec2(promptWidth / 2 - 10, -promptHeight / 2 + 8),
 		variant: "eyebrow",
 		size: UI_FONT_SIZES.micro,
 		align: "right",
@@ -72,36 +74,36 @@ export function createInteractionPrompt({
 	notification.hidden = true
 	const action = addThemedText(root, {
 		text: "",
-		pos: k.vec2(-width / 2 + 10, -12),
+		pos: k.vec2(-promptWidth / 2 + 10, -12),
 		variant: "title",
-		width: width - 58,
+		width: promptWidth - 58,
 	})
-	createInputPromptRow(root, {
-		pos: k.vec2(width / 2 - 20, -6),
+	const inputPrompt = createInputPromptRow(root, {
+		pos: k.vec2(promptWidth / 2 - 20, -6),
 		prompts: [{ action: "interact" }],
 		color: UI_COLORS.text,
 		iconHeight: 18,
 	})
-	for (const y of [17, 21]) {
+	const separators = [55, 59].map((offsetY) =>
 		root.add([
-			k.rect(width - 20, 2),
-			k.pos(-width / 2 + 10, y),
+			k.rect(promptWidth - 20, 2),
+			k.pos(-width / 2 + 10, -promptHeight / 2 + offsetY),
 			k.color(...UI_COLORS.border),
 		])
-	}
+	)
 	const detailLeft = addThemedText(root, {
 		text: "",
-		pos: k.vec2(-width / 2 + 10, 28),
+		pos: k.vec2(-promptWidth / 2 + 10, -promptHeight / 2 + 66),
 		variant: "muted",
 		size: UI_FONT_SIZES.micro,
-		width: width / 2 - 16,
+		width: promptWidth - 20,
 	})
 	const detailRight = addThemedText(root, {
 		text: "",
-		pos: k.vec2(8, 28),
+		pos: k.vec2(-promptWidth / 2 + 10, -promptHeight / 2 + 66),
 		variant: "caption",
 		size: UI_FONT_SIZES.micro,
-		width: width / 2 - 16,
+		width: promptWidth - 20,
 		align: "right",
 	})
 
@@ -114,11 +116,64 @@ export function createInteractionPrompt({
 		const signature = JSON.stringify(next)
 		if (signature === renderedContent) return
 		renderedContent = signature
-		title.text = next.title.toUpperCase()
-		action.text = next.action.toUpperCase()
-		detailLeft.text = (next.detailLeft ?? "").toUpperCase()
-		detailRight.text = (next.detailRight ?? "").toUpperCase()
+		const titleText = next.title.toUpperCase()
+		const actionText = next.action.toUpperCase()
+		const detailLeftText = (next.detailLeft ?? "").toUpperCase()
+		const detailRightText = (next.detailRight ?? "").toUpperCase()
+		const detailContentWidth = detailLeftText && detailRightText
+			? measureTextWidth(detailLeftText, UI_FONT_SIZES.micro) +
+				measureTextWidth(detailRightText, UI_FONT_SIZES.micro) + 28
+			: Math.max(
+				measureTextWidth(detailLeftText, UI_FONT_SIZES.micro),
+				measureTextWidth(detailRightText, UI_FONT_SIZES.micro)
+			) + 20
+		promptWidth = Math.ceil(Math.max(
+			width,
+			measureTextWidth(titleText, UI_FONT_SIZES.micro) + 20,
+			measureTextWidth(actionText, UI_FONT_SIZES.body) + 58,
+			detailContentWidth
+		))
+		surface.width = promptWidth
+		title.width = promptWidth - 20
+		action.width = promptWidth - 58
+		detailLeft.width = promptWidth - 20
+		detailRight.width = promptWidth - 20
+		title.text = titleText
+		action.text = actionText
+		detailLeft.text = detailLeftText
+		detailRight.text = detailRightText
+		promptHeight = Math.ceil(Math.max(
+			MIN_PROMPT_HEIGHT,
+			68,
+			68 + detailLeft.formattedText().height,
+			68 + detailRight.formattedText().height
+		))
+		surface.height = promptHeight
+		const promptTop = -promptHeight / 2
+		title.pos = k.vec2(-promptWidth / 2 + 10, promptTop + 8)
+		notification.pos = k.vec2(promptWidth / 2 - 10, promptTop + 8)
+		action.pos = k.vec2(-promptWidth / 2 + 10, promptTop + 26)
+		inputPrompt.pos = k.vec2(promptWidth / 2 - 20, promptTop + 32)
+		for (let index = 0; index < separators.length; index++) {
+			const separator = separators[index]
+			separator.pos = k.vec2(
+				-promptWidth / 2 + 10,
+				promptTop + 55 + index * 4
+			)
+			separator.width = promptWidth - 20
+		}
+		detailLeft.pos = k.vec2(-promptWidth / 2 + 10, promptTop + 66)
+		detailRight.pos = k.vec2(-promptWidth / 2 + 10, promptTop + 66)
 		notification.hidden = !next.notification
+	}
+
+	function measureTextWidth(text: string, size: number) {
+		if (!text) return 0
+		return k.formatText({
+			text,
+			font: "unscii",
+			size,
+		}).width
 	}
 
 	target.onDestroy(() => {

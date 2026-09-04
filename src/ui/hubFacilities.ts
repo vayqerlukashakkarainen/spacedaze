@@ -71,17 +71,34 @@ import {
 	equipWeapon,
 	getEquippedWeaponId,
 	isWeaponOwned,
+	type WeaponId,
 	WEAPONS,
 } from "../services/weaponService"
 import {
 	ACTIVE_MODULES,
 	equipActiveModule,
 	getEquippedActiveModuleId,
+	type ActiveModuleId,
 } from "../services/activeModuleService"
 import {
 	playShopMenuCloseSound,
 	playShopMenuOpenSound,
 } from "../services/shopMenuSoundService"
+import {
+	getAbilityDefinition,
+	getAbilitiesForSlot,
+	getAbilityDiscoveryKey,
+	isAbilityDiscovered,
+} from "../services/abilityRegistry"
+import { playRequirementErrorSound } from "../services/uiSoundService"
+import {
+	clearAbilitySlot,
+	equipAbilityInSlot,
+	getEquippedAbilityId,
+	type AbilityId,
+	type AbilitySlot,
+} from "../services/abilityLoadoutService"
+import type { WarpZoneDefinition } from "../services/warpZoneService"
 
 let panelOpen = false
 let panelClosing = false
@@ -91,6 +108,346 @@ let activeBackdrop: GameObj | undefined
 
 export function hubFacilityPanelOpen() {
 	return panelOpen
+}
+
+interface RunPreparationProps {
+	zone: WarpZoneDefinition
+	onLaunch: () => void
+	onCancel: () => void
+}
+
+type RunPreparationTab = "loadout" | "contracts"
+
+const LOADOUT_SLOT_DETAILS: ReadonlyArray<{
+	slot: AbilitySlot
+	label: string
+	control: string
+}> = [
+	{ slot: "primary", label: "PRIMARY", control: "LEFT MOUSE" },
+	{ slot: "secondary", label: "SECONDARY", control: "RIGHT MOUSE" },
+	{ slot: "mobility", label: "MOBILITY", control: "SPACE / SHIFT" },
+	{ slot: "ultimate", label: "ULTIMATE", control: "Q" },
+]
+
+export function showRunPreparation(props: RunPreparationProps) {
+	const panelSize = k.vec2(
+		Math.min(900, k.width() - 24),
+		Math.min(580, k.height() - 24)
+	)
+	let launchRequested = false
+	const panel = openPanel(
+		undefined,
+		panelSize,
+		true,
+		() => launchRequested ? props.onLaunch() : props.onCancel()
+	)
+	if (!panel) {
+		props.onCancel()
+		return false
+	}
+
+	const left = -panelSize.x / 2
+	const top = -panelSize.y / 2
+	const padding = 20
+	const innerWidth = panelSize.x - padding * 2
+	const tabTop = top + 62
+	const contentTop = top + 108
+	const contentBottom = panelSize.y / 2 - 62
+	const contentHeight = contentBottom - contentTop
+	const tabGap = 8
+	const tabWidth = (innerWidth - tabGap) / 2
+	const contractOffers = getContractOffers()
+	const tabRoot = panel.add([k.pos(0, 0)])
+	const contentRoot = panel.add([k.pos(0, 0)])
+	let activeTab: RunPreparationTab = "loadout"
+	let editingSlot: AbilitySlot | undefined
+
+	createUiSectionHeader(panel, {
+		pos: k.vec2(left + 1, top + 1),
+		width: panelSize.x - 2,
+		height: 54,
+		eyebrow: "WORMHOLE EXPEDITION GATE",
+		title: "RUN CONFIGURATION",
+		action: props.zone.name,
+	})
+
+	const render = () => {
+		destroyChildren(tabRoot)
+		destroyChildren(contentRoot)
+		const tabs: ReadonlyArray<{ id: RunPreparationTab; label: string }> = [
+			{ id: "loadout", label: "LOADOUT" },
+			{ id: "contracts", label: "CONTRACTS" },
+		]
+		for (let index = 0; index < tabs.length; index++) {
+			const tab = tabs[index]
+			createUiActionButton(tabRoot, {
+				pos: k.vec2(
+					left + padding + index * (tabWidth + tabGap),
+					tabTop
+				),
+				size: k.vec2(tabWidth, 32),
+				text: tab.label,
+				selected: activeTab === tab.id,
+				onClick: () => {
+					activeTab = tab.id
+					editingSlot = undefined
+					render()
+				},
+			})
+		}
+
+		if (activeTab === "contracts") {
+			renderRunTerminalContracts(
+				contentRoot,
+				left + padding,
+				contentTop,
+				innerWidth,
+				contentHeight,
+				contractOffers,
+				(contract) => {
+					selectContract(contract)
+					setNextGeneratedRunSeed(contract.seed)
+					render()
+				}
+			)
+			return
+		}
+
+		if (editingSlot) {
+			renderLoadoutSelection(
+				contentRoot,
+				left + padding,
+				contentTop,
+				innerWidth,
+				contentHeight,
+				editingSlot,
+				() => {
+					editingSlot = undefined
+					render()
+				},
+				render
+			)
+			return
+		}
+
+		renderLoadoutSlots(
+			contentRoot,
+			left + padding,
+			contentTop,
+			innerWidth,
+			contentHeight,
+			props.zone,
+			(slot) => {
+				editingSlot = slot
+				render()
+			}
+		)
+	}
+
+	createUiActionButton(panel, {
+		pos: k.vec2(110, panelSize.y / 2 - 54),
+		size: k.vec2(250, 38),
+		text: `DEPLOY  //  ${props.zone.name}`,
+		onClick: () => {
+			launchRequested = true
+			hideHubFacilityPanel()
+		},
+	})
+	render()
+	return true
+}
+
+function renderLoadoutSlots(
+	root: GameObj,
+	left: number,
+	top: number,
+	width: number,
+	height: number,
+	zone: WarpZoneDefinition,
+	onSelectSlot: (slot: AbilitySlot) => void
+) {
+	const previewGap = 12
+	const previewWidth = Math.min(260, width * 0.31)
+	const slotWidth = width - previewWidth - previewGap
+	createUiSectionHeader(root, {
+		pos: k.vec2(left, top),
+		width: slotWidth,
+		height: 48,
+		eyebrow: "SHIP CONFIGURATION",
+		title: "DEPLOYMENT LOADOUT",
+		action: "SELECT A SLOT TO CHANGE",
+	})
+	const rowsTop = top + 56
+	const rowGap = 7
+	const rowHeight = (height - 56 - rowGap * 3) / 4
+	for (let index = 0; index < LOADOUT_SLOT_DETAILS.length; index++) {
+		const details = LOADOUT_SLOT_DETAILS[index]
+		const ability = getAbilityDefinition(getEquippedAbilityId(details.slot) as AbilityId)
+		createUiSelectableRow(root, {
+			pos: k.vec2(left, rowsTop + index * (rowHeight + rowGap)),
+			width: slotWidth,
+			height: rowHeight,
+			title: ability?.name ?? "EMPTY SLOT",
+			meta: `${details.label}  //  ${details.control}`,
+			description: ability?.description ?? "No system assigned to this slot.",
+			status: "CHANGE >",
+			statusColor: ability
+				? REWARD_RARITY_COLORS[ability.rarity]
+				: UI_COLORS.muted,
+			icon: ability?.icon,
+			iconText: ability ? undefined : "+",
+			iconSize: Math.min(34, rowHeight - 14),
+			onClick: () => onSelectSlot(details.slot),
+		})
+	}
+
+	const previewLeft = left + slotWidth + previewGap
+	const preview = createUiSurface(root, {
+		pos: k.vec2(previewLeft, top),
+		size: k.vec2(previewWidth, height),
+		tone: "raised",
+		borderColor: UI_COLORS.accent,
+	})
+	addThemedText(preview, {
+		text: "RUN PREVIEW",
+		pos: k.vec2(14, 14),
+		variant: "eyebrow",
+		width: previewWidth - 28,
+	})
+	addThemedText(preview, {
+		text: zone.name,
+		pos: k.vec2(14, 34),
+		variant: "heading",
+		width: previewWidth - 28,
+	})
+	addThemedText(preview, {
+		text: zone.description,
+		pos: k.vec2(14, 62),
+		variant: "muted",
+		width: previewWidth - 28,
+	})
+	const contract = getSelectedContract()
+	createUiStatList(preview, {
+		pos: k.vec2(14, 122),
+		width: previewWidth - 28,
+		rowHeight: 34,
+		rows: [
+			{ label: "CONTRACT", value: contract?.name ?? "NONE" },
+			{
+				label: "SALVAGE",
+				value: `X${formatMultiplier(contract?.salvageMultiplier ?? 1)}`,
+			},
+			{
+				label: "DROP RATE",
+				value: `X${formatMultiplier(contract?.rewardDropMultiplier ?? 1)}`,
+			},
+			{ label: "ROUTE", value: "PROCEDURAL" },
+		],
+	})
+	addThemedText(preview, {
+		text: contract?.description ?? "NO CONTRACT MODIFIERS SELECTED.",
+		pos: k.vec2(14, height - 54),
+		variant: "muted",
+		width: previewWidth - 28,
+	})
+}
+
+function renderLoadoutSelection(
+	root: GameObj,
+	left: number,
+	top: number,
+	width: number,
+	height: number,
+	slot: AbilitySlot,
+	onBack: () => void,
+	render: () => void
+) {
+	const details = LOADOUT_SLOT_DETAILS.find((candidate) => candidate.slot === slot)
+	const abilities = getAbilitiesForSlot(slot).filter((ability) =>
+		slot === "primary"
+			? isWeaponOwned(ability.id as WeaponId)
+			: isAbilityDiscovered(ability)
+	)
+	createUiSectionHeader(root, {
+		pos: k.vec2(left, top),
+		width,
+		height: 48,
+		eyebrow: `${details?.label ?? slot.toUpperCase()} SLOT  //  ${details?.control ?? ""}  //  ${abilities.length} AVAILABLE`,
+		title: "SELECT SYSTEM",
+	})
+	createUiActionButton(root, {
+		pos: k.vec2(left + width - 104, top + 14),
+		size: k.vec2(92, 24),
+		text: "< BACK",
+		onClick: onBack,
+	})
+
+	const canClear = slot !== "primary"
+	const entryCount = abilities.length + (canClear ? 1 : 0)
+	const gap = 5
+	const rowsTop = top + 56
+	const rowHeight = Math.min(
+		58,
+		(height - 56 - gap * Math.max(0, entryCount - 1)) / Math.max(1, entryCount)
+	)
+	let row = 0
+	if (canClear) {
+		const emptyEquipped = getEquippedAbilityId(slot) === undefined
+		createUiSelectableRow(root, {
+			pos: k.vec2(left, rowsTop),
+			width,
+			height: rowHeight,
+			title: "EMPTY SLOT",
+			meta: "NO SYSTEM ASSIGNED",
+			status: emptyEquipped ? "EQUIPPED" : "UNEQUIP",
+			selected: emptyEquipped,
+			iconText: "-",
+			onClick: emptyEquipped ? undefined : () => {
+				clearAbilitySlot(slot)
+				saveGame("slot1")
+				render()
+			},
+		})
+		row++
+	}
+	for (const ability of abilities) {
+		const equipped = getEquippedAbilityId(slot) === ability.id
+		createUiSelectableRow(root, {
+			pos: k.vec2(left, rowsTop + row * (rowHeight + gap)),
+			width,
+			height: rowHeight,
+			title: ability.name,
+			meta: `${ability.rarity.toUpperCase()}  //  ${ability.trigger.toUpperCase()}`,
+			description: ability.description,
+			status: equipped ? "EQUIPPED" : "EQUIP",
+			statusColor: REWARD_RARITY_COLORS[ability.rarity],
+			selected: equipped,
+			icon: ability.icon,
+			iconSize: Math.min(30, rowHeight - 12),
+			onClick: equipped ? undefined : () => {
+				equipLoadoutAbility(slot, ability.id)
+				saveGame("slot1")
+				render()
+			},
+		})
+		row++
+	}
+}
+
+function equipLoadoutAbility(slot: AbilitySlot, abilityId: AbilityId) {
+	if (slot === "primary") {
+		equipWeapon(abilityId as WeaponId)
+		return
+	}
+	if (slot === "secondary") {
+		equipActiveModule(abilityId as ActiveModuleId)
+		return
+	}
+	equipAbilityInSlot(slot, abilityId)
+}
+
+function formatMultiplier(value: number) {
+	return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2)
 }
 
 export function showRunTerminal(initialSection: RunTerminalSection = "contracts") {
@@ -233,7 +590,8 @@ function renderRunTerminalContracts(
 	top: number,
 	width: number,
 	height: number,
-	offers: readonly RunContract[]
+	offers: readonly RunContract[],
+	onSelect: (contract: RunContract) => void = queueContract
 ) {
 	const selected = getSelectedContract()
 	createUiSectionHeader(root, {
@@ -279,7 +637,7 @@ function renderRunTerminalContracts(
 			size: k.vec2(cardWidth - 20, 30),
 			text: isSelected ? "QUEUED" : "QUEUE CONTRACT",
 			selected: isSelected,
-			onClick: () => queueContract(contract),
+			onClick: () => onSelect(contract),
 		})
 	}
 }
@@ -334,8 +692,12 @@ function renderRunTerminalForge(
 		size: k.vec2(width - 32, 34),
 		text: `UPGRADE FORGE  //  ${cost} SALVAGE`,
 		disabled: getScore() < cost,
+		onDisabledClick: playRequirementErrorSound,
 		onClick: () => {
-			if (!spendScore(cost) || !upgradeForge()) return
+			if (!spendScore(cost) || !upgradeForge()) {
+				playRequirementErrorSound()
+				return
+			}
 			spawnCurrencyBurst(k.mousePos(), {
 				particleCount: purchaseBurstParticleCount(cost),
 				fixed: true,
@@ -394,7 +756,7 @@ function destroyChildren(parent: GameObj) {
 	for (const child of [...parent.children]) destroyObjectTree(child)
 }
 
-type PhaseStationTab = "ship" | "arsenal" | "modules" | "upgrades"
+type PhaseStationTab = "ship" | "arsenal" | "modules" | "abilities" | "upgrades"
 
 const PHASE_STATION_TABS: readonly {
 	id: PhaseStationTab
@@ -403,6 +765,7 @@ const PHASE_STATION_TABS: readonly {
 	{ id: "ship", label: "SHIP UPGRADES" },
 	{ id: "arsenal", label: "ARSENAL" },
 	{ id: "modules", label: "MODULES" },
+	{ id: "abilities", label: "ABILITIES" },
 	{ id: "upgrades", label: "UPGRADES" },
 ]
 
@@ -545,6 +908,17 @@ export function showPhaseStation(
 				newBlueprintKeys
 			)
 		}
+		if (activeTab === "abilities") {
+			renderMobilityAndUltimateAbilities(
+				contentRoot,
+				panelLeft + innerPadding,
+				innerWidth,
+				contentTop,
+				contentBottom,
+				render,
+				newBlueprintKeys
+			)
+		}
 		if (activeTab === "upgrades") {
 			const selectedUpgrade = selectedUpgradeKey
 				? getUpgradeDefinition(selectedUpgradeKey)
@@ -597,10 +971,83 @@ export function showPhaseStation(
 function getPhaseStationTabForBlueprint(key: string): PhaseStationTab {
 	if (key.startsWith("weapon:")) return "arsenal"
 	if (key.startsWith("active:")) return "modules"
+	if (key.startsWith("mobility:") || key.startsWith("ultimate:")) {
+		return "abilities"
+	}
 	if (PERMANENT_UPGRADE_KEYS.some((upgradeKey) => upgradeKey === key)) {
 		return "ship"
 	}
 	return "upgrades"
+}
+
+function renderMobilityAndUltimateAbilities(
+	root: GameObj,
+	left: number,
+	width: number,
+	top: number,
+	bottom: number,
+	render: () => void,
+	newBlueprintKeys: ReadonlySet<string>
+) {
+	const groups = [
+		{ slot: "mobility" as const, label: "MOBILITY  //  SPACE OR SHIFT" },
+		{ slot: "ultimate" as const, label: "ULTIMATE  //  Q" },
+	]
+	const groupGap = 16
+	const groupHeight = (bottom - top - groupGap) / groups.length
+	for (let groupIndex = 0; groupIndex < groups.length; groupIndex++) {
+		const group = groups[groupIndex]
+		const groupTop = top + groupIndex * (groupHeight + groupGap)
+		const abilities = getAbilitiesForSlot(group.slot)
+		addThemedText(root, {
+			text: group.label,
+			pos: k.vec2(left, groupTop),
+			variant: "eyebrow",
+			width,
+		})
+		const rowsTop = groupTop + 24
+		const rowGap = 6
+		const rowHeight = Math.min(
+			68,
+			(groupHeight - 24 - rowGap * Math.max(0, abilities.length - 1)) /
+				Math.max(1, abilities.length)
+		)
+		abilities.forEach((ability, index) => {
+			const discoveryKey = getAbilityDiscoveryKey(ability)
+			const discovered = isAbilityDiscovered(ability)
+			const equipped = getEquippedAbilityId(group.slot) === ability.id
+			const hubLocked = getHubLevel() < ability.minimumHubLevel
+			const rarityColor = REWARD_RARITY_COLORS[ability.rarity]
+			createUiSelectableRow(root, {
+				pos: k.vec2(left, rowsTop + index * (rowHeight + rowGap)),
+				width,
+				height: rowHeight,
+				title: discovered ? ability.name : "??????",
+				notification: discovered && newBlueprintKeys.has(discoveryKey),
+				meta: discovered
+					? `${ability.rarity}  //  ${ability.resource.type.toUpperCase()}`
+					: hubLocked
+						? `LOCKED DROP  //  HUB LEVEL ${ability.minimumHubLevel}`
+						: "UNDISCOVERED",
+				description: discovered ? ability.description : "??????",
+				status: discovered
+					? equipped ? "EQUIPPED" : "EQUIP"
+					: hubLocked ? `REQUIRES HUB LEVEL ${ability.minimumHubLevel}` : "??????",
+				statusColor: discovered ? rarityColor : UI_COLORS.muted,
+				icon: discovered ? ability.icon : undefined,
+				iconText: discovered ? undefined : "?",
+				iconSize: Math.min(30, rowHeight - 12),
+				disabled: !discovered,
+				onClick: discovered && !equipped
+					? () => {
+						equipAbilityInSlot(group.slot, ability.id)
+						saveGame("slot1")
+						render()
+					}
+					: undefined,
+			})
+		})
+	}
 }
 
 function renderActiveModules(
@@ -1281,10 +1728,12 @@ function finishClosingHubFacilityPanel(playTransitionSound: boolean) {
 function openPanel(
 	title?: string,
 	size = k.vec2(720, 440),
-	playTransitionSound = true
+	playTransitionSound = true,
+	onClose?: () => void
 ) {
 	if (panelOpen) return undefined
 	panelOpen = true
+	panelCloseHandler = onClose
 	uiState.modalOpen = true
 	for (const obj of k.get<GameObj>(tags.gameLoop)) obj.paused = true
 

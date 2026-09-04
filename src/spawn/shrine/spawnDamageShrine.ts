@@ -8,16 +8,20 @@ import { registerHitAnimation } from "../../shared";
 import { showDamageNumber } from "../../services/damageService";
 import { tryBounceProjectile } from "../../services/projectileService";
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService";
+import { spawnThreatEncounter } from "../../services/enemyEncounterService";
 
 interface DamageShrineProps {
 	pos: Vec2;
 	health: number;
 	depleteRate: number; // damage per second that depletes
+	enemyWaveMultiplier?: number;
+	enemySpawnSpacing?: number;
 	onComplete?: (pos: Vec2) => void;
 	tags?: string[];
 }
 
 export function spawnDamageShrine(props: DamageShrineProps) {
+	let activated = false;
 	const shrine = k.add([
 		k.pos(props.pos),
 		k.sprite("crate1"), // Using crate as placeholder sprite
@@ -66,6 +70,16 @@ export function spawnDamageShrine(props: DamageShrineProps) {
 
 		// Check for projectile hits
 		checkProjectileIntersection(shrine.pos, 24, tags.friendly, (p) => {
+			if (!activated) {
+				activated = true;
+				const encounterCount = Math.max(0, Math.round(props.enemyWaveMultiplier ?? 0));
+				for (let index = 0; index < encounterCount; index++) {
+					const spawnPos = shrine.pos.add(
+						k.Vec2.fromAngle(index * (360 / encounterCount) + 45).scale(180)
+					);
+					spawnThreatEncounter(spawnPos, props.enemySpawnSpacing ?? 48);
+				}
+			}
 			// Add damage from projectile
 			const damage = p.impactDamage ?? 1;
 			shrine.damageReceived += damage;

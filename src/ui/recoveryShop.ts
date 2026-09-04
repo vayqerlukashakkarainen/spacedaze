@@ -39,6 +39,7 @@ import {
 	purchaseBurstParticleCount,
 	spawnCurrencyBurst,
 } from "../spawn/spawnCurrencyBurst"
+import { playRequirementErrorSound } from "../services/uiSoundService"
 
 let isOpen = false
 let isClosing = false
@@ -240,8 +241,10 @@ function renderRecoveryShop(animate = true) {
 }
 
 function purchaseOffer(offer: RecoveryOffer) {
-	if (getOfferLockReason(offer)) return
-	if (!spendScore(offer.price)) return
+	if (getOfferLockReason(offer) || !spendScore(offer.price)) {
+		playRequirementErrorSound()
+		return
+	}
 
 	for (const rewardId of offer.rewardIds) {
 		const reward = createReward(rewardId, offer.rarity as RewardRarity)

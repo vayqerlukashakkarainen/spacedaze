@@ -3,9 +3,12 @@ import { beginPlayerDeathSequence, checkProjectileIntersection } from "./game";
 import {
 	syncPlayerHealthBarCapacity,
 	flashEmptySecondarySocket,
+	flashEmptyMobilitySocket,
+	flashEmptyUltimateSocket,
 	updatePlayerHealthBar,
 	updatePhaseJumpUi,
 	updateSpecialBar,
+	updateUltimateUi,
 } from "./ui/gameUi";
 import {
 	dt,
@@ -20,7 +23,7 @@ import {
 	starsEmitter,
 	trailEmitter,
 } from "./particles";
-import { hasLvlValue, player, PLAYER_SCALE, session } from "./player";
+import { getPlayerMaxHealth, hasLvlValue, player, PLAYER_SCALE, session } from "./player";
 import {
 	spawnPlayerBlaster,
 	spawnPlayerRocket,
@@ -68,12 +71,10 @@ import {
 } from "./services/cameraEffectService";
 import {
 	constrainToRunFinaleBattleZone,
-	getRunFinaleBattleZone,
 } from "./services/runFinaleArenaService";
 import { dialogOpen } from "./services/dialogService";
 import {
 	beginActiveModuleActivation,
-	ensureDefaultActiveModule,
 	getActiveModuleCooldownRemaining,
 	getEquippedActiveModule,
 	updateActiveModuleCooldown,
@@ -81,7 +82,23 @@ import {
 import { createExplosion } from "./services/explosionService";
 import { damageDestructibleWallsInRadius } from "./services/destructibleWallService";
 import { spawnGravityPull } from "./spawn/spawnGravityPull";
+import { getEnemyMovementMultiplier } from "./services/enemyMovementModifierService";
+import {
+	clearPlayerStatusEffects,
+	getPlayerStatusMultiplier,
+	updatePlayerStatusEffects,
+} from "./services/playerStatusEffectService";
 import { spawnFollower } from "./spawn/spawnFollower";
+import {
+	getEquippedMobilityAbilityId,
+	getEquippedUltimateAbilityId,
+} from "./services/abilityLoadoutService";
+import {
+	consumeUltimateCharge,
+	getUltimateChargeProgress,
+} from "./services/ultimateAbilityService";
+import { getAbilityDefinition } from "./services/abilityRegistry";
+import { playRequirementErrorSound } from "./services/uiSoundService";
 
 let blasters = 0;
 let bulletIndex = 1;
@@ -93,7 +110,8 @@ const multiBlasterMountSpacing = 6;
 const overclockShakeInterval = 0.12;
 const overclockShakeIntensity = 0.25;
 const afterburnerWakeInterval = 0.14;
-const phaseJumpInvulnerability = 0.18;
+const phaseJumpAfterimageDuration = 0.18;
+const phaseJumpPostInvulnerability = 0.6;
 const phaseJumpDuration = 0.12;
 const phaseJumpCooldownBarWidth = 22;
 const phaseJumpCooldownBarOffset = -22;
@@ -103,6 +121,8 @@ const respawnTransitionDuration = 0.42;
 const respawnArrivalInvulnerability = 0.35;
 const respawnEntryStretch = 1.7;
 const arrivalPulseDuration = 0.52;
+const reactivePlatingCooldown = 3;
+const empTimescaleModifierId = 87021;
 let currentMoveSpeed = 0;
 let currentCameraScale = 1;
 let currentCameraPos: Vec2 | undefined;
@@ -120,6 +140,8 @@ let nextPrimaryFireTime = 0;
 let configuredWeaponId = "";
 let overclockShakeTimer = 0;
 let afterburnerWakeTimer = 0;
+let reactivePlatingReadyAt = 0;
+let repairPulseGeneration = 0;
 
 interface PhaseJumpConfig {
 	distance: number;
@@ -134,7 +156,8 @@ interface SetupPlayerOptions {
 
 export function setupPlayer(options: SetupPlayerOptions = {}) {
 	resetPlayerDeathCause();
-	ensureDefaultActiveModule(player.rocketsLvl !== undefined);
+	repairPulseGeneration++;
+	reactivePlatingReadyAt = 0;
 	const respawnTarget = k.center();
 	const respawnStart = respawnTarget.add(
 		-k.width() / (WORLD_CAMERA_SCALE * 2) - 48,
@@ -159,6 +182,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 					: respawnTarget
 		),
 		k.sprite("ship"),
+		k.color(k.WHITE),
 		k.rotate(respawnTransitionActive ? respawnAngle : 0),
 		k.scale(
 			arrivalTransitionActive
@@ -167,7 +191,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 				? k.vec2(PLAYER_SCALE * 0.65, PLAYER_SCALE * respawnEntryStretch)
 				: PLAYER_SCALE
 		),
-		k.health(player.maxHealth + session.extraHealth),
+		k.health(getPlayerMaxHealth()),
 		k.anchor("center"),
 		k.opacity(arrivalTransitionActive ? 0 : respawnTransitionActive ? 0.3 : 1),
 		k.animate(),
@@ -181,7 +205,64 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		tags.player,
 		tags.gameLoop,
 	]);
+	clearPlayerStatusEffects();
 	const inputControllers: KEventController[] = [];
+	const readinessFlashQueue: ReturnType<typeof k.rgb>[] = [];
+	let readinessFlashActive = false;
+	let readinessStateInitialized = false;
+	let previousModuleId = "";
+	let moduleWasReady = false;
+	let previousMobilityId = "";
+	let mobilityWasReady = false;
+	let previousUltimateId = "";
+	let ultimateWasReady = false;
+	const playNextReadinessFlash = () => {
+		if (readinessFlashActive || readinessFlashQueue.length === 0) return;
+		if (!playerObj.exists()) return;
+		const color = readinessFlashQueue.shift();
+		if (!color) return;
+		readinessFlashActive = true;
+		spawnPlayerReadinessFlash(playerObj, color);
+		k.wait(0.38, () => {
+			readinessFlashActive = false;
+			if (!playerObj.exists()) return;
+			playNextReadinessFlash();
+		});
+	};
+	const queueReadinessFlash = (color: ReturnType<typeof k.rgb>) => {
+		readinessFlashQueue.push(color);
+		playNextReadinessFlash();
+	};
+	const updateAbilityReadinessFeedback = (
+		moduleId: string,
+		moduleReady: boolean,
+		mobilityId: string,
+		mobilityReady: boolean,
+		ultimateId: string,
+		ultimateReady: boolean
+	) => {
+		if (readinessStateInitialized) {
+			if (
+				moduleReady &&
+				(!moduleWasReady || moduleId !== previousModuleId)
+			) queueReadinessFlash(k.rgb(255, 145, 45));
+			if (
+				mobilityReady &&
+				(!mobilityWasReady || mobilityId !== previousMobilityId)
+			) queueReadinessFlash(k.rgb(80, 180, 255));
+			if (
+				ultimateReady &&
+				(!ultimateWasReady || ultimateId !== previousUltimateId)
+			) queueReadinessFlash(k.rgb(255, 70, 70));
+		}
+		readinessStateInitialized = true;
+		previousModuleId = moduleId;
+		moduleWasReady = moduleReady;
+		previousMobilityId = mobilityId;
+		mobilityWasReady = mobilityReady;
+		previousUltimateId = ultimateId;
+		ultimateWasReady = ultimateReady;
+	};
 	let primaryChargeStartedAt: number | undefined;
 	let primaryChargeWeaponId = "";
 	const scrapArmorPlates: GameObj[] = [];
@@ -256,6 +337,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	});
 
 	playerObj.onUpdate(() => profileSection("external:playerVisuals", () => {
+		updatePlayerStatusEffects(dt());
 		cargoObj = updateShipRewardVisuals(
 			playerObj,
 			scrapArmorPlates,
@@ -314,9 +396,13 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 				phaseJumpMaxCharges,
 				rechargeProgress
 			);
+		} else if (getEquippedMobilityAbilityId() === "thrusterOverdrive") {
+			updatePhaseJumpUi(1, 1, 1);
+		} else {
+			updatePhaseJumpUi(0, 1, 0);
 		}
 
-		const desiredMaxHealth = player.maxHealth + session.extraHealth;
+		const desiredMaxHealth = getPlayerMaxHealth();
 		if (playerObj.maxHP !== desiredMaxHealth) {
 			const addedHealth = Math.max(0, desiredMaxHealth - playerObj.maxHP);
 			playerObj.maxHP = desiredMaxHealth;
@@ -329,11 +415,28 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 
 		updateActiveModuleCooldown(dt());
 		const activeModule = getEquippedActiveModule();
+		const activeCooldownRemaining = getActiveModuleCooldownRemaining();
 		const activeCooldown = activeModule?.cooldown ?? 1;
 		updateSpecialBar(
-			activeCooldown - getActiveModuleCooldownRemaining(),
+			activeCooldown - activeCooldownRemaining,
 			activeCooldown,
 			activeModule
+		);
+		const ultimateId = getEquippedUltimateAbilityId();
+		const ultimateProgress = getUltimateChargeProgress();
+		updateUltimateUi(
+			ultimateProgress,
+			ultimateId ? getAbilityDefinition(ultimateId) : undefined
+		);
+		const mobilityId = getEquippedMobilityAbilityId();
+		updateAbilityReadinessFeedback(
+			activeModule?.id ?? "",
+			activeModule !== undefined && activeCooldownRemaining <= 0,
+			mobilityId ?? "",
+			mobilityId === "thrusterOverdrive" ||
+				(mobilityId === "phaseJump" && phaseJumpCharges > 0),
+			ultimateId ?? "",
+			ultimateId !== undefined && ultimateProgress >= 1
 		);
 		if (levelTransitionActive()) {
 			currentCameraPos = k.getCamPos().clone();
@@ -422,25 +525,19 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 
 		const isPhaseJumping = updatePhaseJump(playerObj);
 		constrainToRunFinaleBattleZone(playerObj.pos, 16);
-		setPlayerDamageInvulnerable(
-			isPhaseJumping || k.time() < phaseJumpInvulnerableUntil
+		const isInvulnerable =
+			isPhaseJumping || k.time() < phaseJumpInvulnerableUntil;
+		setPlayerDamageInvulnerable(isInvulnerable);
+		playerObj.opacity = isInvulnerable ? 0.35 : 1;
+		const cameraFollowSpeed = isPhaseJumping
+			? phaseCameraFollowSpeed
+			: normalCameraFollowSpeed;
+		if (!currentCameraPos) currentCameraPos = playerObj.pos.clone();
+		currentCameraPos = currentCameraPos.lerp(
+			playerObj.pos,
+			1 - Math.exp(-cameraFollowSpeed * dt())
 		);
-		playerObj.opacity = isPhaseJumping ? 0.35 : 1;
-		const battleZone = getRunFinaleBattleZone();
-		if (battleZone) {
-			currentCameraPos = battleZone.center;
-			k.setCamPos(battleZone.center);
-		} else {
-			const cameraFollowSpeed = isPhaseJumping
-				? phaseCameraFollowSpeed
-				: normalCameraFollowSpeed;
-			if (!currentCameraPos) currentCameraPos = playerObj.pos.clone();
-			currentCameraPos = currentCameraPos.lerp(
-				playerObj.pos,
-				1 - Math.exp(-cameraFollowSpeed * dt())
-			);
-			k.setCamPos(currentCameraPos);
-		}
+		k.setCamPos(currentCameraPos);
 
 		if (!isPhaseJumping && k.time() >= phaseJumpInvulnerableUntil) {
 			checkProjectileIntersection(playerObj.pos, 12, tags.enemy, (p) => {
@@ -454,7 +551,10 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			(k.isKeyDown("s") ? 1 : 0) - (k.isKeyDown("w") ? 1 : 0)
 		);
 		const maxSpeed =
-			player.speed * player.speedMultiplier * player.speedPwrUpMultiplier;
+			player.speed *
+			player.speedMultiplier *
+			player.speedPwrUpMultiplier *
+			getEnemyMovementMultiplier();
 		const controlVelocity = wasdDir.len() > 0
 			? wasdDir.unit().scale(maxSpeed)
 			: k.vec2(0);
@@ -509,7 +609,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 
 		const isBoosting =
 			!isPhaseJumping &&
-			player.canSprint !== undefined &&
+			getEquippedMobilityAbilityId() === "thrusterOverdrive" &&
 			k.isKeyDown("shift") &&
 			wasdDir.len() > 0;
 		if (isBoosting) {
@@ -601,6 +701,8 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	}));
 
 	playerObj.onHurt(() => {
+		repairPulseGeneration++;
+		triggerReactivePlating(playerObj);
 		audioService.playSound("hit2", { volume: mainSoundVolume });
 		playerObj.animation.seek(0);
 		k.shake(20);
@@ -698,7 +800,8 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		const triggerModifier = getWeaponTriggerModifier(weapon);
 		if (triggerModifier.usesCooldown) {
 			if (k.time() < nextPrimaryFireTime) return;
-			nextPrimaryFireTime = k.time() + weapon.fireCooldown;
+			nextPrimaryFireTime = k.time() +
+				weapon.fireCooldown * getPlayerStatusMultiplier("weaponRecovery");
 		}
 		const burstCount = Math.max(1, Math.floor(weapon.pattern?.burstCount ?? 1));
 		const burstInterval = weapon.pattern?.burstInterval ?? 0;
@@ -754,9 +857,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		if (levelTransitionActive() || respawnTransitionActive) return;
 		if (!getEquippedActiveModule()) {
 			flashEmptySecondarySocket();
-			audioService.playSound("empty_secondary_error", {
-				volume: mainSoundVolume * 0.55,
-			});
+			playRequirementErrorSound();
 			return;
 		}
 		const activeModule = beginActiveModuleActivation();
@@ -766,8 +867,8 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 
 	playerObj.onKeyDown("shift", () => {
 		if (respawnTransitionActive) return;
-		if (player.canSprint === undefined) return;
-		player.speedPwrUpMultiplier = player.sprintSpeedMultiplier;
+		if (getEquippedMobilityAbilityId() !== "thrusterOverdrive") return;
+		player.speedPwrUpMultiplier = Math.max(1.2, player.sprintSpeedMultiplier);
 	});
 	playerObj.onKeyRelease("shift", () => {
 		player.speedPwrUpMultiplier = 1;
@@ -776,6 +877,11 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	playerObj.onKeyPress("space", () => {
 		if (dialogOpen()) return;
 		if (levelTransitionActive() || respawnTransitionActive) return;
+		if (!getEquippedMobilityAbilityId()) {
+			flashEmptyMobilitySocket();
+			playRequirementErrorSound();
+			return;
+		}
 		const config = getPhaseJumpConfig();
 		if (!config || phaseJumpCharges <= 0 || phaseJumpEnd) return;
 
@@ -796,13 +902,26 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		if (phaseJumpCharges === phaseJumpMaxCharges - 1) {
 			phaseJumpRechargeTimer = 0;
 		}
-		phaseJumpInvulnerableUntil = k.time() + phaseJumpInvulnerability;
 		setPlayerDamageInvulnerable(true);
 		phaseJumpStart = startPos;
 		phaseJumpEnd = destination;
 		phaseJumpElapsed = 0;
 		phaseJumpHitTargets.clear();
 		spawnPhaseJumpEffect(startPos, destination, playerObj.angle);
+	});
+
+	playerObj.onKeyPress("q", () => {
+		if (dialogOpen()) return;
+		if (levelTransitionActive() || respawnTransitionActive) return;
+		const ultimateId = getEquippedUltimateAbilityId();
+		if (!ultimateId) {
+			flashEmptyUltimateSocket();
+			playRequirementErrorSound();
+			return;
+		}
+		if (ultimateId !== "phaseNova") return;
+		if (!consumeUltimateCharge()) return;
+		activatePhaseNova(playerObj);
 	});
 
 	playerObj.onKeyPress("f", () => {
@@ -843,6 +962,49 @@ function spawnPlayerArrivalImpact(playerObj: GameObj<PosComp>) {
 		oscillations: 3.25,
 	});
 	k.shake(4);
+}
+
+function spawnPlayerReadinessFlash(
+	playerObj: GameObj,
+	color: ReturnType<typeof k.rgb>
+) {
+	spawnFlash(playerObj.pos.clone(), 8, color);
+	playerObj.color = color;
+	k.wait(0.1, () => {
+		if (playerObj.exists()) playerObj.color = k.WHITE;
+	});
+	k.wait(0.18, () => {
+		if (playerObj.exists()) playerObj.color = color;
+	});
+	k.wait(0.3, () => {
+		if (playerObj.exists()) playerObj.color = k.WHITE;
+	});
+	const pulse = playerObj.add([
+		k.sprite("ship"),
+		k.anchor("center"),
+		k.color(color),
+		k.opacity(0),
+		k.scale(1),
+		k.z(20),
+		k.animate(),
+	]);
+	pulse.animate("opacity", [0, 1, 0.08, 0.9, 0], {
+		duration: 0.36,
+		loops: 1,
+		timing: [0, 0.18, 0.48, 0.7, 1],
+	});
+	pulse.animate(
+		"scale",
+		[k.vec2(1), k.vec2(1.16), k.vec2(1), k.vec2(1.1), k.vec2(1)],
+		{
+			duration: 0.36,
+			loops: 1,
+			timing: [0, 0.18, 0.48, 0.7, 1],
+		}
+	);
+	k.wait(0.38, () => {
+		if (pulse.exists()) k.destroy(pulse);
+	});
 }
 
 function getPlayerMuzzlePos(
@@ -955,7 +1117,7 @@ function configureBlasters(muzzleObj: GameObj<PosComp>) {
 }
 
 function getPhaseJumpConfig(): PhaseJumpConfig | undefined {
-	if (player.spaceJumpLvl === undefined) return undefined;
+	if (getEquippedMobilityAbilityId() !== "phaseJump") return undefined;
 
 	switch (player.spaceJumpUpgradeLvl) {
 		case undefined:
@@ -1148,7 +1310,132 @@ function activateModule(
 				color: k.rgb(80, 220, 150),
 			});
 			return;
+
+		case "repairPulse": {
+			const generation = ++repairPulseGeneration;
+			const channelDuration = 1.5;
+			const pulseInterval = 0.25;
+			for (let step = 1; step <= channelDuration / pulseInterval; step++) {
+				k.wait(step * pulseInterval, () => {
+					if (!playerObj.exists() || generation !== repairPulseGeneration) return;
+					spawnRing({
+						pos: playerObj.pos.clone(),
+						speed: 90,
+						intensity: 0.12,
+						maxRadius: 30,
+						color: k.rgb(80, 255, 175),
+					});
+					if (step < channelDuration / pulseInterval) return;
+					const maxHp = typeof playerObj.maxHP === "number"
+						? playerObj.maxHP
+						: player.maxHealth;
+					playerObj.hp = Math.min(maxHp, playerObj.hp + 1);
+					updatePlayerHealthBar(playerObj.hp);
+					spawnFlash(playerObj.pos, 10, k.rgb(80, 255, 175));
+					audioService.playSound("collect1", {
+						volume: mainSoundVolume * 0.65,
+						detune: 420,
+					});
+				});
+			}
+			return;
+		}
+
+		case "empBeacon": {
+			const origin = playerObj.pos.clone();
+			spawnRing({
+				pos: origin,
+				speed: 320,
+				intensity: 0.45,
+				maxRadius: 150,
+				color: k.rgb(75, 205, 255),
+			});
+			spawnFlash(origin, 12, k.rgb(75, 205, 255));
+			forEachSpatialNearby(origin, 150, {
+				allTags: [tags.enemy, tags.unit],
+			}, (enemy) => {
+				if (!(enemy.timescaleModifiers instanceof Map)) return;
+				enemy.timescaleModifiers.set(empTimescaleModifierId, 0.05);
+				k.wait(3, () => {
+					if (enemy.exists() && enemy.timescaleModifiers instanceof Map) {
+						enemy.timescaleModifiers.delete(empTimescaleModifierId);
+					}
+				});
+			});
+			audioService.playSound("swap_level", {
+				volume: mainSoundVolume * 0.75,
+				detune: -520,
+			});
+			return;
+		}
 	}
+}
+
+function triggerReactivePlating(playerObj: GameObj) {
+	if (
+		player.reactivePlating === undefined ||
+		k.time() < reactivePlatingReadyAt
+	) return;
+	reactivePlatingReadyAt = k.time() + reactivePlatingCooldown;
+	createExplosion({
+		pos: playerObj.pos.clone(),
+		radius: 72,
+		damage: 6,
+		visualScale: 0.55,
+		visualIntensity: 0.22,
+		visualParticleCount: 14,
+		canCrit: false,
+	});
+	spawnRing({
+		pos: playerObj.pos.clone(),
+		speed: 210,
+		intensity: 0.2,
+		maxRadius: 72,
+		color: k.rgb(220, 235, 255),
+	});
+}
+
+function spawnPhaseEcho(pos: Vec2, angle: number) {
+	const gravity = spawnGravityPull({
+		pos,
+		radius: 105,
+		strength: 34,
+		falloff: 1.1,
+		visualizePull: true,
+		targetTags: [tags.enemy],
+	});
+	const echo = k.add([
+		k.pos(pos),
+		k.sprite("ship"),
+		k.anchor("center"),
+		k.rotate(angle),
+		k.scale(PLAYER_SCALE),
+		k.color(80, 185, 255),
+		k.opacity(0.42),
+		k.layer(layers.gameEffects),
+		tags.gameLoop,
+	]);
+	echo.onUpdate(() => {
+		echo.opacity = k.wave(0.18, 0.55, k.time() * 11);
+	});
+	k.wait(1.25, () => {
+		if (!echo.exists()) {
+			if (gravity.exists()) k.destroy(gravity);
+			return;
+		}
+		if (gravity.exists()) k.destroy(gravity);
+		k.destroy(echo);
+		createExplosion({
+			pos,
+			radius: 70,
+			damage: 8,
+			visualIntensity: 0.45,
+			visualParticleCount: 22,
+		});
+		audioService.playPositionalSound("explosion1", pos, {
+			volume: mainSoundVolume * 0.55,
+		});
+	});
 }
 
 function getActiveModuleTarget(origin: Vec2, maxDistance: number) {
@@ -1158,7 +1445,39 @@ function getActiveModuleTarget(origin: Vec2, maxDistance: number) {
 	return origin.add(offset.unit().scale(maxDistance));
 }
 
+function activatePhaseNova(playerObj: GameObj<PosComp>) {
+	const origin = playerObj.pos.clone();
+	spawnFlash(origin, 18, k.WHITE);
+	spawnRing({
+		pos: origin,
+		speed: 520,
+		intensity: 0.7,
+		maxRadius: 260,
+		visualize: true,
+		color: k.rgb(205, 130, 255),
+	});
+	createExplosion({
+		pos: origin,
+		radius: 260,
+		damage: 45,
+		visualIntensity: 1.4,
+		visualParticleCount: 72,
+		damageFalloff: 0.35,
+		falloffDistance: 120,
+	});
+	audioService.playSound("high_rarity_reveal", {
+		volume: mainSoundVolume,
+		detune: 520,
+	});
+	audioService.playSound("explosion2", {
+		volume: mainSoundVolume,
+		detune: -120,
+	});
+	k.shake(14);
+}
+
 function getSpaceJumpConfigLevel() {
+	if (getEquippedMobilityAbilityId() !== "phaseJump") return -1;
 	if (player.spaceJumpLvl === undefined) return 0;
 	return (player.spaceJumpUpgradeLvl ?? 0) + 1;
 }
@@ -1174,7 +1493,7 @@ function spawnPhaseJumpEffect(start: Vec2, end: Vec2, angle: number) {
 	k.add([
 		k.pos(start),
 		k.opacity(0.8),
-		k.lifespan(phaseJumpInvulnerability, { fade: 0.14 }),
+		k.lifespan(phaseJumpAfterimageDuration, { fade: 0.14 }),
 		{
 			draw() {
 				k.drawLine({
@@ -1197,7 +1516,7 @@ function spawnPhaseJumpEffect(start: Vec2, end: Vec2, angle: number) {
 			k.rotate(angle),
 			k.color(80, 180, 255),
 			k.opacity(0.65),
-			k.lifespan(phaseJumpInvulnerability, { fade: 0.14 }),
+			k.lifespan(phaseJumpAfterimageDuration, { fade: 0.14 }),
 			tags.gameLoop,
 		]);
 	}
@@ -1272,9 +1591,13 @@ function updatePhaseJump(playerObj: GameObj<PosComp>): boolean {
 	boostTrailEmitter.emit(2);
 
 	if (progress >= 1) {
+		if (player.phaseEcho !== undefined) {
+			spawnPhaseEcho(phaseJumpStart.clone(), playerObj.angle);
+		}
 		if (player.phaseMagazine !== undefined) {
 			spawnPhaseMagazineSalvo(playerObj.pos.clone());
 		}
+		phaseJumpInvulnerableUntil = k.time() + phaseJumpPostInvulnerability;
 		phaseJumpStart = undefined;
 		phaseJumpEnd = undefined;
 		phaseJumpElapsed = 0;

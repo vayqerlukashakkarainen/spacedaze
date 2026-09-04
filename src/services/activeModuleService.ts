@@ -1,4 +1,9 @@
 import { RewardRarity } from "../types/rewardTypes"
+import {
+	clearAbilitySlot,
+	equipAbility,
+	getEquippedSecondaryAbilityId,
+} from "./abilityLoadoutService"
 
 export type ActiveModuleId =
 	| "rocketPod"
@@ -6,6 +11,8 @@ export type ActiveModuleId =
 	| "gravityCharge"
 	| "breachCharge"
 	| "droneBeacon"
+	| "repairPulse"
+	| "empBeacon"
 
 export interface ActiveModuleDefinition {
 	id: ActiveModuleId
@@ -81,9 +88,32 @@ export const ACTIVE_MODULES: readonly ActiveModuleDefinition[] = [
 		stats: { ROLE: "SUPPORT", DRONES: 2, DURATION: "12S" },
 		crateWeight: 68,
 	},
+	{
+		id: "repairPulse",
+		minimumHubLevel: 2,
+		name: "REPAIR PULSE",
+		shortName: "REPAIR",
+		description: "Channels a hull repair over 1.5 seconds. Taking damage interrupts it.",
+		icon: "active_repair_pulse",
+		cooldown: 12,
+		rarity: RewardRarity.Uncommon,
+		stats: { ROLE: "RECOVERY", REPAIR: 1, CHANNEL: "1.5S" },
+		crateWeight: 82,
+	},
+	{
+		id: "empBeacon",
+		minimumHubLevel: 3,
+		name: "EMP BEACON",
+		shortName: "EMP",
+		description: "Disrupts enemies and mines in a wide radius for 3 seconds.",
+		icon: "active_emp_beacon",
+		cooldown: 13,
+		rarity: RewardRarity.Rare,
+		stats: { ROLE: "CONTROL", RADIUS: 150, DURATION: "3S" },
+		crateWeight: 70,
+	},
 ]
 
-let equippedModuleId: ActiveModuleId | undefined
 let cooldownRemaining = 0
 
 export function getActiveModuleDefinition(id: ActiveModuleId) {
@@ -91,31 +121,34 @@ export function getActiveModuleDefinition(id: ActiveModuleId) {
 }
 
 export function getEquippedActiveModule() {
+	const equippedModuleId = getEquippedSecondaryAbilityId()
 	return equippedModuleId
 		? getActiveModuleDefinition(equippedModuleId)
 		: undefined
 }
 
 export function getEquippedActiveModuleId() {
-	return equippedModuleId
+	return getEquippedSecondaryAbilityId()
 }
 
 export function hasEquippedActiveModule() {
-	return equippedModuleId !== undefined
+	return getEquippedSecondaryAbilityId() !== undefined
 }
 
 export function equipActiveModule(id: ActiveModuleId) {
-	equippedModuleId = id
+	equipAbility("secondary", id)
 	cooldownRemaining = 0
 	return true
 }
 
 export function ensureDefaultActiveModule(rocketsUnlocked: boolean) {
-	if (!equippedModuleId && rocketsUnlocked) equipActiveModule("rocketPod")
+	if (!getEquippedSecondaryAbilityId() && rocketsUnlocked) {
+		equipActiveModule("rocketPod")
+	}
 }
 
 export function resetActiveModule() {
-	equippedModuleId = undefined
+	clearAbilitySlot("secondary")
 	cooldownRemaining = 0
 }
 
@@ -127,6 +160,13 @@ export function getActiveModuleCooldownRemaining() {
 	return cooldownRemaining
 }
 
+export function reduceActiveModuleCooldown(seconds: number) {
+	if (!Number.isFinite(seconds) || seconds <= 0) return seconds
+	const consumed = Math.min(cooldownRemaining, seconds)
+	cooldownRemaining -= consumed
+	return seconds - consumed
+}
+
 export function beginActiveModuleActivation() {
 	const module = getEquippedActiveModule()
 	if (!module || cooldownRemaining > 0) return undefined
@@ -135,7 +175,7 @@ export function beginActiveModuleActivation() {
 }
 
 export function isRocketPodEquipped() {
-	return equippedModuleId === "rocketPod"
+	return getEquippedSecondaryAbilityId() === "rocketPod"
 }
 
 export function isActiveModuleId(id: string): id is ActiveModuleId {

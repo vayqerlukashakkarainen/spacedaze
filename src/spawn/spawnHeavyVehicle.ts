@@ -8,6 +8,7 @@ import { registerHitAnimation } from "../shared";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
 import {
 	createEnemySpawnProfile,
+	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService";
 import { applyDamage } from "../services/damageService";
@@ -39,9 +40,11 @@ export function spawnHeavyVehicle(
 			hb,
 			elite: profile.elite,
 			damage: profile.damage,
+			threatRank: ENEMY_THREAT_RANK.heavyVehicle,
 		},
 		tags.enemy,
 		tags.unit,
+		tags.enemyRoleArtillery,
 		...(profile.elite ? [tags.elite] : []),
 		tags.gameLoop,
 		...(options.tags ?? []),

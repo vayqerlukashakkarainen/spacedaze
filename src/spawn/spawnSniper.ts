@@ -8,6 +8,7 @@ import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import { spawnEnemyBlaster } from "../services/projectileHelpers"
 import {
 	createEnemySpawnProfile,
+	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService"
 import { easeDirection, registerHitAnimation } from "../shared"
@@ -38,6 +39,7 @@ export function spawnSniper(
 		{
 			hb: 12 * profile.scale,
 			damage: profile.damage,
+			threatRank: ENEMY_THREAT_RANK.sniper,
 			phase: "reposition" as SniperPhase,
 			phaseTimer: k.rand(0.4, 1.2),
 			strafeDirection: k.chance(0.5) ? 1 : -1,
@@ -46,6 +48,7 @@ export function spawnSniper(
 		},
 		tags.enemy,
 		tags.unit,
+		tags.enemyRoleArtillery,
 		...(profile.elite ? [tags.elite] : []),
 		tags.gameLoop,
 		...(options.tags ?? []),
@@ -126,7 +129,7 @@ export function spawnSniper(
 			!isPlayerDamageInvulnerable() &&
 			sniper.pos.dist(playerObj.pos) < sniper.hb + 8
 		) {
-			applyDamage(playerObj, profile.damage, {
+			applyDamage(playerObj, sniper.damage, {
 				source: { name: "SNIPER", sprite: "enemy_sniper" },
 			})
 			applyDamage(sniper, sniper.hp)

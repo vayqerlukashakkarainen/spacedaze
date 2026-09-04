@@ -18,3 +18,9 @@ export function playUiClickSound() {
 		volume: mainSoundVolume * 0.9,
 	})
 }
+
+export function playRequirementErrorSound() {
+	audioService.playSound("empty_secondary_error", {
+		volume: mainSoundVolume * 0.55,
+	})
+}

@@ -282,7 +282,7 @@ export function spawnFollower(props: Props) {
 					m.pos,
 					k.Vec2.fromAngle(m.targetAngle()),
 					m.targetAngle() + 90,
-					m.dmg * 4,
+					m.dmg * 4 * getPackDamageMultiplier(m),
 					5,
 					[tags.friendly, tags.blaster],
 					player.followerProjectileLink !== undefined
@@ -305,8 +305,8 @@ export function spawnFollower(props: Props) {
 					m.pos,
 					k.Vec2.fromAngle(m.angle - 90),
 					m.angle,
-					player.rocketImpactDmg * player.rocketDmgMultiplier,
-					player.rocketSplashDmg * player.rocketDmgMultiplier,
+					player.rocketImpactDmg * player.rocketDmgMultiplier * getPackDamageMultiplier(m),
+					player.rocketSplashDmg * player.rocketDmgMultiplier * getPackDamageMultiplier(m),
 					player.rocketSplashSize * player.rocketSplashSizeMultiplier,
 					true,
 					[tags.friendly, tags.rocket],
@@ -327,7 +327,7 @@ export function spawnFollower(props: Props) {
 					m.pos,
 					k.Vec2.fromAngle(m.targetAngle()),
 					m.targetAngle() + 90,
-					m.dmg,
+					m.dmg * getPackDamageMultiplier(m),
 					2,
 					[tags.friendly, tags.blaster],
 					player.followerProjectileLink !== undefined
@@ -354,6 +354,17 @@ export function spawnFollower(props: Props) {
 	});
 
 	return m;
+}
+
+function getPackDamageMultiplier(drone: GameObj) {
+	if (player.packIntelligence === undefined || !drone.lockedTarget) return 1;
+	const focusedDrones = (k.get(tags.follower) as GameObj[]).filter(
+		(candidate) =>
+			candidate.exists() &&
+			candidate.id !== drone.id &&
+			candidate.lockedTarget?.id === drone.lockedTarget.id
+	).length;
+	return 1 + Math.min(0.8, focusedDrones * 0.2);
 }
 
 export function refreshFollowerTypes() {

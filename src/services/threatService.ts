@@ -7,6 +7,20 @@ const DEPTH_TIME_OFFSET = BASE_DEPTH_TIME_OFFSET * (
 const MAX_THREAT_TIER = 5
 const THREAT_ECONOMY_STEP = 0.25
 
+export const ENEMY_THREAT_RANK = {
+	asteroid: 0,
+	swarmDrone: 1,
+	fighter: 2,
+	genericVehicle: 2,
+	assassin: 3,
+	rammer: 4,
+	heavyVehicle: 5,
+	sniper: 6,
+	mineLayer: 7,
+	hiveMind: 9,
+	boss: 10,
+} as const
+
 export interface ThreatSnapshot {
 	active: boolean
 	depth: number

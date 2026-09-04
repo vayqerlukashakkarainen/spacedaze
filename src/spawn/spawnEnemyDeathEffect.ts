@@ -14,8 +14,9 @@ const FRAGMENT_SPRITES = [
 ] as const
 
 export function spawnEnemyDeathEffect(pos: Vec2, intensity: number = 1) {
-	const effectIntensity = k.clamp(intensity, 0.85, 1.45)
-	const fragmentCount = Math.round(k.lerp(9, 14, effectIntensity - 0.85))
+	const effectIntensity = k.clamp(intensity, 0.35, 1.45)
+	const normalizedIntensity = (effectIntensity - 0.35) / 1.1
+	const fragmentCount = Math.round(k.lerp(4, 14, normalizedIntensity))
 
 	spawnExplosionEffect(pos, 13 * effectIntensity, {
 		ringIntensity: 0.24,

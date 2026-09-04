@@ -20,6 +20,7 @@ import {
 } from "./main";
 import {
 	addScrapArmorProgress,
+	getPlayerMaxHealth,
 	loadPlayer,
 	player,
 	resetSession,
@@ -90,6 +91,7 @@ import {
 	DebreeRunOutcome,
 	loseCarriedDebree,
 } from "./services/debreeEconomyService";
+import { chargeSalvageBattery } from "./services/shipUpgradeService";
 
 export let playerObj: GameObj<
 	PosComp | SpriteComp | RotateComp | AreaComp | AnchorComp | HealthComp
@@ -208,6 +210,7 @@ export function collectDebreeImmediately(
 		player.scorePerPickup * salvageValue * player.debreeValueMultiplier
 	);
 	addScrapArmorProgress(salvageGained);
+	chargeSalvageBattery(playerObj, salvageGained);
 	showSalvageGain(salvageGained, color, collectionPos);
 	return salvageGained;
 }
@@ -320,7 +323,7 @@ function continueAfterPlayerDeath(diedInHub: boolean) {
 		transitionToLevel("hub");
 		playerObj = setupPlayer({ respawnTransition: true });
 		respawnCombatDrones(combatDroneCount);
-		updatePlayerHealthBar(player.maxHealth + session.extraHealth);
+		updatePlayerHealthBar(getPlayerMaxHealth());
 		setTimescale(1, 0.4, false);
 		isPlayerDying = false;
 		return;
@@ -477,7 +480,7 @@ export function addMaxHealth() {
 	if (!playerObj) return;
 
 	session.extraHealth++;
-	const totalHealth = player.maxHealth + session.extraHealth;
+	const totalHealth = getPlayerMaxHealth();
 	playerObj.maxHP = totalHealth;
 	addHealthBar(totalHealth - 1);
 	playerObj.hp = playerObj.maxHP;

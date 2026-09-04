@@ -3,10 +3,27 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-guard CommandLine.arguments.count == 4,
+guard (4...6).contains(CommandLine.arguments.count),
 	let outputSize = Int(CommandLine.arguments[3]),
 	outputSize > 0 else {
-	fputs("Usage: swift scripts/prepareGeneratedSprite.swift <input.png> <output.png> <size>\n", stderr)
+	fputs("Usage: swift scripts/prepareGeneratedSprite.swift <input.png> <output.png> <size> [logical-size] [1bit]\n", stderr)
+	exit(1)
+}
+let requestedLogicalSize = CommandLine.arguments.count >= 5
+	? Int(CommandLine.arguments[4])
+	: outputSize
+guard let logicalSize = requestedLogicalSize,
+	logicalSize > 0,
+	logicalSize <= outputSize,
+	outputSize % logicalSize == 0 else {
+	fputs("logical-size must divide size evenly\n", stderr)
+	exit(1)
+}
+let paletteMode = CommandLine.arguments.count == 6
+	? CommandLine.arguments[5]
+	: "grayscale"
+guard paletteMode == "grayscale" || paletteMode == "1bit" else {
+	fputs("palette mode must be 1bit when supplied\n", stderr)
 	exit(1)
 }
 
@@ -39,7 +56,8 @@ guard rendered else { exit(1) }
 
 func isBackgroundCandidate(_ index: Int) -> Bool {
 	let offset = index * 4
-	return sourcePixels[offset] >= 225 &&
+	return sourcePixels[offset + 3] == 0 ||
+		sourcePixels[offset] >= 225 &&
 		sourcePixels[offset + 1] >= 225 &&
 		sourcePixels[offset + 2] >= 225
 }
@@ -89,20 +107,22 @@ guard minX <= maxX && minY <= maxY else {
 	exit(1)
 }
 
-let padding = outputSize <= 32 ? 2 : 3
+let padding = logicalSize <= 32 ? 2 : 3
 let sourceWidth = maxX - minX + 1
 let sourceHeight = maxY - minY + 1
-let available = outputSize - padding * 2
+let available = logicalSize - padding * 2
 let fitScale = min(
 	Double(available) / Double(sourceWidth),
 	Double(available) / Double(sourceHeight)
 )
 let drawnWidth = max(1, Int((Double(sourceWidth) * fitScale).rounded()))
 let drawnHeight = max(1, Int((Double(sourceHeight) * fitScale).rounded()))
-let originX = (outputSize - drawnWidth) / 2
-let originY = (outputSize - drawnHeight) / 2
-let palette = [UInt8(0), UInt8(88), UInt8(176), UInt8(255)]
-var outputPixels = [UInt8](repeating: 0, count: outputSize * outputSize * 4)
+let originX = (logicalSize - drawnWidth) / 2
+let originY = (logicalSize - drawnHeight) / 2
+let palette = paletteMode == "1bit"
+	? [UInt8(0), UInt8(255)]
+	: [UInt8(0), UInt8(88), UInt8(176), UInt8(255)]
+var logicalPixels = [UInt8](repeating: 0, count: logicalSize * logicalSize * 4)
 
 for targetY in 0..<drawnHeight {
 	for targetX in 0..<drawnWidth {
@@ -129,11 +149,64 @@ for targetY in 0..<drawnHeight {
 		let gray = palette.min(by: {
 			abs(Int($0) - Int(average)) < abs(Int($1) - Int(average))
 		}) ?? average
-		let targetIndex = ((originY + targetY) * outputSize + originX + targetX) * 4
-		outputPixels[targetIndex] = gray
-		outputPixels[targetIndex + 1] = gray
-		outputPixels[targetIndex + 2] = gray
-		outputPixels[targetIndex + 3] = 255
+		let targetIndex = ((originY + targetY) * logicalSize + originX + targetX) * 4
+		logicalPixels[targetIndex] = gray
+		logicalPixels[targetIndex + 1] = gray
+		logicalPixels[targetIndex + 2] = gray
+		logicalPixels[targetIndex + 3] = 255
+	}
+}
+
+let minimumComponentPixels = max(2, logicalSize / 32)
+var visited = [Bool](repeating: false, count: logicalSize * logicalSize)
+for start in 0..<(logicalSize * logicalSize) {
+	if visited[start] || logicalPixels[start * 4 + 3] == 0 { continue }
+	var component = [start]
+	var componentCursor = 0
+	visited[start] = true
+	while componentCursor < component.count {
+		let index = component[componentCursor]
+		componentCursor += 1
+		let x = index % logicalSize
+		let y = index / logicalSize
+		let neighbors = [
+			x > 0 ? index - 1 : -1,
+			x + 1 < logicalSize ? index + 1 : -1,
+			y > 0 ? index - logicalSize : -1,
+			y + 1 < logicalSize ? index + logicalSize : -1,
+		]
+		for neighbor in neighbors where neighbor >= 0 {
+			if visited[neighbor] || logicalPixels[neighbor * 4 + 3] == 0 { continue }
+			visited[neighbor] = true
+			component.append(neighbor)
+		}
+	}
+	if component.count >= minimumComponentPixels { continue }
+	for index in component {
+		let offset = index * 4
+		logicalPixels[offset] = 0
+		logicalPixels[offset + 1] = 0
+		logicalPixels[offset + 2] = 0
+		logicalPixels[offset + 3] = 0
+	}
+}
+
+var outputPixels = [UInt8](repeating: 0, count: outputSize * outputSize * 4)
+let pixelScale = outputSize / logicalSize
+for logicalY in 0..<logicalSize {
+	for logicalX in 0..<logicalSize {
+		let sourceIndex = (logicalY * logicalSize + logicalX) * 4
+		for offsetY in 0..<pixelScale {
+			for offsetX in 0..<pixelScale {
+				let targetX = logicalX * pixelScale + offsetX
+				let targetY = logicalY * pixelScale + offsetY
+				let targetIndex = (targetY * outputSize + targetX) * 4
+				outputPixels[targetIndex] = logicalPixels[sourceIndex]
+				outputPixels[targetIndex + 1] = logicalPixels[sourceIndex + 1]
+				outputPixels[targetIndex + 2] = logicalPixels[sourceIndex + 2]
+				outputPixels[targetIndex + 3] = logicalPixels[sourceIndex + 3]
+			}
+		}
 	}
 }
 
@@ -158,4 +231,4 @@ guard let outputImage,
 	) else { exit(1) }
 CGImageDestinationAddImage(destination, outputImage, nil)
 guard CGImageDestinationFinalize(destination) else { exit(1) }
-print("Prepared \(output.lastPathComponent) at \(outputSize)x\(outputSize)")
+print("Prepared \(output.lastPathComponent) at \(outputSize)x\(outputSize) from \(logicalSize)x\(logicalSize) logical pixels using \(paletteMode)")

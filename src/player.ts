@@ -5,6 +5,7 @@ import {
 	getEffectiveUpgradeLevel,
 	ToolKey,
 } from "./upg";
+import { resetUltimateCharge } from "./services/ultimateAbilityService";
 
 interface Ship {
 	speed: number;
@@ -59,6 +60,11 @@ interface Ship {
 	afterburnerWake: number | undefined;
 	sacrificialProtocol: number | undefined;
 	enemyHacker: number | undefined;
+	phaseEcho: number | undefined;
+	salvageBattery: number | undefined;
+	reactivePlating: number | undefined;
+	packIntelligence: number | undefined;
+	glassReactor: number | undefined;
 	droneSetBonus: boolean;
 	mobilitySetBonus: boolean;
 	ordnanceSetBonus: boolean;
@@ -113,6 +119,8 @@ interface Session {
 	primaryRocketChance: number;
 	scrapArmorCharges: number;
 	scrapArmorProgress: number;
+	salvageBatteryProgress: number;
+	salvageBatteryShieldCharges: number;
 	volatileCargoActive: boolean;
 	volatileCargoIntact: boolean;
 	volatileCargoDelivered: boolean;
@@ -121,6 +129,12 @@ interface Session {
 
 export const PLAYER_SCALE = 1.2;
 
+export function getPlayerMaxHealth() {
+	return player.glassReactor !== undefined
+		? 1
+		: player.maxHealth + session.extraHealth;
+}
+
 export const session: Session = {
 	extraHealth: 0,
 	extraRockets: 0,
@@ -128,6 +142,8 @@ export const session: Session = {
 	primaryRocketChance: 0,
 	scrapArmorCharges: 0,
 	scrapArmorProgress: 0,
+	salvageBatteryProgress: 0,
+	salvageBatteryShieldCharges: 0,
 	volatileCargoActive: false,
 	volatileCargoIntact: false,
 	volatileCargoDelivered: false,
@@ -141,8 +157,11 @@ export function resetSession() {
 	session.primaryRocketChance = 0;
 	session.scrapArmorCharges = 0;
 	session.scrapArmorProgress = 0;
+	session.salvageBatteryProgress = 0;
+	session.salvageBatteryShieldCharges = 0;
 	session.rerollTokens = 0;
 	resetVolatileCargoObjective();
+	resetUltimateCharge();
 }
 
 export function getRerollTokens() {
@@ -211,6 +230,11 @@ export const player: Ship = {
 	afterburnerWake: undefined,
 	sacrificialProtocol: undefined,
 	enemyHacker: undefined,
+	phaseEcho: undefined,
+	salvageBattery: undefined,
+	reactivePlating: undefined,
+	packIntelligence: undefined,
+	glassReactor: undefined,
 	droneSetBonus: false,
 	mobilitySetBonus: false,
 	ordnanceSetBonus: false,
@@ -297,6 +321,12 @@ export function loadPlayer() {
 	player.afterburnerWake = getToolUpgradeLvlValue("afterburnerWake");
 	player.sacrificialProtocol = getToolUpgradeLvlValue("sacrificialProtocol");
 	player.enemyHacker = getToolUpgradeLvlValue("enemyHacker");
+	player.phaseEcho = getToolUpgradeLvlValue("phaseEcho");
+	player.salvageBattery = getToolUpgradeLvlValue("salvageBattery");
+	player.reactivePlating = getToolUpgradeLvlValue("reactivePlating");
+	player.packIntelligence = getToolUpgradeLvlValue("packIntelligence");
+	player.glassReactor = getToolUpgradeLvlValue("glassReactor");
+	if (player.glassReactor !== undefined) player.maxHealth = 1;
 	player.droneSetBonus = hasTechnologySet([
 		"followerBlasterDmg",
 		"followerMissiles",

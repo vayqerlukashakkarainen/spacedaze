@@ -16,25 +16,30 @@ import {
 	UI_FONT_SIZES,
 } from "../ui/common";
 import {
-	buildFacility,
 	consumeHubGhostChest,
+	getFacilityConstruction,
+	getFacilityConstructionRemainingMs,
 	getHubGhostChestCapacity,
 	getHubGhostChestStock,
 	getHubLevel,
 	hasUnseenBlueprints,
+	HUB_FACILITY_BUILD_DURATION_MS,
 	HUB_FACILITIES,
 	HubFacilityDefinition,
 	HubFacilityId,
 	isFacilityBuilt,
 	isFacilityUnlocked,
+	startFacilityConstruction,
 } from "../services/hubProgressService";
 import {
 	showPhaseStation,
+	showRunPreparation,
 	showRunTerminal,
 } from "../ui/hubFacilities";
 import { saveGame } from "../util";
 import { starsEmitter } from "../particles";
-import { beginRandomRunSession } from "../services/runDirectorService";
+import { beginRunSession } from "../services/runDirectorService";
+import { getUnlockedWarpZones } from "../services/warpZoneService";
 import { ASTEROID_SPRITES } from "../asteroidSprites";
 import { spawnMeteorite } from "../spawn/spawnAsteroid";
 import { spawnDebreeValues } from "../spawn/spawnDebree";
@@ -50,6 +55,12 @@ import {
 	spawnCurrencyBurst,
 } from "../spawn/spawnCurrencyBurst";
 import { showPendingRunEndSummary } from "../ui/runEndSummary";
+import { spawnHubRestoration } from "../spawn/spawnHubRestoration";
+import {
+	HubRepairCrew,
+	spawnHubRepairCrew,
+} from "../spawn/spawnHubRepairCrew";
+import { playRequirementErrorSound } from "../services/uiSoundService";
 
 let lvlData: any = {};
 let bgAsteroidTimer = 0;
@@ -72,20 +83,20 @@ const hubFacilitySprites: Record<
 	{ built: string; destroyed: string }
 > = {
 	contractTerminal: {
-		built: "facility_contract_terminal",
-		destroyed: "facility_contract_terminal_destroyed",
+		built: "facility_contract_terminal_1bit",
+		destroyed: "facility_contract_terminal_destroyed_1bit",
 	},
 	trainingRange: {
-		built: "facility_training_range",
+		built: "facility_phase_station_minimal",
 		destroyed: "facility_training_range_destroyed",
 	},
 	salvageForge: {
-		built: "facility_salvage_forge",
-		destroyed: "facility_salvage_forge_destroyed",
+		built: "facility_salvage_forge_1bit",
+		destroyed: "facility_salvage_forge_destroyed_1bit",
 	},
 	debriefTerminal: {
-		built: "facility_debrief_terminal",
-		destroyed: "facility_debrief_terminal_destroyed",
+		built: "facility_debrief_terminal_1bit",
+		destroyed: "facility_debrief_terminal_destroyed_1bit",
 	},
 };
 export const hub: Level = {
@@ -102,19 +113,30 @@ export const hub: Level = {
 			continueIfPlaying: true,
 		});
 		spawnHubBoundaries();
-		const wormholePos = k.center().add(300, -80);
+		const wormholePos = k.center().add(650, -350);
 		const wormhole = spawnLevel({
 			pos: wormholePos,
 			levelName: "level1",
 			visual: "wormhole",
 			label: "",
 			onEnter: (_portal, selectLevel, cancel) => {
-				const firstFloor = beginRandomRunSession();
-				if (!firstFloor) {
+				const zone = getUnlockedWarpZones()[0];
+				if (!zone) {
 					cancel();
 					return;
 				}
-				selectLevel(firstFloor.levelKey);
+				showRunPreparation({
+					zone,
+					onLaunch: () => {
+						const firstFloor = beginRunSession(zone.id);
+						if (!firstFloor) {
+							cancel();
+							return;
+						}
+						selectLevel(firstFloor.levelKey);
+					},
+					onCancel: cancel,
+				});
 			},
 		});
 		const wormholeGravity = spawnGravityPull({
@@ -160,7 +182,14 @@ export const hub: Level = {
 		const healthOrb = spawnHealthOrb(k.center().add(-330, 90));
 		healthOrb.speed = 0;
 		spawnDebreeValues(k.center().add(90, 55), [1, 2, 3, 4, 5]);
-		spawnHubFacilities();
+		const hubFacilityPositions = getHubFacilityPositions();
+		const repairCrew = spawnHubRepairCrew(hubFacilityPositions.trainingRange);
+		spawnHubFacilities(hubFacilityPositions, repairCrew);
+		spawnHubRestoration(
+			k.center(),
+			hubFacilityPositions.trainingRange,
+			k.vec2(hubHalfWidth, hubHalfHeight)
+		);
 		spawnHubBackgroundDepth();
 		spawnPhaseShiftAsteroidField();
 		saveGame("slot1");
@@ -505,23 +534,29 @@ function getPhaseFieldCenter() {
 	return k.center().add(phaseFieldOffsetX, phaseFieldOffsetY);
 }
 
-function spawnHubFacilities() {
+function getHubFacilityPositions() {
 	const center = k.center();
-	const positions: Record<HubFacilityId, ReturnType<typeof k.vec2>> = {
+	return {
 		contractTerminal: center.add(160, -300),
 		trainingRange: center.add(570, 260),
 		salvageForge: center.add(-360, -260),
 		debriefTerminal: center.add(-560, 100),
-	};
+	} satisfies Record<HubFacilityId, ReturnType<typeof k.vec2>>;
+}
 
+function spawnHubFacilities(
+	positions: Record<HubFacilityId, ReturnType<typeof k.vec2>>,
+	repairCrew: HubRepairCrew
+) {
 	for (const facility of HUB_FACILITIES) {
-		spawnHubFacility(facility, positions[facility.id]);
+		spawnHubFacility(facility, positions[facility.id], repairCrew);
 	}
 }
 
 function spawnHubFacility(
 	facility: HubFacilityDefinition,
-	pos: ReturnType<typeof k.vec2>
+	pos: ReturnType<typeof k.vec2>,
+	repairCrew: HubRepairCrew
 ) {
 	let built = isFacilityBuilt(facility.id);
 	const unlocked = () => isFacilityUnlocked(facility.id);
@@ -530,24 +565,23 @@ function spawnHubFacility(
 		k.pos(pos),
 		interactable(hubFacilityInteractRadius, () => {
 			if (!built) {
-				if (!unlocked()) return;
-				if (!spendScore(facility.cost)) return;
+				const activeConstruction = getFacilityConstruction();
+				if (activeConstruction || !unlocked() || getScore() < facility.cost) {
+					playRequirementErrorSound();
+					return;
+				}
+				if (!startFacilityConstruction(facility.id)) return;
+				if (!spendScore(facility.cost)) {
+					playRequirementErrorSound();
+					return;
+				}
 				if (facility.cost > 0) {
 					spawnCurrencyBurst(building.pos.clone(), {
 						particleCount: purchaseBurstParticleCount(facility.cost),
 					});
 				}
-				if (!buildFacility(facility.id)) return;
 				saveGame("slot1");
-				built = true;
-				buildingVisual.use(k.sprite(sprites.built));
-				buildingVisual.color = k.WHITE;
-				buildingVisual.opacity = 1;
-				starsEmitter.emitter.position = building.pos;
-				starsEmitter.emit(28);
-				if (facility.id === "trainingRange") {
-					spawnTrainingDummies(building.pos);
-				}
+				repairCrew.setRepairTarget(building.pos);
 				return;
 			}
 			openHubFacility(facility.id);
@@ -559,8 +593,8 @@ function spawnHubFacility(
 		k.sprite(built ? sprites.built : sprites.destroyed),
 		k.anchor("center"),
 		k.layer(layers.buildings),
-		k.scale(hubFacilityScale),
-		k.color(built ? k.WHITE : k.rgb(100, 110, 120)),
+		k.scale(getHubFacilityVisualScale(facility.id, built)),
+		k.color(getHubFacilityVisualColor(facility.id, built)),
 		k.opacity(built ? 1 : 0.68),
 	]);
 	const newInfoMarker = facility.id === "trainingRange"
@@ -580,6 +614,24 @@ function spawnHubFacility(
 	if (built && facility.id === "trainingRange") {
 		spawnTrainingDummies(pos);
 	}
+	if (getFacilityConstruction()?.facilityId === facility.id) {
+		repairCrew.setRepairTarget(pos);
+	}
+	const finishBuilding = () => {
+		if (built) return;
+		built = true;
+		buildingVisual.use(k.sprite(sprites.built));
+		buildingVisual.scale = k.vec2(getHubFacilityVisualScale(facility.id, true));
+		buildingVisual.color = getHubFacilityVisualColor(facility.id, true);
+		buildingVisual.opacity = 1;
+		repairCrew.setRepairTarget(undefined);
+		starsEmitter.emitter.position = building.pos;
+		starsEmitter.emit(28);
+		if (facility.id === "trainingRange") {
+			spawnTrainingDummies(building.pos);
+		}
+		saveGame("slot1");
+	};
 	const prompt = createInteractionPrompt({
 		target: building,
 		offset: k.vec2(0, hubFacilityLabelOffsetY),
@@ -590,6 +642,18 @@ function spawnHubFacility(
 				notification: facility.id === "trainingRange" && hasUnseenBlueprints(),
 				action: "OPEN FACILITY",
 			}
+			: getFacilityConstruction()?.facilityId === facility.id
+				? {
+					title: facility.name,
+					action: "DRONES REPAIRING",
+					detailLeft: `${Math.ceil(getFacilityConstructionRemainingMs(facility.id) / 1000)} SECONDS`,
+					detailRight: `${Math.min(100, Math.round((1 - getFacilityConstructionRemainingMs(facility.id) / HUB_FACILITY_BUILD_DURATION_MS) * 100))}%`,
+				}
+			: getFacilityConstruction()
+				? {
+					title: facility.name,
+					action: "REPAIR CREW BUSY",
+				}
 			: !unlocked()
 				? {
 					title: facility.name,
@@ -608,6 +672,11 @@ function spawnHubFacility(
 	});
 
 	registerBatchedEntityUpdate("world", building, () => {
+		const construction = getFacilityConstruction();
+		if (!built && isFacilityBuilt(facility.id)) finishBuilding();
+		if (!built && construction?.facilityId === facility.id) {
+			buildingVisual.opacity = k.wave(0.46, 0.76, k.time() * 5);
+		}
 		if (newInfoMarker) {
 			const visible = built && hasUnseenBlueprints();
 			newInfoMarker.hidden = !visible;
@@ -618,6 +687,16 @@ function spawnHubFacility(
 		}
 		prompt.update(building.isInRange);
 	});
+}
+
+function getHubFacilityVisualScale(id: HubFacilityId, built: boolean) {
+	if (id === "trainingRange" && !built) return hubFacilityScale
+	return hubFacilityScale * 0.5
+}
+
+function getHubFacilityVisualColor(id: HubFacilityId, built: boolean) {
+	if (!built) return k.rgb(100, 110, 120)
+	return k.rgb(145, 160, 170)
 }
 
 function openHubFacility(id: HubFacilityId) {

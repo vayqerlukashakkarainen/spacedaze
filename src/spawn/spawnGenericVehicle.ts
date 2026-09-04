@@ -12,6 +12,7 @@ import { applyDamage } from "../services/damageService";
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState";
 import {
 	createEnemySpawnProfile,
+	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
@@ -43,9 +44,11 @@ export function spawnGenericVehicle(
 			hb,
 			elite: profile.elite,
 			damage: profile.damage,
+			threatRank: ENEMY_THREAT_RANK.genericVehicle,
 		},
 		tags.enemy,
 		tags.unit,
+		tags.enemyRolePressure,
 		...(profile.elite ? [tags.elite] : []),
 		tags.gameLoop,
 		...(options.tags ?? []),

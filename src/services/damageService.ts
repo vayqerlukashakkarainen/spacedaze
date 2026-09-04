@@ -3,6 +3,7 @@ import { spawnDamageNumber } from "../spawn/spawnDamageNumber"
 import { tags } from "../tags"
 import { isPlayerDamageInvulnerable } from "./playerDamageState"
 import { tryBlockPlayerDamage } from "./shipUpgradeService"
+import { getPlayerStatusMultiplier } from "./playerStatusEffectService"
 
 export interface DamageOptions {
 	critical?: boolean
@@ -58,9 +59,12 @@ export function applyDamage(
 	if (target.tags.includes(tags.player) && options.source) {
 		playerDeathCause = { ...options.source }
 	}
-	target.hp -= damage
+	const appliedDamage = target.tags.includes(tags.player)
+		? damage * getPlayerStatusMultiplier("incomingDamage")
+		: damage
+	target.hp -= appliedDamage
 	if (options.showNumber !== false && numberPos) {
-		spawnDamageNumber(numberPos, damage, {
+		spawnDamageNumber(numberPos, appliedDamage, {
 			critical: options.critical,
 		})
 	}

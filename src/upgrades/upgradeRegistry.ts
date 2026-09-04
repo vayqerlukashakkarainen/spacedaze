@@ -62,7 +62,12 @@ import {
 import {
 	afterburnerWake,
 	enemyHacker,
+	glassReactor,
+	packIntelligence,
+	phaseEcho,
+	reactivePlating,
 	sacrificialProtocol,
+	salvageBattery,
 	scrapArmor,
 } from "./systemsNew"
 
@@ -107,6 +112,11 @@ const definitions: Record<string, UpgradeDefinition> = {
 	afterburnerWake,
 	sacrificialProtocol,
 	enemyHacker,
+	phaseEcho,
+	salvageBattery,
+	reactivePlating,
+	packIntelligence,
+	glassReactor,
 
 	// Projectile modifiers
 	armorPiercing,
@@ -146,7 +156,6 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	rockets: policy(RewardRarity.Rare, ["crate", "boss"], 70, 0, 180),
 	nrOfRockets: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 140, 35, 100),
 	rocketShards: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 120, 30, 100),
-	sprint: policy(RewardRarity.Uncommon, ["crate", "boss"], 100, 0, 100),
 	sprintSpeed: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 25, 80),
 	spaceJumpUpgrades: policy(RewardRarity.Rare, ["crate", "boss"], 70, 0, 130),
 	phaseRam: policy(RewardRarity.Rare, ["crate", "boss"], 55, 0, 120),
@@ -166,6 +175,11 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	afterburnerWake: policy(RewardRarity.Rare, ["crate", "boss"], 46, 0, 115),
 	sacrificialProtocol: policy(RewardRarity.Epic, ["crate", "boss"], 22, 0, 145, 4),
 	enemyHacker: policy(RewardRarity.Epic, ["crate", "boss"], 18, 0, 135, 5),
+	phaseEcho: policy(RewardRarity.Rare, ["crate", "boss"], 42, 0, 118, 3),
+	salvageBattery: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 76, 14, 92, 2),
+	reactivePlating: policy(RewardRarity.Rare, ["crate", "boss"], 48, 0, 112, 2),
+	packIntelligence: policy(RewardRarity.Epic, ["crate", "boss"], 22, 0, 132, 4),
+	glassReactor: policy(RewardRarity.Legendary, ["boss"], 0, 0, 42, 5),
 	armorPiercing: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 130, 35, 90),
 	cryoRounds: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 30, 80),
 	corrosivePayload: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 100, 20, 100),
