@@ -49,6 +49,16 @@ export class DensePool<T> {
 		}
 	}
 
+	withItems(visitor: (items: readonly T[]) => void) {
+		this.iterationDepth++
+		try {
+			visitor(this.denseItems)
+		} finally {
+			this.iterationDepth--
+			if (this.iterationDepth === 0) this.flush()
+		}
+	}
+
 	clear() {
 		this.mutate(() => {
 			this.denseItems.length = 0

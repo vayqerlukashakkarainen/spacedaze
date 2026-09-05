@@ -14,65 +14,135 @@ const EXTRA_SPACING = 4
 const SEPARATION_RESPONSE = 15
 const MAX_CORRECTION_PER_FRAME = 7
 
+const enemyIndices = new Map<number, number>()
+const correctionX: number[] = []
+const correctionY: number[] = []
+const candidateCounts: number[] = []
+const overlapCounts: number[] = []
+let visitedPairs = new Uint32Array(0)
+let visitedPairGeneration = 0
+const separationQuery = { allTags: [tags.enemy, tags.unit] }
+
 export function updateEnemySeparation(context: RunFrameContext) {
 	if (!context.gameplayActive || context.paused || context.dt <= 0) return
+	const enemies = k.get(tags.enemy) as GameObj[]
+	prepareAccumulators(enemies)
 	let correctedEnemies = 0
 	let neighborChecks = 0
 	const blend = 1 - Math.exp(-SEPARATION_RESPONSE * context.dt)
 
-	for (const enemy of k.get(tags.enemy) as GameObj[]) {
-		if (!canSeparate(enemy)) continue
-		let correction = k.vec2(0)
-		let candidateCount = 0
-		let overlappingNeighbors = 0
+	for (let firstIndex = 0; firstIndex < enemies.length; firstIndex++) {
+		const first = enemies[firstIndex]
+		if (!enemyIndices.has(first.id)) continue
 		forEachSpatialNearby(
-			enemy.pos,
+			first.pos,
 			SEPARATION_SEARCH_RADIUS,
-			{
-				allTags: [tags.enemy, tags.unit],
-				excludeIds: [enemy.id],
-			},
-			(neighbor) => {
-				if (!canSeparate(neighbor)) return
-				candidateCount++
-				neighborChecks++
-				const desiredSpacing = getDesiredSpacing(enemy, neighbor)
-				const away = enemy.pos.sub(neighbor.pos)
-				const distance = away.len()
-				if (distance >= desiredSpacing) {
-					if (candidateCount >= MAX_CANDIDATES_PER_ENEMY) return false
-					return
+			separationQuery,
+			(second) => {
+				const secondIndex = enemyIndices.get(second.id)
+				if (secondIndex === undefined || secondIndex === firstIndex) return
+				candidateCounts[firstIndex]++
+				const shouldStop =
+					candidateCounts[firstIndex] >= MAX_CANDIDATES_PER_ENEMY ||
+					overlapCounts[firstIndex] >= MAX_NEIGHBORS_PER_ENEMY
+				const lowerIndex = Math.min(firstIndex, secondIndex)
+				const upperIndex = Math.max(firstIndex, secondIndex)
+				const pairIndex = upperIndex * (upperIndex - 1) / 2 + lowerIndex
+				if (visitedPairs[pairIndex] === visitedPairGeneration) {
+					return shouldStop ? false : undefined
 				}
-				const direction = distance > 0.001
-					? away.scale(1 / distance)
-					: getStableSeparationDirection(enemy.id, neighbor.id)
-				correction = correction.add(
-					direction.scale(desiredSpacing - distance)
-				)
-				overlappingNeighbors++
-				if (
-					overlappingNeighbors >= MAX_NEIGHBORS_PER_ENEMY ||
-					candidateCount >= MAX_CANDIDATES_PER_ENEMY
-				) return false
+				visitedPairs[pairIndex] = visitedPairGeneration
+				neighborChecks++
+				if (overlapCounts[secondIndex] >= MAX_NEIGHBORS_PER_ENEMY) {
+					return shouldStop ? false : undefined
+				}
+
+				accumulatePairCorrection(first, second, firstIndex, secondIndex)
+				return shouldStop ? false : undefined
 			}
 		)
+	}
+
+	for (let index = 0; index < enemies.length; index++) {
+		const enemy = enemies[index]
+		const overlappingNeighbors = overlapCounts[index]
 		if (overlappingNeighbors === 0) continue
 		const mobility = getSeparationMobility(enemy)
-		const offset = correction.scale(
-			blend * mobility / overlappingNeighbors
-		)
-		const distance = offset.len()
+		const scale = blend * mobility / overlappingNeighbors
+		let offsetX = correctionX[index] * scale
+		let offsetY = correctionY[index] * scale
+		const distance = Math.sqrt(offsetX * offsetX + offsetY * offsetY)
 		if (distance <= 0.001) continue
-		enemy.pos = enemy.pos.add(
-			distance > MAX_CORRECTION_PER_FRAME
-				? offset.scale(MAX_CORRECTION_PER_FRAME / distance)
-				: offset
-		)
+		if (distance > MAX_CORRECTION_PER_FRAME) {
+			const clampScale = MAX_CORRECTION_PER_FRAME / distance
+			offsetX *= clampScale
+			offsetY *= clampScale
+		}
+		enemy.pos.x += offsetX
+		enemy.pos.y += offsetY
 		correctedEnemies++
 	}
 
 	setPerformanceCounter("enemySeparationChecks", neighborChecks)
 	setPerformanceCounter("enemySeparationCorrections", correctedEnemies)
+}
+
+function prepareAccumulators(enemies: GameObj[]) {
+	enemyIndices.clear()
+	correctionX.length = enemies.length
+	correctionY.length = enemies.length
+	candidateCounts.length = enemies.length
+	overlapCounts.length = enemies.length
+	correctionX.fill(0)
+	correctionY.fill(0)
+	candidateCounts.fill(0)
+	overlapCounts.fill(0)
+	visitedPairGeneration++
+	if (visitedPairGeneration === 0xffffffff) {
+		visitedPairs.fill(0)
+		visitedPairGeneration = 1
+	}
+	const pairCapacity = enemies.length * (enemies.length - 1) / 2
+	if (visitedPairs.length < pairCapacity) {
+		visitedPairs = new Uint32Array(pairCapacity)
+		visitedPairGeneration = 1
+	}
+	for (let index = 0; index < enemies.length; index++) {
+		if (canSeparate(enemies[index])) enemyIndices.set(enemies[index].id, index)
+	}
+}
+
+function accumulatePairCorrection(
+	first: GameObj,
+	second: GameObj,
+	firstIndex: number,
+	secondIndex: number
+) {
+	const desiredSpacing = getDesiredSpacing(first, second)
+	const dx = first.pos.x - second.pos.x
+	const dy = first.pos.y - second.pos.y
+	const distanceSquared = dx * dx + dy * dy
+	if (distanceSquared >= desiredSpacing * desiredSpacing) return
+	const distance = Math.sqrt(distanceSquared)
+	let directionX: number
+	let directionY: number
+	if (distance > 0.001) {
+		directionX = dx / distance
+		directionY = dy / distance
+	} else {
+		const direction = getStableSeparationDirection(first.id, second.id)
+		directionX = direction.x
+		directionY = direction.y
+	}
+	const overlap = desiredSpacing - distance
+	const offsetX = directionX * overlap
+	const offsetY = directionY * overlap
+	correctionX[firstIndex] += offsetX
+	correctionY[firstIndex] += offsetY
+	correctionX[secondIndex] -= offsetX
+	correctionY[secondIndex] -= offsetY
+	overlapCounts[firstIndex]++
+	overlapCounts[secondIndex]++
 }
 
 function canSeparate(enemy: GameObj) {

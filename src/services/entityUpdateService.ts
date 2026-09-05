@@ -5,6 +5,10 @@ import {
 	clearCadencedSystemEntries,
 	updateCadencedSystems,
 } from "./cadencedSystemService"
+import {
+	clearContinuousSystemEntries,
+	updateContinuousSystems,
+} from "./continuousSystemService"
 import { DensePool } from "./densePool"
 import { profileSection, setPerformanceCounter } from "./frameProfilerService"
 import { runLoop } from "./runLoopService"
@@ -48,6 +52,7 @@ export function registerBatchedEntityUpdate(
 
 export function updateBatchedEntities() {
 	profileSection("batch:cadenced", () => updateCadencedSystems(k.dt()))
+	profileSection("batch:continuous", updateContinuousSystems)
 	for (const group of ENTITY_UPDATE_GROUPS) {
 		const pool = pools.get(group)
 		if (!pool || pool.size === 0) continue
@@ -74,6 +79,7 @@ export function getBatchedEntityCounts() {
 export function clearBatchedEntityUpdates() {
 	for (const pool of pools.values()) pool.clear()
 	clearCadencedSystemEntries()
+	clearContinuousSystemEntries()
 }
 
 function ensureLegacyController() {

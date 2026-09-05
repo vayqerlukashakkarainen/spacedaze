@@ -5,6 +5,7 @@ import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
 import { audioService } from "../services/audioService"
 import { applyDamage } from "../services/damageService"
 import { createCadencedSystem } from "../services/cadencedSystemService"
+import { createContinuousSystem } from "../services/continuousSystemService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import {
@@ -51,6 +52,54 @@ const swarmDecisionSystem = createCadencedSystem<SwarmDecisionEntry>({
 	},
 })
 
+interface SwarmContinuousEntry {
+	owner: GameObj
+}
+
+const swarmContinuousSystem = createContinuousSystem<SwarmContinuousEntry>({
+	id: "swarm",
+	updateBatch(entries) {
+		for (let index = 0; index < entries.length; index++) {
+			const enemy = entries[index].owner
+			if (!enemy.exists() || enemy.paused) continue
+			const command = enemy.swarmCommand as SwarmCommand | undefined
+			if (enemy.desiredDirection) {
+				const turnResponse = command?.charging
+					? SWARM_CHARGE_TURN_RESPONSE
+					: SWARM_TURN_RESPONSE
+				enemy.moveDirection = easeDirection(
+					enemy.moveDirection,
+					enemy.desiredDirection,
+					turnResponse,
+					k.dt() * enemy.getTimescale()
+				)
+				enemy.move(
+					enemy.moveDirection.scale(
+						enemy.desiredSpeed * velocityScale() * enemy.getTimescale()
+					)
+				)
+				enemy.angle = enemy.moveDirection.angle() + 90
+			}
+
+			checkProjectileIntersection(
+				enemy.pos,
+				enemy.hb,
+				tags.friendly,
+				(projectile) => onEnemyHit(enemy, projectile)
+			)
+			if (
+				!isPlayerDamageInvulnerable() &&
+				enemy.pos.dist(playerObj.pos) < enemy.hb + 8
+			) {
+				applyDamage(playerObj, enemy.damage, {
+					source: { name: "SWARM DRONE", sprite: "enemy_swarm_drone" },
+				})
+				applyDamage(enemy, enemy.hp)
+			}
+		}
+	},
+})
+
 /**
  * The most basic mobile enemy. Without a living hivemind it has no tactics: it
  * simply turns toward the player and slowly tries to make contact.
@@ -79,6 +128,17 @@ export function spawnSwarmEnemy(
 		timescale(),
 		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{
+			draw() {
+				k.drawRect({
+					pos: k.vec2(0, -3 / spriteScale),
+					width: 2 / spriteScale,
+					height: 2 / spriteScale,
+					anchor: "center",
+					color: k.WHITE,
+				})
+			},
+		},
+		{
 			hb: 9 * spriteScale,
 			damage: profile.damage,
 			threatRank: ENEMY_THREAT_RANK.swarmDrone,
@@ -97,48 +157,10 @@ export function spawnSwarmEnemy(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
-	enemy.add([
-		k.rect(2 / spriteScale, 2 / spriteScale),
-		k.pos(0, -3 / spriteScale),
-		k.anchor("center"),
-		k.color(k.WHITE),
-	])
 
 	registerHitAnimation(enemy)
 	swarmDecisionSystem.add({ owner: enemy, speedMultiplier: profile.speedMultiplier })
-	registerBatchedEntityUpdate("enemies", enemy, () => {
-		const command = enemy.swarmCommand as SwarmCommand | undefined
-		if (enemy.desiredDirection) {
-			const turnResponse = command?.charging
-				? SWARM_CHARGE_TURN_RESPONSE
-				: SWARM_TURN_RESPONSE
-			enemy.moveDirection = easeDirection(
-				enemy.moveDirection,
-				enemy.desiredDirection,
-				turnResponse,
-				k.dt() * enemy.getTimescale()
-			)
-			enemy.move(
-				enemy.moveDirection.scale(
-					enemy.desiredSpeed * velocityScale() * enemy.getTimescale()
-				)
-			)
-			enemy.angle = enemy.moveDirection.angle() + 90
-		}
-
-		checkProjectileIntersection(enemy.pos, enemy.hb, tags.friendly, (projectile) => {
-			onEnemyHit(enemy, projectile)
-		})
-		if (
-			!isPlayerDamageInvulnerable() &&
-			enemy.pos.dist(playerObj.pos) < enemy.hb + 8
-		) {
-			applyDamage(playerObj, enemy.damage, {
-				source: { name: "SWARM DRONE", sprite: "enemy_swarm_drone" },
-			})
-			applyDamage(enemy, enemy.hp)
-		}
-	})
+	swarmContinuousSystem.add({ owner: enemy })
 
 	enemy.onDeath(() => {
 		enemyOnDeath(
