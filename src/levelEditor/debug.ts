@@ -105,6 +105,7 @@ export function updateDebug() {
 			`CPU walls ${formatMs(wallDraw)}  background ${formatMs(backgroundUpdate)}  UI ${formatMs(uiCpu)}`,
 			`Phases move ${formatMs(snapshot.sections["phase:movement"] ?? 0)}  spatial ${formatMs(snapshot.sections["phase:spatialIndex"] ?? 0)}  collision ${formatMs(snapshot.sections["phase:collision"] ?? 0)}`,
 			`Spatial objects ${snapshot.counters.spatialObjects ?? 0}  cells ${snapshot.counters.spatialCells ?? 0}`,
+			`Enemy FX ${snapshot.counters.enemyFxEmitted ?? 0}/${snapshot.counters.enemyFxRequested ?? 0}  culled ${snapshot.counters.enemyFxCulled ?? 0}  cadence ${snapshot.counters.enemyFxCadence ?? 1}`,
 			`Enemies ${objectStats.enemies}  Projectiles ${objectStats.projectiles}`,
 			`Debris ${objectStats.debris}  Run map ${objectStats.runMap}`,
 			`UI objects ${objectStats.ui}  Areas ${objectStats.areas}  Hit regions ${snapshot.counters.uiPointerRegions ?? 0}  Text ${objectStats.text}  Masks ${objectStats.masks}  Emitters ${objectStats.emitters}`,

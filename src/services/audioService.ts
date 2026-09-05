@@ -290,6 +290,45 @@ export const audioService = {
 		});
 	},
 
+	playLimitedPositionalSound(
+		soundId: string,
+		source: PositionProvider,
+		voiceLimit: number,
+		options: PositionalSoundOptions = {}
+	): AudioPlay | null {
+		const spatial = {
+			source: positionProvider(source),
+			listener: positionProvider(options.listener ?? defaultPositionalListener),
+			minDistance: Math.max(0, options.minDistance ?? 80),
+			maxDistance: Math.max(
+				Math.max(0, options.minDistance ?? 80) + 1,
+				options.maxDistance ?? 700
+			),
+			rolloff: Math.max(0.01, options.rolloff ?? 1.5),
+			panDistance: Math.max(1, options.panDistance ?? 300),
+		};
+		const activeVoices = playingSounds.filter(
+			(sound) => sound.id === soundId && sound.spatial
+		);
+		const limit = Math.max(1, Math.floor(voiceLimit));
+		if (activeVoices.length >= limit) {
+			const nextGain = spatialGain(spatial);
+			let quietest = activeVoices[0];
+			let quietestGain = spatialGain(quietest.spatial!);
+			for (let index = 1; index < activeVoices.length; index++) {
+				const gain = spatialGain(activeVoices[index].spatial!);
+				if (gain >= quietestGain) continue;
+				quietest = activeVoices[index];
+				quietestGain = gain;
+			}
+			if (nextGain <= quietestGain) return null;
+			const quietestIndex = playingSounds.indexOf(quietest);
+			if (quietestIndex !== -1) playingSounds.splice(quietestIndex, 1);
+			quietest.audio.stop();
+		}
+		return playTrackedSound(soundId, options, spatial);
+	},
+
 	updateSound(audio: AudioPlay, options: Pick<SoundOptions, "volume" | "speed" | "detune">) {
 		const sound = playingSounds.find((entry) => entry.audio === audio);
 		if (!sound) return;
@@ -494,3 +533,15 @@ export const audioService = {
 		return currentMusic;
 	},
 };
+
+function spatialGain(spatial: SpatialSound) {
+	const source = spatial.source();
+	const listener = spatial.listener();
+	if (!validPosition(source) || !validPosition(listener)) return 0;
+	const distance = source.dist(listener);
+	if (distance >= spatial.maxDistance) return 0;
+	if (distance <= spatial.minDistance) return 1;
+	const range = spatial.maxDistance - spatial.minDistance;
+	const progress = (distance - spatial.minDistance) / range;
+	return Math.pow(1 - progress, spatial.rolloff);
+}

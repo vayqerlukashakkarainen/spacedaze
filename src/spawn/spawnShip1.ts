@@ -1,8 +1,8 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileComponentIntersection } from "../game";
 import { k, velocityScale } from "../main";
-import { trailEmitter } from "../particles";
 import { spawnEnemyBlaster } from "../services/projectileHelpers";
+import { emitBudgetedEnemyExhaust } from "../services/enemyFxBudgetService";
 import { tags } from "../tags";
 
 const components = {
@@ -137,9 +137,11 @@ export function spawnShip1(
 
 		const dir = k.Vec2.fromAngle(m.angle - 90);
 		const emitterPos = k.vec2(m.pos.x - 12 * dir.x, m.pos.y - 12 * dir.y);
-		trailEmitter.emitter.position = emitterPos;
-		trailEmitter.emitter.direction = k.Vec2.toAngle(dir);
-		trailEmitter.emit(1);
+		emitBudgetedEnemyExhaust(
+			m,
+			emitterPos,
+			k.Vec2.toAngle(dir)
+		);
 	});
 
 	return m;

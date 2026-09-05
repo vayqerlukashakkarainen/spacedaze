@@ -1,9 +1,10 @@
-import type { Vec2 } from "kaplay"
+import type { GameObj, Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
 import { starsEmitterDir, trailEmitter } from "../particles"
 import { audioService } from "../services/audioService"
 import { applyDamage } from "../services/damageService"
+import { emitBudgetedEnemyExhaust } from "../services/enemyFxBudgetService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import {
@@ -99,9 +100,10 @@ export function spawnRammer(
 				rammer.phaseTimer = 0
 				rammer.lockedDirection = playerDirection
 				faceDirection(rammer, rammer.lockedDirection)
-				audioService.playPositionalSound(
+				audioService.playLimitedPositionalSound(
 					"wormhole_rampup",
 					() => rammer.exists() ? rammer.pos : undefined,
+					8,
 					{
 						volume: mainSoundVolume * 0.35,
 						speed: CHARGE_SOUND_DURATION / chargeWindup,
@@ -138,9 +140,10 @@ export function spawnRammer(
 					profile.scale,
 					profile.elite
 				)
-				audioService.playPositionalSound(
+				audioService.playLimitedPositionalSound(
 					"rammer_launch",
 					() => rammer.exists() ? rammer.pos : undefined,
+					12,
 					{
 						volume: mainSoundVolume * 0.8,
 						minDistance: 35,
@@ -154,7 +157,7 @@ export function spawnRammer(
 			rammer.trailTimer += delta
 			if (rammer.trailTimer >= 0.025) {
 				rammer.trailTimer %= 0.025
-				emitRammerTrail(rammer.pos, rammer.lockedDirection, profile.scale)
+				emitRammerTrail(rammer, rammer.lockedDirection, profile.scale)
 			}
 			rammer.move(
 				rammer.lockedDirection.scale(
@@ -226,10 +229,12 @@ function faceDirection(enemy: { angle: number }, direction: Vec2) {
 	enemy.angle = direction.angle() + 90
 }
 
-function emitRammerTrail(pos: Vec2, direction: Vec2, scale: number) {
-	trailEmitter.emitter.position = pos.sub(direction.scale(13 * scale))
-	trailEmitter.emitter.direction = direction.angle() + 180
-	trailEmitter.emit(2)
+function emitRammerTrail(rammer: GameObj, direction: Vec2, scale: number) {
+	emitBudgetedEnemyExhaust(
+		rammer,
+		rammer.pos.sub(direction.scale(13 * scale)),
+		direction.angle() + 180
+	)
 }
 
 function emitRammerLaunchBurst(
