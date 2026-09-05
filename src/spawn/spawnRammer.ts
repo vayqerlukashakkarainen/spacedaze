@@ -4,6 +4,7 @@ import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
 import { emitEnemyTrail, starsEmitterDir, trailEmitter } from "../particles"
 import { audioService } from "../services/audioService"
 import { applyDamage } from "../services/damageService"
+import { createCadencedSystem } from "../services/cadencedSystemService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import {
@@ -28,6 +29,26 @@ const RAMMER_RECOVERY_DURATION = 0.9
 const RAMMER_WINDUP_Y_SCALE = 0.8
 const RAMMER_WINDUP_X_SCALE = 1.08
 
+interface RammerDecisionEntry {
+	owner: GameObj
+}
+
+const rammerDecisionSystem = createCadencedSystem<RammerDecisionEntry>({
+	id: "rammer-decisions",
+	rate: 20,
+	updateBucket(entries) {
+		for (let index = 0; index < entries.length; index++) {
+			const rammer = entries[index].owner
+			if (!rammer.exists() || rammer.paused) continue
+			const toPlayer = playerObj.pos.sub(rammer.pos)
+			rammer.playerDistance = toPlayer.len()
+			if (rammer.playerDistance > 0) {
+				rammer.playerDirection = toPlayer.unit()
+			}
+		}
+	},
+})
+
 export function spawnRammer(
 	pos: Vec2,
 	hp = 4,
@@ -37,6 +58,11 @@ export function spawnRammer(
 	const chargeWindup = profile.elite
 		? ELITE_RAMMER_CHARGE_WINDUP
 		: RAMMER_CHARGE_WINDUP
+	const initialTarget = playerObj.pos.sub(pos)
+	const initialDistance = initialTarget.len()
+	const initialDirection = initialDistance > 0
+		? initialTarget.unit()
+		: k.vec2(0, 1)
 	const rammer = k.add([
 		k.pos(pos),
 		k.sprite("enemy_rammer"),
@@ -54,8 +80,10 @@ export function spawnRammer(
 			threatRank: ENEMY_THREAT_RANK.rammer,
 			phase: "approach" as RammerPhase,
 			phaseTimer: 0,
-			lockedDirection: k.vec2(0, 1),
-			steeringDirection: k.vec2(0, 1),
+			lockedDirection: initialDirection,
+			steeringDirection: initialDirection,
+			playerDirection: initialDirection,
+			playerDistance: initialDistance,
 			trailTimer: 0,
 		},
 		tags.enemy,
@@ -75,12 +103,12 @@ export function spawnRammer(
 	])
 
 	registerHitAnimation(rammer)
+	rammerDecisionSystem.add({ owner: rammer })
 	registerBatchedEntityUpdate("enemies", rammer, () => {
 		const delta = k.dt() * rammer.getTimescale()
 		rammer.phaseTimer += delta
-		const toPlayer = playerObj.pos.sub(rammer.pos)
-		const distance = toPlayer.len()
-		const playerDirection = distance > 0 ? toPlayer.unit() : rammer.lockedDirection
+		const distance = rammer.playerDistance
+		const playerDirection = rammer.playerDirection ?? rammer.lockedDirection
 		rammer.scale = k.vec2(profile.scale)
 
 		if (rammer.phase === "approach") {

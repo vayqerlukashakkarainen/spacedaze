@@ -4,6 +4,7 @@ import { checkProjectileIntersection, playerObj } from "../game"
 import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
 import { audioService } from "../services/audioService"
 import { applyDamage } from "../services/damageService"
+import { createCadencedSystem } from "../services/cadencedSystemService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import {
@@ -33,6 +34,23 @@ const SWARM_TURN_RESPONSE = 4.5
 const SWARM_CHARGE_TURN_RESPONSE = 9
 const HIVEMIND_TURN_RESPONSE = 3.5
 
+interface SwarmDecisionEntry {
+	owner: GameObj
+	speedMultiplier: number
+}
+
+const swarmDecisionSystem = createCadencedSystem<SwarmDecisionEntry>({
+	id: "swarm-decisions",
+	rate: 20,
+	updateBucket(entries) {
+		for (let index = 0; index < entries.length; index++) {
+			const entry = entries[index]
+			if (!entry.owner.exists() || entry.owner.paused) continue
+			updateSwarmDecision(entry.owner, entry.speedMultiplier)
+		}
+	},
+})
+
 /**
  * The most basic mobile enemy. Without a living hivemind it has no tactics: it
  * simply turns toward the player and slowly tries to make contact.
@@ -45,6 +63,10 @@ export function spawnSwarmEnemy(
 ) {
 	const profile = createEnemySpawnProfile(hp, 1, 1, options)
 	const spriteScale = profile.scale * SWARM_DRONE_BASE_SCALE
+	const initialTarget = playerObj.pos.sub(pos)
+	const initialDirection = initialTarget.len() > 0
+		? initialTarget.unit()
+		: k.vec2(0, -1)
 	const enemy = k.add([
 		k.pos(pos),
 		k.sprite("enemy_swarm_drone"),
@@ -60,7 +82,9 @@ export function spawnSwarmEnemy(
 			hb: 9 * spriteScale,
 			damage: profile.damage,
 			threatRank: ENEMY_THREAT_RANK.swarmDrone,
-			moveDirection: k.vec2(0, -1),
+			moveDirection: initialDirection,
+			desiredDirection: initialDirection,
+			desiredSpeed: 48 * profile.speedMultiplier,
 			hiveMind,
 			swarmCommand: undefined as SwarmCommand | undefined,
 		},
@@ -81,37 +105,22 @@ export function spawnSwarmEnemy(
 	])
 
 	registerHitAnimation(enemy)
+	swarmDecisionSystem.add({ owner: enemy, speedMultiplier: profile.speedMultiplier })
 	registerBatchedEntityUpdate("enemies", enemy, () => {
-		const hive = enemy.hiveMind as GameObj | undefined
-		const hasHive = hive?.exists() && hive.tags.includes(tags.hiveMind)
-		if (!hasHive) {
-			enemy.hiveMind = undefined
-			enemy.swarmCommand = undefined
-		}
-
 		const command = enemy.swarmCommand as SwarmCommand | undefined
-		const target = hasHive && command
-			? command.target
-			: playerObj.pos
-		const toTarget = target.sub(enemy.pos)
-		const distance = toTarget.len()
-		if (distance > 1) {
-			const desiredDirection = toTarget.unit()
+		if (enemy.desiredDirection) {
 			const turnResponse = command?.charging
 				? SWARM_CHARGE_TURN_RESPONSE
 				: SWARM_TURN_RESPONSE
 			enemy.moveDirection = easeDirection(
 				enemy.moveDirection,
-				desiredDirection,
+				enemy.desiredDirection,
 				turnResponse,
 				k.dt() * enemy.getTimescale()
 			)
-			const speed = hasHive && command
-				? command.speed
-				: 48 * profile.speedMultiplier
 			enemy.move(
 				enemy.moveDirection.scale(
-					speed * velocityScale() * enemy.getTimescale()
+					enemy.desiredSpeed * velocityScale() * enemy.getTimescale()
 				)
 			)
 			enemy.angle = enemy.moveDirection.angle() + 90
@@ -149,6 +158,24 @@ export function spawnSwarmEnemy(
 	})
 
 	return enemy
+}
+
+function updateSwarmDecision(enemy: GameObj, speedMultiplier: number) {
+	const hive = enemy.hiveMind as GameObj | undefined
+	const hasHive = hive?.exists() && hive.tags.includes(tags.hiveMind)
+	if (!hasHive) {
+		enemy.hiveMind = undefined
+		enemy.swarmCommand = undefined
+	}
+
+	const command = enemy.swarmCommand as SwarmCommand | undefined
+	const target = hasHive && command ? command.target : playerObj.pos
+	const toTarget = target.sub(enemy.pos)
+	if (toTarget.len() <= 1) return
+	enemy.desiredDirection = toTarget.unit()
+	enemy.desiredSpeed = hasHive && command
+		? command.speed
+		: 48 * speedMultiplier
 }
 
 /**

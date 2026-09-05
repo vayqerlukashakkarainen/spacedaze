@@ -1,6 +1,10 @@
 import type { GameObj } from "kaplay"
 import { k } from "../main"
 import { tags } from "../tags"
+import {
+	clearCadencedSystemEntries,
+	updateCadencedSystems,
+} from "./cadencedSystemService"
 import { DensePool } from "./densePool"
 import { profileSection, setPerformanceCounter } from "./frameProfilerService"
 import { runLoop } from "./runLoopService"
@@ -43,6 +47,7 @@ export function registerBatchedEntityUpdate(
 }
 
 export function updateBatchedEntities() {
+	profileSection("batch:cadenced", () => updateCadencedSystems(k.dt()))
 	for (const group of ENTITY_UPDATE_GROUPS) {
 		const pool = pools.get(group)
 		if (!pool || pool.size === 0) continue
@@ -68,6 +73,7 @@ export function getBatchedEntityCounts() {
 
 export function clearBatchedEntityUpdates() {
 	for (const pool of pools.values()) pool.clear()
+	clearCadencedSystemEntries()
 }
 
 function ensureLegacyController() {
