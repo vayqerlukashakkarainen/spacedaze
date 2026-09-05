@@ -171,6 +171,7 @@ import {
 import { updateProjectileBatch } from "./services/projectileService";
 import { updateBatchedEntities } from "./services/entityUpdateService";
 import { rebuildRuntimeSpatialIndex } from "./services/runtimeSpatialIndexService";
+import { updateEnemySeparation } from "./services/enemySeparationService";
 import { updateBatchedUi } from "./services/uiUpdateService";
 import { updateUiPointerRegions } from "./services/uiPointerService";
 import { dialogOpen } from "./services/dialogService";
@@ -495,6 +496,12 @@ function registerRunLoopSystems() {
 		id: "runtime:entities",
 		phase: "collision",
 		update: updateBatchedEntities,
+	});
+	runLoop.register({
+		id: "runtime:enemy-separation",
+		phase: "collision",
+		priority: 100,
+		update: updateEnemySeparation,
 	});
 	runLoop.register({
 		id: "core:game-state",
