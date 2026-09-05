@@ -1,3 +1,8 @@
+import {
+	beginRunLevelProgression,
+	endRunLevelProgression,
+} from "./runLevelService"
+
 export interface DebreeRunOutcome {
 	deposited: number
 	lost: number
@@ -14,6 +19,7 @@ export function beginDebreeRun() {
 	carriedDebree = 0
 	depositedThisRun = 0
 	runActive = true
+	beginRunLevelProgression()
 }
 
 export function debreeRunActive() {
@@ -86,6 +92,7 @@ export function loadDepositedDebree(amount: number) {
 	carriedDebree = 0
 	depositedThisRun = 0
 	runActive = false
+	endRunLevelProgression()
 }
 
 export function resetDebreeEconomy() {
@@ -96,6 +103,7 @@ function finishRun() {
 	carriedDebree = 0
 	depositedThisRun = 0
 	runActive = false
+	endRunLevelProgression()
 }
 
 function normalizeAmount(amount: number) {

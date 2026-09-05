@@ -26,6 +26,7 @@ export interface DebreeSpawnOptions {
 	pattern?: "random" | "radial";
 	minSpeed?: number;
 	maxSpeed?: number;
+	runLevelXp?: boolean;
 }
 
 const debreeTiers: Record<
@@ -79,6 +80,7 @@ export function spawnDebreeValues(
 			k.opacity(1),
 			{
 				salvageValue,
+				runLevelXp: options.runLevelXp ?? false,
 				dir,
 				speed: k.rand(minSpeed, maxSpeed),
 				lifeSpan: 0,

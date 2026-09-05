@@ -29,6 +29,7 @@ import {
 
 import { clearPlayer, setupPlayer } from "./setupPlayer";
 import { tags } from "./tags";
+import { addRunLevelXp } from "./services/runLevelService";
 import {
 	addHealthBar,
 	clearGameLoopUi,
@@ -197,6 +198,7 @@ export function collectDebreeImmediately(
 	debris: GameObj & {
 		salvageValue?: number;
 		color?: Color;
+		runLevelXp?: boolean;
 	},
 	collectionPos: Vec2
 ) {
@@ -209,6 +211,7 @@ export function collectDebreeImmediately(
 	const salvageGained = addScore(
 		player.scorePerPickup * salvageValue * player.debreeValueMultiplier
 	);
+	if (debris.runLevelXp) addRunLevelXp(salvageGained);
 	addScrapArmorProgress(salvageGained);
 	chargeSalvageBattery(playerObj, salvageGained);
 	showSalvageGain(salvageGained, color, collectionPos);

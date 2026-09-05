@@ -15,6 +15,7 @@ export const tags = {
 	levelTransition: "levelTransition",
 	commandConsole: "commandConsole",
 	recoveryShop: "recoveryShop",
+	runLevelChoice: "runLevelChoice",
 	hubFacilityUi: "hubFacilityUi",
 	trainingTarget: "trainingTarget",
 	runMap: "runMap",

@@ -6,6 +6,7 @@ import {
 	ToolKey,
 } from "./upg";
 import { resetUltimateCharge } from "./services/ultimateAbilityService";
+import { applyRunLevelBonuses } from "./services/runLevelService";
 
 interface Ship {
 	speed: number;
@@ -449,6 +450,9 @@ export function loadPlayer() {
 	player.projectileMineDamage =
 		getToolUpgradeStatValue("mineLayer", "projectileMineDamage") ?? 0;
 	player.projectilePhasePierces = getToolUpgradeLvlValue("voidLance") ?? 0;
+	player.followerBlasterDmgMultiplier = 1;
+	player.rocketSplashSizeMultiplier = 1;
+	applyRunLevelBonuses(player);
 }
 
 export function addScrapArmorProgress(value: number) {

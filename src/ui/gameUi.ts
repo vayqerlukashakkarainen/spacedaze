@@ -36,6 +36,9 @@ import { getAbilityDefinition } from "../services/abilityRegistry";
 import {
 	getEquippedMobilityAbilityId,
 } from "../services/abilityLoadoutService";
+import { getRunLevelSnapshot } from "../services/runLevelService";
+import { createUiProgressBar } from "./common/progressBar";
+import { hideRunLevelChoice, showRunLevelChoice } from "./runLevelChoice";
 
 let healthBars: GameObj<OpacityComp>[] = [];
 let specialBar: GameObj<RectComp> | null = null;
@@ -59,6 +62,7 @@ let rerollDisplay: GameObj | null = null;
 let systemsPanel: GameObj | null = null;
 let runLoadoutPanel: GameObj | null = null;
 let loadoutIconsContainer: GameObj | null = null;
+let runLevelHud: GameObj | null = null;
 const collectedItems = new Map<
 	string,
 	{
@@ -104,6 +108,7 @@ let displayedMobilityId = "";
 let displayedUltimateId = "";
 let displayedUltimateProgress = Number.NaN;
 export function setupGameLoopUi(health: number, missilesUnlocked = false) {
+	setupRunLevelHud();
 	shipStatusPanel = createUiPanel({
 		pos: k.vec2(
 			HUD_MARGIN,
@@ -295,6 +300,47 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 	for (let i = 0; i < health; i++) {
 		addHealthBar(i);
 	}
+}
+
+function setupRunLevelHud() {
+	runLevelHud = createUiPanel({
+		pos: k.vec2(0, k.height() - 6),
+		size: k.vec2(k.width(), 6),
+		tags: [tags.gameLoopUi],
+		frameless: true,
+	});
+	const progress = createUiProgressBar(runLevelHud, {
+		pos: k.vec2(HUD_MARGIN, 0),
+		width: k.width() - HUD_MARGIN * 2,
+		height: 4,
+		value: 0,
+	});
+	const levelLabel = runLevelHud.add([
+		k.text("", { size: UI_FONT_SIZES.small, font: "unscii" }),
+		k.pos(k.width() / 2, -8),
+		k.anchor("bot"),
+		k.color(...UI_COLORS.accent),
+	]);
+	let displayedLevel = Number.NaN;
+	let displayedXp = Number.NaN;
+	let displayedRequiredXp = Number.NaN;
+	registerBatchedUiUpdate("hud", runLevelHud, () => {
+		const snapshot = getRunLevelSnapshot();
+		runLevelHud!.hidden = !snapshot.active;
+		if (!snapshot.active) return;
+		if (
+			snapshot.level !== displayedLevel ||
+			snapshot.xp !== displayedXp ||
+			snapshot.requiredXp !== displayedRequiredXp
+		) {
+			displayedLevel = snapshot.level;
+			displayedXp = snapshot.xp;
+			displayedRequiredXp = snapshot.requiredXp;
+			levelLabel.text = `LEVEL ${snapshot.level}  //  ${snapshot.xp} / ${snapshot.requiredXp} DEBRIS`;
+			progress.setValue(snapshot.progress);
+		}
+		if (snapshot.pendingSelections > 0) showRunLevelChoice();
+	});
 }
 
 export function showSalvageGain(
@@ -756,6 +802,7 @@ function formatRewardStat(stat: string) {
 }
 
 export function clearGameLoopUi() {
+	hideRunLevelChoice();
 	hideRewardTooltip();
 	k.destroyAll(tags.gameLoopUi);
 	healthBars = [];
@@ -780,6 +827,7 @@ export function clearGameLoopUi() {
 	systemsPanel = null;
 	runLoadoutPanel = null;
 	loadoutIconsContainer = null;
+	runLevelHud = null;
 	displayedSalvage = Number.NaN;
 	displayedDebreeMode = "";
 	displayedRerollTokens = Number.NaN;

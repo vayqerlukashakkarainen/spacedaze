@@ -67,7 +67,7 @@ export function enemyOnDeath(
 	}
 	starsEmitter.emitter.position = pos;
 	starsEmitter.emit(visuals.starCount ?? 20);
-	spawnDebree(pos, score);
+	spawnDebree(pos, score, { runLevelXp: true });
 	const dropMultiplier =
 		powerupMultiplier * getForgeDropMultiplier();
 	trySpawnHealthOrb(pos, dropMultiplier);
