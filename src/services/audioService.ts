@@ -12,6 +12,7 @@ interface PlayingSound {
 	lastVolume?: number;
 	lastPan?: number;
 	spatial?: SpatialSound;
+	voiceBudgeted?: boolean;
 }
 
 export interface SoundOptions {
@@ -39,6 +40,7 @@ export interface PositionalSoundOptions extends SoundOptions {
 	rolloff?: number;
 	panDistance?: number;
 	listener?: PositionProvider;
+	voiceLimit?: number | false;
 }
 
 type PositionProvider = Vec2 | (() => Vec2 | undefined);
@@ -76,6 +78,8 @@ const AUDIO_UNLOCK_EVENTS = ["pointerdown", "keydown", "touchstart"] as const;
 const POSITIONAL_AUDIO_UPDATE_INTERVAL = 1 / 30;
 const POSITIONAL_VOLUME_EPSILON = 0.004;
 const POSITIONAL_PAN_EPSILON = 0.008;
+const DEFAULT_POSITIONAL_VOICE_LIMIT = 16;
+const MAX_POSITIONAL_EFFECT_VOICES = 32;
 
 function clampVolume(value: number) {
 	return Math.max(0, Math.min(1, value));
@@ -232,7 +236,8 @@ function ensurePositionalAudioUpdate() {
 function playTrackedSound(
 	soundId: string,
 	options: SoundOptions = {},
-	spatial?: SpatialSound
+	spatial?: SpatialSound,
+	voiceBudgeted = false
 ) {
 	syncMasterVolume();
 	const baseVolume = options.volume ?? 1;
@@ -251,6 +256,7 @@ function playTrackedSound(
 		baseSpeed,
 		basePan,
 		spatial,
+		voiceBudgeted,
 	};
 	sound.audio.speed = baseSpeed * audioPlaybackSpeed();
 	updatePlayingSound(sound, true);
@@ -265,6 +271,66 @@ function playTrackedSound(
 	return audio;
 }
 
+function createSpatialSound(
+	source: PositionProvider,
+	options: PositionalSoundOptions
+): SpatialSound {
+	const minDistance = Math.max(0, options.minDistance ?? 80);
+	return {
+		source: positionProvider(source),
+		listener: positionProvider(options.listener ?? defaultPositionalListener),
+		minDistance,
+		maxDistance: Math.max(minDistance + 1, options.maxDistance ?? 700),
+		rolloff: Math.max(0.01, options.rolloff ?? 1.5),
+		panDistance: Math.max(1, options.panDistance ?? 300),
+	};
+}
+
+function playVoiceLimitedPositionalSound(
+	soundId: string,
+	spatial: SpatialSound,
+	voiceLimit: number,
+	options: PositionalSoundOptions
+) {
+	const activeVoices = playingSounds.filter(
+		(sound) => sound.id === soundId && sound.spatial && sound.voiceBudgeted
+	);
+	const limit = Math.max(1, Math.floor(voiceLimit));
+	if (
+		activeVoices.length >= limit &&
+		!replaceQuietestPositionalVoice(spatial, activeVoices)
+	) return null;
+
+	const positionalVoices = playingSounds.filter(
+		(sound) => sound.spatial && sound.voiceBudgeted
+	);
+	if (
+		positionalVoices.length >= MAX_POSITIONAL_EFFECT_VOICES &&
+		!replaceQuietestPositionalVoice(spatial, positionalVoices)
+	) return null;
+	return playTrackedSound(soundId, options, spatial, true);
+}
+
+function replaceQuietestPositionalVoice(
+	spatial: SpatialSound,
+	candidates: PlayingSound[]
+) {
+	const nextGain = spatialGain(spatial);
+	let quietest = candidates[0];
+	let quietestGain = spatialGain(quietest.spatial!);
+	for (let index = 1; index < candidates.length; index++) {
+		const gain = spatialGain(candidates[index].spatial!);
+		if (gain >= quietestGain) continue;
+		quietest = candidates[index];
+		quietestGain = gain;
+	}
+	if (nextGain <= quietestGain) return false;
+	const quietestIndex = playingSounds.indexOf(quietest);
+	if (quietestIndex !== -1) playingSounds.splice(quietestIndex, 1);
+	quietest.audio.stop();
+	return true;
+}
+
 export const audioService = {
 	playSound(
 		soundId: string,
@@ -277,56 +343,17 @@ export const audioService = {
 		soundId: string,
 		source: PositionProvider,
 		options: PositionalSoundOptions = {}
-	): AudioPlay {
-		const minDistance = Math.max(0, options.minDistance ?? 80);
-		const maxDistance = Math.max(minDistance + 1, options.maxDistance ?? 700);
-		return playTrackedSound(soundId, options, {
-			source: positionProvider(source),
-			listener: positionProvider(options.listener ?? defaultPositionalListener),
-			minDistance,
-			maxDistance,
-			rolloff: Math.max(0.01, options.rolloff ?? 1.5),
-			panDistance: Math.max(1, options.panDistance ?? 300),
-		});
-	},
-
-	playLimitedPositionalSound(
-		soundId: string,
-		source: PositionProvider,
-		voiceLimit: number,
-		options: PositionalSoundOptions = {}
 	): AudioPlay | null {
-		const spatial = {
-			source: positionProvider(source),
-			listener: positionProvider(options.listener ?? defaultPositionalListener),
-			minDistance: Math.max(0, options.minDistance ?? 80),
-			maxDistance: Math.max(
-				Math.max(0, options.minDistance ?? 80) + 1,
-				options.maxDistance ?? 700
-			),
-			rolloff: Math.max(0.01, options.rolloff ?? 1.5),
-			panDistance: Math.max(1, options.panDistance ?? 300),
-		};
-		const activeVoices = playingSounds.filter(
-			(sound) => sound.id === soundId && sound.spatial
-		);
-		const limit = Math.max(1, Math.floor(voiceLimit));
-		if (activeVoices.length >= limit) {
-			const nextGain = spatialGain(spatial);
-			let quietest = activeVoices[0];
-			let quietestGain = spatialGain(quietest.spatial!);
-			for (let index = 1; index < activeVoices.length; index++) {
-				const gain = spatialGain(activeVoices[index].spatial!);
-				if (gain >= quietestGain) continue;
-				quietest = activeVoices[index];
-				quietestGain = gain;
-			}
-			if (nextGain <= quietestGain) return null;
-			const quietestIndex = playingSounds.indexOf(quietest);
-			if (quietestIndex !== -1) playingSounds.splice(quietestIndex, 1);
-			quietest.audio.stop();
+		const spatial = createSpatialSound(source, options);
+		if (options.voiceLimit === false) {
+			return playTrackedSound(soundId, options, spatial);
 		}
-		return playTrackedSound(soundId, options, spatial);
+		return playVoiceLimitedPositionalSound(
+			soundId,
+			spatial,
+			options.voiceLimit ?? DEFAULT_POSITIONAL_VOICE_LIMIT,
+			options
+		);
 	},
 
 	updateSound(audio: AudioPlay, options: Pick<SoundOptions, "volume" | "speed" | "detune">) {

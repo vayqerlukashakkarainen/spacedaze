@@ -1,5 +1,9 @@
-import { GameObj, ParticlesComp, PosComp } from "kaplay";
+import { GameObj, ParticlesComp, PosComp, Vec2 } from "kaplay";
 import { k, layers } from "./main";
+import {
+	incrementPerformanceCounter,
+	setPerformanceCounter,
+} from "./services/frameProfilerService";
 import { tags } from "./tags";
 
 export let trailEmitter: GameObj<PosComp | ParticlesComp>;
@@ -19,6 +23,56 @@ interface UiEffects {
 }
 
 let uiEffects: UiEffects | null = null;
+
+const MAX_ENEMY_TRAIL_EMISSIONS_PER_FRAME = 24;
+const ENEMY_EFFECT_VIEW_MARGIN = 72;
+let enemyEffectFrame = -1;
+let enemyEffectCadence = 1;
+
+export function emitEnemyTrail(
+	enemy: GameObj,
+	position: Vec2,
+	direction: number,
+	count = 1
+) {
+	refreshEnemyEffectBudget();
+	incrementPerformanceCounter("enemyFxRequested");
+	if (!isNearViewport(position)) {
+		incrementPerformanceCounter("enemyFxCulled");
+		return false;
+	}
+	if ((enemy.id + enemyEffectFrame) % enemyEffectCadence !== 0) {
+		incrementPerformanceCounter("enemyFxBudgetSkipped");
+		return false;
+	}
+
+	trailEmitter.emitter.position = position;
+	trailEmitter.emitter.direction = direction;
+	trailEmitter.emit(count);
+	incrementPerformanceCounter("enemyFxEmitted");
+	return true;
+}
+
+function refreshEnemyEffectBudget() {
+	const frame = Math.floor(k.time() * 60);
+	if (frame === enemyEffectFrame) return;
+	enemyEffectFrame = frame;
+	const enemyCount = k.get(tags.enemy).length;
+	enemyEffectCadence = Math.max(
+		1,
+		Math.ceil(enemyCount / MAX_ENEMY_TRAIL_EMISSIONS_PER_FRAME)
+	);
+	setPerformanceCounter("enemyFxCrowd", enemyCount);
+	setPerformanceCounter("enemyFxCadence", enemyEffectCadence);
+}
+
+function isNearViewport(position: Vec2) {
+	const screenPosition = k.toScreen(position);
+	return screenPosition.x >= -ENEMY_EFFECT_VIEW_MARGIN &&
+		screenPosition.x <= k.width() + ENEMY_EFFECT_VIEW_MARGIN &&
+		screenPosition.y >= -ENEMY_EFFECT_VIEW_MARGIN &&
+		screenPosition.y <= k.height() + ENEMY_EFFECT_VIEW_MARGIN;
+}
 
 export function getUiEffects() {
 	if (!uiEffects) {

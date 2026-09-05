@@ -157,6 +157,7 @@ function addWormholeEffect(portal: any) {
 		{
 			volume: 0.5,
 			loop: true,
+			voiceLimit: false,
 			minDistance: 55,
 			maxDistance: 400,
 			rolloff: 1.5,

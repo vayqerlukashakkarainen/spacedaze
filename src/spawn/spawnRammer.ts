@@ -1,10 +1,9 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
-import { starsEmitterDir, trailEmitter } from "../particles"
+import { emitEnemyTrail, starsEmitterDir, trailEmitter } from "../particles"
 import { audioService } from "../services/audioService"
 import { applyDamage } from "../services/damageService"
-import { emitBudgetedEnemyExhaust } from "../services/enemyFxBudgetService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import {
@@ -100,11 +99,11 @@ export function spawnRammer(
 				rammer.phaseTimer = 0
 				rammer.lockedDirection = playerDirection
 				faceDirection(rammer, rammer.lockedDirection)
-				audioService.playLimitedPositionalSound(
+				audioService.playPositionalSound(
 					"wormhole_rampup",
 					() => rammer.exists() ? rammer.pos : undefined,
-					8,
 					{
+						voiceLimit: 8,
 						volume: mainSoundVolume * 0.35,
 						speed: CHARGE_SOUND_DURATION / chargeWindup,
 						minDistance: 40,
@@ -140,11 +139,11 @@ export function spawnRammer(
 					profile.scale,
 					profile.elite
 				)
-				audioService.playLimitedPositionalSound(
+				audioService.playPositionalSound(
 					"rammer_launch",
 					() => rammer.exists() ? rammer.pos : undefined,
-					12,
 					{
+						voiceLimit: 12,
 						volume: mainSoundVolume * 0.8,
 						minDistance: 35,
 						maxDistance: 560,
@@ -230,7 +229,7 @@ function faceDirection(enemy: { angle: number }, direction: Vec2) {
 }
 
 function emitRammerTrail(rammer: GameObj, direction: Vec2, scale: number) {
-	emitBudgetedEnemyExhaust(
+	emitEnemyTrail(
 		rammer,
 		rammer.pos.sub(direction.scale(13 * scale)),
 		direction.angle() + 180
