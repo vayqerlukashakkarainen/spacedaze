@@ -54,7 +54,6 @@ function atlasEntry(index: number) {
 export async function init(k: KAPLAYCtx) {
 	await k.loadRoot("./"); // A good idea for Itch.io publishing later
 	await k.loadSprite("ship", "sprites/ship-v2.png");
-	await k.loadSprite("companion_burt", "sprites/companions/burt.png")
 	await k.loadSprite("crate1", "sprites/crate-v2.png");
 	await k.loadSprite(
 		"salvage_asteroid_normal",
@@ -459,6 +458,8 @@ export async function init(k: KAPLAYCtx) {
 			`sprites/planet-chunks/planet-chunk-${index + 1}.png`
 		);
 	}
+	await k.loadSprite("companion_burt", "sprites/companions/burt.png")
+
 	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
 
 	await k.loadSound("shoot1", "sounds/shoot1.wav");
