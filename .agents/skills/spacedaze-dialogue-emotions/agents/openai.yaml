@@ -1,0 +1,4 @@
+interface:
+  display_name: "SpaceDaze Dialogue & Emotions"
+  short_description: "Stage expressive dialogue with comic timing"
+  default_prompt: "Write or stage SpaceDaze dialogue using the emotion system, cutscene choreography, and project timing rules."

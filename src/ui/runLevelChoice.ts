@@ -16,6 +16,7 @@ import {
 } from "../services/rewardService"
 import {
 	consumeRunLevelSelection,
+	drawRunLevelOfferIds,
 	getAvailableRunLevelBonuses,
 	getRunLevelBonusValue,
 	getRunLevelSnapshot,
@@ -47,14 +48,20 @@ import {
 	getAbilityDefinition,
 	type AbilityDefinition,
 } from "../services/abilityRegistry"
+import {
+	recordTelemetryRewardOffered,
+	recordTelemetryRewardSelected,
+	type RewardTelemetryDetails,
+} from "../services/runTelemetryService"
 
 type RunLevelChoice =
-	| { kind: "generic"; bonus: RunLevelBonusDefinition }
-	| { kind: "upgrade"; reward: Reward }
+	| { kind: "generic"; bonus: RunLevelBonusDefinition; candidatePoolSize: number }
+	| { kind: "upgrade"; reward: Reward; candidatePoolSize: number }
 	| {
 		kind: "abilityTier"
 		ability: AbilityDefinition
 		tier: AbilityTierState
+		candidatePoolSize: number
 	}
 
 let isOpen = false
@@ -74,6 +81,7 @@ export function showRunLevelChoice() {
 		consumeRunLevelSelection()
 		return false
 	}
+	recordRunLevelOffers(choices, snapshot.level)
 
 	isOpen = true
 	selectionLocked = false
@@ -224,14 +232,36 @@ function selectRunLevelChoice(choice: RunLevelChoice) {
 	if (selectionLocked) return
 	selectionLocked = true
 	let applied = false
+	const runLevel = getRunLevelSnapshot().level
 	if (choice.kind === "generic") {
 		applied = grantRunLevelBonus(choice.bonus.id, choice.bonus.rarity)
-		if (applied) loadPlayer()
+		if (applied) {
+			loadPlayer()
+			recordTelemetryRewardSelected(
+				`runBonus:${choice.bonus.id}`,
+				choice.bonus.rarity,
+				false,
+				getChoiceTelemetryDetails(choice, runLevel)
+			)
+		}
 	} else if (choice.kind === "upgrade") {
 		applied = applyReward(choice.reward, k.center())
-		if (applied) addCollectedPowerup(choice.reward)
+		if (applied) {
+			addCollectedPowerup(
+				choice.reward,
+				getChoiceTelemetryDetails(choice, runLevel)
+			)
+		}
 	} else {
 		applied = registerAbilityTier(choice.tier)
+		if (applied) {
+			recordTelemetryRewardSelected(
+				`abilityTier:${choice.ability.id}:${choice.tier.rarity}`,
+				choice.tier.rarity,
+				false,
+				getChoiceTelemetryDetails(choice, runLevel)
+			)
+		}
 	}
 	if (!applied) {
 		selectionLocked = false
@@ -244,37 +274,48 @@ function selectRunLevelChoice(choice: RunLevelChoice) {
 }
 
 function createRunLevelChoices(): RunLevelChoice[] {
-	const generic = shuffle(getAvailableRunLevelBonuses())
-		.slice(0, 2)
-		.map(withRolledRarity)
-	const choices: RunLevelChoice[] = generic.map((bonus) => ({
-		kind: "generic",
-		bonus,
-	}))
-	const special = shuffle([
-		pickOwnedUpgradeChoice(),
-		pickAbilityTierChoice(),
-	].filter((choice): choice is RunLevelChoice => choice !== undefined))[0]
-	if (special) choices.push(special)
-	else {
-		const used = new Set(generic.map((bonus) => bonus.id))
-		const fallback = shuffle(
-			getAvailableRunLevelBonuses().filter((bonus) => !used.has(bonus.id))
-		)[0]
-		if (fallback) choices.push({ kind: "generic", bonus: withRolledRarity(fallback) })
+	const availableBonuses = getAvailableRunLevelBonuses()
+	const specialCandidates = [
+		...getOwnedUpgradeChoices(),
+		...getAbilityTierChoices(),
+	]
+	const specialFamilyId = drawRunLevelOfferIds(
+		"special",
+		specialCandidates.map(getChoiceFamilyId),
+		1,
+		Math.random,
+		false
+	)[0]
+	const special = specialCandidates.find(
+		(choice) => getChoiceFamilyId(choice) === specialFamilyId
+	)
+	const genericCount = special ? 2 : 3
+	const genericIds = drawRunLevelOfferIds(
+		"passive",
+		availableBonuses.map((bonus) => bonus.id),
+		genericCount
+	)
+	const choices: RunLevelChoice[] = genericIds.flatMap((id) => {
+		const bonus = availableBonuses.find((candidate) => candidate.id === id)
+		return bonus ? [{
+			kind: "generic" as const,
+			bonus: withRolledRarity(bonus),
+			candidatePoolSize: availableBonuses.length,
+		}] : []
+	})
+	if (special) {
+		choices.push({
+			...special,
+			candidatePoolSize: specialCandidates.length,
+		})
 	}
 	return shuffle(choices)
 }
 
-function pickOwnedUpgradeChoice(): RunLevelChoice | undefined {
-	const reward = pickOwnedUpgradeReward()
-	return reward ? { kind: "upgrade", reward } : undefined
-}
-
-function pickAbilityTierChoice(): RunLevelChoice | undefined {
+function getAbilityTierChoices(): RunLevelChoice[] {
 	const loadout = getAbilityLoadout()
 	const slots: AbilitySlot[] = ["primary", "secondary", "mobility", "ultimate"]
-	const candidates = slots.flatMap((slot) => {
+	return slots.flatMap((slot) => {
 		const abilityId = loadout[slot] as AbilityId | undefined
 		if (!abilityId) return []
 		const ability = getAbilityDefinition(abilityId)
@@ -284,13 +325,13 @@ function pickAbilityTierChoice(): RunLevelChoice | undefined {
 			kind: "abilityTier" as const,
 			ability,
 			tier: rollAbilityTierState(abilityId, slot, rarity),
+			candidatePoolSize: 0,
 		}]
 	})
-	return shuffle(candidates)[0]
 }
 
-function pickOwnedUpgradeReward() {
-	const candidates: Reward[] = []
+function getOwnedUpgradeChoices(): RunLevelChoice[] {
+	const candidates: RunLevelChoice[] = []
 	for (const [rawKey, currentLevel] of Object.entries(levelLoadout)) {
 		const key = rawKey as ToolKey
 		if (currentLevel === undefined || isPermanentUpgradeKey(key)) continue
@@ -301,9 +342,52 @@ function pickOwnedUpgradeReward() {
 		const reward = createDirectUpgradeReward(key, nextLevel)
 		if (!reward) continue
 		reward.rarity = getEffectiveUpgradeRarity(key) ?? reward.rarity
-		candidates.push(reward)
+		candidates.push({ kind: "upgrade", reward, candidatePoolSize: 0 })
 	}
-	return shuffle(candidates)[0]
+	return candidates
+}
+
+function recordRunLevelOffers(choices: readonly RunLevelChoice[], runLevel: number) {
+	for (const choice of choices) {
+		recordTelemetryRewardOffered(
+			getChoiceRewardId(choice),
+			getChoiceTelemetryDetails(choice, runLevel)
+		)
+	}
+}
+
+function getChoiceRewardId(choice: RunLevelChoice) {
+	if (choice.kind === "generic") return `runBonus:${choice.bonus.id}`
+	if (choice.kind === "abilityTier") {
+		return `abilityTier:${choice.ability.id}:${choice.tier.rarity}`
+	}
+	return choice.reward.id
+}
+
+function getChoiceFamilyId(choice: RunLevelChoice) {
+	if (choice.kind === "generic") return `runBonus:${choice.bonus.id}`
+	if (choice.kind === "abilityTier") return `abilityTier:${choice.ability.id}`
+	return choice.reward.upgradeKey
+		? `upgrade:${choice.reward.upgradeKey}`
+		: choice.reward.id
+}
+
+function getChoiceTelemetryDetails(
+	choice: RunLevelChoice,
+	runLevel: number
+): RewardTelemetryDetails {
+	return {
+		source: "level-up",
+		category: choice.kind,
+		familyId: getChoiceFamilyId(choice),
+		rarity: choice.kind === "generic"
+			? choice.bonus.rarity
+			: choice.kind === "abilityTier"
+				? choice.tier.rarity
+				: choice.reward.rarity,
+		runLevel,
+		candidatePoolSize: choice.candidatePoolSize,
+	}
 }
 
 function getChoiceDetails(choice: RunLevelChoice) {

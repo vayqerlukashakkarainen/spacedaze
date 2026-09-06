@@ -1,0 +1,4 @@
+interface:
+  display_name: "SpaceDaze Assets"
+  short_description: "Add and optimize SpaceDaze art and audio assets"
+  default_prompt: "Add or modify a SpaceDaze asset while preserving its visual style and Kaplay batching performance."

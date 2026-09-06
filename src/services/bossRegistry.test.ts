@@ -14,4 +14,15 @@ assert.equal(getBossPhaseIndex(impactAce, 1), 0)
 assert.equal(getBossPhaseIndex(impactAce, 0.66), 1)
 assert.equal(getBossPhaseIndex(impactAce, 0.32), 2)
 
+const claimkeeper = getBossDefinition("federation-dreadnought")
+
+assert.equal(claimkeeper.name, "THE CLAIMKEEPER")
+assert.equal(claimkeeper.phases.length, 3)
+assert.equal(getBossHealth("federation-dreadnought", 3), 120)
+assert.equal(getBossHealth("federation-dreadnought", 6), 180)
+assert.equal(getBossPhaseIndex(claimkeeper, 0.68), 0)
+assert.equal(getBossPhaseIndex(claimkeeper, 0.67), 1)
+assert.equal(getBossPhaseIndex(claimkeeper, 0.31), 1)
+assert.equal(getBossPhaseIndex(claimkeeper, 0.3), 2)
+
 console.log("Boss registry tests passed")

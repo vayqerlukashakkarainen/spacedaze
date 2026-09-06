@@ -238,6 +238,8 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("particle4", "sprites/particle4.png");
 	await k.loadSprite("spark1", "sprites/spark1.png");
 	const emotionSprites = [
+		"emote_bars",
+		"emote_dots",
 		"emote_drops",
 		"emote_exclamation",
 		"emote_exclamations",
@@ -245,9 +247,14 @@ export async function init(k: KAPLAYCtx) {
 		"emote_faceHappy",
 		"emote_faceSad",
 		"emote_heart",
+		"emote_heartBroken",
 		"emote_idea",
+		"emote_laugh",
+		"emote_music",
 		"emote_question",
 		"emote_sleeps",
+		"emote_stars",
+		"emote_swirl",
 	]
 	for (const sprite of emotionSprites) {
 		await k.loadSprite(sprite, `sprites/emotes/${sprite}.png`)
@@ -277,7 +284,22 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("weapon_burst_driver", "sprites/weapons/burst-driver.png")
 	await k.loadSprite("weapon_plasma_mortar", "sprites/weapons/plasma-mortar.png")
 	await k.loadSprite("weapon_rail_lance", "sprites/weapons/rail-lance.png")
+	await k.loadSprite("weapon_pulse_repeater", "sprites/weapons/pulse-repeater.png")
+	await k.loadSprite("weapon_twin_needle", "sprites/weapons/twin-needle.png")
+	await k.loadSprite("weapon_impact_driver", "sprites/weapons/impact-driver.png")
 	await k.loadSprite("rocket_upg1", "sprites/upgrades/rocket_upg1.png");
+	await k.loadSprite(
+		"active_repulsor_pulse",
+		"sprites/active-modules/repulsor-pulse.png"
+	)
+	await k.loadSprite(
+		"active_decoy_beacon",
+		"sprites/active-modules/decoy-beacon.png"
+	)
+	await k.loadSprite(
+		"active_scrap_mine",
+		"sprites/active-modules/scrap-mine.png"
+	)
 	await k.loadSprite(
 		"active_kinetic_barrier",
 		"sprites/active-modules/kinetic-barrier.png"
@@ -339,6 +361,9 @@ export async function init(k: KAPLAYCtx) {
 		"space_jump_upg1",
 		"sprites/upgrades/space_jump_upg1.png"
 	);
+	await k.loadSprite("mobility_retro_burst", "sprites/upgrades/retro_burst.png")
+	await k.loadSprite("mobility_drift_brake", "sprites/upgrades/drift_brake.png")
+	await k.loadSprite("mobility_gravity_sling", "sprites/upgrades/gravity_sling.png")
 	await k.loadSprite(
 		"reroll_token",
 		"sprites/upgrades/reroll_token.svg"
@@ -434,7 +459,6 @@ export async function init(k: KAPLAYCtx) {
 			`sprites/planet-chunks/planet-chunk-${index + 1}.png`
 		);
 	}
-
 	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
 
 	await k.loadSound("shoot1", "sounds/shoot1.wav");

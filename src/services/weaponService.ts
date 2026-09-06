@@ -6,6 +6,9 @@ import { getAbilityTierValues } from "./abilityTierService"
 
 export type WeaponId =
 	| "standardBlaster"
+	| "pulseRepeater"
+	| "twinNeedle"
+	| "impactDriver"
 	| "breachCannon"
 	| "arcCarbine"
 	| "scatterArray"
@@ -21,6 +24,7 @@ export interface WeaponTriggerModifier {
 export interface WeaponFirePattern {
 	projectileCount?: number
 	spreadDegrees?: number
+	lateralSpacing?: number
 	burstCount?: number
 	burstInterval?: number
 }
@@ -87,6 +91,66 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		mountScale: 0.45,
 		mountOffsetY: -4,
 		muzzleOffsetY: -11,
+	},
+	{
+		id: "pulseRepeater",
+		minimumHubLevel: 1,
+		name: "PULSE REPEATER",
+		description: "Hold to unleash rapid low-damage fire with a loose firing pattern.",
+		icon: "weapon_pulse_repeater",
+		damageMultiplier: 0.48,
+		projectileSpeedMultiplier: 1.18,
+		fireCooldown: 0.075,
+		triggerModifier: {
+			mode: "hold",
+			usesCooldown: true,
+		},
+		spreadDegrees: 4.2,
+		mountScale: 1.2,
+		mountOffsetY: -5,
+		muzzleOffsetY: -13,
+	},
+	{
+		id: "twinNeedle",
+		minimumHubLevel: 1,
+		name: "TWIN NEEDLE",
+		description: "Fires two accurate, lightweight rounds side by side.",
+		icon: "weapon_twin_needle",
+		damageMultiplier: 0.58,
+		projectileSpeedMultiplier: 1.28,
+		fireCooldown: 0.22,
+		triggerModifier: {
+			mode: "press",
+			usesCooldown: true,
+		},
+		spreadDegrees: 0.8,
+		mountScale: 1.2,
+		mountOffsetY: -5,
+		muzzleOffsetY: -13,
+		pattern: {
+			projectileCount: 2,
+			lateralSpacing: 5,
+		},
+	},
+	{
+		id: "impactDriver",
+		minimumHubLevel: 1,
+		name: "IMPACT DRIVER",
+		description: "Launches a slow heavy bolt that violently knocks targets back.",
+		icon: "weapon_impact_driver",
+		damageMultiplier: 1.55,
+		projectileSpeedMultiplier: 0.78,
+		fireCooldown: 0.38,
+		triggerModifier: {
+			mode: "press",
+			usesCooldown: true,
+		},
+		spreadDegrees: 0.9,
+		mountScale: 1.2,
+		mountOffsetY: -5,
+		muzzleOffsetY: -13,
+		projectileScale: 1.35,
+		knockback: 52,
 	},
 	{
 		id: "breachCannon",

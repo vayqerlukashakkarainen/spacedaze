@@ -139,7 +139,8 @@ let currentMoveSpeed = 0;
 let currentCameraScale = 1;
 let currentCameraPos: Vec2 | undefined;
 let configuredBlasterLevel = -2;
-let configuredSpaceJumpLevel = -1;
+let configuredSpaceJumpLevel = "";
+let configuredMobilityId = "";
 let phaseJumpCharges = 0;
 let phaseJumpMaxCharges = 0;
 let phaseJumpRechargeTimer = 0;
@@ -148,15 +149,19 @@ let phaseJumpStart: Vec2 | undefined;
 let phaseJumpEnd: Vec2 | undefined;
 let phaseJumpElapsed = 0;
 const phaseJumpHitTargets = new Set<number>();
+let retroBurstStart: Vec2 | undefined;
+let retroBurstEnd: Vec2 | undefined;
+let retroBurstElapsed = 0;
 let nextPrimaryFireTime = 0;
 let configuredWeaponId = "";
 let overclockShakeTimer = 0;
 let afterburnerWakeTimer = 0;
 let reactivePlatingReadyAt = 0;
 let repairPulseGeneration = 0;
+let activeScrapMine: GameObj | undefined;
 
 interface PhaseJumpConfig {
-	distance: number;
+	distance?: number;
 	cooldown: number;
 	charges: number;
 }
@@ -393,7 +398,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			configureSpaceJump();
 		}
 
-		const phaseJumpConfig = getPhaseJumpConfig();
+		const phaseJumpConfig = getMobilityChargeConfig();
 		let rechargeProgress = 1;
 		if (phaseJumpConfig && phaseJumpCharges < phaseJumpMaxCharges) {
 			phaseJumpRechargeTimer += dt();
@@ -452,8 +457,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			activeModule?.id ?? "",
 			activeModule !== undefined && activeCooldownRemaining <= 0,
 			mobilityId ?? "",
-			mobilityId === "thrusterOverdrive" ||
-				(mobilityId === "phaseJump" && phaseJumpCharges > 0),
+			mobilityId === "thrusterOverdrive" || phaseJumpCharges > 0,
 			ultimateId ?? "",
 			ultimateId !== undefined && ultimateProgress >= 1
 		);
@@ -543,12 +547,14 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		}
 
 		const isPhaseJumping = updatePhaseJump(playerObj);
+		const isRetroBursting = updateRetroBurst(playerObj);
+		const isMobilityMoving = isPhaseJumping || isRetroBursting;
 		constrainToRunFinaleBattleZone(playerObj.pos, 16);
 		const isInvulnerable =
 			isPhaseJumping || k.time() < phaseJumpInvulnerableUntil;
 		setPlayerDamageInvulnerable(isInvulnerable);
 		playerObj.opacity = isInvulnerable ? 0.35 : 1;
-		const cameraFollowSpeed = isPhaseJumping
+		const cameraFollowSpeed = isMobilityMoving
 			? phaseCameraFollowSpeed
 			: normalCameraFollowSpeed;
 		if (!currentCameraPos) currentCameraPos = playerObj.pos.clone();
@@ -590,7 +596,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		let moveDirection = k.Vec2.fromAngle(playerObj.angle + 90);
 		let nextPlayerAngle = playerObj.angle;
 		let desiredPlayerAngle = playerObj.angle;
-		if (steeringVelocity.len() > 0 && !isPhaseJumping) {
+		if (steeringVelocity.len() > 0 && !isMobilityMoving) {
 			moveDirection = steeringVelocity.unit();
 			targetObj.pos = playerObj.pos.add(moveDirection.scale(targetOffset));
 			const movementRotation = lerpAngleBetweenPos(
@@ -627,7 +633,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		}
 
 		const isBoosting =
-			!isPhaseJumping &&
+			!isMobilityMoving &&
 			getEquippedMobilityAbilityId() === "thrusterOverdrive" &&
 			k.isKeyDown("shift") &&
 			wasdDir.len() > 0;
@@ -665,7 +671,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		);
 		k.setCamScale(getCameraBobScale(currentCameraScale));
 
-		const targetSpeed = isPhaseJumping
+		const targetSpeed = isMobilityMoving
 			? 0
 			: wasdDir.len() > 0
 				? controlVelocity.add(gravityVelocity).len()
@@ -686,7 +692,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			playerObj.pos.y + 12 * playerCurrentDir.y
 		);
 
-		if (speed > 4 && !isPhaseJumping) {
+		if (speed > 4 && !isMobilityMoving) {
 			const activeTrailEmitter = isBoosting
 				? boostTrailEmitter
 				: trailEmitter;
@@ -695,7 +701,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			activeTrailEmitter.emit(1);
 		}
 
-		if (!isPhaseJumping) {
+		if (!isMobilityMoving) {
 			steerMoveRotateAndLean(
 				playerObj,
 				nextPlayerAngle,
@@ -780,14 +786,22 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			Math.floor(weapon.pattern?.projectileCount ?? 1)
 		);
 		const patternSpread = weapon.pattern?.spreadDegrees ?? 0;
+		const lateralSpacing = weapon.pattern?.lateralSpacing ?? 0;
 		let shouldPlayFireSound = playFireSound;
 		const fireFromMuzzle = (muzzlePos: Vec2) => {
 			for (let index = 0; index < projectileCount; index++) {
 				const angleOffset = projectileCount === 1
 					? 0
 					: -patternSpread / 2 + patternSpread * index / (projectileCount - 1);
+				const lateralOffset = projectileCount === 1
+					? 0
+					: -lateralSpacing / 2 +
+						lateralSpacing * index / (projectileCount - 1);
+				const projectilePos = muzzlePos.add(
+					k.Vec2.fromAngle(turretWorldAngle).scale(lateralOffset)
+				);
 				spawnPlayerBlaster(
-					muzzlePos,
+					projectilePos,
 					k.Vec2.fromAngle(turretWorldAngle - 90),
 					turretWorldAngle,
 					{
@@ -908,7 +922,16 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		);
 	});
 	playerObj.onKeyPress("shift", () => {
-		if (getEquippedMobilityAbilityId() !== "thrusterOverdrive") return;
+		if (dialogCapturesInput()) return;
+		if (levelTransitionActive() || respawnTransitionActive) return;
+		const mobilityId = getEquippedMobilityAbilityId();
+		if (!mobilityId) {
+			recordTelemetryAbilityFailure("mobility");
+			flashEmptyMobilitySocket();
+			playRequirementErrorSound();
+			return;
+		}
+		if (mobilityId !== "thrusterOverdrive") return;
 		recordTelemetryAbilityUse("mobility", "thrusterOverdrive");
 	});
 	playerObj.onKeyRelease("shift", () => {
@@ -924,31 +947,123 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			playRequirementErrorSound();
 			return;
 		}
-		const config = getPhaseJumpConfig();
-		if (!config || phaseJumpCharges <= 0 || phaseJumpEnd) {
-			recordTelemetryAbilityFailure("mobility", "phaseJump");
+		const mobilityId = getEquippedMobilityAbilityId();
+		const config = getMobilityChargeConfig();
+		if (
+			!config ||
+			phaseJumpCharges <= 0 ||
+			phaseJumpEnd ||
+			retroBurstEnd
+		) {
+			recordTelemetryAbilityFailure("mobility", mobilityId);
+			return;
+		}
+		if (mobilityId === "driftBrake") {
+			consumeMobilityCharge();
+			currentMoveSpeed = 0;
+			playerObj.gravityVelocity = k.vec2(0);
+			phaseJumpInvulnerableUntil = Math.max(
+				phaseJumpInvulnerableUntil,
+				k.time() + 0.18
+			);
+			spawnRing({
+				pos: playerObj.pos.clone(),
+				speed: 230,
+				intensity: 0.24,
+				maxRadius: 40,
+				color: k.rgb(180, 230, 255),
+			});
+			spawnFlash(playerObj.pos.clone(), 7, k.rgb(180, 230, 255));
+			audioService.playSound("swap_level", {
+				volume: mainSoundVolume * 0.5,
+				detune: -180,
+			});
+			recordTelemetryAbilityUse("mobility", mobilityId);
+			return;
+		}
+		if (mobilityId === "gravitySling") {
+			consumeMobilityCharge();
+			const tier = getAbilityTierValues(mobilityId);
+			const targetPos = getActiveModuleTarget(
+				playerObj.pos,
+				180 * tier.speed
+			);
+			const gravity = spawnGravityPull({
+				pos: targetPos,
+				radius: 230 * tier.speed,
+				strength: 68 * tier.power,
+				falloff: 0.7,
+				visualizePull: true,
+				targetTags: [tags.player],
+			});
+			const sling = k.add([
+				k.pos(targetPos),
+				k.sprite("mobility_gravity_sling"),
+				k.anchor("center"),
+				k.scale(0.72),
+				k.color(120, 190, 255),
+				k.opacity(0.8),
+				k.rotate(0),
+				k.layer(layers.gameEffects),
+				tags.gameLoop,
+			]);
+			sling.onUpdate(() => {
+				sling.angle += 180 * dt();
+				sling.opacity = k.wave(0.38, 0.9, k.time() * 8);
+			});
+			k.wait(1.15 * tier.power, () => {
+				if (gravity.exists()) k.destroy(gravity);
+				if (sling.exists()) k.destroy(sling);
+			});
+			spawnRing({
+				pos: targetPos,
+				speed: 80,
+				intensity: 0.22,
+				maxRadius: 48,
+				color: k.rgb(120, 190, 255),
+			});
+			audioService.playSound("swap_level", {
+				volume: mainSoundVolume * 0.55,
+				detune: -420,
+			});
+			recordTelemetryAbilityUse("mobility", mobilityId);
 			return;
 		}
 
-		const jumpDirection = k.Vec2.fromAngle(playerObj.angle - 90);
+		const jumpDirection = mobilityId === "retroBurst"
+			? k.Vec2.fromAngle(turretWorldAngle + 90)
+			: k.Vec2.fromAngle(playerObj.angle - 90);
 		const startPos = playerObj.pos.clone();
-		const destination = startPos.add(jumpDirection.scale(config.distance));
+		const destination = startPos.add(
+			jumpDirection.scale(config.distance ?? 0)
+		);
 		constrainToRunFinaleBattleZone(destination, 16);
 		const gridCollision = playerObj.has("gridCollision")
 			? (playerObj.c("gridCollision") as GridCollisionComp)
 			: undefined;
 		if (gridCollision && !gridCollision.canMoveTo(destination)) {
-			recordTelemetryAbilityFailure("mobility", "phaseJump");
+			recordTelemetryAbilityFailure("mobility", mobilityId);
 			spawnFlash(destination, 6, k.rgb(255, 70, 70));
 			audioService.playSound("error", { volume: mainSoundVolume * 0.35 });
 			return;
 		}
-		recordTelemetryAbilityUse("mobility", "phaseJump");
-
-		phaseJumpCharges--;
-		if (phaseJumpCharges === phaseJumpMaxCharges - 1) {
-			phaseJumpRechargeTimer = 0;
+		recordTelemetryAbilityUse("mobility", mobilityId);
+		consumeMobilityCharge();
+		if (mobilityId === "retroBurst") {
+			retroBurstStart = startPos;
+			retroBurstEnd = destination;
+			retroBurstElapsed = 0;
+			spawnRetroBurstEffect(startPos, destination, playerObj.angle);
+			forEachSpatialNearby(startPos, 72, {
+				allTags: [tags.enemy, tags.unit],
+			}, (enemy) => {
+				const away = enemy.pos.sub(startPos);
+				if (away.len() <= 0) return;
+				enemy.pos = enemy.pos.add(away.unit().scale(30));
+			});
+			return;
 		}
+
 		setPlayerDamageInvulnerable(true);
 		phaseJumpStart = startPos;
 		phaseJumpEnd = destination;
@@ -1086,7 +1201,8 @@ export function clearPlayer() {
 	currentCameraPos = undefined;
 	k.setCamScale(WORLD_CAMERA_SCALE);
 	configuredBlasterLevel = -2;
-	configuredSpaceJumpLevel = -1;
+	configuredSpaceJumpLevel = "";
+	configuredMobilityId = "";
 	phaseJumpCharges = 0;
 	phaseJumpMaxCharges = 0;
 	phaseJumpRechargeTimer = 0;
@@ -1095,6 +1211,10 @@ export function clearPlayer() {
 	phaseJumpEnd = undefined;
 	phaseJumpElapsed = 0;
 	phaseJumpHitTargets.clear();
+	retroBurstStart = undefined;
+	retroBurstEnd = undefined;
+	retroBurstElapsed = 0;
+	activeScrapMine = undefined;
 	resetPlayerDamageState();
 	nextPrimaryFireTime = 0;
 	configuredWeaponId = "";
@@ -1176,9 +1296,23 @@ function configureBlasters(muzzleObj: GameObj<PosComp>) {
 	}
 }
 
-function getPhaseJumpConfig(): PhaseJumpConfig | undefined {
-	if (getEquippedMobilityAbilityId() !== "phaseJump") return undefined;
-	const tier = getAbilityTierValues("phaseJump");
+function getMobilityChargeConfig(): PhaseJumpConfig | undefined {
+	const mobilityId = getEquippedMobilityAbilityId();
+	if (!mobilityId || mobilityId === "thrusterOverdrive") return undefined;
+	const tier = getAbilityTierValues(mobilityId);
+	if (mobilityId === "retroBurst") {
+		return {
+			distance: 68 * tier.speed,
+			cooldown: 3.2 / tier.recovery,
+			charges: 1,
+		};
+	}
+	if (mobilityId === "driftBrake") {
+		return { cooldown: 3.6 / tier.recovery, charges: 1 };
+	}
+	if (mobilityId === "gravitySling") {
+		return { cooldown: 5 / tier.recovery, charges: 1 };
+	}
 
 	switch (player.spaceJumpUpgradeLvl) {
 		case undefined:
@@ -1206,13 +1340,28 @@ function getPhaseJumpConfig(): PhaseJumpConfig | undefined {
 
 function configureSpaceJump() {
 	const previousMaxCharges = phaseJumpMaxCharges;
+	const mobilityId = getEquippedMobilityAbilityId() ?? "";
+	const mobilityChanged = configuredMobilityId !== mobilityId;
 	configuredSpaceJumpLevel = getSpaceJumpConfigLevel();
-	const config = getPhaseJumpConfig();
+	configuredMobilityId = mobilityId;
+	const config = getMobilityChargeConfig();
 	phaseJumpMaxCharges = config?.charges ?? 0;
+	if (mobilityChanged) {
+		phaseJumpCharges = phaseJumpMaxCharges;
+		phaseJumpRechargeTimer = 0;
+		return;
+	}
 	phaseJumpCharges = Math.min(
 		phaseJumpCharges + Math.max(0, phaseJumpMaxCharges - previousMaxCharges),
 		phaseJumpMaxCharges
 	);
+}
+
+function consumeMobilityCharge() {
+	phaseJumpCharges = Math.max(0, phaseJumpCharges - 1);
+	if (phaseJumpCharges === phaseJumpMaxCharges - 1) {
+		phaseJumpRechargeTimer = 0;
+	}
 }
 
 function activateModule(
@@ -1239,6 +1388,133 @@ function activateModule(
 				player.nrOfRockets + session.extraRockets
 			);
 			return;
+
+		case "repulsorPulse": {
+			const origin = playerObj.pos.clone();
+			const radius = 100 * tier.speed;
+			forEachSpatialNearby(origin, radius, {
+				anyTags: [tags.enemy, tags.projectile],
+			}, (target) => {
+				if (target.id === playerObj.id || !target.pos) return;
+				if (target.is(tags.projectile) && target.is(tags.friendly)) return;
+				const offset = target.pos.sub(origin);
+				if (offset.len() <= 0) return;
+				const strength = target.is(tags.projectile)
+					? 58 * tier.power
+					: 34 * tier.power;
+				target.pos = target.pos.add(offset.unit().scale(strength));
+			});
+			spawnRing({
+				pos: origin,
+				speed: 360,
+				intensity: 0.38,
+				maxRadius: radius,
+				color: k.rgb(100, 220, 255),
+			});
+			spawnFlash(origin, 9, k.rgb(100, 220, 255));
+			audioService.playSound("swap_level", {
+				volume: mainSoundVolume * 0.65,
+				detune: -280,
+			});
+			k.shake(2);
+			return;
+		}
+
+		case "decoyBeacon": {
+			const decoy = k.add([
+				k.pos(targetPos),
+				k.sprite("active_decoy_beacon"),
+				k.anchor("center"),
+				k.scale(0.85),
+				k.color(95, 220, 255),
+				k.opacity(0.72),
+				k.layer(layers.gameEffects),
+				k.lifespan(5 * tier.power, { fade: 0.45 }),
+				tags.props,
+				tags.gameLoop,
+			]);
+			decoy.onUpdate(() => {
+				decoy.opacity = k.wave(0.3, 0.82, k.time() * 9);
+				forEachSpatialNearby(decoy.pos, 210 * tier.speed, {
+					allTags: [tags.enemy, tags.unit],
+				}, (enemy) => {
+					const towardDecoy = decoy.pos.sub(enemy.pos);
+					if (towardDecoy.len() <= 1) return;
+					enemy.pos = enemy.pos.add(
+						towardDecoy.unit().scale(26 * tier.power * dt())
+					);
+				});
+			});
+			spawnRing({
+				pos: targetPos,
+				speed: 120,
+				intensity: 0.18,
+				maxRadius: 46,
+				color: k.rgb(95, 220, 255),
+			});
+			audioService.playSound("click1", {
+				volume: mainSoundVolume * 0.55,
+				detune: 420,
+			});
+			return;
+		}
+
+		case "scrapMine": {
+			if (activeScrapMine?.exists()) k.destroy(activeScrapMine);
+			const minePos = playerObj.pos.add(
+				k.Vec2.fromAngle(playerObj.angle + 90).scale(18)
+			);
+			let armedElapsed = 0;
+			let detonated = false;
+			const mine = k.add([
+				k.pos(minePos),
+				k.sprite("active_scrap_mine"),
+				k.anchor("center"),
+				k.rotate(playerObj.angle),
+				k.scale(0.8),
+				k.color(150, 160, 170),
+				k.opacity(0.9),
+				k.layer(layers.gameEffects),
+				tags.props,
+				tags.gameLoop,
+			]);
+			activeScrapMine = mine;
+			mine.onDestroy(() => {
+				if (activeScrapMine?.id === mine.id) activeScrapMine = undefined;
+			});
+			mine.onUpdate(() => {
+				armedElapsed += dt();
+				mine.angle += 28 * dt();
+				if (armedElapsed < 0.55 || detonated) return;
+				mine.color = k.rgb(90, 225, 255);
+				let targetFound = false;
+				forEachSpatialNearby(mine.pos, 46 * tier.speed, {
+					allTags: [tags.enemy, tags.unit],
+				}, () => {
+					targetFound = true;
+					return false;
+				});
+				if (!targetFound) return;
+				detonated = true;
+				const explosionPos = mine.pos.clone();
+				k.destroy(mine);
+				createExplosion({
+					pos: explosionPos,
+					radius: 60 * tier.speed,
+					damage: 16 * tier.power,
+					visualIntensity: 0.55,
+					visualParticleCount: 20,
+				});
+				audioService.playPositionalSound("explosion2", explosionPos, {
+					volume: mainSoundVolume * 0.65,
+				});
+				k.shake(2);
+			});
+			audioService.playSound("click1", {
+				volume: mainSoundVolume * 0.5,
+			});
+			return;
+		}
 
 		case "kineticBarrier": {
 			playerObj.activeModuleInvulnerable = true;
@@ -1560,9 +1836,11 @@ function activatePhaseNova(playerObj: GameObj<PosComp>) {
 }
 
 function getSpaceJumpConfigLevel() {
-	if (getEquippedMobilityAbilityId() !== "phaseJump") return -1;
-	if (player.spaceJumpLvl === undefined) return 0;
-	return (player.spaceJumpUpgradeLvl ?? 0) + 1;
+	const mobilityId = getEquippedMobilityAbilityId();
+	if (!mobilityId) return "none";
+	if (mobilityId !== "phaseJump") return mobilityId;
+	if (player.spaceJumpLvl === undefined) return "phaseJump:0";
+	return `phaseJump:${(player.spaceJumpUpgradeLvl ?? 0) + 1}`;
 }
 
 function spawnPhaseJumpEffect(start: Vec2, end: Vec2, angle: number) {
@@ -1609,6 +1887,42 @@ function spawnPhaseJumpEffect(start: Vec2, end: Vec2, angle: number) {
 		volume: 0.25,
 		detune: 500,
 	});
+}
+
+function spawnRetroBurstEffect(start: Vec2, end: Vec2, angle: number) {
+	const delta = end.sub(start);
+	boostTrailEmitter.emitter.position = start;
+	boostTrailEmitter.emitter.direction = k.Vec2.toAngle(delta.scale(-1));
+	boostTrailEmitter.emit(12);
+	spawnRing({
+		pos: start,
+		speed: 260,
+		intensity: 0.26,
+		maxRadius: 48,
+		color: k.rgb(210, 235, 255),
+	});
+	k.add([
+		k.pos(start),
+		k.opacity(0.62),
+		k.lifespan(0.2, { fade: 0.16 }),
+		{
+			draw() {
+				k.drawLine({
+					p1: k.vec2(),
+					p2: delta,
+					width: 2,
+					color: k.rgb(210, 235, 255),
+					opacity: this.opacity,
+				});
+			},
+		},
+		tags.gameLoop,
+	]);
+	audioService.playSound("swap_level", {
+		volume: mainSoundVolume * 0.55,
+		detune: 180,
+	});
+	k.shake(2);
 }
 
 function spawnRespawnJumpEffect(start: Vec2, end: Vec2, angle: number) {
@@ -1688,6 +2002,27 @@ function updatePhaseJump(playerObj: GameObj<PosComp>): boolean {
 		phaseJumpHitTargets.clear();
 	}
 
+	return true;
+}
+
+function updateRetroBurst(playerObj: GameObj<PosComp>): boolean {
+	if (!retroBurstStart || !retroBurstEnd) return false;
+
+	retroBurstElapsed += dt();
+	const progress = k.clamp(retroBurstElapsed / 0.16, 0, 1);
+	const easedProgress = 1 - Math.pow(1 - progress, 3);
+	playerObj.pos = retroBurstStart.lerp(retroBurstEnd, easedProgress);
+	boostTrailEmitter.emitter.position = playerObj.pos;
+	boostTrailEmitter.emitter.direction = k.Vec2.toAngle(
+		retroBurstEnd.sub(retroBurstStart).scale(-1)
+	);
+	boostTrailEmitter.emit(2);
+
+	if (progress >= 1) {
+		retroBurstStart = undefined;
+		retroBurstEnd = undefined;
+		retroBurstElapsed = 0;
+	}
 	return true;
 }
 

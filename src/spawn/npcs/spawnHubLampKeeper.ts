@@ -2,7 +2,6 @@ import { interactable } from "../../comp/interactable"
 import { k, layers } from "../../main"
 import { discoverDroid, getDroidDefinition } from "../../npcs/droidRegistry"
 import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
-import type { DialogueLine } from "../../services/dialogService"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 import { getHubLevel } from "../../services/hubProgressService"
 import {
@@ -82,7 +81,7 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 				})
 			}
 		}
-		void playCutscene(createLampKeeperConversation(dialogue.lines), {
+		void playCutscene(createLampKeeperConversation(dialogue), {
 			resolveActor: (id) => id === "lampKeeper" ? keeper : undefined,
 		}).then((result) => {
 			if (result === "completed") {
@@ -98,26 +97,42 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 }
 
 function createLampKeeperConversation(
-	lines: readonly DialogueLine[]
+	dialogue: NpcDialogueVariant
 ): CutsceneDefinition {
+	const emotion = dialogue.id === "all-lamps-lit" ? "impressed" : "idea"
 	return {
 		id: "hub-lamp-keeper-conversation",
 		pauseGameplay: false,
 		pauseVisualEffects: false,
 		steps: [
 			{
-				type: "emotion",
-				actor: "lampKeeper",
-				emotion: "idea",
+				type: "dialogue",
+				lines: dialogue.lines.slice(0, 1),
 				options: {
-					duration: 3,
-					priority: "narrative",
-					sound: { id: "ui_hover", volume: 0.3, speed: 1.06 },
+					gameplay: "live",
+					advance: "manual",
+					input: "passthrough",
+					overlayOpacity: 0,
 				},
 			},
 			{
+				type: "emotion",
+				actor: "lampKeeper",
+				emotion,
+				options: {
+					duration: 2.2,
+					priority: "narrative",
+					sound: {
+						id: "ui_hover",
+						volume: 0.3,
+						speed: emotion === "impressed" ? 1.16 : 1.06,
+					},
+				},
+			},
+			{ type: "wait", duration: emotion === "impressed" ? 0.48 : 0.34 },
+			{
 				type: "dialogue",
-				lines,
+				lines: dialogue.lines.slice(1),
 				options: {
 					gameplay: "live",
 					advance: "manual",

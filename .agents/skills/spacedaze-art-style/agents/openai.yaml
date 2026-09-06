@@ -1,0 +1,4 @@
+interface:
+  display_name: "SpaceDaze Art Style"
+  short_description: "Design visuals that belong in SpaceDaze"
+  default_prompt: "Create or review a SpaceDaze visual using the project art direction and existing reference assets."

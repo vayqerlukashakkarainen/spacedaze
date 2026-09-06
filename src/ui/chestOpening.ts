@@ -289,7 +289,11 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		) return;
 		if (!applyReward(reward, k.center())) return;
 		chestController.claimedDiscoveryIds.push(reward.id);
-		addCollectedPowerup(reward);
+		addCollectedPowerup(reward, {
+			source: "chest",
+			category: reward.kind,
+			rarity: reward.rarity,
+		});
 	};
 	const claimDiscoveryRewards = (rewards: readonly ChestReward[]) => {
 		for (const reward of rewards) claimDiscoveryReward(reward);
@@ -1089,7 +1093,11 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			...result.choices.slice(0, selectableSlotCount),
 		];
 		for (const reward of chestController.rewards) {
-			recordTelemetryRewardOffered(reward.id);
+			recordTelemetryRewardOffered(reward.id, {
+				source: "chest",
+				category: reward.kind,
+				rarity: reward.rarity,
+			});
 		}
 		chestController.totalFailures = result.failures;
 		chestController.quality = result.quality;
@@ -1295,7 +1303,11 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			...rerolledChoices,
 		];
 		for (const reward of chestController.rewards) {
-			recordTelemetryRewardOffered(reward.id);
+			recordTelemetryRewardOffered(reward.id, {
+				source: "chest",
+				category: reward.kind,
+				rarity: reward.rarity,
+			});
 		}
 		claimDiscoveryRewards(newDiscoveries);
 		chestController.totalFailures = result.failures;
@@ -1315,9 +1327,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		const selectableRewards = [...chestController.rewards];
 		const choiceCount = selectableRewards.length;
 		const slotCount = chestController.rewards.length;
-		const performanceLabel = chestController.totalFailures === 0
-			? "PERFECT OPEN"
-			: `${chestController.totalFailures} FAILURE${chestController.totalFailures === 1 ? "" : "S"}`;
+		const performanceLabel = chestController.totalFailures > 0
+			? `${chestController.totalFailures} FAILURE${chestController.totalFailures === 1 ? "" : "S"}`
+			: undefined;
 		const panelWidth = Math.min(900, k.width() - 48);
 		const panelHeight = Math.min(560, k.height() - 48);
 		const panel = createUiPanel({
@@ -1375,7 +1387,13 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				accepted = false;
 				return;
 			}
-			if (!isDiscovery) addCollectedPowerup(reward);
+			if (!isDiscovery) {
+				addCollectedPowerup(reward, {
+					source: "chest",
+					category: reward.kind,
+					rarity: reward.rarity,
+				});
+			}
 
 			// Play purchase sound
 			audioService.playSound("purchase1", { volume: mainSoundVolume });

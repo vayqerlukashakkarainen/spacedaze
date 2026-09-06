@@ -3,6 +3,7 @@ import { playerObj } from "../game"
 import { k, velocityScale } from "../main"
 import { applyDamage } from "../services/damageService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
 import { spawnTargetTelegraph } from "../services/enemyTelegraphService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import {
@@ -61,7 +62,12 @@ export function spawnSiegeBarge(
 			: distance > 430
 				? direction
 				: direction.normal().scale(0.25)
-		barge.moveDirection = easeDirection(barge.moveDirection, desired.unit(), 2.2, delta)
+		const desiredDirection = getEnemyNavigationDirection(
+			barge,
+			desired.unit(),
+			playerObj.pos
+		)
+		barge.moveDirection = easeDirection(barge.moveDirection, desiredDirection, 2.2, delta)
 		barge.move(barge.moveDirection.scale(
 			38 * profile.speedMultiplier * velocityScale() * barge.getTimescale()
 		))

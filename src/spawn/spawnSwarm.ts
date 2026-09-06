@@ -7,6 +7,7 @@ import { applyDamage } from "../services/damageService"
 import { createCadencedSystem } from "../services/cadencedSystemService"
 import { createContinuousSystem } from "../services/continuousSystemService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import {
 	createEnemySpawnProfile,
@@ -71,12 +72,18 @@ const swarmContinuousSystem = createContinuousSystem<SwarmContinuousEntry>({
 			if (!enemy.exists() || enemy.paused) continue
 			const command = enemy.swarmCommand as SwarmCommand | undefined
 			if (enemy.desiredDirection) {
+				const navigationTarget = command?.target ?? playerObj.pos
+				const navigationDirection = getEnemyNavigationDirection(
+					enemy,
+					enemy.desiredDirection,
+					navigationTarget
+				)
 				const turnResponse = command?.charging
 					? SWARM_CHARGE_TURN_RESPONSE
 					: SWARM_TURN_RESPONSE
 				enemy.moveDirection = easeDirection(
 					enemy.moveDirection,
-					enemy.desiredDirection,
+					navigationDirection,
 					turnResponse,
 					k.dt() * enemy.getTimescale()
 				)
@@ -89,7 +96,7 @@ const swarmContinuousSystem = createContinuousSystem<SwarmContinuousEntry>({
 				applyDirectionalSteeringLean(
 					enemy,
 					enemy.moveDirection,
-					enemy.desiredDirection,
+					navigationDirection,
 					enemy.baseScale
 				)
 			}
@@ -448,7 +455,11 @@ function moveHiveMind(hive: GameObj, speedMultiplier: number) {
 	const toTarget = target.sub(hive.pos)
 	let desiredDirection = direction
 	if (toTarget.len() > 4) {
-		desiredDirection = toTarget.unit()
+		desiredDirection = getEnemyNavigationDirection(
+			hive,
+			toTarget.unit(),
+			target
+		)
 		hive.moveDirection = easeDirection(
 			hive.moveDirection,
 			desiredDirection,

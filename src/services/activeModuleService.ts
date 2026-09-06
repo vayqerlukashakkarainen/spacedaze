@@ -8,6 +8,9 @@ import { getAbilityTierValues } from "./abilityTierService"
 
 export type ActiveModuleId =
 	| "rocketPod"
+	| "repulsorPulse"
+	| "decoyBeacon"
+	| "scrapMine"
 	| "kineticBarrier"
 	| "gravityCharge"
 	| "breachCharge"
@@ -40,6 +43,42 @@ export const ACTIVE_MODULES: readonly ActiveModuleDefinition[] = [
 		rarity: RewardRarity.Common,
 		stats: { ROLE: "DAMAGE", COOLDOWN: "6.0S" },
 		crateWeight: 100,
+	},
+	{
+		id: "repulsorPulse",
+		minimumHubLevel: 1,
+		name: "REPULSOR PULSE",
+		shortName: "REPULSOR",
+		description: "Emits a defensive shockwave that throws nearby enemies and hostile projectiles away.",
+		icon: "active_repulsor_pulse",
+		cooldown: 7,
+		rarity: RewardRarity.Uncommon,
+		stats: { ROLE: "DEFENSE", RADIUS: 100, COOLDOWN: "7S" },
+		crateWeight: 105,
+	},
+	{
+		id: "decoyBeacon",
+		minimumHubLevel: 1,
+		name: "DECOY BEACON",
+		shortName: "DECOY",
+		description: "Deploys a holographic ship that draws nearby enemies off course.",
+		icon: "active_decoy_beacon",
+		cooldown: 9,
+		rarity: RewardRarity.Uncommon,
+		stats: { ROLE: "CONTROL", DURATION: "5S", COOLDOWN: "9S" },
+		crateWeight: 96,
+	},
+	{
+		id: "scrapMine",
+		minimumHubLevel: 1,
+		name: "SCRAP MINE",
+		shortName: "MINE",
+		description: "Drops an armed proximity mine behind the ship. Deploying another replaces it.",
+		icon: "active_scrap_mine",
+		cooldown: 6,
+		rarity: RewardRarity.Common,
+		stats: { ROLE: "DAMAGE", DAMAGE: 16, COOLDOWN: "6S" },
+		crateWeight: 112,
 	},
 	{
 		id: "kineticBarrier",

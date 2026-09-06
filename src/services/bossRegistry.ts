@@ -38,16 +38,29 @@ export const BOSS_REGISTRY: Readonly<Record<BossId, BossDefinition>> = {
 	},
 	"federation-dreadnought": {
 		id: "federation-dreadnought",
-		name: "FEDERATION DREADNOUGHT",
-		subtitle: "MILESTONE BOSS",
+		name: "THE CLAIMKEEPER",
+		subtitle: "FEDERATION SALVAGE DREADNOUGHT",
 		kind: "boss",
 		baseHealth: 120,
 		healthPerRunDepth: 20,
 		minRunDepth: 3,
 		rewardMultiplier: 1,
 		phases: [
-			{ id: "weapons-free", name: "WEAPONS FREE", healthThreshold: 1 },
-			{ id: "damaged", name: "DAMAGED", healthThreshold: 0.5 },
+			{
+				id: "collection-protocol",
+				name: "COLLECTION PROTOCOL",
+				healthThreshold: 1,
+			},
+			{
+				id: "magnetic-seizure",
+				name: "MAGNETIC SEIZURE",
+				healthThreshold: 0.67,
+			},
+			{
+				id: "dead-man-reactor",
+				name: "DEAD-MAN REACTOR",
+				healthThreshold: 0.3,
+			},
 		],
 	},
 }

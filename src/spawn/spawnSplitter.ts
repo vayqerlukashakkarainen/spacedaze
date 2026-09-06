@@ -2,6 +2,7 @@ import type { Vec2 } from "kaplay"
 import { playerObj } from "../game"
 import { k, velocityScale } from "../main"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
 import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
@@ -66,7 +67,11 @@ export function spawnSplitter(
 		const weave = direction.normal().scale(
 			Math.sin(k.time() * 1.9 + splitter.id) * 0.42 * splitter.orbitDirection
 		)
-		const desired = direction.add(weave).unit()
+		const desired = getEnemyNavigationDirection(
+			splitter,
+			direction.add(weave).unit(),
+			playerObj.pos
+		)
 		splitter.moveDirection = easeDirection(
 			splitter.moveDirection,
 			desired,

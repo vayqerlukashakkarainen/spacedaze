@@ -2,6 +2,7 @@ import type { Vec2 } from "kaplay"
 import { playerObj } from "../game"
 import { k, velocityScale } from "../main"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
 import { clearPlayerStatusEffectsFromSource } from "../services/playerStatusEffectService"
 import { spawnEnemyBlaster } from "../services/projectileHelpers"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/threatService"
@@ -28,7 +29,12 @@ export function spawnSuppressor(pos: Vec2, hp = 6, options: EnemySpawnOptions = 
 		const distance = toPlayer.len()
 		const direction = distance > 0 ? toPlayer.unit() : k.vec2(0, 1)
 		const radial = distance < 220 ? direction.scale(-1) : distance > 330 ? direction : direction.normal().scale(0.55)
-		suppressor.moveDirection = easeDirection(suppressor.moveDirection, radial.unit(), 3.8, delta)
+		const desiredDirection = getEnemyNavigationDirection(
+			suppressor,
+			radial.unit(),
+			playerObj.pos
+		)
+		suppressor.moveDirection = easeDirection(suppressor.moveDirection, desiredDirection, 3.8, delta)
 		suppressor.move(suppressor.moveDirection.scale(70 * profile.speedMultiplier * velocityScale() * suppressor.getTimescale()))
 		suppressor.facingDirection = easeDirection(suppressor.facingDirection, direction, 6, delta)
 		suppressor.angle = suppressor.facingDirection.angle() + 90

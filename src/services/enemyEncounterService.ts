@@ -25,7 +25,6 @@ import {
 	type EnemySpawnOptions,
 } from "./threatService"
 import {
-	canCreateBudgetEncounter,
 	createBudgetEncounterPlan,
 	type BudgetEnemyId,
 } from "./enemyEncounterBudgetService"
@@ -34,52 +33,10 @@ import {
 	type ProgressionEnemyId,
 } from "./enemyProgressionService"
 import { getHubLevel } from "./hubProgressService"
-
-type EncounterId =
-	| "minor_swarm"
-	| "patrol"
-	| "hunters"
-	| "rammers"
-	| "mixed"
-	| "sniper_nest"
-	| "hivemind_swarm"
-	| "mine_layer"
-	| "elite_hunt"
-	| "shielded_patrol"
-	| "orbit_screen"
-	| "splitter_pack"
-	| "siege_line"
-	| "tether_hunt"
-	| "repair_column"
-	| "gravity_lock"
-	| "budgeted_response"
-
-interface EncounterDefinition {
-	id: EncounterId
-	minThreat: number
-	weight: number
-	enemies: readonly ProgressionEnemyId[]
-}
-
-const ENCOUNTERS: readonly EncounterDefinition[] = [
-	{ id: "minor_swarm", minThreat: 1, weight: 6, enemies: ["swarm-drone"] },
-	{ id: "patrol", minThreat: 2, weight: 5, enemies: ["fighter"] },
-	{ id: "hunters", minThreat: 2, weight: 4, enemies: ["assassin"] },
-	{ id: "rammers", minThreat: 2, weight: 3, enemies: ["rammer"] },
-	{ id: "mixed", minThreat: 2, weight: 4, enemies: ["assassin", "fighter"] },
-	{ id: "sniper_nest", minThreat: 2, weight: 3, enemies: ["sniper", "rammer"] },
-	{ id: "hivemind_swarm", minThreat: 3, weight: 3, enemies: ["hivemind", "swarm-drone"] },
-	{ id: "mine_layer", minThreat: 3, weight: 2, enemies: ["mine-layer", "assassin"] },
-	{ id: "elite_hunt", minThreat: 4, weight: 2, enemies: ["assassin", "fighter"] },
-	{ id: "shielded_patrol", minThreat: 4, weight: 2, enemies: ["sniper", "shield-drone", "rammer"] },
-	{ id: "orbit_screen", minThreat: 1, weight: 4, enemies: ["orbit-lancer"] },
-	{ id: "splitter_pack", minThreat: 2, weight: 3, enemies: ["splitter"] },
-	{ id: "siege_line", minThreat: 3, weight: 2, enemies: ["siege-barge", "orbit-lancer"] },
-	{ id: "tether_hunt", minThreat: 3, weight: 2, enemies: ["tether-drone", "rammer"] },
-	{ id: "repair_column", minThreat: 3, weight: 2, enemies: ["siege-barge", "repair-skiff", "fighter"] },
-	{ id: "gravity_lock", minThreat: 4, weight: 2, enemies: ["gravity-warden", "splitter"] },
-	{ id: "budgeted_response", minThreat: 2, weight: 7, enemies: [] },
-]
+import {
+	selectEncounterDefinition,
+	type EncounterId,
+} from "./enemyEncounterCatalogService"
 
 export function spawnThreatEncounter(
 	center: Vec2,
@@ -94,8 +51,9 @@ export function spawnThreatEncounter(
 	}
 	const isEnemyAvailable = (id: ProgressionEnemyId) =>
 		isEnemyProgressionUnlocked(id, progressionContext)
-	const definition = selectEncounter(
+	const definition = selectEncounterDefinition(
 		tier,
+		() => k.rand(),
 		options.allowTerrainEnemies === true,
 		isEnemyAvailable
 	)
@@ -361,33 +319,6 @@ function spawnBudgetEnemy(id: BudgetEnemyId, pos: Vec2, options: EnemySpawnOptio
 		case "gravity-warden": return spawnGravityWarden(pos, 6, options)
 		case "breach-crawler": return spawnBreachCrawler(pos, 8, options)
 	}
-}
-
-function selectEncounter(
-	tier: number,
-	allowTerrainEnemies: boolean,
-	isEnemyAvailable: (id: ProgressionEnemyId) => boolean
-) {
-	const candidates = ENCOUNTERS.filter(
-		(definition) => definition.minThreat <= tier &&
-		definition.enemies.every(isEnemyAvailable) &&
-		(definition.id !== "budgeted_response" || canCreateBudgetEncounter(
-			tier,
-			allowTerrainEnemies,
-			isEnemyAvailable
-		))
-	)
-	if (candidates.length === 0) return undefined
-	const totalWeight = candidates.reduce(
-		(total, definition) => total + definition.weight,
-		0
-	)
-	let roll = k.rand(totalWeight)
-	for (const definition of candidates) {
-		roll -= definition.weight
-		if (roll <= 0) return definition
-	}
-	return candidates[candidates.length - 1]
 }
 
 function formationPosition(

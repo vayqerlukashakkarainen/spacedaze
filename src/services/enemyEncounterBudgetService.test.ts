@@ -1,5 +1,10 @@
 import assert from "node:assert/strict"
 import { createBudgetEncounterPlan, getEncounterBudget } from "./enemyEncounterBudgetService"
+import {
+	createSimulatedEncounterEnemies,
+	selectEncounterDefinition,
+} from "./enemyEncounterCatalogService"
+import { isEnemyProgressionUnlocked } from "./enemyProgressionService"
 
 for (let tier = 1; tier <= 5; tier++) {
 	for (let seed = 0; seed < 40; seed++) {
@@ -34,7 +39,16 @@ for (let seed = 0; seed < 40; seed++) {
 		state = state * 1664525 + 1013904223 >>> 0
 		return state / 0x100000000
 	}, true, (id) => !blockedEnemies.has(id))
-	assert.equal(plan.some((entry) => blockedEnemies.has(entry.id)), false)
+assert.equal(plan.some((entry) => blockedEnemies.has(entry.id)), false)
 }
+
+const depthOneAvailable = (id: Parameters<typeof isEnemyProgressionUnlocked>[0]) =>
+	isEnemyProgressionUnlocked(id, { runDepth: 1, hubLevel: 1 })
+const openingEncounter = selectEncounterDefinition(1, () => 0.99, true, depthOneAvailable)
+assert.equal(openingEncounter?.id, "minor_swarm")
+assert.ok(
+	createSimulatedEncounterEnemies(openingEncounter!, 1, () => 0.5, depthOneAvailable)
+		.every((id) => depthOneAvailable(id))
+)
 
 console.log("Enemy encounter budget tests passed")

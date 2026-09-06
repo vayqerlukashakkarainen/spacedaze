@@ -2,6 +2,7 @@ import type { Vec2 } from "kaplay"
 import { playerObj } from "../game"
 import { k, velocityScale } from "../main"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
 import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
@@ -75,7 +76,11 @@ export function spawnGravityWarden(
 			: distance > 275
 				? direction
 				: direction.normal()
-		const desiredDirection = desired.unit()
+		const desiredDirection = getEnemyNavigationDirection(
+			warden,
+			desired.unit(),
+			playerObj.pos
+		)
 		warden.moveDirection = easeDirection(warden.moveDirection, desiredDirection, 3.4, delta)
 		warden.move(warden.moveDirection.scale(
 			64 * profile.speedMultiplier * velocityScale() * warden.getTimescale()

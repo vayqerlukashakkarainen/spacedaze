@@ -175,17 +175,18 @@ function createAsteroidRunnerCutscene(
 			{
 				type: "emotion",
 				actor: "ringRunner",
-				emotion: "question",
+				emotion: "alert",
 				options: {
-					duration: 2.5,
+					duration: 1.8,
 					priority: "narrative",
 					sound: {
 						id: "ui_hover",
 						volume: 0.32,
-						speed: 0.88,
+						speed: 1.06,
 					},
 				},
 			},
+			{ type: "wait", duration: 0.32 },
 			{
 				type: "dialogue",
 				lines: INTRO_LINES,
@@ -205,6 +206,7 @@ function createAsteroidRunnerCutscene(
 					},
 				},
 			},
+			{ type: "wait", duration: 0.44 },
 			{
 				type: "dialogue",
 				lines: LAUNCH_LINES,
@@ -232,6 +234,7 @@ function createAsteroidRunnerCutscene(
 					},
 				},
 			},
+			{ type: "wait", duration: 0.28 },
 			{
 				type: "action",
 				run() {

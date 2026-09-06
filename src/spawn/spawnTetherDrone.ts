@@ -6,6 +6,7 @@ import {
 	setEnemyMovementMultiplier,
 } from "../services/enemyMovementModifierService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
 import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
@@ -70,7 +71,11 @@ export function spawnTetherDrone(
 			: distance > 190
 				? direction
 				: direction.normal().scale(0.45)
-		const desiredDirection = radial.unit()
+		const desiredDirection = getEnemyNavigationDirection(
+			drone,
+			radial.unit(),
+			playerObj.pos
+		)
 		drone.moveDirection = easeDirection(
 			drone.moveDirection,
 			desiredDirection,

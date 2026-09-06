@@ -747,6 +747,7 @@ function spawnHiddenCavernLoot(
 	if (lootHash % 5 === 0) {
 		spawnRerollTokenPickup(grid.hexToScreen(debrisCoord).add(20, 0), {
 			stationary: true,
+			telemetrySource: "secret",
 		});
 	}
 	const reward = rollMapEventReward(1 + (lootHash % 3));
@@ -754,6 +755,7 @@ function spawnHiddenCavernLoot(
 		spawnRewardPickup(grid.hexToScreen(rewardCoord), reward, {
 			stationary: true,
 			label: "HIDDEN CACHE",
+			telemetrySource: "secret",
 		});
 	}
 }
@@ -766,7 +768,10 @@ function spawnRewardWallLoot(
 	const lootHash = cavernHash(seed, rewardWall.coord, 43);
 	const pos = grid.hexToScreen(rewardWall.coord);
 	if (lootHash % 7 === 0) {
-		spawnRerollTokenPickup(pos.add(20, 0), { stationary: true });
+		spawnRerollTokenPickup(pos.add(20, 0), {
+			stationary: true,
+			telemetrySource: "secret",
+		});
 	}
 	const reward = rollMapEventReward(1 + (lootHash % 2));
 	if (!reward) {
@@ -776,6 +781,7 @@ function spawnRewardWallLoot(
 	spawnRewardPickup(pos, reward, {
 		stationary: true,
 		label: "ROCK CACHE",
+		telemetrySource: "secret",
 	});
 }
 
@@ -1585,10 +1591,14 @@ function spawnMapChallengeRewards(pos: Vec2, count = 1) {
 		spawnRewardPickup(rewardPos, reward, {
 			stationary: true,
 			armWhenPlayerLeaves: true,
+			telemetrySource: "challenge",
 		});
 	}
 	if (k.chance(0.15)) {
-		spawnRerollTokenPickup(pos.add(24, 0), { stationary: true });
+		spawnRerollTokenPickup(pos.add(24, 0), {
+			stationary: true,
+			telemetrySource: "challenge",
+		});
 	}
 }
 

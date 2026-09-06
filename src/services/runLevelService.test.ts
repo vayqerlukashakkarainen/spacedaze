@@ -4,6 +4,7 @@ import {
 	applyRunLevelBonuses,
 	beginRunLevelProgression,
 	consumeRunLevelSelection,
+	drawRunLevelOfferIds,
 	endRunLevelProgression,
 	getRunLevelSnapshot,
 	grantRunLevelBonus,
@@ -68,6 +69,32 @@ assert.equal(rollRunLevelBonusRarity(() => 0.02), RewardRarity.Epic)
 assert.equal(rollRunLevelBonusRarity(() => 0.1), RewardRarity.Rare)
 assert.equal(rollRunLevelBonusRarity(() => 0.3), RewardRarity.Uncommon)
 assert.equal(rollRunLevelBonusRarity(() => 0.9), RewardRarity.Common)
+
+const passiveIds = ["damage", "speed", "health", "range", "critical", "blast"]
+const firstOffers = drawRunLevelOfferIds("passive", passiveIds, 2, () => 0)
+const secondOffers = drawRunLevelOfferIds("passive", passiveIds, 2, () => 0)
+const thirdOffers = drawRunLevelOfferIds("passive", passiveIds, 2, () => 0)
+const fourthOffers = drawRunLevelOfferIds("passive", passiveIds, 2, () => 0)
+assert.equal(firstOffers.some((id) => secondOffers.includes(id)), false)
+assert.equal(secondOffers.some((id) => thirdOffers.includes(id)), false)
+assert.equal(thirdOffers.some((id) => fourthOffers.includes(id)), false)
+assert.deepEqual(
+	new Set([...firstOffers, ...secondOffers, ...thirdOffers]),
+	new Set(passiveIds)
+)
+
+assert.deepEqual(
+	drawRunLevelOfferIds("special", ["armor"], 1, () => 0, false),
+	["armor"]
+)
+assert.deepEqual(
+	drawRunLevelOfferIds("special", ["armor"], 1, () => 0, false),
+	[]
+)
+assert.deepEqual(
+	drawRunLevelOfferIds("special", ["armor"], 1, () => 0, false),
+	["armor"]
+)
 
 endRunLevelProgression()
 assert.equal(getRunLevelSnapshot().active, false)

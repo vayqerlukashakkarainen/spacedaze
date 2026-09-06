@@ -4,6 +4,7 @@ import { k, layers, mainSoundVolume, subSoundVolume, velocityScale } from "../ma
 import { audioService } from "../services/audioService"
 import { applyDamage } from "../services/damageService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import {
 	createEnemySpawnProfile,
@@ -72,7 +73,11 @@ export function spawnMineLayer(
 				: k.vec2(0)
 		const movement = tangent.add(radial.scale(1.25))
 		if (movement.len() > 0) {
-			const desiredDirection = movement.unit()
+			const desiredDirection = getEnemyNavigationDirection(
+				mineLayer,
+				movement.unit(),
+				playerObj.pos
+			)
 			mineLayer.moveDirection = easeDirection(
 				mineLayer.moveDirection,
 				desiredDirection,

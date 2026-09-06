@@ -2,6 +2,7 @@ import type { GameObj, Vec2 } from "kaplay"
 import { debrees, playerObj } from "../game"
 import { k, velocityScale } from "../main"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
@@ -32,13 +33,18 @@ export function spawnSalvageScavenger(pos: Vec2, hp = 4, options: EnemySpawnOpti
 			: scavenger.targetDebris!.pos
 		const toTarget = target.sub(scavenger.pos)
 		if (toTarget.len() > 0) {
-			scavenger.moveDirection = easeDirection(scavenger.moveDirection, toTarget.unit(), 6, delta)
+			const desiredDirection = getEnemyNavigationDirection(
+				scavenger,
+				toTarget.unit(),
+				target
+			)
+			scavenger.moveDirection = easeDirection(scavenger.moveDirection, desiredDirection, 6, delta)
 			scavenger.move(scavenger.moveDirection.scale(125 * profile.speedMultiplier * velocityScale() * scavenger.getTimescale()))
 			scavenger.angle = scavenger.moveDirection.angle() + 90
 			applyDirectionalSteeringLean(
 				scavenger,
 				scavenger.moveDirection,
-				toTarget.unit(),
+				desiredDirection,
 				profile.scale
 			)
 		}

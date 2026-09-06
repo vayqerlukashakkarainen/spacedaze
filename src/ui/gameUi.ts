@@ -6,7 +6,7 @@ import {
 	RectComp,
 	Vec2,
 } from "kaplay";
-import { getScore, k, layers } from "../main";
+import { getScore, k, layers, mainSoundVolume } from "../main";
 import {
 	getRewardDefinition,
 	isAbilityReward,
@@ -18,7 +18,10 @@ import { uiState } from "./uiState";
 import { recordRunReward } from "../services/runInventoryService";
 import { discoverBlueprint } from "../services/hubProgressService";
 import { recordRunReward as recordRunRewardStat } from "../services/runStatsService";
-import { recordTelemetryRewardSelected } from "../services/runTelemetryService";
+import {
+	recordTelemetryRewardSelected,
+	type RewardTelemetryDetails,
+} from "../services/runTelemetryService";
 import {
 	showCollectedRewardPopover,
 	showDiscoveredRewardPopover,
@@ -37,6 +40,7 @@ import { getAbilityDefinition } from "../services/abilityRegistry";
 import {
 	getEquippedMobilityAbilityId,
 } from "../services/abilityLoadoutService";
+import { audioService } from "../services/audioService";
 import { getRunLevelSnapshot } from "../services/runLevelService";
 import { createUiProgressBar } from "./common/progressBar";
 import { hideRunLevelChoice, showRunLevelChoice } from "./runLevelChoice";
@@ -316,12 +320,6 @@ function setupRunLevelHud() {
 		height: 4,
 		value: 0,
 	});
-	const gainFlash = runLevelHud.add([
-		k.pos(HUD_MARGIN, -1),
-		k.rect(k.width() - HUD_MARGIN * 2, 6),
-		k.color(...UI_COLORS.warning),
-		k.opacity(0),
-	]);
 	const levelLabel = runLevelHud.add([
 		k.text("", { size: UI_FONT_SIZES.small, font: "unscii" }),
 		k.pos(k.width() / 2, -8),
@@ -332,27 +330,32 @@ function setupRunLevelHud() {
 	let displayedXp = Number.NaN;
 	let displayedRequiredXp = Number.NaN;
 	let displayedProgress = 0;
-	let gainPulse = 0;
-	let levelPulse = 0;
 	registerBatchedUiUpdate("hud", runLevelHud, () => {
 		const snapshot = getRunLevelSnapshot();
 		runLevelHud!.hidden = !snapshot.active;
 		if (!snapshot.active) return;
+		if (!Number.isNaN(displayedLevel) && snapshot.level > displayedLevel) {
+			const gainedLevels = snapshot.level - displayedLevel;
+			const levelHud = runLevelHud;
+			for (let index = 0; index < gainedLevels; index++) {
+				k.wait(index * 0.12, () => {
+					if (!levelHud?.exists() || runLevelHud !== levelHud) return;
+					audioService.playSound("powerup1", {
+						volume: mainSoundVolume * 0.7,
+						detune: index * 120,
+					});
+				});
+			}
+		}
 		if (
 			snapshot.level !== displayedLevel ||
 			snapshot.xp !== displayedXp ||
 			snapshot.requiredXp !== displayedRequiredXp
 		) {
-			if (!Number.isNaN(displayedXp) && snapshot.xp !== displayedXp) {
-				gainPulse = 1;
-			}
-			if (!Number.isNaN(displayedLevel) && snapshot.level !== displayedLevel) {
-				levelPulse = 1;
-			}
 			displayedLevel = snapshot.level;
 			displayedXp = snapshot.xp;
 			displayedRequiredXp = snapshot.requiredXp;
-			levelLabel.text = `LEVEL ${snapshot.level}  //  ${snapshot.xp} / ${snapshot.requiredXp} DEBRIS`;
+			levelLabel.text = `LEVEL ${snapshot.level}`;
 		}
 		displayedProgress = k.lerp(
 			displayedProgress,
@@ -360,13 +363,6 @@ function setupRunLevelHud() {
 			k.clamp(k.dt() * 10, 0, 1)
 		);
 		progress.setValue(displayedProgress);
-		gainPulse = Math.max(0, gainPulse - k.dt() * 3.8);
-		levelPulse = Math.max(0, levelPulse - k.dt() * 1.8);
-		gainFlash.opacity = gainPulse * 0.5;
-		levelLabel.scale = k.vec2(1 + levelPulse * 0.4);
-		levelLabel.color = levelPulse > 0
-			? k.rgb(...UI_COLORS.warning)
-			: k.rgb(...UI_COLORS.accent);
 		if (snapshot.pendingSelections > 0) showRunLevelChoice();
 	});
 }
@@ -522,7 +518,7 @@ export function updatePhaseJumpUi(
 		]);
 
 		mobilityNameLabel = systemsPanel.add([
-			k.text(mobility?.name ?? "EMPTY MOBILITY", {
+			k.text(mobility?.name ?? "", {
 				size: UI_FONT_SIZES.tiny,
 				font: "unscii",
 			}),
@@ -557,15 +553,17 @@ export function updatePhaseJumpUi(
 			k.z(20),
 		]);
 	}
-	if (mobilityId !== displayedMobilityId) {
+	const mobilityChanged = mobilityId !== displayedMobilityId;
+	if (mobilityChanged) {
 		displayedMobilityId = mobilityId ?? "";
 		if (phaseJumpIcon && mobility) phaseJumpIcon.sprite = mobility.icon;
 		if (mobilityNameLabel) {
-			mobilityNameLabel.text = mobility?.name ?? "EMPTY MOBILITY";
+			mobilityNameLabel.text = mobility?.name ?? "";
 		}
 	}
 
 	if (
+		!mobilityChanged &&
 		charges === displayedJumpCharges &&
 		maxCharges === displayedJumpMaxCharges &&
 		Math.abs(rechargeProgress - displayedJumpProgress) < 0.001
@@ -576,7 +574,12 @@ export function updatePhaseJumpUi(
 	phaseJumpIcon.opacity = mobility ? charges > 0 ? 1 : 0.25 : 0.18;
 	const filledSegments = rechargeProgress * phaseJumpSegmentCount;
 	for (let index = 0; index < phaseJumpSegments.length; index++) {
-		phaseJumpSegments[index].opacity = index < filledSegments ? 1 : 0.22;
+		phaseJumpSegments[index].color = mobility
+			? k.rgb(...UI_COLORS.accent)
+			: k.rgb(...UI_COLORS.muted);
+		phaseJumpSegments[index].opacity = mobility
+			? index < filledSegments ? 1 : 0.22
+			: 0.12;
 	}
 	if (phaseJumpChargeLabel) {
 		phaseJumpChargeLabel.text = mobilityId === "thrusterOverdrive"
@@ -649,7 +652,10 @@ export function updateUltimateUi(
 	}
 }
 
-export function addCollectedPowerup(rewardOrId: Reward | string) {
+export function addCollectedPowerup(
+	rewardOrId: Reward | string,
+	telemetryDetails: RewardTelemetryDetails = {}
+) {
 	const reward = typeof rewardOrId === "string"
 		? getRewardDefinition(rewardOrId)
 		: rewardOrId;
@@ -660,7 +666,8 @@ export function addCollectedPowerup(rewardOrId: Reward | string) {
 	recordTelemetryRewardSelected(
 		reward.id,
 		reward.rarity,
-		isAbilityReward(reward)
+		isAbilityReward(reward),
+		telemetryDetails
 	);
 	if (isAbilityReward(reward)) return;
 	const collectionKey = reward.weaponId

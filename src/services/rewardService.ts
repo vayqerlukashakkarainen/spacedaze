@@ -17,6 +17,7 @@ import {
 	addLvl,
 	describeUpgradeRequirements,
 	getUpgradeRequirementText,
+	type ToolKey,
 } from "../upg"
 import {
 	RewardKind,
@@ -46,7 +47,11 @@ import {
 	REWARD_RARITY_ORDER,
 	scaleUpgradeEffects,
 } from "./rewardQualityService"
-import { getHubChestLuck, getHubLevel } from "./hubProgressService"
+import {
+	getHubChestLuck,
+	getHubLevel,
+	getHubLevelDefinition,
+} from "./hubProgressService"
 import {
 	ABILITIES,
 	discoverAbility,
@@ -99,6 +104,18 @@ export interface RewardDefinition {
 	canReceive?: () => boolean
 }
 
+export interface SyntheticRewardState {
+	discoveredAbilityIds: ReadonlySet<AbilityId>
+	equippedActiveModuleId?: ActiveModuleId
+	upgradeLevels: Readonly<Partial<Record<ToolKey, number>>>
+	hasStandardDrone: boolean
+}
+
+export interface RewardAvailabilityContext {
+	hubLevel?: number
+	syntheticState?: SyntheticRewardState
+}
+
 export interface Reward {
 	id: string
 	kind: RewardKind
@@ -137,10 +154,10 @@ interface RarityWeights {
 }
 
 const CRATE_RARITY_WEIGHTS: RarityWeights[] = [
-	{ common: 600, uncommon: 300, rare: 80, epic: 20, legendary: 0 },
-	{ common: 450, uncommon: 350, rare: 150, epic: 45, legendary: 5 },
-	{ common: 300, uncommon: 350, rare: 250, epic: 85, legendary: 15 },
-	{ common: 150, uncommon: 300, rare: 350, epic: 160, legendary: 40 },
+	{ common: 590, uncommon: 300, rare: 80, epic: 20, legendary: 10 },
+	{ common: 425, uncommon: 350, rare: 150, epic: 45, legendary: 30 },
+	{ common: 265, uncommon: 350, rare: 250, epic: 85, legendary: 50 },
+	{ common: 100, uncommon: 300, rare: 350, epic: 160, legendary: 90 },
 ]
 
 const ENEMY_EMPTY_WEIGHT = 45000
@@ -258,13 +275,17 @@ const itemRewardRegistry: Record<string, RewardDefinition> = {
 }
 
 export function getRewardDefinitions(
-	source?: RewardSource
+	source?: RewardSource,
+	context: RewardAvailabilityContext = {}
 ): RewardDefinition[] {
-	return getAllRewardDefinitions(source).filter(canReceiveReward)
+	return getAllRewardDefinitions(source, context).filter((definition) =>
+		canReceiveReward(definition, context)
+	)
 }
 
 export function getAllRewardDefinitions(
-	source?: RewardSource
+	source?: RewardSource,
+	context: RewardAvailabilityContext = {}
 ): RewardDefinition[] {
 	const powerupRewards = Object.values(powerupRewardRegistry)
 	const itemRewards = Object.values(itemRewardRegistry)
@@ -277,7 +298,7 @@ export function getAllRewardDefinitions(
 		.filter((ability) => ability.slot === "ultimate")
 		.map(buildAbilityReward)
 	const upgradeRewards = getAllUpgradeDefinitions()
-		.map(buildCurrentUpgradeReward)
+		.map((definition) => buildCurrentUpgradeReward(definition, context))
 		.filter((reward): reward is RewardDefinition => reward !== undefined)
 
 	return [
@@ -293,13 +314,32 @@ export function getAllRewardDefinitions(
 	})
 }
 
-export function canReceiveReward(definition: RewardDefinition): boolean {
-	if (getHubLevel() < getRewardMinimumHubLevel(definition)) return false
+export function canReceiveReward(
+	definition: RewardDefinition,
+	context: RewardAvailabilityContext = {}
+): boolean {
+	const hubLevel = context.hubLevel ?? getHubLevel()
+	if (hubLevel < getRewardMinimumHubLevel(definition)) return false
 	if (definition.abilityId) {
 		const ability = getAbilityDefinition(definition.abilityId)
-		if (!ability || isAbilityDiscovered(ability)) return false
+		const discovered = context.syntheticState
+			? context.syntheticState.discoveredAbilityIds.has(definition.abilityId)
+			: ability ? isAbilityDiscovered(ability) : false
+		if (!ability || discovered) return false
 	}
-	if (isRocketDependentReward(definition) && !isRocketPodEquipped()) return false
+	if (isRocketDependentReward(definition)) {
+		const rocketPodEquipped = context.syntheticState
+			? context.syntheticState.equippedActiveModuleId === "rocketPod"
+			: isRocketPodEquipped()
+		if (!rocketPodEquipped) return false
+	}
+	if (
+		definition.upgradeKey &&
+		requiresStandardDrone(definition.upgradeKey) &&
+		context.syntheticState &&
+		!context.syntheticState.hasStandardDrone
+	) return false
+	if (context.syntheticState) return true
 	return definition.canReceive ? definition.canReceive() : true
 }
 
@@ -398,15 +438,23 @@ export function rollCrateReward(successfulHits: number): Reward | undefined {
 	return rollCrateRewardForQuality(successfulHits, [])
 }
 
-export function rollMapEventReward(successfulHits: number): Reward | undefined {
-	return rollCrateRewardForQuality(successfulHits, [], false)
+export function rollMapEventReward(
+	successfulHits: number,
+	random: () => number = () => k.rand(),
+	context: RewardAvailabilityContext = {}
+): Reward | undefined {
+	return rollCrateRewardForQuality(successfulHits, [], false, random, context)
 }
 
 export function rollCrateRewardChoices(
 	successfulHits: number,
 	failedAttempts: number,
-	excludedRewardIds: readonly string[] = []
+	excludedRewardIds: readonly string[] = [],
+	random: () => number = () => k.rand(),
+	hubLevel?: number,
+	context: RewardAvailabilityContext = {}
 ): CrateRewardResult {
+	const availability = { ...context, hubLevel: hubLevel ?? context.hubLevel }
 	const missedZones = Math.max(0, 3 - Math.floor(successfulHits))
 	const failures = Math.max(0, Math.floor(failedAttempts)) + missedZones
 	const quality = k.clamp(3 - failures, 0, 3)
@@ -421,10 +469,19 @@ export function rollCrateRewardChoices(
 		const requiredExclusions = [...selectedIds, ...abilityExclusions]
 		let reward = rollCrateRewardForQuality(
 			quality,
-			[...excludedRewardIds, ...requiredExclusions]
+			[...excludedRewardIds, ...requiredExclusions],
+			true,
+			random,
+			availability
 		)
 		if (!reward && excludedRewardIds.length > 0) {
-			reward = rollCrateRewardForQuality(quality, requiredExclusions)
+			reward = rollCrateRewardForQuality(
+				quality,
+				requiredExclusions,
+				true,
+				random,
+				availability
+			)
 		}
 		if (!reward) break
 		rewards.push(reward)
@@ -511,9 +568,11 @@ export function getAbilityRewardDefinitionIds() {
 
 export function rollDropReward(
 	source: "enemy" | "boss",
-	chanceMultiplier: number = 1
+	chanceMultiplier: number = 1,
+	random: () => number = () => k.rand(),
+	context: RewardAvailabilityContext = {}
 ): Reward | undefined {
-	const available = getRewardDefinitions(source)
+	const available = getRewardDefinitions(source, context)
 	if (available.length === 0) return undefined
 
 	const multiplier = Number.isFinite(chanceMultiplier)
@@ -524,19 +583,20 @@ export function rollDropReward(
 		0
 	)
 	const emptyWeight = source === "enemy" ? ENEMY_EMPTY_WEIGHT : 0
-	const roll = k.rand(0, rewardWeight + emptyWeight)
+	const roll = random() * (rewardWeight + emptyWeight)
 	if (roll < emptyWeight) return undefined
 
-	const selected = pickWeighted(available, source, multiplier)
+	const selected = pickWeighted(available, source, multiplier, random)
 	return toReward(
 		selected,
-		selected ? rollDropRarity(selected, source) : undefined
+		selected ? rollDropRarity(selected, source, random) : undefined
 	)
 }
 
 function rollDropRarity(
 	definition: RewardDefinition,
-	source: "enemy" | "boss"
+	source: "enemy" | "boss",
+	random: () => number = () => k.rand()
 ) {
 	const behavior = definition.progression.rarity
 	if (behavior.mode === "fixed") return behavior.value
@@ -544,7 +604,7 @@ function rollDropRarity(
 	const maxRank = getRarityRank(behavior.max)
 	const upgradeChance = source === "boss" ? 0.55 : 0.18
 	let rank = minRank
-	while (rank < maxRank && k.rand() < upgradeChance) rank++
+	while (rank < maxRank && random() < upgradeChance) rank++
 	return REWARD_RARITY_ORDER[rank]
 }
 
@@ -710,10 +770,17 @@ function buildAbilityReward(
 }
 
 function buildCurrentUpgradeReward(
-	definition: UpgradeDefinition
+	definition: UpgradeDefinition,
+	context: RewardAvailabilityContext = {}
 ): RewardDefinition | undefined {
 	if (!definition.reward || !isToolKey(definition.toolKey)) return undefined
-	const currentLevel = getEffectiveUpgradeLevel(definition.toolKey) ?? -1
+	const currentLevel = context.syntheticState
+		? context.syntheticState.upgradeLevels[definition.toolKey] ?? -1
+		: getEffectiveUpgradeLevel(definition.toolKey) ?? -1
+	if (
+		context.syntheticState &&
+		currentLevel >= definition.levels.length - 1
+	) return undefined
 	const levelIndex = Math.min(currentLevel + 1, definition.levels.length - 1)
 	if (levelIndex < 0) return undefined
 	return buildUpgradeReward(definition, levelIndex)
@@ -819,10 +886,16 @@ function formatMultiplier(value: number) {
 	return `${value.toFixed(value % 1 === 0 ? 0 : 2)}x`
 }
 
-function rollCrateRarity(successfulHits: number): RewardRarity {
+function rollCrateRarity(
+	successfulHits: number,
+	random: () => number = () => k.rand(),
+	context: RewardAvailabilityContext = {}
+): RewardRarity {
 	const hitIndex = k.clamp(Math.floor(successfulHits), 0, 3)
 	const baseWeights = CRATE_RARITY_WEIGHTS[hitIndex]
-	const luck = getHubChestLuck()
+	const luck = context.hubLevel === undefined
+		? getHubChestLuck()
+		: getHubLevelDefinition(context.hubLevel).chestLuck
 	const weights = shiftRarityWeights(baseWeights, luck)
 	const total =
 		weights.common +
@@ -830,7 +903,7 @@ function rollCrateRarity(successfulHits: number): RewardRarity {
 		weights.rare +
 		weights.epic +
 		weights.legendary
-	const roll = k.rand(0, total)
+	const roll = random() * total
 
 	if (roll < weights.common) return RewardRarity.Common
 	if (roll < weights.common + weights.uncommon) return RewardRarity.Uncommon
@@ -873,10 +946,12 @@ function shiftRarityWeights(weights: RarityWeights, luck: number): RarityWeights
 function rollCrateRewardForQuality(
 	quality: number,
 	excludedIds: readonly string[],
-	allowPermanent: boolean = true
+	allowPermanent: boolean = true,
+	random: () => number = () => k.rand(),
+	context: RewardAvailabilityContext = {}
 ): Reward | undefined {
-	const rarity = rollCrateRarity(quality)
-	const available = getRewardDefinitions("crate").filter(
+	const rarity = rollCrateRarity(quality, random, context)
+	const available = getRewardDefinitions("crate", context).filter(
 		(reward) =>
 			!excludedIds.includes(reward.id) &&
 			(allowPermanent || reward.progression.persistence !== "permanent")
@@ -887,7 +962,7 @@ function rollCrateRewardForQuality(
 	const pool = matching.length > 0
 		? matching
 		: getNearestRarityPool(available, rarity)
-	const selected = pickWeighted(pool, "crate")
+	const selected = pickWeighted(pool, "crate", 1, random)
 	return toReward(
 		selected,
 		selected && canResolveAtRarity(selected, rarity)
@@ -922,16 +997,17 @@ function getNearestRarityPool(
 function pickWeighted(
 	rewards: RewardDefinition[],
 	source: RewardSource,
-	multiplier: number = 1
+	multiplier: number = 1,
+	random: () => number = () => k.rand()
 ): RewardDefinition | undefined {
 	if (rewards.length === 0) return undefined
 	const total = rewards.reduce(
 		(sum, reward) => sum + (reward.weights[source] ?? 0) * multiplier,
 		0
 	)
-	if (total <= 0) return rewards[Math.floor(k.rand(0, rewards.length))]
+	if (total <= 0) return rewards[Math.floor(random() * rewards.length)]
 
-	let roll = k.rand(0, total)
+	let roll = random() * total
 	for (const reward of rewards) {
 		roll -= (reward.weights[source] ?? 0) * multiplier
 		if (roll <= 0) return reward

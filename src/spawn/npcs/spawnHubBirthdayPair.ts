@@ -37,13 +37,19 @@ const INTRO_LINES: readonly DialogueLine[] = [
 	{
 		speaker: "JUBILEE",
 		text: [
-			{ text: "Wait. " },
+			{ text: "Wait. ", waitAfter: 0.34 },
 			{ text: "GLOOM", reference: { kind: "npc", id: "gloom" } },
 			{ text: ", your activation date is today!" },
 		],
 	},
 	{ speaker: "GLOOM", text: "That information was not intended for recreational use." },
-	{ speaker: "JUBILEE", text: "I love birthdays. I have exactly the song for this." },
+	{
+		speaker: "JUBILEE",
+		text: [
+			{ text: "I love birthdays.", waitAfter: 0.34 },
+			{ text: " I have exactly the song for this." },
+		],
+	},
 	{ speaker: "GLOOM", text: "Do not." },
 ]
 
@@ -155,21 +161,67 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 				},
 				{
 					type: "dialogue",
-					lines: INTRO_LINES,
+					lines: INTRO_LINES.slice(0, 2),
 					options: { overlayOpacity: 0 },
 				},
 				{
 					type: "emotion",
 					actor: "jubilee",
-					emotion: "happy",
-					options: { duration: 7.5, priority: "narrative" },
+					emotion: "idea",
+					options: {
+						duration: 2.1,
+						priority: "narrative",
+						sound: { id: "ui_hover", volume: 0.34, speed: 1.12 },
+					},
+				},
+				{ type: "wait", duration: 0.38 },
+				{
+					type: "dialogue",
+					lines: INTRO_LINES.slice(2, 3),
+					options: { overlayOpacity: 0 },
+				},
+				{
+					type: "emotion",
+					actor: "gloom",
+					emotion: "fear",
+					options: { duration: 2.2, priority: "narrative" },
+				},
+				{ type: "wait", duration: 0.44 },
+				{
+					type: "dialogue",
+					lines: INTRO_LINES.slice(3, 5),
+					options: { overlayOpacity: 0 },
+				},
+				{
+					type: "parallel",
+					steps: [
+						{
+							type: "emotion",
+							actor: "jubilee",
+							emotion: "music",
+							options: { duration: 7.5, priority: "narrative" },
+						},
+						{
+							type: "emotion",
+							actor: "gloom",
+							emotion: "awkward",
+							options: { duration: 2.4, priority: "narrative" },
+						},
+					],
+				},
+				{ type: "wait", duration: 0.62 },
+				{
+					type: "dialogue",
+					lines: INTRO_LINES.slice(5),
+					options: { overlayOpacity: 0 },
 				},
 				{
 					type: "emotion",
 					actor: "gloom",
 					emotion: "angry",
-					options: { duration: 7.5, priority: "narrative" },
+					options: { duration: 7.2, priority: "narrative" },
 				},
+				{ type: "wait", duration: 0.3 },
 				{
 					type: "action",
 					run() {
@@ -267,16 +319,28 @@ function spawnPostBirthdayGloom(pos: ReturnType<typeof k.vec2>) {
 			id: "hub-gloom-birthday-aftermath",
 			pauseGameplay: false,
 			pauseVisualEffects: false,
-			steps: [{
-				type: "dialogue",
-				lines: POST_BIRTHDAY_LINES,
-				options: {
-					gameplay: "live",
-					advance: "manual",
-					input: "passthrough",
-					overlayOpacity: 0,
+			steps: [
+				{
+					type: "emotion",
+					actor: "gloom",
+					emotion: "heartbroken",
+					options: {
+						duration: 2.6,
+						priority: "narrative",
+					},
 				},
-			}],
+				{ type: "wait", duration: 0.68 },
+				{
+					type: "dialogue",
+					lines: POST_BIRTHDAY_LINES,
+					options: {
+						gameplay: "live",
+						advance: "manual",
+						input: "passthrough",
+						overlayOpacity: 0,
+					},
+				},
+			],
 		}, {
 			resolveActor: (id) => id === "gloom" ? gloom : undefined,
 		}).then((result) => {

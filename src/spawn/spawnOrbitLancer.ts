@@ -2,6 +2,7 @@ import type { Vec2 } from "kaplay"
 import { playerObj } from "../game"
 import { k, velocityScale } from "../main"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
 import { spawnEnemyBlaster } from "../services/projectileHelpers"
 import {
 	createEnemySpawnProfile,
@@ -58,7 +59,11 @@ export function spawnOrbitLancer(
 				: k.vec2(0)
 		const desired = tangent.add(radial)
 		if (desired.len() > 0) {
-			const desiredDirection = desired.unit()
+			const desiredDirection = getEnemyNavigationDirection(
+				lancer,
+				desired.unit(),
+				playerObj.pos
+			)
 			lancer.moveDirection = easeDirection(
 				lancer.moveDirection,
 				desiredDirection,

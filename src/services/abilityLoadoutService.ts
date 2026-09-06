@@ -2,7 +2,12 @@ import type { ActiveModuleId } from "./activeModuleService"
 import type { WeaponId } from "./weaponService"
 
 export type AbilitySlot = "primary" | "secondary" | "mobility" | "ultimate"
-export type MobilityAbilityId = "thrusterOverdrive" | "phaseJump"
+export type MobilityAbilityId =
+	| "thrusterOverdrive"
+	| "phaseJump"
+	| "retroBurst"
+	| "driftBrake"
+	| "gravitySling"
 export type UltimateAbilityId = "phaseNova"
 export type AbilityId =
 	| WeaponId

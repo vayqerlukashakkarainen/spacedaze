@@ -4,17 +4,23 @@ import { tags } from "../tags"
 import { audioService } from "./audioService"
 
 export const EMOTION_DEFINITIONS = {
-	dialogue: { text: "..." },
+	dialogue: { sprite: "emote_dots" },
 	alert: { sprite: "emote_exclamation" },
 	question: { sprite: "emote_question" },
+	awkward: { sprite: "emote_bars" },
 	angry: { sprite: "emote_faceAngry" },
 	happy: { sprite: "emote_faceHappy" },
+	laugh: { sprite: "emote_laugh" },
 	sad: { sprite: "emote_faceSad" },
+	heartbroken: { sprite: "emote_heartBroken" },
 	surprised: { sprite: "emote_exclamations" },
 	idea: { sprite: "emote_idea" },
 	fear: { sprite: "emote_drops" },
+	dizzy: { sprite: "emote_swirl" },
 	sleep: { sprite: "emote_sleeps" },
 	love: { sprite: "emote_heart" },
+	music: { sprite: "emote_music" },
+	impressed: { sprite: "emote_stars" },
 } as const
 
 export type EmotionId = keyof typeof EMOTION_DEFINITIONS

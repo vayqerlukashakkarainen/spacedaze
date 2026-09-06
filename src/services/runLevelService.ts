@@ -113,6 +113,8 @@ export const RUN_LEVEL_BONUSES: readonly RunLevelBonusDefinition[] = [
 
 const bonusStacks = createEmptyBonusStacks()
 const bonusPower = createEmptyBonusStacks()
+const offerBags = new Map<string, string[]>()
+const recentOfferIds = new Map<string, string[]>()
 let active = false
 let level = 1
 let xp = 0
@@ -124,6 +126,7 @@ export function beginRunLevelProgression() {
 	xp = 0
 	pendingSelections = 0
 	resetBonusStacks()
+	resetRunLevelOfferHistory()
 }
 
 export function endRunLevelProgression() {
@@ -132,6 +135,52 @@ export function endRunLevelProgression() {
 	xp = 0
 	pendingSelections = 0
 	resetBonusStacks()
+	resetRunLevelOfferHistory()
+}
+
+export function drawRunLevelOfferIds(
+	category: string,
+	availableIds: readonly string[],
+	count: number,
+	random: () => number = Math.random,
+	allowRecentFallback = true
+) {
+	const uniqueIds = [...new Set(availableIds)]
+	const wanted = Math.max(0, Math.min(Math.floor(count), uniqueIds.length))
+	if (wanted === 0) return []
+
+	const recent = new Set(recentOfferIds.get(category) ?? [])
+	let bag = (offerBags.get(category) ?? []).filter(
+		(id) => uniqueIds.includes(id) && !recent.has(id)
+	)
+	const selected: string[] = []
+
+	while (selected.length < wanted) {
+		if (bag.length === 0) {
+			const remaining = uniqueIds.filter((id) => !selected.includes(id))
+			const fresh = shuffleIds(
+				remaining.filter((id) => !recent.has(id)),
+				random
+			)
+			if (!allowRecentFallback && fresh.length === 0) {
+				recentOfferIds.delete(category)
+				break
+			}
+			const recentTail = shuffleIds(
+				remaining.filter((id) => recent.has(id)),
+				random
+			)
+			bag = [...fresh, ...recentTail]
+			if (bag.length === 0) break
+		}
+
+		const next = bag.shift()
+		if (next && !selected.includes(next)) selected.push(next)
+	}
+
+	offerBags.set(category, bag)
+	if (selected.length > 0) recentOfferIds.set(category, selected)
+	return selected
 }
 
 export function addRunLevelXp(amount: number) {
@@ -244,4 +293,20 @@ function resetBonusStacks() {
 		bonusStacks[id] = 0
 		bonusPower[id] = 0
 	}
+}
+
+function resetRunLevelOfferHistory() {
+	offerBags.clear()
+	recentOfferIds.clear()
+}
+
+function shuffleIds(values: readonly string[], random: () => number) {
+	const shuffled = [...values]
+	for (let index = shuffled.length - 1; index > 0; index--) {
+		const swapIndex = Math.floor(random() * (index + 1))
+		const current = shuffled[index]
+		shuffled[index] = shuffled[swapIndex]
+		shuffled[swapIndex] = current
+	}
+	return shuffled
 }

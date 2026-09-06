@@ -20,7 +20,11 @@ import {
 	RewardRarity,
 } from "../services/rewardService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
-import { recordTelemetryRewardSelected } from "../services/runTelemetryService";
+import {
+	recordTelemetryRewardOffered,
+	recordTelemetryRewardSelected,
+	type RewardTelemetrySource,
+} from "../services/runTelemetryService";
 import { interactable } from "../comp/interactable";
 import { createInteractionPrompt } from "../ui/common";
 import {
@@ -109,11 +113,15 @@ interface RewardPickupOptions {
 	suppressAcquisition?: boolean;
 	applyEffect?: (reward: Reward, pos: Vec2) => boolean;
 	onCollected?: (reward: Reward) => void;
+	telemetrySource?: RewardTelemetrySource;
 }
 
 export function spawnRerollTokenPickup(
 	pos: Vec2,
-	options: Pick<RewardPickupOptions, "stationary" | "label"> = {}
+	options: Pick<
+		RewardPickupOptions,
+		"stationary" | "label" | "telemetrySource"
+	> = {}
 ) {
 	const reward = createReward("rerollToken");
 	if (!reward) return;
@@ -125,6 +133,13 @@ export function spawnRewardPickup(
 	reward: Reward,
 	options: RewardPickupOptions = {}
 ) {
+	if (options.telemetrySource && !options.suppressAcquisition) {
+		recordTelemetryRewardOffered(reward.id, {
+			source: options.telemetrySource,
+			category: reward.kind,
+			rarity: reward.rarity,
+		});
+	}
 	let collected = false;
 	let armed = !options.armWhenPlayerLeaves;
 	const feedback = RARITY_FEEDBACK[reward.rarity];
@@ -263,9 +278,16 @@ export function spawnRewardPickup(
 			// Equipment swaps move an existing ability rather than granting it again.
 		} else if (reward.kind === "item" && reward.id === "rerollToken") {
 			showRewardAcquisitionPopover(reward);
-			recordTelemetryRewardSelected(reward.id, reward.rarity);
+			recordTelemetryRewardSelected(reward.id, reward.rarity, false, {
+				source: options.telemetrySource ?? "world-pickup",
+				category: reward.kind,
+			});
 		} else {
-			addCollectedPowerup(reward);
+			addCollectedPowerup(reward, {
+				source: options.telemetrySource ?? "world-pickup",
+				category: reward.kind,
+				rarity: reward.rarity,
+			});
 		}
 		options.onCollected?.(reward);
 	};

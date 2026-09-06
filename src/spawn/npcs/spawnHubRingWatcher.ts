@@ -4,6 +4,7 @@ import { discoverDroid, getDroidDefinition } from "../../npcs/droidRegistry"
 import { getEffectiveUpgradeLevel } from "../../upg"
 import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
 import type { DialogueLine } from "../../services/dialogService"
+import type { EmotionId } from "../../services/emotionService"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 import { getHubLevel } from "../../services/hubProgressService"
 import {
@@ -189,7 +190,7 @@ export function spawnHubRingWatcher(trainingTarget: ReturnType<typeof k.vec2>) {
 				})
 			}
 		}
-		void playCutscene(createRingWatcherConversation(dialogue.lines), {
+		void playCutscene(createRingWatcherConversation(dialogue.id, dialogue.lines), {
 			resolveActor: (id) => id === "ringWatcher" ? watcher : undefined,
 		}).then((result) => {
 			if (result === "completed") {
@@ -204,25 +205,20 @@ export function spawnHubRingWatcher(trainingTarget: ReturnType<typeof k.vec2>) {
 	return watcher
 }
 
-function createRingWatcherConversation(lines: readonly DialogueLine[]): CutsceneDefinition {
+function createRingWatcherConversation(
+	dialogueId: string,
+	lines: readonly DialogueLine[]
+): CutsceneDefinition {
+	const reaction = ringWatcherReaction(dialogueId)
+	const reactionIndex = Math.max(1, lines.length - 1)
 	return {
 		id: "hub-ring-watcher-conversation",
 		pauseGameplay: false,
 		pauseVisualEffects: false,
 		steps: [
 			{
-				type: "emotion",
-				actor: "ringWatcher",
-				emotion: "question",
-				options: {
-					duration: 3.2,
-					priority: "narrative",
-					sound: { id: "ui_hover", volume: 0.32, speed: 0.9 },
-				},
-			},
-			{
 				type: "dialogue",
-				lines,
+				lines: lines.slice(0, reactionIndex),
 				options: {
 					gameplay: "live",
 					advance: "manual",
@@ -233,14 +229,46 @@ function createRingWatcherConversation(lines: readonly DialogueLine[]): Cutscene
 			{
 				type: "emotion",
 				actor: "ringWatcher",
-				emotion: "idea",
+				emotion: reaction,
 				options: {
-					duration: 2.8,
+					duration: 2.2,
 					priority: "narrative",
-					sound: { id: "ui_hover", volume: 0.34, speed: 1.08 },
+					sound: {
+						id: "ui_hover",
+						volume: 0.34,
+						speed: reaction === "angry" ? 0.92 : 1.12,
+					},
+				},
+			},
+			{ type: "wait", duration: 0.5 },
+			{
+				type: "dialogue",
+				lines: lines.slice(reactionIndex),
+				options: {
+					gameplay: "live",
+					advance: "manual",
+					input: "passthrough",
+					overlayOpacity: 0,
 				},
 			},
 		],
+	}
+}
+
+function ringWatcherReaction(dialogueId: string): EmotionId {
+	switch (dialogueId) {
+		case "targeting-computer":
+			return "impressed"
+		case "targeting-computer-envy":
+			return "angry"
+		case "forge-calibration":
+			return "happy"
+		case "range-expansion":
+			return "impressed"
+		case "restoration-complete":
+			return "happy"
+		default:
+			return "question"
 	}
 }
 

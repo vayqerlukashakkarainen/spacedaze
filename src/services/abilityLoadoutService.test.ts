@@ -6,6 +6,29 @@ import {
 	resetAbilityLoadout,
 	setAbilityLoadout,
 } from "./abilityLoadoutService"
+import { getAbilityDefinition } from "./abilityRegistry"
+
+const hubLevelOneAdditions = [
+	"pulseRepeater",
+	"twinNeedle",
+	"impactDriver",
+	"repulsorPulse",
+	"decoyBeacon",
+	"scrapMine",
+	"retroBurst",
+	"driftBrake",
+	"gravitySling",
+] as const
+
+for (const id of hubLevelOneAdditions) {
+	const definition = getAbilityDefinition(id)
+	assert.ok(definition, `${id} should be registered as an ability`)
+	assert.equal(
+		definition.minimumHubLevel,
+		1,
+		`${id} should be available at hub level 1`
+	)
+}
 
 resetAbilityLoadout()
 assert.deepEqual(getAbilityLoadout(), { primary: "standardBlaster" })
@@ -18,6 +41,16 @@ assert.deepEqual(getAbilityLoadout(), {
 	primary: "railLance",
 	secondary: "gravityCharge",
 	mobility: "phaseJump",
+	ultimate: "phaseNova",
+})
+
+equipAbility("primary", "pulseRepeater")
+equipAbility("secondary", "decoyBeacon")
+equipAbility("mobility", "gravitySling")
+assert.deepEqual(getAbilityLoadout(), {
+	primary: "pulseRepeater",
+	secondary: "decoyBeacon",
+	mobility: "gravitySling",
 	ultimate: "phaseNova",
 })
 

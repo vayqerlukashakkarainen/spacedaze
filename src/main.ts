@@ -232,12 +232,18 @@ import {
 	clearRunTelemetry,
 	downloadRunTelemetry,
 	formatLatestRunTelemetry,
+	formatRewardTelemetrySummary,
 	formatRunTelemetrySummary,
+	formatSimulationTelemetrySummary,
 	recordTelemetryEnemyKill,
 	recordTelemetryEnemySpawn,
 	recordTelemetrySalvageSpent,
 	sampleRunTelemetry,
 } from "./services/runTelemetryService";
+import {
+	formatSyntheticRewardDiversity,
+	simulateSyntheticRuns,
+} from "./services/runSimulationService";
 
 export const layers = {
 	bg: "bg",
@@ -727,10 +733,13 @@ function registerDebugCommands() {
 
 	commandService.register(
 		"telemetry",
-		"telemetry [last|export|clear] - Inspect or export run balance data",
+		"telemetry [last|rewards|diversity|simulations|export|clear] - Inspect or export run balance data",
 		(args) => {
 			const mode = args[0]?.toLowerCase() ?? "summary";
 			if (mode === "last") return formatLatestRunTelemetry();
+			if (mode === "rewards") return formatRewardTelemetrySummary();
+			if (mode === "diversity") return formatSyntheticRewardDiversity();
+			if (mode === "simulations") return formatSimulationTelemetrySummary();
 			if (mode === "export") {
 				return downloadRunTelemetry()
 					? "Run telemetry exported as JSON"
@@ -741,9 +750,41 @@ function registerDebugCommands() {
 				return "Run telemetry cleared";
 			}
 			if (mode !== "summary") {
-				return "Usage: telemetry [last|export|clear]";
+				return "Usage: telemetry [last|rewards|diversity|simulations|export|clear]";
 			}
 			return formatRunTelemetrySummary();
+		}
+	);
+
+	commandService.register(
+		"simulate",
+		"simulate runs [count] [seed] [hub] [depth] | simulate chests [count] [seed] [hub]",
+		(args) => {
+			const profile = args[0]?.toLowerCase();
+			const count = Number(args[1]);
+			const seed = Number(args[2]);
+			const hubLevel = Number(args[3]);
+			const targetDepth = Number(args[4]);
+			if (profile === "runs") {
+				return simulateSyntheticRuns({
+					runCount: Number.isFinite(count) ? count : 25,
+					seed: Number.isFinite(seed) ? seed : Date.now(),
+					hubLevel: Number.isFinite(hubLevel) ? hubLevel : undefined,
+					targetDepth: Number.isFinite(targetDepth) ? targetDepth : 4,
+					profile: "mixed",
+				});
+			}
+			if (profile === "chests") {
+				return simulateSyntheticRuns({
+					runCount: 1,
+					seed: Number.isFinite(seed) ? seed : Date.now(),
+					hubLevel: Number.isFinite(hubLevel) ? hubLevel : undefined,
+					levelUpsPerRun: 0,
+					chestsPerRun: Number.isFinite(count) ? count : 100,
+					profile: "chests",
+				});
+			}
+			return "Usage: simulate runs [count] [seed] [hub] [depth] | simulate chests [count] [seed] [hub]";
 		}
 	);
 

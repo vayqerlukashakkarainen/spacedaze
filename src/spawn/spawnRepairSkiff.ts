@@ -2,6 +2,7 @@ import type { GameObj, Vec2 } from "kaplay"
 import { playerObj } from "../game"
 import { k, velocityScale } from "../main"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
 import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
@@ -70,6 +71,14 @@ export function spawnRepairSkiff(
 			if (toTarget.len() > 78) desired = toTarget.unit()
 			else desired = toTarget.normal().unit()
 		}
+		const navigationTarget = skiff.repairTarget?.exists()
+			? skiff.repairTarget.pos
+			: skiff.pos.add(desired.scale(220))
+		desired = getEnemyNavigationDirection(
+			skiff,
+			desired,
+			navigationTarget
+		)
 		skiff.moveDirection = easeDirection(skiff.moveDirection, desired, 4.4, delta)
 		skiff.move(skiff.moveDirection.scale(
 			98 * profile.speedMultiplier * velocityScale() * skiff.getTimescale()

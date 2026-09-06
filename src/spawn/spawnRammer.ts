@@ -6,6 +6,7 @@ import { audioService } from "../services/audioService"
 import { applyDamage } from "../services/damageService"
 import { createCadencedSystem } from "../services/cadencedSystemService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import {
 	createEnemySpawnProfile,
@@ -116,9 +117,14 @@ export function spawnRammer(
 		rammer.scale = k.vec2(profile.scale)
 
 		if (rammer.phase === "approach") {
+			const navigationDirection = getEnemyNavigationDirection(
+				rammer,
+				playerDirection,
+				playerObj.pos
+			)
 			rammer.steeringDirection = easeDirection(
 				rammer.steeringDirection,
-				playerDirection,
+				navigationDirection,
 				5,
 				delta
 			)
@@ -206,6 +212,11 @@ export function spawnRammer(
 				rammer.phaseTimer = 0
 			}
 		} else {
+			const navigationDirection = getEnemyNavigationDirection(
+				rammer,
+				playerDirection,
+				playerObj.pos
+			)
 			const recoveryProgress = k.clamp(
 				rammer.phaseTimer / RAMMER_RECOVERY_DURATION,
 				0,
@@ -214,7 +225,7 @@ export function spawnRammer(
 			const recoveryEase = 1 - Math.pow(1 - recoveryProgress, 3)
 			rammer.steeringDirection = easeDirection(
 				rammer.steeringDirection,
-				playerDirection,
+				navigationDirection,
 				k.lerp(1.5, 5, recoveryEase),
 				delta
 			)

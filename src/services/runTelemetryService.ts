@@ -3,9 +3,36 @@ import type { DebreeRunOutcome } from "./debreeEconomyService"
 import type { ThreatSnapshot } from "./threatService"
 
 const TELEMETRY_STORAGE_KEY = "spacedaze_run_telemetry_v1"
-const TELEMETRY_SCHEMA_VERSION = 1
+const TELEMETRY_SCHEMA_VERSION = 2
 const MAX_STORED_RUNS = 100
 const MAX_FRAME_SAMPLES = 900
+const MAX_REWARD_EVENTS = 500
+
+export type RewardTelemetrySource =
+	| "level-up"
+	| "chest"
+	| "enemy-drop"
+	| "boss-drop"
+	| "world-pickup"
+	| "secret"
+	| "challenge"
+	| "unknown"
+
+export interface RewardTelemetryDetails {
+	source?: RewardTelemetrySource
+	category?: string
+	familyId?: string
+	rarity?: string
+	runLevel?: number
+	candidatePoolSize?: number
+}
+
+export interface RewardTelemetryEvent extends RewardTelemetryDetails {
+	type: "OFFERED" | "SELECTED"
+	rewardId: string
+	familyId: string
+	elapsedSeconds: number
+}
 
 export interface RunTelemetryContext {
 	zoneId: string
@@ -19,6 +46,14 @@ export interface RunTelemetryContext {
 	hubLevel: number
 	loadout: AbilityLoadout
 	upgrades: Record<string, number | undefined>
+	synthetic?: {
+		profile: string
+		seed: number
+		index: number
+		modelVersion?: number
+		targetDepth?: number
+		requestedHubLevel?: number
+	}
 }
 
 export interface EnemyTelemetry {
@@ -69,6 +104,7 @@ export interface RunTelemetryRecord {
 		selected: Record<string, number>
 		discovered: Record<string, number>
 		selectedRarities: Record<string, number>
+		events?: RewardTelemetryEvent[]
 	}
 	chests: {
 		opened: number
@@ -131,6 +167,7 @@ export function startRunTelemetry(context: RunTelemetryContext) {
 			selected: {},
 			discovered: {},
 			selectedRarities: {},
+			events: [],
 		},
 		chests: {
 			opened: 0,
@@ -251,20 +288,26 @@ export function recordTelemetrySalvageSpent(amount: number) {
 	activeRun.economy.salvageSpent += amount
 }
 
-export function recordTelemetryRewardOffered(id: string) {
+export function recordTelemetryRewardOffered(
+	id: string,
+	details: RewardTelemetryDetails = {}
+) {
 	if (!activeRun) return
 	increment(activeRun.rewards.offered, id)
+	recordRewardEvent("OFFERED", id, details)
 }
 
 export function recordTelemetryRewardSelected(
 	id: string,
 	rarity: string,
-	discovery = false
+	discovery = false,
+	details: RewardTelemetryDetails = {}
 ) {
 	if (!activeRun) return
 	increment(activeRun.rewards.selected, id)
 	increment(activeRun.rewards.selectedRarities, rarity)
 	if (discovery) increment(activeRun.rewards.discovered, id)
+	recordRewardEvent("SELECTED", id, { ...details, rarity })
 }
 
 export function recordTelemetryChestResult(
@@ -372,6 +415,57 @@ export function formatLatestRunTelemetry() {
 	return JSON.stringify(latest, null, 2)
 }
 
+export function formatRewardTelemetrySummary() {
+	const records = getRunTelemetryRecords()
+	const sources = activeRun ? [...records, activeRun] : records
+	const events = sources.flatMap((record) => record.rewards.events ?? [])
+	if (events.length === 0) {
+		return records.length === 0
+			? "No reward telemetry recorded"
+			: "No detailed reward events recorded yet; complete or continue a run with telemetry schema 2"
+	}
+
+	const offered = events.filter((event) => event.type === "OFFERED")
+	const selected = events.filter((event) => event.type === "SELECTED")
+	const offerFamilies = countRewardFamilies(offered)
+	const selectedFamilies = countRewardFamilies(selected)
+	const sourceCounts: Record<string, number> = {}
+	for (const event of offered) increment(sourceCounts, event.source ?? "unknown")
+	const constrainedOffers = offered.filter(
+		(event) => event.candidatePoolSize !== undefined && event.candidatePoolSize <= 2
+	).length
+
+	return [
+		`${sources.length} run${sources.length === 1 ? "" : "s"} | ${offered.length} offers | ${selected.length} selections`,
+		`Top offers: ${formatRewardCounts(offerFamilies)}`,
+		`Top selections: ${formatRewardCounts(selectedFamilies)}`,
+		`Offer sources: ${formatRewardCounts(sourceCounts)}`,
+		`Constrained offers (pool <= 2): ${constrainedOffers}`,
+	].join("\n")
+}
+
+export function formatSimulationTelemetrySummary() {
+	const records = getRunTelemetryRecords().filter((record) => record.context.synthetic)
+	if (records.length === 0) return "No synthetic run telemetry recorded"
+	const extracted = records.filter((record) => record.outcome === "EXTRACTED").length
+	const enemies: Record<string, number> = {}
+	const deaths: Record<string, number> = {}
+	for (const record of records) {
+		for (const [id, stats] of Object.entries(record.enemies)) {
+			increment(enemies, id, stats.spawned)
+		}
+		if (record.outcome !== "DESTROYED") continue
+		const cause = Object.entries(record.damageTaken.bySource)
+			.sort((left, right) => right[1] - left[1])[0]?.[0] ?? "unknown"
+		increment(deaths, cause)
+	}
+	return [
+		`${records.length} synthetic runs | extraction ${Math.round(extracted / records.length * 100)}%`,
+		`Death causes: ${formatRewardCounts(deaths)}`,
+		`Enemy spawns: ${formatRewardCounts(enemies)}`,
+	].join("\n")
+}
+
 export function downloadRunTelemetry() {
 	const records = getRunTelemetryRecords()
 	if (typeof document === "undefined" || typeof URL === "undefined") return false
@@ -410,6 +504,43 @@ function abilityStats(slot: string, abilityId: string) {
 
 function increment(target: Record<string, number>, key: string, amount = 1) {
 	target[key] = (target[key] ?? 0) + amount
+}
+
+function recordRewardEvent(
+	type: RewardTelemetryEvent["type"],
+	rewardId: string,
+	details: RewardTelemetryDetails
+) {
+	if (!activeRun) return
+	const events = activeRun.rewards.events ??= []
+	events.push({
+		...details,
+		type,
+		rewardId,
+		familyId: details.familyId ?? rewardFamilyId(rewardId),
+		elapsedSeconds: elapsedSeconds(),
+	})
+	if (events.length > MAX_REWARD_EVENTS) events.shift()
+}
+
+function rewardFamilyId(rewardId: string) {
+	const upgrade = /^upgrade:([^:]+):\d+$/i.exec(rewardId)
+	return upgrade ? `upgrade:${upgrade[1]}` : rewardId
+}
+
+function countRewardFamilies(events: readonly RewardTelemetryEvent[]) {
+	const counts: Record<string, number> = {}
+	for (const event of events) increment(counts, event.familyId)
+	return counts
+}
+
+function formatRewardCounts(counts: Record<string, number>) {
+	const entries = Object.entries(counts)
+		.sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+		.slice(0, 6)
+	return entries.length > 0
+		? entries.map(([id, count]) => `${id} x${count}`).join(", ")
+		: "none"
 }
 
 function normalizeKey(value: string) {

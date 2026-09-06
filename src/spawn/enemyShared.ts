@@ -77,6 +77,10 @@ export function enemyOnDeath(
 		rewardSource,
 		dropMultiplier
 	);
-	if (reward) spawnRewardPickup(pos, reward);
+	if (reward) {
+		spawnRewardPickup(pos, reward, {
+			telemetrySource: rewardSource === "boss" ? "boss-drop" : "enemy-drop",
+		});
+	}
 	if (allowHack) trySpawnHackedAlly(pos);
 }

@@ -57,7 +57,7 @@ export function registerBossEncounter(
 
 	registerBatchedUiUpdate("overlay", hud.root, () => {
 		if (!boss.exists()) return
-		const health = Math.max(0, boss.hp())
+		const health = Math.max(0, Number(boss.hp))
 		const healthRatio = health / Math.max(1, options.maxHealth)
 		hud.setHealth(healthRatio)
 		const nextPhaseIndex = getBossPhaseIndex(definition, healthRatio)

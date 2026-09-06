@@ -4,6 +4,7 @@ import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
 import { audioService } from "../services/audioService"
 import { applyDamage } from "../services/damageService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import { spawnEnemyBlaster } from "../services/projectileHelpers"
 import {
@@ -96,9 +97,14 @@ export function spawnSniper(
 					: k.vec2(0)
 			const movement = tangent.scale(0.7).add(radial)
 			if (movement.len() > 0) {
+				const desiredMovement = getEnemyNavigationDirection(
+					sniper,
+					movement.unit(),
+					playerObj.pos
+				)
 				sniper.moveDirection = easeDirection(
 					sniper.moveDirection,
-					movement.unit(),
+					desiredMovement,
 					4.5,
 					delta
 				)

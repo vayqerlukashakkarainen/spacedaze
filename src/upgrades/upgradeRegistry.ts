@@ -187,7 +187,7 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	salvageBattery: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 76, 14, 92, 2),
 	reactivePlating: policy(RewardRarity.Rare, ["crate", "boss"], 48, 0, 112, 2),
 	packIntelligence: policy(RewardRarity.Epic, ["crate", "boss"], 22, 0, 132, 4),
-	glassReactor: policy(RewardRarity.Legendary, ["boss"], 0, 0, 42, 5),
+	glassReactor: policy(RewardRarity.Legendary, ["crate", "boss"], 4, 0, 42, 5),
 	droneFusion: policy(RewardRarity.Legendary, ["crate", "boss"], 10, 0, 62, 5),
 	sawSatellite: policy(RewardRarity.Rare, ["crate", "boss"], 42, 0, 115, 2),
 	kineticRam: policy(RewardRarity.Rare, ["crate", "boss"], 42, 0, 118, 3),
@@ -197,7 +197,7 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	corrosivePayload: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 100, 20, 100),
 	arcCapacitor: policy(RewardRarity.Rare, ["crate", "boss"], 55, 0, 140),
 	splitChamber: policy(RewardRarity.Rare, ["crate", "boss"], 45, 0, 130),
-	singularityPayload: policy(RewardRarity.Epic, ["boss"], 0, 0, 180, 4),
+	singularityPayload: policy(RewardRarity.Epic, ["crate", "boss"], 12, 0, 180, 4),
 	targetingMatrix: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 125, 30, 90),
 	criticalPayload: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 100, 20, 110),
 	kineticPulse: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 100, 20, 110),
@@ -217,7 +217,7 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	executionRounds: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 82, 15, 95),
 	targetPainter: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 88, 16, 95),
 	mineLayer: policy(RewardRarity.Rare, ["crate", "boss"], 44, 0, 110, 3),
-	voidLance: policy(RewardRarity.Epic, ["boss"], 0, 0, 150, 5),
+	voidLance: policy(RewardRarity.Epic, ["crate", "boss"], 10, 0, 150, 5),
 };
 
 for (const [toolKey, reward] of Object.entries(upgradeRewardPolicies)) {

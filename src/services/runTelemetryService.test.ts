@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import {
 	clearRunTelemetry,
 	finishRunTelemetry,
+	formatRewardTelemetrySummary,
 	getRunTelemetryRecords,
 	recordTelemetryAbilityFailure,
 	recordTelemetryAbilityUse,
@@ -51,8 +52,17 @@ recordTelemetryAbilityUse("mobility", "phaseJump")
 recordTelemetryAbilityFailure("ultimate")
 recordTelemetrySalvageEarned(12)
 recordTelemetrySalvageSpent(4)
-recordTelemetryRewardOffered("ricochetRounds")
-recordTelemetryRewardSelected("ricochetRounds", "RARE")
+recordTelemetryRewardOffered("upgrade:ricochetRounds:1", {
+	source: "level-up",
+	category: "upgrade",
+	runLevel: 2,
+	candidatePoolSize: 3,
+})
+recordTelemetryRewardSelected("upgrade:ricochetRounds:1", "RARE", false, {
+	source: "level-up",
+	category: "upgrade",
+	runLevel: 2,
+})
 recordTelemetryChestResult("bezier", 0, true)
 recordTelemetryChestReroll()
 sampleRunTelemetry(0.016, { tier: 3 } as never)
@@ -78,8 +88,10 @@ assert.equal(record.abilities["ultimate:empty"].failedUses, 1)
 assert.equal(record.economy.salvageEarned, 12)
 assert.equal(record.economy.salvageSpent, 4)
 assert.equal(record.economy.salvageDeposited, 8)
-assert.equal(record.rewards.offered.ricochetRounds, 1)
-assert.equal(record.rewards.selected.ricochetRounds, 1)
+assert.equal(record.rewards.offered["upgrade:ricochetRounds:1"], 1)
+assert.equal(record.rewards.selected["upgrade:ricochetRounds:1"], 1)
+assert.equal(record.rewards.events?.[0].familyId, "upgrade:ricochetRounds")
+assert.match(formatRewardTelemetrySummary(), /upgrade:ricochetRounds x1/)
 assert.equal(record.chests.perfect, 1)
 assert.equal(record.chests.rerolls, 1)
 assert.equal(record.performance.stutterCount, 1)

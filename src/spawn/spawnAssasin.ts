@@ -18,6 +18,7 @@ import {
 	type EnemySpawnOptions,
 } from "../services/threatService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { getEnemyNavigationTarget } from "../services/enemyNavigationService";
 
 export function spawnAssasin(
 	pos: Vec2,
@@ -99,10 +100,11 @@ export function spawnAssasin(
 	registerHitAnimation(m);
 
 	registerBatchedEntityUpdate("enemies", m, () => {
+		const navigationTarget = getEnemyNavigationTarget(m, m.targetPos);
 		const { lerp, correctedDesiredRot } = lerpAngleBetweenPos(
 			m.angle,
 			m.pos,
-			m.targetPos,
+			navigationTarget,
 			0.01 * timeScale * m.getTimescale(),
 			-90
 		);
