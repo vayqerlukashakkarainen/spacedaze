@@ -8,9 +8,10 @@ import { forEachSpatialNearby } from "./runtimeSpatialIndexService"
 const SEPARATION_SEARCH_RADIUS = 72
 const MAX_CANDIDATES_PER_ENEMY = 16
 const MAX_NEIGHBORS_PER_ENEMY = 8
-const MIN_SPACING = 20
-const MAX_SPACING = 64
-const EXTRA_SPACING = 4
+const MIN_SPACING = 14
+const MAX_SPACING = 52
+const SEPARATION_RADIUS_FACTOR = 0.8
+const EXTRA_SPACING = 2
 const SEPARATION_RESPONSE = 15
 const MAX_CORRECTION_PER_FRAME = 7
 
@@ -159,7 +160,7 @@ function canSeparate(enemy: GameObj) {
 function getDesiredSpacing(enemy: GameObj, neighbor: GameObj) {
 	const combinedRadius = getSeparationRadius(enemy) + getSeparationRadius(neighbor)
 	return k.clamp(
-		combinedRadius + EXTRA_SPACING,
+		combinedRadius * SEPARATION_RADIUS_FACTOR + EXTRA_SPACING,
 		MIN_SPACING,
 		MAX_SPACING
 	)

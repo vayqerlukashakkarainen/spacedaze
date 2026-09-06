@@ -167,11 +167,11 @@ export async function init(k: KAPLAYCtx) {
 		)
 	}
 
-	await k.loadSprite("asteroid1", "sprites/asteroid1.png");
-	for (let index = 1; index <= 8; index++) {
+	for (let index = 1; index <= 20; index++) {
+		const number = String(index).padStart(2, "0")
 		await k.loadSprite(
-			`asteroid_chunk_${index}`,
-			`sprites/asteroid-chunks/asteroid-chunk-${index}.png`
+			`asteroid_${number}`,
+			`sprites/asteroids/asteroid-${number}.png`
 		)
 	}
 	await k.loadSprite(
@@ -199,13 +199,7 @@ export async function init(k: KAPLAYCtx) {
 		"enemy_shield_drone",
 		"sprites/enemies/shield-drone.png"
 	);
-	await k.loadSprite("enemy_swarm_drone", "sprites/enemies/swarm-drone.png")
-	await k.loadSprite(
-		"enemy_swarm_hivemind",
-		"sprites/enemies/swarm-hivemind.png"
-	)
 	await k.loadSprite("enemy_orbit_lancer", "sprites/enemies/orbit-lancer.png")
-	await k.loadSprite("enemy_siege_barge", "sprites/enemies/siege-barge.png")
 	await k.loadSprite("enemy_tether_drone", "sprites/enemies/tether-drone.png")
 	await k.loadSprite("enemy_repair_skiff", "sprites/enemies/repair-skiff.png")
 	await k.loadSprite("enemy_splitter", "sprites/enemies/splitter.png")
@@ -214,17 +208,23 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("enemy_salvage_scavenger", "sprites/enemies/salvage-scavenger.png")
 	await k.loadSprite("enemy_suppressor", "sprites/enemies/suppressor.png")
 	await k.loadSprite("enemy_breach_crawler", "sprites/enemies/breach-crawler.png")
+	await k.loadSprite("enemy_swarm_drone", "sprites/enemies/swarm-drone.png")
+	await k.loadSprite("enemy_siege_barge", "sprites/enemies/siege-barge.png")
 	await k.loadSprite(
-		"hub_progression_lamp",
-		"sprites/hub/progression-lamp.png"
+		"enemy_swarm_hivemind",
+		"sprites/enemies/swarm-hivemind.png"
 	)
 	await k.loadSprite(
-		"hub_progression_lamp_broken",
-		"sprites/hub/progression-lamp-broken.png"
+		"enemy_impact_ace_intercept",
+		"sprites/enemies/impact-ace-intercept.png"
 	)
 	await k.loadSprite(
-		"hub_progression_lamp_rock",
-		"sprites/hub/progression-lamp-rock.png"
+		"enemy_impact_ace_relentless",
+		"sprites/enemies/impact-ace-relentless.png"
+	)
+	await k.loadSprite(
+		"enemy_impact_ace_terminal",
+		"sprites/enemies/impact-ace-terminal.png"
 	)
 	await k.loadSprite(
 		"hub_salvage_hauler",
@@ -238,6 +238,7 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("spark1", "sprites/spark1.png");
 	const emotionSprites = [
 		"emote_bars",
+		"emote_blank",
 		"emote_dots",
 		"emote_drops",
 		"emote_exclamation",
@@ -365,7 +366,7 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("mobility_gravity_sling", "sprites/upgrades/gravity_sling.png")
 	await k.loadSprite(
 		"reroll_token",
-		"sprites/upgrades/reroll_token.svg"
+		"sprites/upgrades/reroll_token.png"
 	);
 	await k.loadSprite(
 		"phase_capacitor_upg1",
@@ -401,8 +402,17 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSprite(
 		"ricochet_rounds_upg1",
-		"sprites/upgrades/source/ricochet_rounds_upg1.svg"
+		"sprites/upgrades/ricochet_rounds_upg1.png"
 	);
+	const followerRewardSprites = [
+		"follower_interceptor_upg1",
+		"follower_gunship_upg1",
+		"follower_medic_upg1",
+		"follower_salvager_upg1",
+	]
+	for (const sprite of followerRewardSprites) {
+		await k.loadSprite(sprite, `sprites/upgrades/${sprite}.png`)
+	}
 	const projectileBehaviorSprites = [
 		"fragmentation_core_upg1",
 		"hunter_guidance_upg1",
@@ -459,6 +469,25 @@ export async function init(k: KAPLAYCtx) {
 		);
 	}
 	await k.loadSprite("companion_burt", "sprites/companions/burt.png")
+	await k.loadSprite(
+		"companion_burt_house",
+		"sprites/companions/burt-house.png"
+	)
+	await k.loadSprite(
+		"hub_progression_lamp",
+		"sprites/hub/progression-lamp.png"
+	)
+	await k.loadSprite(
+		"hub_progression_lamp_broken",
+		"sprites/hub/progression-lamp-broken.png"
+	)
+	for (let index = 1; index <= 6; index++) {
+		const number = String(index).padStart(2, "0")
+		await k.loadSprite(
+			`hub_progression_lamp_platform_${number}`,
+			`sprites/hub/progression-lamp-platform-${number}.png`
+		)
+	}
 
 	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
 
@@ -494,6 +523,7 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSound("purchase1", "sounds/purchase1.wav");
 	await k.loadSound("powerup1", "sounds/powerup1.wav");
+	await k.loadSound("run_level_up", "sounds/run-level-up.mp3")
 	await k.loadSound("crit1", "sounds/crit1.wav");
 	await k.loadSound("slowdown", "sounds/slowdown.wav");
 	await k.loadSound("swap_level", "sounds/swap_level.wav");
@@ -656,6 +686,18 @@ export async function init(k: KAPLAYCtx) {
 	);
 
 	await k.loadSprite("boss1_body", "sprites/boss/boss1/boss1_body.png");
+	await k.loadSprite(
+		"boss1_body_phase2",
+		"sprites/boss/boss1/boss1_body_phase2.png"
+	)
+	await k.loadSprite(
+		"boss1_body_phase3",
+		"sprites/boss/boss1/boss1_body_phase3.png"
+	)
+	await k.loadSprite(
+		"boss1_part_target",
+		"sprites/boss/boss1/boss1_part_target.png"
+	)
 	await k.loadSprite("boss1_blaster", "sprites/boss/boss1/boss1_blaster.png");
 	await k.loadSprite("boss1_head", "sprites/boss/boss1/boss1_head.png");
 

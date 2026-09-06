@@ -25,7 +25,6 @@ export function spawnSpaceJumpBackdrop(
 	options: SpaceJumpBackdropOptions = {}
 ) {
 	const streaks = createSpaceJumpStreaks(120)
-	let elapsed = 0
 	let visualTime = 0
 	return k.add([
 		k.pos(0, 0),
@@ -36,13 +35,9 @@ export function spawnSpaceJumpBackdrop(
 		{
 			coverOpacity: 1,
 			washOpacity: 1,
-			speedProgress: 0,
+			speedProgress: 1,
 			update() {
-				elapsed += k.dt()
-				this.speedProgress = k.clamp(elapsed / 5, 0, 1)
-				const easedSpeed = this.speedProgress * this.speedProgress *
-					(3 - 2 * this.speedProgress)
-				const speedMultiplier = k.lerp(2.6, 6.5, easedSpeed)
+				const speedMultiplier = 6.5
 				visualTime += k.dt() * speedMultiplier
 				options.onSpeedChange?.(this.speedProgress, speedMultiplier)
 			},

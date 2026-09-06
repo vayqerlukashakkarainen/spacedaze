@@ -37,7 +37,7 @@ interface CutsceneDialogueStep {
 	lines: readonly DialogueLine[]
 	options?: Omit<
 		DialogueOptions,
-		"onComplete" | "onSkip" | "pauseGameplay"
+		"onComplete" | "onSkip" | "pauseGameplay" | "resolveSpeaker"
 	>
 	skippable?: boolean
 }
@@ -56,6 +56,15 @@ interface CutsceneActionStep {
 
 interface CutsceneMoveStep {
 	type: "move"
+	actor: string
+	target: CutscenePosition
+	duration: number
+	easing?: CutsceneEasing
+	finalizeOnSkip?: boolean
+}
+
+interface CutsceneRotateStep {
+	type: "rotate"
 	actor: string
 	target: CutscenePosition
 	duration: number
@@ -91,6 +100,7 @@ export type CutsceneStep =
 	| CutsceneParallelStep
 	| CutsceneActionStep
 	| CutsceneMoveStep
+	| CutsceneRotateStep
 	| CutsceneCameraStep
 	| CutsceneRestoreCameraStep
 	| CutsceneEmotionStep
@@ -98,6 +108,7 @@ export type CutsceneStep =
 export interface CutsceneDefinition {
 	id: string
 	steps: readonly CutsceneStep[]
+	speakerActors?: Readonly<Record<string, string>>
 	pauseGameplay?: boolean
 	pauseVisualEffects?: boolean
 	restoreCameraOnEnd?: boolean
@@ -131,17 +142,20 @@ class CutsceneRuntime implements CutsceneContext {
 	readonly blocksGameplay: boolean
 	result: CutsceneResult | undefined
 	private readonly resolveActorFn?: CutscenePlayOptions["resolveActor"]
+	private readonly speakerActors: Readonly<Record<string, string>>
 	private readonly cancelListeners = new Set<() => void>()
 	private readonly cleanups = new Set<() => void>()
 
 	constructor(
 		id: string,
 		blocksGameplay: boolean,
-		resolveActor?: CutscenePlayOptions["resolveActor"]
+		resolveActor?: CutscenePlayOptions["resolveActor"],
+		speakerActors: Readonly<Record<string, string>> = {}
 	) {
 		this.id = id
 		this.blocksGameplay = blocksGameplay
 		this.resolveActorFn = resolveActor
+		this.speakerActors = speakerActors
 		this.initialCamera = {
 			pos: k.getCamPos().clone(),
 			scale: k.getCamScale().clone(),
@@ -155,6 +169,11 @@ class CutsceneRuntime implements CutsceneContext {
 	resolveActor(id: string) {
 		const actor = this.resolveActorFn?.(id)
 		return actor?.exists() ? actor : undefined
+	}
+
+	resolveSpeaker(speaker: string) {
+		const actorId = this.speakerActors[speaker.toUpperCase()]
+		return actorId ? this.resolveActor(actorId) : undefined
 	}
 
 	resolvePosition(target: CutscenePosition) {
@@ -252,7 +271,8 @@ export async function playCutscene(
 	const runtime = new CutsceneRuntime(
 		definition.id,
 		definition.pauseGameplay !== false,
-		options.resolveActor
+		options.resolveActor,
+		definition.speakerActors
 	)
 	activeCutscene = runtime
 	if (definition.restoreCameraOnEnd !== false) {
@@ -325,6 +345,7 @@ async function runStep(step: CutsceneStep, runtime: CutsceneRuntime) {
 			const dialogue = showDialogue(step.lines, {
 				...step.options,
 				pauseGameplay: false,
+				resolveSpeaker: (speaker) => runtime.resolveSpeaker(speaker),
 				onSkip: step.skippable ? () => runtime.skip() : undefined,
 			})
 			const removeCancelListener = runtime.onCancel(hideDialogue)
@@ -343,6 +364,9 @@ async function runStep(step: CutsceneStep, runtime: CutsceneRuntime) {
 		}
 		case "move":
 			await moveActor(step, runtime)
+			return
+		case "rotate":
+			await rotateActor(step, runtime)
 			return
 		case "camera":
 			await moveCamera(step, runtime)
@@ -402,6 +426,38 @@ function moveActor(step: CutsceneMoveStep, runtime: CutsceneRuntime) {
 				actor.exists()
 			) {
 				actor.pos = target.clone()
+			}
+		}
+	)
+}
+
+function rotateActor(step: CutsceneRotateStep, runtime: CutsceneRuntime) {
+	const actor = runtime.resolveActor(step.actor) as
+		| (GameObj<PosComp> & { angle?: number })
+		| undefined
+	const target = runtime.resolvePosition(step.target)
+	if (!actor || !target || typeof actor.angle !== "number") {
+		return Promise.resolve()
+	}
+	const direction = target.sub(actor.pos)
+	if (direction.len() <= 0.001) return Promise.resolve()
+	const startAngle = actor.angle
+	const targetAngle = direction.angle() + 90
+	const angleDelta = ((targetAngle - startAngle + 540) % 360) - 180
+	return tweenValue(
+		step.duration,
+		step.easing,
+		runtime,
+		(progress) => {
+			if (actor.exists()) actor.angle = startAngle + angleDelta * progress
+		},
+		() => {
+			if (
+				runtime.result === "skipped" &&
+				step.finalizeOnSkip !== false &&
+				actor.exists()
+			) {
+				actor.angle = targetAngle
 			}
 		}
 	)

@@ -21,7 +21,7 @@ import {
 } from "../../services/narrativeService"
 import { showPopover } from "../../services/popoverService"
 import { tags } from "../../tags"
-import { createInteractionPrompt } from "../../ui/common"
+import { createNpcInteractionPrompt } from "../../ui/common"
 import { randomExplosion } from "../../util"
 import { spawnEnemyDeathEffect } from "../spawnEnemyDeathEffect"
 
@@ -65,17 +65,13 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 	let birthdaySong: AudioPlay | null = null
 	const gloom = spawnBirthdayDroid(gloomPos, "drone_medic", 90, startEncounter)
 	const jubilee = spawnBirthdayDroid(jubileePos, "drone_combat", -90, startEncounter)
-	const gloomPrompt = createInteractionPrompt({
+	const gloomPrompt = createNpcInteractionPrompt({
 		target: gloom,
 		offset: k.vec2(0, -42),
-		width: 160,
-		content: { title: "GLOOM", action: "TALK" },
 	})
-	const jubileePrompt = createInteractionPrompt({
+	const jubileePrompt = createNpcInteractionPrompt({
 		target: jubilee,
 		offset: k.vec2(0, -42),
-		width: 160,
-		content: { title: "JUBILEE", action: "TALK" },
 	})
 	const unregisterDialogueTriggers = [
 		registerNpcDialogueTrigger("birthday", startEncounter),
@@ -91,14 +87,15 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 		actor: gloom,
 		npcId: "gloom",
 		getDialogueId: () => DIALOGUE_ID,
-		isVisible: () => !encounterStarted,
+		isVisible: () => !encounterStarted && !gloom.isInRange,
 		offset: k.vec2(0, -42),
 	})
 	registerNpcDialogueIndicator({
 		actor: jubilee,
 		npcId: "jubilee",
 		getDialogueId: () => DIALOGUE_ID,
-		isVisible: () => !encounterStarted && jubileeAlive,
+		isVisible: () =>
+			!encounterStarted && jubileeAlive && !jubilee.isInRange,
 		offset: k.vec2(0, -42),
 	})
 
@@ -149,6 +146,10 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 	function createBirthdayCutscene(): CutsceneDefinition {
 		return {
 			id: "hub-birthday-incident",
+			speakerActors: {
+				GLOOM: "gloom",
+				JUBILEE: "jubilee",
+			},
 			pauseGameplay: true,
 			pauseVisualEffects: false,
 			steps: [
@@ -288,11 +289,9 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 function spawnPostBirthdayGloom(pos: ReturnType<typeof k.vec2>) {
 	let talking = false
 	const gloom = spawnBirthdayDroid(pos, "drone_medic", 90, startConversation)
-	const prompt = createInteractionPrompt({
+	const prompt = createNpcInteractionPrompt({
 		target: gloom,
 		offset: k.vec2(0, -42),
-		width: 160,
-		content: { title: "GLOOM", action: "TALK" },
 	})
 	const unregisterDialogueTrigger = registerNpcDialogueTrigger(
 		"gloom",
@@ -303,7 +302,7 @@ function spawnPostBirthdayGloom(pos: ReturnType<typeof k.vec2>) {
 		actor: gloom,
 		npcId: "gloom",
 		getDialogueId: () => POST_BIRTHDAY_DIALOGUE_ID,
-		isVisible: () => !talking,
+		isVisible: () => !talking && !gloom.isInRange,
 		offset: k.vec2(0, -42),
 	})
 	registerBatchedEntityUpdate("world", gloom, () => {
@@ -317,6 +316,7 @@ function spawnPostBirthdayGloom(pos: ReturnType<typeof k.vec2>) {
 		prompt.update(false)
 		void playCutscene({
 			id: "hub-gloom-birthday-aftermath",
+			speakerActors: { GLOOM: "gloom" },
 			pauseGameplay: false,
 			pauseVisualEffects: false,
 			steps: [

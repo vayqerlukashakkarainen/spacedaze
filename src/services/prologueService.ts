@@ -1,7 +1,15 @@
-import type { AudioPlay, GameObj } from "kaplay"
+import type { AudioPlay, GameObj, Vec2 } from "kaplay"
+import type { HorizontalDirectionalVisualComp } from "../comp/horizontalDirectionalVisual"
 import { playerObj } from "../game"
-import { k, layers, mainSoundVolume, musicVolume } from "../main"
+import {
+	k,
+	layers,
+	mainSoundVolume,
+	musicVolume,
+	WORLD_CAMERA_SCALE,
+} from "../main"
 import { tags } from "../tags"
+import { BURT_TAG } from "../spawn/npcs/spawnHubBurt"
 import { audioService } from "./audioService"
 import {
 	cancelActiveCutscene,
@@ -42,6 +50,10 @@ import {
 const PROLOGUE_QUEST_ID = "lost-in-the-daze"
 const PROLOGUE_CUTSCENE_ID = "narrative-prologue"
 const HUB_INTRODUCTION_CUTSCENE_ID = "hub-introduction"
+const HUB_INTRODUCTION_BURT_ACTOR = "hub-introduction-burt"
+const HUB_INTRODUCTION_PLAYER_ACTOR = "hub-introduction-player"
+const HUB_INTRODUCTION_ACTOR_OFFSET_X = 44
+const HUB_INTRODUCTION_ACTOR_OFFSET_Y = -150
 const INTRO_BLACK_SCREEN_DURATION = 3
 const LANDING_DIALOG_DELAY = 0.6
 const INTRO_LINES: readonly DialogueLine[] = [
@@ -75,7 +87,6 @@ const INTRO_LINES: readonly DialogueLine[] = [
 			},
 			{
 				text: " UNKNOWN.",
-				textShake: 1.5,
 			},
 		],
 	},
@@ -230,27 +241,19 @@ const PROLOGUE_CUTSCENE: CutsceneDefinition = {
 
 const PROLOGUE_LANDED_COMMS: CutsceneDefinition = {
 	id: "prologue-landed-comms",
-	pauseGameplay: false,
+	pauseGameplay: true,
 	restoreCameraOnEnd: false,
 	steps: [{
 		type: "dialogue",
 		lines: LANDED_LINES,
 		options: {
 			channel: "comms",
-			gameplay: "live",
+			gameplay: "paused",
 			advance: "auto",
-			input: "passthrough",
+			input: "capture",
 			overlayOpacity: 0,
 			autoAdvanceDelay: 1.8,
 		},
-	}],
-}
-
-const HUB_INTRODUCTION_CUTSCENE: CutsceneDefinition = {
-	id: HUB_INTRODUCTION_CUTSCENE_ID,
-	steps: [{
-		type: "dialogue",
-		lines: HUB_LINES,
 	}],
 }
 
@@ -328,22 +331,13 @@ function startPrologueCutsceneVisuals() {
 		volume: mainSoundVolume * 0.8,
 	})
 	hyperspeedLoop = audioService.playSound("hyperspeed_travel", {
-		volume: mainSoundVolume * 0.24,
-		detune: -280,
-		speed: 0.72,
+		volume: mainSoundVolume * 0.55,
+		detune: 220,
+		speed: 1.22,
 		loop: true,
 	})
 	spaceJumpBackdrop = spawnSpaceJumpBackdrop({
 		tags: [tags.prologue],
-		onSpeedChange(progress) {
-			if (!hyperspeedLoop) return
-			const eased = progress * progress * (3 - 2 * progress)
-			audioService.updateSound(hyperspeedLoop, {
-				volume: mainSoundVolume * k.lerp(0.24, 0.55, eased),
-				speed: k.lerp(0.72, 1.22, eased),
-				detune: k.lerp(-280, 220, eased),
-			})
-		},
 	})
 	introOverlay = k.add([
 		k.pos(0, 0),
@@ -379,13 +373,157 @@ export function showPrologueHubRepair(
 
 export async function showHubIntroductionIfNeeded() {
 	if (!shouldShowHubIntroduction()) return false
-	const result = await playCutscene(HUB_INTRODUCTION_CUTSCENE)
+	const { getHubFacilityPositions } = await import("../levels/hub")
+	const phaseStationPosition = getHubFacilityPositions().trainingRange
+	const result = await playCutscene(
+		createHubIntroductionCutscene(phaseStationPosition),
+		{
+			resolveActor(id) {
+				if (id === HUB_INTRODUCTION_PLAYER_ACTOR) return playerObj
+				if (id === HUB_INTRODUCTION_BURT_ACTOR) {
+					return k.get<GameObj>(BURT_TAG)[0]
+				}
+				return undefined
+			},
+		}
+	)
 	if (result === "completed") {
 		completeHubIntroduction()
 		clearQuest(PROLOGUE_QUEST_ID)
 		return true
 	}
 	return false
+}
+
+function createHubIntroductionCutscene(
+	phaseStationPosition: Vec2
+): CutsceneDefinition {
+	const burtPosition = phaseStationPosition.add(
+		-HUB_INTRODUCTION_ACTOR_OFFSET_X,
+		HUB_INTRODUCTION_ACTOR_OFFSET_Y
+	)
+	const playerPosition = phaseStationPosition.add(
+		HUB_INTRODUCTION_ACTOR_OFFSET_X,
+		HUB_INTRODUCTION_ACTOR_OFFSET_Y
+	)
+	const cameraPosition = burtPosition.lerp(playerPosition, 0.5)
+	const dialogueOptions = {
+		gameplay: "paused" as const,
+		advance: "manual" as const,
+		input: "capture" as const,
+		overlayOpacity: 0,
+	}
+	return {
+		id: HUB_INTRODUCTION_CUTSCENE_ID,
+		speakerActors: { BURT: HUB_INTRODUCTION_BURT_ACTOR },
+		pauseGameplay: true,
+		pauseVisualEffects: false,
+		steps: [
+			{
+				type: "parallel",
+				steps: [
+					{
+						type: "move",
+						actor: HUB_INTRODUCTION_BURT_ACTOR,
+						target: burtPosition,
+						duration: 0.55,
+					},
+					{
+						type: "move",
+						actor: HUB_INTRODUCTION_PLAYER_ACTOR,
+						target: playerPosition,
+						duration: 0.55,
+					},
+					{
+						type: "camera",
+						target: cameraPosition,
+						zoom: WORLD_CAMERA_SCALE * 2,
+						duration: 0.55,
+					},
+				],
+			},
+			{
+				type: "action",
+				run(context) {
+					faceHubIntroductionActors((id) => context.resolveActor(id))
+				},
+			},
+			{ type: "wait", duration: 0.18 },
+			{
+				type: "emotion",
+				actor: HUB_INTRODUCTION_BURT_ACTOR,
+				emotion: "happy",
+				options: { duration: 2.2, priority: "narrative" },
+			},
+			{ type: "wait", duration: 0.32 },
+			{
+				type: "dialogue",
+				lines: HUB_LINES.slice(0, 2),
+				options: dialogueOptions,
+			},
+			{
+				type: "emotion",
+				actor: HUB_INTRODUCTION_PLAYER_ACTOR,
+				emotion: "question",
+				options: { duration: 2.2, priority: "narrative" },
+			},
+			{ type: "wait", duration: 0.38 },
+			{
+				type: "dialogue",
+				lines: HUB_LINES.slice(2, 4),
+				options: dialogueOptions,
+			},
+			{
+				type: "emotion",
+				actor: HUB_INTRODUCTION_BURT_ACTOR,
+				emotion: "sad",
+				options: { duration: 2.2, priority: "narrative" },
+			},
+			{ type: "wait", duration: 0.35 },
+			{
+				type: "dialogue",
+				lines: HUB_LINES.slice(4, 5),
+				options: dialogueOptions,
+			},
+			{
+				type: "emotion",
+				actor: HUB_INTRODUCTION_PLAYER_ACTOR,
+				emotion: "surprised",
+				options: { duration: 2.4, priority: "narrative" },
+			},
+			{ type: "wait", duration: 0.42 },
+			{
+				type: "dialogue",
+				lines: HUB_LINES.slice(5, 8),
+				options: dialogueOptions,
+			},
+			{
+				type: "emotion",
+				actor: HUB_INTRODUCTION_BURT_ACTOR,
+				emotion: "idea",
+				options: { duration: 2.4, priority: "narrative" },
+			},
+			{ type: "wait", duration: 0.35 },
+			{
+				type: "dialogue",
+				lines: HUB_LINES.slice(8),
+				options: dialogueOptions,
+			},
+		],
+	}
+}
+
+function faceHubIntroductionActors(
+	resolveActor: (id: string) => GameObj | undefined
+) {
+	const burt = resolveActor(HUB_INTRODUCTION_BURT_ACTOR)
+	const player = resolveActor(HUB_INTRODUCTION_PLAYER_ACTOR)
+	if (!burt || !player) return
+	if (burt.has("horizontalDirectionalVisual")) {
+		const directionalBurt = burt as GameObj<HorizontalDirectionalVisualComp>
+		directionalBurt.faceHorizontal(player.pos.x - burt.pos.x)
+	}
+	player.angle = k.Vec2.toAngle(burt.pos.sub(player.pos)) + 90
 }
 
 function startPrologueCombat() {

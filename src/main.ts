@@ -178,7 +178,6 @@ import {
 	dialogCapturesInput,
 } from "./services/dialogService";
 import { cutsceneBlocksGameplay } from "./services/cutsceneService";
-import { setupQuestTracker } from "./ui/questTracker";
 import {
 	createLoadingScreen,
 	trackInitialAssets,
@@ -345,7 +344,6 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 	upgradeService.initialize();
 	loadGameSlot();
 	setupStatsWindow();
-	setupQuestTracker();
 	initDebug();
 	k.setLayers(
 		[
@@ -738,7 +736,12 @@ function registerDebugCommands() {
 			const mode = args[0]?.toLowerCase() ?? "summary";
 			if (mode === "last") return formatLatestRunTelemetry();
 			if (mode === "rewards") return formatRewardTelemetrySummary();
-			if (mode === "diversity") return formatSyntheticRewardDiversity();
+			if (mode === "diversity") {
+				const report = formatSyntheticRewardDiversity();
+				k.canvas.dataset.telemetryReport = report;
+				console.log(report);
+				return report;
+			}
 			if (mode === "simulations") return formatSimulationTelemetrySummary();
 			if (mode === "export") {
 				return downloadRunTelemetry()

@@ -9,6 +9,55 @@ export interface HexWallTopology {
 	typeId: string
 }
 
+export type HexWallEnvironmentKind = "rock" | "ruin" | "machinery"
+
+export interface HexWallEdgeProfilePoint {
+	along: number
+	inset: number
+}
+
+export function getConnectedHexWallEdgeProfile(
+	kind: HexWallEnvironmentKind,
+	hash: number
+): HexWallEdgeProfilePoint[] {
+	if (kind === "ruin") {
+		return [
+			{ along: 0, inset: 0 },
+			{ along: 0.16, inset: 0.018 },
+			{ along: 0.16, inset: 0.1 },
+			{ along: 0.42, inset: 0.1 },
+			{ along: 0.42, inset: 0.045 },
+			{ along: 0.68, inset: 0.045 },
+			{ along: 0.68, inset: 0.085 },
+			{ along: 0.86, inset: 0.085 },
+			{ along: 1, inset: 0 },
+		]
+	}
+
+	if (kind === "machinery") {
+		return [
+			{ along: 0, inset: 0 },
+			{ along: 0.18, inset: 0.03 },
+			{ along: 0.3, inset: 0.095 },
+			{ along: 0.46, inset: 0.055 },
+			{ along: 0.58, inset: 0.11 },
+			{ along: 0.76, inset: 0.045 },
+			{ along: 0.88, inset: 0.075 },
+			{ along: 1, inset: 0 },
+		]
+	}
+
+	return [
+		{ along: 0, inset: 0 },
+		{ along: 0.17, inset: 0.045 + (Math.abs(hash) % 3) * 0.012 },
+		{ along: 0.36, inset: 0.095 },
+		{ along: 0.53, inset: 0.038 },
+		{ along: 0.7, inset: 0.082 },
+		{ along: 0.86, inset: 0.052 },
+		{ along: 1, inset: 0 },
+	]
+}
+
 export function rotateHexMask(mask: number, steps: number): number {
 	const normalizedMask = mask & HEX_NEIGHBOR_MASK
 	const normalizedSteps = ((steps % 6) + 6) % 6

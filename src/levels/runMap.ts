@@ -53,7 +53,11 @@ import {
 	getRunFinaleTransitionSecondsRemaining,
 	getRunPhase,
 } from "../services/runFinaleService";
-import { getHexWallTopology } from "./hexWallTiles";
+import {
+	getConnectedHexWallEdgeProfile,
+	getHexWallTopology,
+	HexWallEnvironmentKind,
+} from "./hexWallTiles";
 import {
 	advanceRunSession,
 	getCurrentRunFloor,
@@ -149,6 +153,21 @@ interface HiddenCavern {
 interface RewardWall {
 	coord: { q: number; r: number };
 	wallState?: DestructibleWallState;
+}
+
+interface RunMapWallEdge {
+	outline: Vec2[];
+	ridge: Vec2[];
+	cracks: Array<{ p1: Vec2; p2: Vec2 }>;
+	kind: HexWallEnvironmentKind;
+	hash: number;
+}
+
+interface RunMapSurfaceDetail {
+	kind: HexWallEnvironmentKind;
+	hash: number;
+	center: Vec2;
+	corners: Vec2[];
 }
 
 export interface GeneratedRunMapCell {
@@ -831,11 +850,8 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		typeId: string;
 		connectionCount: number;
 		destructible?: DestructibleWallState;
-		edges: Array<{
-			outline: Vec2[];
-			ridge: Vec2[];
-			cracks: Array<{ p1: Vec2; p2: Vec2 }>;
-		}>;
+		edges: RunMapWallEdge[];
+		surfaceDetail?: RunMapSurfaceDetail;
 	}
 
 	interface RenderChunk {
@@ -913,6 +929,12 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 			connectionCount: topology.connectionCount,
 			destructible: getRunDestructibleWallState(genCell.coord),
 			edges,
+			surfaceDetail: createRunMapSurfaceDetail(
+				center,
+				corners,
+				tileHash,
+				topology.connectionCount
+			),
 		};
 	};
 	const addWallVisual = (genCell: GenCell) => {
@@ -980,6 +1002,7 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 					for (const edge of visual.edges) {
 						drawRockPolyline(edge.outline, 2, 0.95);
 						drawRockPolyline(edge.ridge, 1, 0.5);
+						drawRunMapEdgeDecoration(edge);
 						for (const crack of edge.cracks) {
 							incrementPerformanceCounter("wallPrimitives");
 							k.drawLine({
@@ -990,6 +1013,9 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 								opacity: 0.42,
 							});
 						}
+					}
+					if (visual.surfaceDetail) {
+						drawRunMapSurfaceDetail(visual.surfaceDetail);
 					}
 					if (visual.destructible) {
 						drawDestructibleWallCracks(visual);
@@ -1048,6 +1074,10 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 							join: "miter",
 						});
 					}
+					visibleStaticPrimitiveCount += drawRunMapEdgeDecoration(
+						edge,
+						false
+					);
 					for (const crack of edge.cracks) {
 						visibleStaticPrimitiveCount++;
 						k.drawLine({
@@ -1058,6 +1088,12 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 							opacity: 0.42,
 						});
 					}
+				}
+				if (visual.surfaceDetail) {
+					visibleStaticPrimitiveCount += drawRunMapSurfaceDetail(
+						visual.surfaceDetail,
+						false
+					);
 				}
 			}
 		}
@@ -1124,6 +1160,7 @@ function createRockWallEdge(
 	hash: number,
 	connectionCount: number
 ) {
+	const kind = selectRunMapEnvironmentKind(hash);
 	const edgeMidpoint = p1.add(p2).scale(0.5);
 	const jaggedAmount = 0.025 + (hash % 5) * 0.008;
 	const jaggedMidpoint = edgeMidpoint.lerp(center, jaggedAmount);
@@ -1149,15 +1186,236 @@ function createRockWallEdge(
 	}
 
 	return {
-		outline: [p1, jaggedMidpoint, p2],
+		outline: createConnectedRunMapEdgeOutline(p1, p2, center, hash, kind),
 		ridge: [ridgeStart, ridgeMidpoint, ridgeEnd],
 		cracks,
+		kind,
+		hash,
 	};
 }
 
-function drawRockPolyline(points: Vec2[], width: number, opacity: number) {
-	if (points.length < 2) return;
-	incrementPerformanceCounter("wallPrimitives");
+function createConnectedRunMapEdgeOutline(
+	p1: Vec2,
+	p2: Vec2,
+	center: Vec2,
+	hash: number,
+	kind: HexWallEnvironmentKind
+) {
+	return getConnectedHexWallEdgeProfile(kind, hash).map((point) =>
+		p1.lerp(p2, point.along).lerp(center, point.inset)
+	);
+}
+
+function selectRunMapEnvironmentKind(hash: number): HexWallEnvironmentKind {
+	const roll = Math.abs(hash) % 10;
+	if (roll < 6) return "rock";
+	if (roll < 8) return "ruin";
+	return "machinery";
+}
+
+function createRunMapSurfaceDetail(
+	center: Vec2,
+	corners: Vec2[],
+	hash: number,
+	connectionCount: number
+): RunMapSurfaceDetail | undefined {
+	const chance = connectionCount === 6 ? 72 : connectionCount >= 4 ? 48 : 24;
+	if (Math.abs(hash >>> 5) % 100 >= chance) return undefined;
+
+	return {
+		kind: selectRunMapEnvironmentKind(hash >>> 7),
+		hash,
+		center,
+		corners,
+	};
+}
+
+function drawRunMapEdgeDecoration(
+	edge: RunMapWallEdge,
+	recordPerformance: boolean = true
+) {
+	if (edge.ridge.length < 3) return 0;
+	const start = edge.ridge[0];
+	const middle = edge.ridge[1];
+	const end = edge.ridge[2];
+	let primitiveCount = 0;
+
+	if (edge.kind === "rock") {
+		const leftChip = start.lerp(middle, 0.48);
+		const rightChip = end.lerp(middle, 0.42);
+		primitiveCount += drawRockPolyline(
+			[leftChip, middle, rightChip],
+			2,
+			0.34,
+			recordPerformance
+		);
+		return primitiveCount;
+	}
+
+	if (edge.kind === "ruin") {
+		const facadeStart = start.lerp(middle, 0.18);
+		const facadeEnd = end.lerp(middle, 0.18);
+		primitiveCount += drawRockPolyline(
+			[facadeStart, facadeEnd],
+			2,
+			0.56,
+			recordPerformance
+		);
+		for (const amount of [0.28, 0.5, 0.72]) {
+			const outer = edge.outline[0].lerp(edge.outline.at(-1)!, amount);
+			const inner = facadeStart.lerp(facadeEnd, amount);
+			primitiveCount += drawRockPolyline(
+				[outer, inner],
+				1,
+				0.46,
+				recordPerformance
+			);
+		}
+		return primitiveCount;
+	}
+
+	const pipeStart = start.lerp(middle, 0.12);
+	const pipeEnd = end.lerp(middle, 0.12);
+	primitiveCount += drawRockPolyline(
+		[pipeStart, middle, pipeEnd],
+		2,
+		0.5,
+		recordPerformance
+	);
+	for (const amount of [0.24, 0.76]) {
+		const outer = edge.outline[0].lerp(edge.outline.at(-1)!, amount);
+		const inner = pipeStart.lerp(pipeEnd, amount);
+		primitiveCount += drawRockPolyline(
+			[outer, inner],
+			2,
+			0.42,
+			recordPerformance
+		);
+	}
+	return primitiveCount;
+}
+
+function drawRunMapSurfaceDetail(
+	detail: RunMapSurfaceDetail,
+	recordPerformance: boolean = true
+) {
+	const radius = detail.center.dist(detail.corners[0]);
+	const angle = (Math.abs(detail.hash) % 6) * 60;
+	const forward = k.Vec2.fromAngle(angle);
+	const side = k.Vec2.fromAngle(angle + 90);
+	const longRadius = radius * (0.29 + ((detail.hash >>> 3) % 5) * 0.022);
+	const shortRadius = radius * (0.18 + ((detail.hash >>> 6) % 4) * 0.02);
+	let primitiveCount = 0;
+
+	if (detail.kind === "rock") {
+		const points: Vec2[] = [];
+		for (let index = 0; index < 7; index++) {
+			const pointAngle = angle + index * (360 / 7);
+			const pointRadius =
+				longRadius * (0.76 + ((detail.hash >>> (index + 2)) & 3) * 0.08);
+			points.push(
+				detail.center.add(k.Vec2.fromAngle(pointAngle).scale(pointRadius))
+			);
+		}
+		if (recordPerformance) incrementPerformanceCounter("wallPrimitives");
+		primitiveCount++;
+		k.drawPolygon({
+			pts: points,
+			fill: false,
+			outline: { width: 1, color: k.WHITE, opacity: 0.36 },
+		});
+		primitiveCount += drawRockPolyline(
+			[
+				detail.center.add(forward.scale(-longRadius * 0.42)),
+				detail.center.add(side.scale(shortRadius * 0.25)),
+				detail.center.add(forward.scale(longRadius * 0.36)),
+			],
+			1,
+			0.28,
+			recordPerformance
+		);
+		return primitiveCount;
+	}
+
+	if (detail.kind === "ruin") {
+		const frontLeft = detail.center
+			.add(forward.scale(longRadius))
+			.add(side.scale(-shortRadius));
+		const frontRight = detail.center
+			.add(forward.scale(longRadius))
+			.add(side.scale(shortRadius));
+		const backRight = detail.center
+			.add(forward.scale(-longRadius))
+			.add(side.scale(shortRadius));
+		const backLeft = detail.center
+			.add(forward.scale(-longRadius))
+			.add(side.scale(-shortRadius));
+		primitiveCount += drawRockPolyline(
+			[frontLeft, frontRight, backRight, backLeft, frontLeft],
+			2,
+			0.42,
+			recordPerformance
+		);
+		primitiveCount += drawRockPolyline(
+			[
+				frontLeft.lerp(backLeft, 0.35),
+				frontRight.lerp(backRight, 0.35),
+			],
+			1,
+			0.36,
+			recordPerformance
+		);
+		primitiveCount += drawRockPolyline(
+			[
+				frontLeft.lerp(frontRight, 0.3),
+				backLeft.lerp(backRight, 0.3),
+			],
+			1,
+			0.3,
+			recordPerformance
+		);
+		return primitiveCount;
+	}
+
+	const outer: Vec2[] = [];
+	const inner: Vec2[] = [];
+	for (let index = 0; index < 8; index++) {
+		const pointAngle = angle + index * 45;
+		const direction = k.Vec2.fromAngle(pointAngle);
+		outer.push(detail.center.add(direction.scale(longRadius)));
+		inner.push(detail.center.add(direction.scale(longRadius * 0.5)));
+	}
+	primitiveCount += drawRockPolyline(
+		[...outer, outer[0]],
+		2,
+		0.42,
+		recordPerformance
+	);
+	primitiveCount += drawRockPolyline(
+		[...inner, inner[0]],
+		1,
+		0.34,
+		recordPerformance
+	);
+	for (const index of [0, 2, 4, 6]) {
+		primitiveCount += drawRockPolyline(
+			[inner[index], outer[index]],
+			1,
+			0.3,
+			recordPerformance
+		);
+	}
+	return primitiveCount;
+}
+
+function drawRockPolyline(
+	points: Vec2[],
+	width: number,
+	opacity: number,
+	recordPerformance: boolean = true
+) {
+	if (points.length < 2) return 0;
+	if (recordPerformance) incrementPerformanceCounter("wallPrimitives");
 	k.drawLines({
 		pts: points,
 		width,
@@ -1165,6 +1423,7 @@ function drawRockPolyline(points: Vec2[], width: number, opacity: number) {
 		opacity,
 		join: "miter",
 	});
+	return 1;
 }
 
 function drawDestructibleWallCracks(visual: {

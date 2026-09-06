@@ -31,6 +31,11 @@ const BODY_HITBOX = 62
 const BATTERY_HITBOX = 19
 const CROWN_HITBOX = 17
 const CLAIMKEEPER_ATTACK_TAG = "claimkeeperAttack"
+const CLAIMKEEPER_BODY_SPRITES = [
+	"boss1_body",
+	"boss1_body_phase2",
+	"boss1_body_phase3",
+] as const
 
 type DreadnoughtState =
 	| "entry"
@@ -62,14 +67,14 @@ export function spawnBoss1(
 	options: BossOptions = {}
 ) {
 	const definition = getBossDefinition("federation-dreadnought")
-	const batteryOffset = k.vec2(22, 2)
-	const crownOffset = k.vec2(0, -25)
+	const batteryOffset = k.vec2(43, 2)
+	const crownOffset = k.vec2(0, -34)
 	const muzzleOffset = k.vec2(0, -22)
 	const arenaAnchor = pos.clone()
 	const spawnPos = pos.add(0, 180)
 	const boss = k.add([
 		k.pos(spawnPos),
-		k.sprite("boss1_body"),
+		k.sprite(CLAIMKEEPER_BODY_SPRITES[0]),
 		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),
@@ -105,7 +110,7 @@ export function spawnBoss1(
 
 	const leftBattery = boss.add([
 		k.pos(batteryOffset.scale(-1)),
-		k.sprite("boss1_blaster"),
+		k.sprite("boss1_part_target"),
 		k.anchor("center"),
 		k.health(Math.max(8, Math.round(hp * 0.18))),
 		k.animate(),
@@ -122,7 +127,7 @@ export function spawnBoss1(
 	])
 	const rightBattery = boss.add([
 		k.pos(batteryOffset),
-		k.sprite("boss1_blaster"),
+		k.sprite("boss1_part_target"),
 		k.anchor("center"),
 		k.health(Math.max(8, Math.round(hp * 0.18))),
 		k.animate(),
@@ -139,7 +144,7 @@ export function spawnBoss1(
 	])
 	const crown = boss.add([
 		k.pos(crownOffset),
-		k.sprite("boss1_head"),
+		k.sprite("boss1_part_target"),
 		k.anchor("center"),
 		k.health(Math.max(7, Math.round(hp * 0.15))),
 		k.animate(),
@@ -320,6 +325,7 @@ export function spawnBoss1(
 		maxHealth: hp,
 		onPhaseChanged: (_phase, phaseIndex) => {
 			boss.phaseIndex = phaseIndex
+			boss.use(k.sprite(CLAIMKEEPER_BODY_SPRITES[phaseIndex]))
 			boss.attackCycle = 0
 			if (phaseIndex === 0 || boss.combatState === "entry") return
 			spawnBossPhasePulse(boss.pos, scale, phaseIndex)

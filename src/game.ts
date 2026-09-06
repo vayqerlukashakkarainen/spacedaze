@@ -490,7 +490,7 @@ async function recoverFromPrologueDeath() {
 	setupGameLoopUi(player.maxHealth, hasEquippedActiveModule());
 	setTimescale(1, 0.4, false);
 	isPlayerDying = false;
-	k.wait(0.4, () => void showHubIntroductionIfNeeded());
+	k.wait(0.65, () => void showHubIntroductionIfNeeded());
 }
 
 export function checkProjectileIntersection(

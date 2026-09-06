@@ -31,7 +31,7 @@ import { createUiDetailCard } from "./common/detailCard";
 import { UI_COLORS, UI_FONT_SIZES } from "./common/theme";
 import { registerBatchedUiUpdate } from "../services/uiUpdateService";
 import { uiHitRegion } from "./common/hitRegion";
-import { getRerollTokens } from "../player";
+import { getRerollTokens, player } from "../player";
 import type { ActiveModuleDefinition } from "../services/activeModuleService";
 import { getEquippedWeapon } from "../services/weaponService";
 import { debreeRunActive } from "../services/debreeEconomyService";
@@ -44,6 +44,7 @@ import { audioService } from "../services/audioService";
 import { getRunLevelSnapshot } from "../services/runLevelService";
 import { createUiProgressBar } from "./common/progressBar";
 import { hideRunLevelChoice, showRunLevelChoice } from "./runLevelChoice";
+import { RewardRarity } from "../types/rewardTypes";
 
 let healthBars: GameObj<OpacityComp>[] = [];
 let specialBar: GameObj<RectComp> | null = null;
@@ -340,8 +341,8 @@ function setupRunLevelHud() {
 			for (let index = 0; index < gainedLevels; index++) {
 				k.wait(index * 0.12, () => {
 					if (!levelHud?.exists() || runLevelHud !== levelHud) return;
-					audioService.playSound("powerup1", {
-						volume: mainSoundVolume * 0.7,
+					audioService.playSound("run_level_up", {
+						volume: mainSoundVolume * 0.85,
 						detune: index * 120,
 					});
 				});
@@ -416,10 +417,14 @@ export function addHealthBar(healthValue: number) {
 	if (!shipStatusPanel) return;
 	const pipWidth = 8;
 	const pipGap = 3;
+	const isRunHealth = healthValue >= player.maxHealth;
+	const pipColor = isRunHealth
+		? REWARD_RARITY_COLORS[RewardRarity.Rare]
+		: [255, 255, 255] as const;
 	const c = shipStatusPanel.add([
 		k.pos(0 + healthValue * (pipWidth + pipGap), 11),
 		k.rect(pipWidth, 8),
-		k.color(k.WHITE),
+		k.color(...pipColor),
 		k.opacity(1),
 	]);
 

@@ -10,7 +10,7 @@ export const blaster: UpgradeDefinition = {
 			name: "Level 1",
 			desc: "Add a second blaster to your ship",
 			price: 12,
-			sprite: "blaster1",
+			sprite: "weapon_standard_blaster",
 			effects: {
 				modifiers: [{ stat: "blasterCount", value: 2, type: "base" }],
 				unlocks: [{ unlockId: "blaster", description: "Blasters unlocked" }],
@@ -20,7 +20,7 @@ export const blaster: UpgradeDefinition = {
 			name: "Level 2",
 			desc: "Add a third blaster to your ship",
 			price: 12,
-			sprite: "blaster1",
+			sprite: "weapon_standard_blaster",
 			effects: {
 				modifiers: [{ stat: "blasterCount", value: 3, type: "base" }],
 			},

@@ -154,7 +154,7 @@ function formatPercentage(value: number): string {
 }
 
 export const powerupsSprites: Record<PowerupKey, string> = {
-	addFollower: "drone_combat",
+	addFollower: "follower_upg1",
 	addPlayerMaxHealth: "hull_upg1",
 	addExtraRockets: "more_missiles_upg1",
 	addSpaceDebree: "missile_shards_upg1",

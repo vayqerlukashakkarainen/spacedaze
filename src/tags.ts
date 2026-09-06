@@ -11,7 +11,6 @@ export const tags = {
 	dialog: "dialog",
 	emotion: "emotion",
 	confirmationDialog: "confirmationDialog",
-	questUi: "questUi",
 	prologue: "prologue",
 	prologueShipPart: "prologueShipPart",
 	levelTransition: "levelTransition",

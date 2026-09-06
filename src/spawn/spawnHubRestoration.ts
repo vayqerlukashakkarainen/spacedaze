@@ -8,13 +8,21 @@ import {
 import { tags } from "../tags"
 import { applySteeringLean, lerpAngleBetweenPos } from "../shared"
 
-const RESTORATION_TIER_COUNT = 8
+export const HUB_RESTORATION_LAMP_COUNT = 8
 const RESTORATION_RING_RADIUS = 235
 const HUB_CYAN = [0, 207, 255] as const
 const HUB_GREEN = [90, 220, 145] as const
 const HUB_LAMP_COLOR = [160, 180, 190] as const
 const HUB_BROKEN_LAMP_COLOR = [68, 78, 86] as const
 const HUB_LAMP_PLATFORM_COLOR = [52, 61, 68] as const
+const HUB_LAMP_PLATFORM_SPRITES = [
+	"hub_progression_lamp_platform_01",
+	"hub_progression_lamp_platform_02",
+	"hub_progression_lamp_platform_03",
+	"hub_progression_lamp_platform_04",
+	"hub_progression_lamp_platform_05",
+	"hub_progression_lamp_platform_06",
+] as const
 const HAULER_SPEED = 145
 const HAULER_DEBRIS_COUNT = 3
 
@@ -33,7 +41,7 @@ export function spawnHubRestoration(
 		k.z(-1),
 		{
 			update() {
-				const level = Math.min(RESTORATION_TIER_COUNT, getHubLevel())
+				const level = Math.min(HUB_RESTORATION_LAMP_COUNT, getHubLevel())
 				while (spawnedThroughLevel < level) {
 					spawnedThroughLevel++
 					spawnRestorationTier(
@@ -53,14 +61,16 @@ export function spawnHubRestoration(
 }
 
 function spawnRestorationLamps(center: Vec2) {
-	for (let index = 0; index < RESTORATION_TIER_COUNT; index++) {
-		const pos = center.add(
-			k.Vec2.fromAngle(-90 + index * 45).scale(RESTORATION_RING_RADIUS)
-		)
+	for (let index = 0; index < HUB_RESTORATION_LAMP_COUNT; index++) {
+		const lampPos = getHubRestorationLampPosition(center, index + 1)
 		let reached: boolean | undefined
 		k.add([
-			k.pos(pos.add(0, 12)),
-			k.sprite("hub_progression_lamp_rock"),
+			k.pos(lampPos.add(0, 22)),
+			k.sprite(
+				HUB_LAMP_PLATFORM_SPRITES[
+					index % HUB_LAMP_PLATFORM_SPRITES.length
+				]
+			),
 			k.anchor("center"),
 			k.color(...HUB_LAMP_PLATFORM_COLOR),
 			k.layer(layers.game2),
@@ -69,7 +79,7 @@ function spawnRestorationLamps(center: Vec2) {
 			tags.gameLoop,
 		])
 		const lamp = k.add([
-			k.pos(pos.add(0, -10)),
+			k.pos(lampPos),
 			k.sprite("hub_progression_lamp_broken"),
 			k.anchor("center"),
 			k.color(...HUB_BROKEN_LAMP_COLOR),
@@ -94,7 +104,7 @@ function spawnRestorationLamps(center: Vec2) {
 			},
 		})
 		lamp.onUpdate(() => {
-			const activeLevel = Math.min(RESTORATION_TIER_COUNT, getHubLevel())
+			const activeLevel = Math.min(HUB_RESTORATION_LAMP_COUNT, getHubLevel())
 			const nextReached = index < activeLevel
 			if (reached !== nextReached) {
 				reached = nextReached
@@ -115,6 +125,17 @@ function spawnRestorationLamps(center: Vec2) {
 			}
 		})
 	}
+}
+
+export function getHubRestorationLampPosition(center: Vec2, lampNumber: number) {
+	const index = k.clamp(
+		Math.round(lampNumber),
+		1,
+		HUB_RESTORATION_LAMP_COUNT
+	) - 1
+	return center.add(
+		k.Vec2.fromAngle(-90 + index * 45).scale(RESTORATION_RING_RADIUS)
+	).add(0, -10)
 }
 
 function spawnRestorationTier(

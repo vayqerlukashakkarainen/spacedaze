@@ -17,7 +17,7 @@ import { registerNpcDialogueIndicator } from "../../services/npcDialogueIndicato
 import { showPopover } from "../../services/popoverService"
 import { spawnBasicBlaster } from "../../services/projectileHelpers"
 import { tags } from "../../tags"
-import { createInteractionPrompt } from "../../ui/common"
+import { createNpcInteractionPrompt } from "../../ui/common"
 
 const INTERACT_RADIUS = 86
 const DIALOGUES: readonly NpcDialogueVariant[] = [
@@ -135,15 +135,9 @@ export function spawnHubRingWatcher(trainingTarget: ReturnType<typeof k.vec2>) {
 		tags.props,
 		tags.gameLoop,
 	])
-	const prompt = createInteractionPrompt({
+	const prompt = createNpcInteractionPrompt({
 		target: watcher,
 		offset: k.vec2(0, -52),
-		width: 116,
-		compact: true,
-		content: {
-			title: "",
-			action: "TALK",
-		},
 	})
 	const unregisterDialogueTrigger = registerNpcDialogueTrigger(
 		"ring-watcher",
@@ -157,7 +151,7 @@ export function spawnHubRingWatcher(trainingTarget: ReturnType<typeof k.vec2>) {
 			"ring-watcher",
 			DIALOGUES
 		)?.id,
-		isVisible: () => !talking,
+		isVisible: () => !talking && !watcher.isInRange,
 		offset: k.vec2(0, -52),
 	})
 
@@ -213,6 +207,7 @@ function createRingWatcherConversation(
 	const reactionIndex = Math.max(1, lines.length - 1)
 	return {
 		id: "hub-ring-watcher-conversation",
+		speakerActors: { "RANGE KEEPER": "ringWatcher" },
 		pauseGameplay: false,
 		pauseVisualEffects: false,
 		steps: [

@@ -1,5 +1,5 @@
 import { interactable } from "../../comp/interactable"
-import { k, layers } from "../../main"
+import { k, layers, WORLD_CAMERA_SCALE } from "../../main"
 import { discoverDroid, getDroidDefinition } from "../../npcs/droidRegistry"
 import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
@@ -12,10 +12,13 @@ import {
 import { registerNpcDialogueIndicator } from "../../services/npcDialogueIndicatorService"
 import { showPopover } from "../../services/popoverService"
 import { tags } from "../../tags"
-import { createInteractionPrompt } from "../../ui/common"
+import { createNpcInteractionPrompt } from "../../ui/common"
+import {
+	getHubRestorationLampPosition,
+	HUB_RESTORATION_LAMP_COUNT,
+} from "../spawnHubRestoration"
 
 const INTERACT_RADIUS = 86
-const LAMP_COUNT = 8
 const LAMP_KEEPER_OFFSET_X = -112
 const LAMP_KEEPER_OFFSET_Y = -112
 
@@ -38,12 +41,9 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 		tags.props,
 		tags.gameLoop,
 	])
-	const prompt = createInteractionPrompt({
+	const prompt = createNpcInteractionPrompt({
 		target: keeper,
 		offset: k.vec2(0, -48),
-		width: 116,
-		compact: true,
-		content: { title: "", action: "TALK" },
 	})
 	const unregisterDialogueTrigger = registerNpcDialogueTrigger(
 		"lamp-keeper",
@@ -54,7 +54,7 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 		actor: keeper,
 		npcId: "lamp-keeper",
 		getDialogueId: () => getLampDialogue().id,
-		isVisible: () => !talking,
+		isVisible: () => !talking && !keeper.isInRange,
 		offset: k.vec2(0, -48),
 	})
 
@@ -65,6 +65,10 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 	function startConversation() {
 		if (talking || !keeper.exists()) return false
 		const dialogue = getLampDialogue()
+		const litLampCount = Math.min(
+			HUB_RESTORATION_LAMP_COUNT,
+			getHubLevel()
+		)
 		talking = true
 		keeper.isInRange = false
 		prompt.update(false)
@@ -81,8 +85,16 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 				})
 			}
 		}
-		void playCutscene(createLampKeeperConversation(dialogue), {
-			resolveActor: (id) => id === "lampKeeper" ? keeper : undefined,
+		void playCutscene(createLampKeeperConversation(
+			dialogue,
+			ringCenter,
+			litLampCount
+		), {
+			resolveActor: (id) => {
+				if (id === "lampKeeper") return keeper
+				if (id === "player") return k.get(tags.player)[0]
+				return undefined
+			},
 		}).then((result) => {
 			if (result === "completed") {
 				markNpcDialogueSeen("lamp-keeper", dialogue.id)
@@ -97,23 +109,63 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 }
 
 function createLampKeeperConversation(
-	dialogue: NpcDialogueVariant
+	dialogue: NpcDialogueVariant,
+	ringCenter: ReturnType<typeof k.vec2>,
+	litLampCount: number
 ): CutsceneDefinition {
 	const emotion = dialogue.id === "all-lamps-lit" ? "impressed" : "idea"
+	const recentLampPosition = getHubRestorationLampPosition(
+		ringCenter,
+		litLampCount
+	)
 	return {
 		id: "hub-lamp-keeper-conversation",
-		pauseGameplay: false,
+		speakerActors: { "LAMP KEEPER": "lampKeeper" },
+		pauseGameplay: true,
 		pauseVisualEffects: false,
 		steps: [
+			{
+				type: "rotate",
+				actor: "lampKeeper",
+				target: recentLampPosition,
+				duration: 0.24,
+				easing: "easeInOutCubic",
+			},
+			{
+				type: "camera",
+				target: recentLampPosition,
+				zoom: WORLD_CAMERA_SCALE * 2,
+				duration: 0.45,
+				easing: "easeOutCubic",
+			},
 			{
 				type: "dialogue",
 				lines: dialogue.lines.slice(0, 1),
 				options: {
-					gameplay: "live",
+					gameplay: "paused",
 					advance: "manual",
-					input: "passthrough",
+					input: "capture",
 					overlayOpacity: 0,
 				},
+			},
+			{
+				type: "parallel",
+				steps: [
+					{
+						type: "camera",
+						target: "lampKeeper",
+						zoom: WORLD_CAMERA_SCALE * 2,
+						duration: 0.4,
+						easing: "easeInOutCubic",
+					},
+					{
+						type: "rotate",
+						actor: "lampKeeper",
+						target: "player",
+						duration: 0.3,
+						easing: "easeInOutCubic",
+					},
+				],
 			},
 			{
 				type: "emotion",
@@ -134,19 +186,24 @@ function createLampKeeperConversation(
 				type: "dialogue",
 				lines: dialogue.lines.slice(1),
 				options: {
-					gameplay: "live",
+					gameplay: "paused",
 					advance: "manual",
-					input: "passthrough",
+					input: "capture",
 					overlayOpacity: 0,
 				},
+			},
+			{
+				type: "restoreCamera",
+				duration: 0.28,
+				easing: "easeInOutCubic",
 			},
 		],
 	}
 }
 
 function getLampDialogue(): NpcDialogueVariant {
-	const litLamps = Math.min(LAMP_COUNT, getHubLevel())
-	if (litLamps >= LAMP_COUNT) {
+	const litLamps = Math.min(HUB_RESTORATION_LAMP_COUNT, getHubLevel())
+	if (litLamps >= HUB_RESTORATION_LAMP_COUNT) {
 		return {
 			id: "all-lamps-lit",
 			lines: [
@@ -166,7 +223,7 @@ function getLampDialogue(): NpcDialogueVariant {
 		lines: [
 			{
 				speaker: "LAMP KEEPER",
-				text: `${litLamps} of ${LAMP_COUNT} lamps are lit. Each one marks a piece of the hub we have reclaimed.`,
+				text: `${litLamps} of ${HUB_RESTORATION_LAMP_COUNT} lamps are lit. Each one marks a piece of the hub we have reclaimed.`,
 			},
 			{
 				speaker: "LAMP KEEPER",

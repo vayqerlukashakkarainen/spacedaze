@@ -55,6 +55,7 @@ export function registerNpcDialogueIndicator(
 		const nextIndicator = showEmotion(options.actor, "dialogue", {
 			duration: Number.POSITIVE_INFINITY,
 			priority: "ambient",
+			screenSize: 32,
 			offset: options.offset ?? k.vec2(0, -48),
 			bobAmount: 1.5,
 		})

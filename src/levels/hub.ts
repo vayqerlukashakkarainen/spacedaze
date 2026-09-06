@@ -65,6 +65,7 @@ import { spawnHubAsteroidRunner } from "../spawn/npcs/spawnHubAsteroidRunner";
 import { spawnHubRingWatcher } from "../spawn/npcs/spawnHubRingWatcher";
 import { spawnHubBirthdayPair } from "../spawn/npcs/spawnHubBirthdayPair";
 import { spawnHubLampKeeper } from "../spawn/npcs/spawnHubLampKeeper";
+import { spawnHubBurt } from "../spawn/npcs/spawnHubBurt";
 
 let lvlData: any = {};
 let bgAsteroidTimer = 0;
@@ -190,6 +191,7 @@ export const hub: Level = {
 		const hubFacilityPositions = getHubFacilityPositions();
 		const repairCrew = spawnHubRepairCrew(hubFacilityPositions.trainingRange);
 		spawnHubFacilities(hubFacilityPositions, repairCrew);
+		spawnHubBurt(hubFacilityPositions.trainingRange.add(-260, 40));
 		spawnHubRestoration(
 			k.center(),
 			hubFacilityPositions.trainingRange,
@@ -536,7 +538,7 @@ function damagePlayerInPhaseField() {
 	applyDamage(playerObj, 99, {
 		source: {
 			name: "PHASE-FIELD ASTEROID",
-			sprite: "asteroid1",
+			sprite: ASTEROID_SPRITES[0],
 		},
 	});
 }

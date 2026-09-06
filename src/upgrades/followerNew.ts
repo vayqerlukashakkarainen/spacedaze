@@ -36,7 +36,7 @@ export const followerMissiles: UpgradeDefinition = {
 		{
 			name: "Missile Drone",
 			desc: "Convert one combat drone into a dedicated missile drone",
-			sprite: "drone_missile",
+			sprite: "follower_missiles_upg1",
 			price: 22,
 			effects: {
 				unlocks: [
@@ -88,7 +88,7 @@ export const followerInterceptorProtocol: UpgradeDefinition = {
 		{
 			name: "Interceptor Drone",
 			desc: "Convert one combat drone into a fast projectile interceptor",
-			sprite: "drone_interceptor",
+			sprite: "follower_interceptor_upg1",
 			price: 32,
 			effects: {
 				unlocks: [
@@ -111,7 +111,7 @@ export const followerGunship: UpgradeDefinition = {
 	levels: [{
 		name: "Gunship Drone",
 		desc: "Convert one combat drone into a slow heavy cannon platform",
-		sprite: "drone_gunship",
+		sprite: "follower_gunship_upg1",
 		price: 34,
 		effects: {
 			unlocks: [{
@@ -131,7 +131,7 @@ export const followerMedic: UpgradeDefinition = {
 	levels: [{
 		name: "Medic Drone",
 		desc: "Convert one combat drone into a rear-guard medic that repairs hull after eight kills",
-		sprite: "drone_medic",
+		sprite: "follower_medic_upg1",
 		price: 38,
 		effects: {
 			unlocks: [{
@@ -151,7 +151,7 @@ export const followerSalvager: UpgradeDefinition = {
 	levels: [{
 		name: "Salvager Drone",
 		desc: "Convert one combat drone into an autonomous debris collector",
-		sprite: "drone_salvager",
+		sprite: "follower_salvager_upg1",
 		price: 30,
 		effects: {
 			unlocks: [{

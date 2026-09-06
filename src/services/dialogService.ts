@@ -1,4 +1,10 @@
-import type { Color, GameObj, KEventController } from "kaplay"
+import type {
+	Color,
+	GameObj,
+	KEventController,
+	PosComp,
+	ScaleComp,
+} from "kaplay"
 import { k, layers } from "../main"
 import { tags } from "../tags"
 import {
@@ -66,6 +72,7 @@ export interface DialogueOptions {
 	overlayOpacity?: number
 	pauseGameplay?: boolean
 	pauseVisualEffects?: boolean
+	resolveSpeaker?: (speaker: string) => GameObj<PosComp> | undefined
 	onComplete?: () => void
 	onSkip?: () => void
 	skipLabel?: string
@@ -135,6 +142,7 @@ export function showDialogue(
 	let referenceLineIndex = -1
 	let referenceObjects: GameObj[] = []
 	const controllers: KEventController[] = []
+	const speakerMotion = createDialogueSpeakerMotion(options.resolveSpeaker)
 	const root = k.add([
 		k.pos(0, 0),
 		k.fixed(),
@@ -243,6 +251,10 @@ export function showDialogue(
 			? k.wave(0.4, 1, k.time() * 4)
 			: 0.3
 		syncDisturbanceSound(line)
+		speakerMotion.sync(
+			line.speaker,
+			visibleCharacters < lineText.length && waitRemaining <= 0
+		)
 	}
 	const advance = (automatic: boolean = false) => {
 		const line = lines[lineIndex]
@@ -287,6 +299,7 @@ export function showDialogue(
 			speaker: lines[lineIndex]?.speaker,
 		})
 		for (const controller of controllers) controller.cancel()
+		speakerMotion.stop()
 		releaseGameplayPause()
 		stopDisturbanceSound()
 		if (root.exists()) k.destroy(root)
@@ -440,6 +453,98 @@ export function showDialogue(
 			const revealAt = (object as GameObj & { revealAt?: number }).revealAt ?? 0
 			object.hidden = visibleCharacters < revealAt
 		}
+	}
+}
+
+interface DialogueSpeakerActor extends GameObj<PosComp> {
+	scale?: ScaleComp["scale"]
+}
+
+const MAX_DIALOGUE_STRETCH = 0.08
+const MAX_DIALOGUE_SQUASH = 0.05
+const DIALOGUE_BOB_SPEED_RATIO = 0.12
+
+function createDialogueSpeakerMotion(
+	resolveSpeaker: DialogueOptions["resolveSpeaker"]
+) {
+	let actor: DialogueSpeakerActor | undefined
+	let speaker = ""
+	let active = false
+	let intensity = 0
+	let elapsed = 0
+	let appliedBob = 0
+	let appliedScaleX = 1
+	let appliedScaleY = 1
+
+	const removeAppliedTransform = () => {
+		if (actor?.exists()) {
+			actor.pos.y -= appliedBob
+			if (actor.scale && appliedScaleX !== 0 && appliedScaleY !== 0) {
+				actor.scale = k.vec2(
+					actor.scale.x / appliedScaleX,
+					actor.scale.y / appliedScaleY
+				)
+			}
+		}
+		appliedBob = 0
+		appliedScaleX = 1
+		appliedScaleY = 1
+	}
+
+	const controller = k.onUpdate(() => {
+		if (!actor?.exists()) {
+			actor = undefined
+			intensity = 0
+			return
+		}
+		removeAppliedTransform()
+		const target = active ? 1 : 0
+		const response = active ? 22 : 28
+		const difference = target - intensity
+		intensity += Math.sign(difference) * Math.min(
+			Math.abs(difference),
+			k.dt() * response
+		)
+		if (intensity <= 0) return
+
+		elapsed += k.dt()
+		const profile = getDialogueVoiceProfile(speaker)
+		const pulse = Math.max(0, Math.sin(elapsed * profile.motion.speed))
+		appliedBob = Math.sin(
+			elapsed * profile.motion.speed * DIALOGUE_BOB_SPEED_RATIO
+		) * profile.motion.bobAmount * intensity
+		const stretch = Math.min(
+			MAX_DIALOGUE_STRETCH,
+			profile.motion.scaleAmount * intensity * pulse
+		)
+		const squash = Math.min(MAX_DIALOGUE_SQUASH, stretch * 0.62)
+		appliedScaleX = 1 - squash
+		appliedScaleY = 1 + stretch
+		actor.pos.y += appliedBob
+		if (actor.scale) {
+			actor.scale = k.vec2(
+				actor.scale.x * appliedScaleX,
+				actor.scale.y * appliedScaleY
+			)
+		}
+	})
+
+	return {
+		sync(nextSpeaker: string, nextActive: boolean) {
+			if (nextSpeaker !== speaker) {
+				removeAppliedTransform()
+				speaker = nextSpeaker
+				actor = resolveSpeaker?.(nextSpeaker) as DialogueSpeakerActor | undefined
+				intensity = 0
+				elapsed = 0
+			}
+			active = nextActive && actor?.exists() === true
+		},
+		stop() {
+			controller.cancel()
+			removeAppliedTransform()
+			actor = undefined
+		},
 	}
 }
 

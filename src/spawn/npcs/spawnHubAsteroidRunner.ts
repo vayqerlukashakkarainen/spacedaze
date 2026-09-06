@@ -24,7 +24,7 @@ import {
 } from "../../services/narrativeService"
 import { showPopover } from "../../services/popoverService"
 import { tags } from "../../tags"
-import { createInteractionPrompt } from "../../ui/common"
+import { createNpcInteractionPrompt } from "../../ui/common"
 import { randomExplosion } from "../../util"
 import { spawnEnemyDeathEffect } from "../spawnEnemyDeathEffect"
 
@@ -80,15 +80,9 @@ export function spawnHubAsteroidRunner(fieldCenter: ReturnType<typeof k.vec2>) {
 		tags.props,
 		tags.gameLoop,
 	])
-	const prompt = createInteractionPrompt({
+	const prompt = createNpcInteractionPrompt({
 		target: runner,
 		offset: k.vec2(0, -45),
-		width: 116,
-		compact: true,
-		content: {
-			title: "",
-			action: "TALK",
-		},
 	})
 	const unregisterDialogueTrigger = registerNpcDialogueTrigger(
 		"ring-runner",
@@ -99,7 +93,7 @@ export function spawnHubAsteroidRunner(fieldCenter: ReturnType<typeof k.vec2>) {
 		actor: runner,
 		npcId: "ring-runner",
 		getDialogueId: () => DIALOGUE_ID,
-		isVisible: () => !encounterStarted,
+		isVisible: () => !encounterStarted && !runner.isInRange,
 		offset: k.vec2(0, -45),
 	})
 
@@ -153,6 +147,7 @@ function createAsteroidRunnerCutscene(
 ): CutsceneDefinition {
 	return {
 		id: "hub-asteroid-runner",
+		speakerActors: { "RING RUNNER": "ringRunner" },
 		pauseGameplay: true,
 		pauseVisualEffects: false,
 		steps: [

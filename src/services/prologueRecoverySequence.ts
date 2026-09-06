@@ -1,5 +1,10 @@
 import type { GameObj, Vec2 } from "kaplay"
 import {
+	horizontalDirectionalVisual,
+	type HorizontalDirectionalVisualComp,
+} from "../comp/horizontalDirectionalVisual"
+import { BURT_TAG } from "../spawn/npcs/spawnHubBurt"
+import {
 	k,
 	layers,
 	mainSoundVolume,
@@ -9,6 +14,7 @@ import {
 import { tags } from "../tags"
 import { audioService } from "./audioService"
 import { showDialogue } from "./dialogService"
+import { showEmotion } from "./emotionService"
 import {
 	clearPrologueTrace,
 	tracePrologue,
@@ -17,17 +23,23 @@ import {
 const ENEMY_EXIT_MARGIN = 240
 const ENEMY_DRIVE_SPEED = 88
 const BURT_ENTRY_MARGIN = 96
-const BURT_BATTLEFIELD_ENTRY_DURATION = 4.2
-const BURT_MUSIC_ENTRANCE_DELAY = 3
+const BURT_SCREEN_ENTRY_DISTANCE = 100
+const BURT_SCREEN_ENTRY_DURATION = 1.5
+const BURT_PLAYER_APPROACH_DURATION = 2.2
+const BURT_MUSIC_ENTRANCE_DELAY = 0.6
+const BURT_ALERT_BOB_HEIGHT = 12
+const BURT_HUB_CLEAR_DISTANCE = 100
 const WORMHOLE_CHARGE_DURATION = 4
 const HUB_REPAIR_DURATION = 3
+const BURT_ACKNOWLEDGE_DISTANCE = 110
 const HUB_REPAIR_PART_OFFSETS = [
-	[-42, -34],
-	[38, -30],
-	[-52, 8],
-	[48, 12],
-	[0, -58],
+	[-7, 0],
+	[7, 0],
+	[0, -2],
+	[-3, 7],
+	[3, 7],
 ] as const
+const HUB_REPAIR_SMOKE_OFFSETS = [-8, 0, 8] as const
 const PART_SPRITES = [
 	"enemy_ship1_left_wing",
 	"enemy_ship1_right_wing",
@@ -115,17 +127,6 @@ export async function playBattlefieldRecovery() {
 	tracePrologue("battlefield:post-clear-delay-complete", { generation })
 	if (!isCurrent(generation)) return false
 
-	tracePrologue("dialogue:federation-question-open")
-	const federationDialogueResult = await showDialogue([{
-		speaker: "UNKNOWN",
-		text: "Have the Federation gone away?",
-		disturbance: true,
-	}], { overlayOpacity: 0 })
-	tracePrologue("dialogue:federation-question-close", {
-		result: federationDialogueResult,
-	})
-	if (!isCurrent(generation)) return false
-
 	tracePrologue("music:recovery-start")
 	audioService.playMusic("burts_recovery", {
 		volume: musicVolume * 0.82,
@@ -139,16 +140,54 @@ export async function playBattlefieldRecovery() {
 	if (!isCurrent(generation)) return false
 
 	const burtStart = screenOutsidePosition("left", center.y)
+	const burtEntryTarget = screenInsidePosition(
+		"left",
+		BURT_SCREEN_ENTRY_DISTANCE,
+		center.y
+	)
 	const burtTarget = center.add(-42, -18)
 	const burt = spawnBurt(burtStart)
 	tracePrologue("burt:battlefield-spawn", {
 		id: burt.id,
 		startX: Math.round(burtStart.x),
 		startY: Math.round(burtStart.y),
-		targetX: Math.round(burtTarget.x),
-		targetY: Math.round(burtTarget.y),
+		targetX: Math.round(burtEntryTarget.x),
+		targetY: Math.round(burtEntryTarget.y),
 	})
-	await moveObject(burt, burtTarget, BURT_BATTLEFIELD_ENTRY_DURATION, generation)
+	await moveObject(burt, burtEntryTarget, BURT_SCREEN_ENTRY_DURATION, generation)
+	tracePrologue("burt:battlefield-entry-stop", {
+		exists: burt.exists(),
+		x: Math.round(burt.pos.x),
+		y: Math.round(burt.pos.y),
+	})
+	if (!isCurrent(generation)) return false
+
+	await scanBattlefield(burt, generation)
+	if (!isCurrent(generation)) return false
+	tracePrologue("dialogue:burt-federation-open")
+	const federationDialogueResult = await showDialogue([
+		{ speaker: "BURT", text: "I really hope they are all gone." },
+		{
+			speaker: "BURT",
+			text: "Those Federation lads are really quite scary.",
+		},
+	], {
+		overlayOpacity: 0,
+		resolveSpeaker: () => burt,
+	})
+	tracePrologue("dialogue:burt-federation-close", {
+		result: federationDialogueResult,
+	})
+	if (!isCurrent(generation)) return false
+
+	showEmotion(burt, "alert", {
+		duration: 2.8,
+		priority: "narrative",
+	})
+	tracePrologue("burt:wreck-spotted")
+	await waitSeconds(0.18, generation)
+	await bobObjectUp(burt, BURT_ALERT_BOB_HEIGHT, 0.42, generation)
+	await moveObject(burt, burtTarget, BURT_PLAYER_APPROACH_DURATION, generation)
 	tracePrologue("burt:battlefield-arrived", {
 		exists: burt.exists(),
 		x: Math.round(burt.pos.x),
@@ -163,7 +202,10 @@ export async function playBattlefieldRecovery() {
 			speaker: "BURT",
 			text: "You really are a reckless pilot. Five pieces this time.",
 		},
-	], { overlayOpacity: 0 })
+	], {
+		overlayOpacity: 0,
+		resolveSpeaker: () => burt,
+	})
 	tracePrologue("dialogue:burt-cleanup-close", {
 		result: cleanupDialogueResult,
 	})
@@ -209,6 +251,18 @@ export async function playBattlefieldRecovery() {
 	})
 	if (!isCurrent(generation)) return false
 	portal.setPortalState("active")
+	tracePrologue("dialogue:burt-wormhole-exit-open")
+	const wormholeExitDialogueResult = await showDialogue([{
+		speaker: "BURT",
+		text: "Time to git before the Federation comes back.",
+	}], {
+		overlayOpacity: 0,
+		resolveSpeaker: () => burt,
+	})
+	tracePrologue("dialogue:burt-wormhole-exit-close", {
+		result: wormholeExitDialogueResult,
+	})
+	if (!isCurrent(generation)) return false
 	tracePrologue("portal:burt-entry-start", {
 		burtExists: burt.exists(),
 	})
@@ -246,8 +300,8 @@ export async function playHubRepairSequence(
 	hubEntryPosition: Vec2
 ): Promise<PrologueHubRepairResult | false> {
 	const generation = ++recoveryGeneration
-	const burtWorkPosition = phaseStationPosition.add(-76, -112)
 	const playerSpawnPosition = phaseStationPosition.add(52, -112)
+	const burtWorkPosition = playerSpawnPosition.add(-34, 0)
 	tracePrologue("hub:repair-sequence-start", {
 		generation,
 		entryX: Math.round(hubEntryPosition.x),
@@ -255,9 +309,14 @@ export async function playHubRepairSequence(
 		phaseStationX: Math.round(phaseStationPosition.x),
 		phaseStationY: Math.round(phaseStationPosition.y),
 	})
-	const burt = spawnBurt(hubEntryPosition)
+	const existingHubBurt = k.get<GameObj<HorizontalDirectionalVisualComp>>(
+		BURT_TAG
+	)[0]
+	const burt = existingHubBurt ?? spawnBurt(hubEntryPosition)
+	burt.pos = hubEntryPosition.clone()
+	burt.scale = k.vec2(1)
+	burt.opacity = 1
 	addCarriedParts(burt)
-	burt.angle = burtWorkPosition.sub(hubEntryPosition).angle() + 90
 	k.setCamPos(hubEntryPosition)
 	k.setCamScale(WORLD_CAMERA_SCALE)
 	tracePrologue("hub:burt-spawned", {
@@ -265,6 +324,42 @@ export async function playHubRepairSequence(
 		x: Math.round(burt.pos.x),
 		y: Math.round(burt.pos.y),
 	})
+	const toWorkPosition = burtWorkPosition.sub(hubEntryPosition)
+	const hubClearDirection = toWorkPosition.len() > 0.01
+		? toWorkPosition.unit()
+		: k.vec2(-1, 0)
+	const hubClearPosition = hubEntryPosition.add(
+		hubClearDirection.scale(BURT_HUB_CLEAR_DISTANCE / WORLD_CAMERA_SCALE)
+	)
+	await moveObject(
+		burt,
+		hubClearPosition,
+		0.9,
+		generation,
+		() => k.setCamPos(burt.pos)
+	)
+	if (!isCurrent(generation)) return false
+	burt.faceHorizontal(hubEntryPosition.x - burt.pos.x)
+	tracePrologue("hub:burt-looked-back", {
+		x: Math.round(burt.pos.x),
+		y: Math.round(burt.pos.y),
+	})
+	await waitSeconds(0.32, generation)
+	const arrivalDialogueResult = await showDialogue([{
+		speaker: "BURT",
+		text: "Hopefully no one saw me.",
+	}], {
+		gameplay: "live",
+		advance: "auto",
+		input: "passthrough",
+		autoAdvanceDelay: 1.4,
+		overlayOpacity: 0,
+		resolveSpeaker: () => burt,
+	})
+	tracePrologue("hub:arrival-dialogue-close", {
+		result: arrivalDialogueResult,
+	})
+	if (!isCurrent(generation)) return false
 
 	await moveObject(
 		burt,
@@ -287,11 +382,12 @@ export async function playHubRepairSequence(
 		input: "passthrough",
 		autoAdvanceDelay: 1.4,
 		overlayOpacity: 0,
+		resolveSpeaker: () => burt,
 	})
 	tracePrologue("hub:repair-dialogue-close", { result: hubDialogueResult })
 	if (!isCurrent(generation)) return false
 
-	await installShipParts(burt, phaseStationPosition, generation)
+	await installShipParts(burt, playerSpawnPosition, generation)
 	tracePrologue("hub:parts-installed")
 	const completed = isCurrent(generation)
 	tracePrologue("hub:repair-sequence-complete", {
@@ -301,7 +397,8 @@ export async function playHubRepairSequence(
 		playerSpawnY: Math.round(playerSpawnPosition.y),
 	})
 	if (!completed) return false
-	burt.angle = playerSpawnPosition.sub(burt.pos).angle() + 90
+	burt.faceHorizontal(playerSpawnPosition.x - burt.pos.x)
+	if (!existingHubBurt) registerBurtPlayerAcknowledgement(burt)
 	return { burt, playerSpawnPosition }
 }
 
@@ -319,11 +416,17 @@ function spawnBurt(pos: Vec2) {
 		k.sprite("companion_burt"),
 		k.anchor("center"),
 		k.rotate(0),
+		horizontalDirectionalVisual({
+			nativeFacing: "left",
+			initialFacing: "left",
+			maxLean: 8,
+		}),
 		k.scale(1),
 		k.opacity(1),
 		k.color(k.WHITE),
 		k.layer(layers.game),
 		k.z(20),
+		BURT_TAG,
 		tags.prologue,
 		tags.props,
 	])
@@ -360,15 +463,16 @@ function addCarriedParts(burt: GameObj) {
 }
 
 async function installShipParts(
-	burt: GameObj,
-	phaseStationPosition: Vec2,
+	burt: GameObj<HorizontalDirectionalVisualComp>,
+	repairPosition: Vec2,
 	generation: number
 ) {
+	burt.faceHorizontal(repairPosition.x - burt.pos.x)
 	const parts = burt.get("burtCarriedPart") as GameObj[]
 	tracePrologue("hub:parts-spread-start", { parts: parts.length })
 	await Promise.all(parts.map((part, index) => {
 		const offset = HUB_REPAIR_PART_OFFSETS[index]
-		const worldTarget = phaseStationPosition.add(offset[0], offset[1])
+		const worldTarget = repairPosition.add(offset[0], offset[1])
 		return moveObject(part, worldTarget.sub(burt.pos), 0.68, generation, (progress) => {
 			part.scale = k.vec2(k.lerp(0.28, 0.52, progress))
 		})
@@ -376,7 +480,7 @@ async function installShipParts(
 	tracePrologue("hub:parts-spread-complete")
 	if (!isCurrent(generation)) return
 
-	const smoke = spawnRepairSmoke(phaseStationPosition.add(0, -18))
+	const smoke = spawnRepairSmoke(repairPosition)
 	const hammer = audioService.playSound("burt_repair_hammer", {
 		volume: mainSoundVolume,
 		loop: true,
@@ -387,10 +491,9 @@ async function installShipParts(
 		smokeEmitters: smoke.length,
 	})
 	let toolPlayed = false
-	const workAngle = burt.angle
 	try {
 		await tween(HUB_REPAIR_DURATION, generation, (progress) => {
-			burt.angle = workAngle + Math.sin(progress * Math.PI * 12) * 4
+			burt.setVisualLean(Math.sin(progress * Math.PI * 12) * 4)
 			if (toolPlayed || progress < 0.38) return
 			toolPlayed = true
 			tracePrologue("hub:repair-tool-play")
@@ -406,11 +509,23 @@ async function installShipParts(
 		if (parts[index].exists()) k.destroy(parts[index])
 		tracePrologue("hub:part-installed", { index })
 	}
-	burt.angle = workAngle
+	burt.settleVisual()
+}
+
+function registerBurtPlayerAcknowledgement(
+	burt: GameObj<HorizontalDirectionalVisualComp>
+) {
+	burt.onUpdate(() => {
+		const player = k.get<GameObj>(tags.player)[0]
+		if (!player?.exists()) return
+		const toPlayer = player.pos.sub(burt.pos)
+		if (toPlayer.len() > BURT_ACKNOWLEDGE_DISTANCE) return
+		burt.faceHorizontal(toPlayer.x)
+	})
 }
 
 function spawnRepairSmoke(pos: Vec2) {
-	return [-34, 0, 34].map((offsetX, index) => {
+	return HUB_REPAIR_SMOKE_OFFSETS.map((offsetX, index) => {
 		const smoke = k.add([
 			k.pos(pos.add(offsetX, index % 2 * 8)),
 			k.particles(
@@ -466,11 +581,43 @@ function moveObject(
 	return tween(duration, generation, (progress) => {
 		if (!object.exists()) return
 		const destination = typeof target === "function" ? target() : target
+		if (object.has("horizontalDirectionalVisual")) {
+			const directionalVisual = object as GameObj<HorizontalDirectionalVisualComp>
+			if (progress < 1) {
+				directionalVisual.showDirectionalMovement(destination.sub(object.pos))
+			} else {
+				directionalVisual.settleVisual()
+			}
+		}
 		const eased = progress < 0.5
 			? 4 * progress * progress * progress
 			: 1 - Math.pow(-2 * progress + 2, 3) / 2
 		object.pos = start.lerp(destination, eased)
 		onProgress?.(progress)
+	})
+}
+
+async function scanBattlefield(
+	burt: GameObj<HorizontalDirectionalVisualComp>,
+	generation: number
+) {
+	burt.faceHorizontal(-1)
+	await waitSeconds(0.34, generation)
+	if (!isCurrent(generation)) return
+	burt.faceHorizontal(1)
+	await waitSeconds(0.42, generation)
+}
+
+function bobObjectUp(
+	object: GameObj,
+	height: number,
+	duration: number,
+	generation: number
+) {
+	const start = object.pos.clone()
+	return tween(duration, generation, (progress) => {
+		if (!object.exists()) return
+		object.pos = start.add(0, -Math.sin(progress * Math.PI) * height)
 	})
 }
 
@@ -540,6 +687,18 @@ function screenOutsidePosition(side: "left" | "right", y: number) {
 		side === "left"
 			? -BURT_ENTRY_MARGIN
 			: k.width() + BURT_ENTRY_MARGIN,
+		k.height() / 2
+	))
+	return k.vec2(edge.x, y)
+}
+
+function screenInsidePosition(
+	side: "left" | "right",
+	distance: number,
+	y: number
+) {
+	const edge = k.toWorld(k.vec2(
+		side === "left" ? distance : k.width() - distance,
 		k.height() / 2
 	))
 	return k.vec2(edge.x, y)

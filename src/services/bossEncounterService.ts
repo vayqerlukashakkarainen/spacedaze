@@ -39,7 +39,6 @@ export function registerBossEncounter(
 	let phaseIndex = 0
 	let finished = false
 	const hud = spawnBossHud(definition.name, definition.subtitle, definition.kind)
-	hud.setPhase(definition.phases[0].name)
 
 	const controller: BossEncounterController = {
 		id,
@@ -64,7 +63,6 @@ export function registerBossEncounter(
 		if (nextPhaseIndex === phaseIndex) return
 		phaseIndex = nextPhaseIndex
 		const phase = definition.phases[phaseIndex]
-		hud.setPhase(phase.name)
 		options.onPhaseChanged?.(phase, phaseIndex)
 		runtimeDebug.log("boss", "encounter:phase-changed", {
 			id,
@@ -142,20 +140,10 @@ function spawnBossHud(name: string, subtitle: string, kind: "miniBoss" | "boss")
 		k.pos(-width / 2, 35),
 		k.color(...UI_COLORS.danger),
 	])
-	const phase = root.add([
-		k.text("", { size: UI_FONT_SIZES.tiny, font: "unscii" }),
-		k.pos(width / 2, 47),
-		k.anchor("topright"),
-		k.color(...UI_COLORS.warning),
-	])
-
 	return {
 		root,
 		setHealth(value: number) {
 			fill.width = width * k.clamp(value, 0, 1)
-		},
-		setPhase(value: string) {
-			phase.text = value
 		},
 	}
 }

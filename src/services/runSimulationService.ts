@@ -3,7 +3,7 @@ import type {
 	AbilityLoadout,
 	AbilitySlot,
 } from "./abilityLoadoutService"
-import { getAbilityDefinition } from "./abilityRegistry"
+import { ABILITIES, getAbilityDefinition } from "./abilityRegistry"
 import { getHubLevel } from "./hubProgressService"
 import {
 	RUN_LEVEL_BONUSES,
@@ -143,6 +143,8 @@ export function formatSyntheticRewardDiversity() {
 	if (records.length === 0) return "No synthetic reward telemetry recorded"
 	const offered = new Set<string>()
 	const selected = new Set<string>()
+	const offeredCounts: Record<string, number> = {}
+	const selectedCounts: Record<string, number> = {}
 	const sourceOffers: Record<string, Set<string>> = {}
 	let debreeEarned = 0
 	let debreeDeposited = 0
@@ -157,37 +159,59 @@ export function formatSyntheticRewardDiversity() {
 			const family = event.familyId || event.rewardId
 			if (event.type === "OFFERED") {
 				offered.add(family)
+				offeredCounts[family] = (offeredCounts[family] ?? 0) + 1
 				const source = event.source ?? "unknown"
 				sourceOffers[source] ??= new Set<string>()
 				sourceOffers[source].add(family)
 			} else {
 				selected.add(family)
+				selectedCounts[family] = (selectedCounts[family] ?? 0) + 1
 			}
 		}
 	}
 
-	const expected = new Set<string>(
-		RUN_LEVEL_BONUSES.map((bonus) => `runBonus:${bonus.id}`)
-	)
+	const expected = new Set<string>()
+	const names: Record<string, string> = {}
+	for (const bonus of RUN_LEVEL_BONUSES) {
+		const family = `runBonus:${bonus.id}`
+		expected.add(family)
+		names[family] = bonus.name
+	}
+	for (const ability of ABILITIES) {
+		if ((ability.minimumHubLevel ?? 1) > maxHubLevel) continue
+		const family = `abilityTier:${ability.id}`
+		expected.add(family)
+		names[family] = `${ability.name} TIER`
+	}
 	for (const source of ["crate", "enemy", "boss"] as const) {
 		for (const definition of getAllRewardDefinitions(source)) {
 			if (getRewardMinimumHubLevel(definition) > maxHubLevel) continue
 			if ((definition.weights[source] ?? 0) <= 0) continue
-			expected.add(rewardFamily(definition.id))
+			const family = rewardFamily(definition.id)
+			expected.add(family)
+			names[family] ??= definition.name
 		}
 	}
-	const missing = [...expected].filter((family) => !offered.has(family)).sort()
+	const catalog = new Set([...expected, ...offered])
+	const missing = [...catalog].filter((family) => !offered.has(family)).sort()
 	const unselected = [...offered].filter((family) => !selected.has(family)).sort()
 	const sourceSummary = Object.entries(sourceOffers)
 		.sort(([left], [right]) => left.localeCompare(right))
 		.map(([source, families]) => `${source} ${families.size}`)
 		.join(" | ")
+	const itemCounts = [...catalog]
+		.sort((left, right) => (names[left] ?? left).localeCompare(names[right] ?? right))
+		.map((family) =>
+			`${names[family] ?? family}: ${selectedCounts[family] ?? 0} rewarded / ${offeredCounts[family] ?? 0} offered`
+		)
 	return [
-		`${records.length} synthetic runs | ${offered.size}/${expected.size} reward families appeared | ${selected.size} collected`,
+		`${records.length} synthetic runs | ${offered.size}/${catalog.size} reward families appeared | ${selected.size} collected`,
 		`Sources: ${sourceSummary || "none"}`,
 		`Debree: ${Math.round(debreeEarned)} earned | ${Math.round(debreeDeposited)} extracted | ${Math.round(debreeLost)} lost`,
 		`Never appeared (${missing.length}): ${missing.slice(0, 18).join(", ") || "none"}${missing.length > 18 ? `, +${missing.length - 18} more` : ""}`,
 		`Appeared but not collected (${unselected.length}): ${unselected.slice(0, 18).join(", ") || "none"}${unselected.length > 18 ? `, +${unselected.length - 18} more` : ""}`,
+		"ITEM COUNTS",
+		...itemCounts,
 	].join("\n")
 }
 

@@ -22,6 +22,12 @@ import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 
 type ImpactAceState = "approach" | "telegraph" | "charge" | "recover"
 
+const IMPACT_ACE_SPRITES = [
+	"enemy_impact_ace_intercept",
+	"enemy_impact_ace_relentless",
+	"enemy_impact_ace_terminal",
+] as const
+
 interface ImpactAceOptions extends EnemySpawnOptions {
 	tags?: string[]
 	onDefeated?: (pos: Vec2) => void
@@ -42,7 +48,7 @@ export function spawnImpactAce(
 	const initialDirection = directionToPlayer(pos)
 	const ace = k.add([
 		k.pos(pos),
-		k.sprite("enemy_rammer"),
+		k.sprite(IMPACT_ACE_SPRITES[0]),
 		k.color(k.WHITE),
 		k.rotate(initialDirection.angle() + 90),
 		k.anchor("center"),
@@ -51,7 +57,7 @@ export function spawnImpactAce(
 		k.scale(profile.scale),
 		timescale(),
 		{
-			hb: 18 * profile.scale,
+			hb: 26 * profile.scale,
 			damage: profile.damage,
 			threatRank: ENEMY_THREAT_RANK.miniBoss,
 			baseScale: profile.scale,
@@ -84,6 +90,7 @@ export function spawnImpactAce(
 		maxHealth: profile.hp,
 		onPhaseChanged: (_phase, phaseIndex) => {
 			ace.phaseIndex = phaseIndex
+			ace.use(k.sprite(IMPACT_ACE_SPRITES[phaseIndex]))
 			spawnPhasePulse(ace.pos, profile.scale, phaseIndex)
 			if (phaseIndex > 0) k.shake(3 + phaseIndex * 2)
 		},
@@ -149,7 +156,10 @@ export function spawnImpactAce(
 			ace.pos.dist(playerObj.pos) < ace.hb + 8
 		) {
 			applyDamage(playerObj, ace.damage, {
-				source: { name: definition.name, sprite: "enemy_rammer" },
+				source: {
+					name: definition.name,
+					sprite: IMPACT_ACE_SPRITES[ace.phaseIndex],
+				},
 			})
 		}
 	})
@@ -219,7 +229,7 @@ function fireRadialBurst(pos: Vec2, damage: number) {
 			direction,
 			direction.angle() + 90,
 			damage,
-			{ name: "IMPACT ACE", sprite: "enemy_rammer" }
+			{ name: "IMPACT ACE", sprite: IMPACT_ACE_SPRITES[2] }
 		)
 		projectile.speed *= 0.58
 	}

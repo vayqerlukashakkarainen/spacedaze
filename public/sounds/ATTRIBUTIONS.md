@@ -96,3 +96,11 @@
 - Source: https://freesound.org/s/142608/
 - License: Creative Commons Attribution 4.0
 - In-game asset: `empty-secondary-error.mp3`
+
+## Run Level Up
+
+"Cute Level Up 3" by floraphonic
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-cute-level-up-3-189853/
+- License: Pixabay Content License
+- In-game asset: `run-level-up.mp3`
