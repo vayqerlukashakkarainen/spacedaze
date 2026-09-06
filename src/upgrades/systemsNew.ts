@@ -171,3 +171,71 @@ export const glassReactor: UpgradeDefinition = {
 		},
 	}],
 }
+
+export const droneFusion: UpgradeDefinition = {
+	toolKey: "droneFusion",
+	toolName: "Drone fusion",
+	category: "combat",
+	type: "passive",
+	requirements: { allOf: [{ toolKey: "followerBlasterDmg" }] },
+	levels: [{
+		name: "Drone Fusion",
+		desc: "Every three standard drones combine into one larger elite drone that inherits their strongest role",
+		sprite: "drone_fusion_upg1",
+		price: 44,
+		effects: {
+			unlocks: [{ unlockId: "droneFusion", description: "Three drones combine into an elite chassis" }],
+		},
+	}],
+}
+
+export const sawSatellite: UpgradeDefinition = {
+	toolKey: "sawSatellite",
+	toolName: "Saw satellite",
+	category: "combat",
+	type: "passive",
+	levels: [{
+		name: "Saw Satellite",
+		desc: "A toothed satellite orbits the ship, damaging enemies and cutting down hostile projectiles",
+		sprite: "saw_satellite_upg1",
+		price: 36,
+		effects: {
+			unlocks: [{ unlockId: "sawSatellite", description: "Launches a damaging orbital saw" }],
+		},
+	}],
+}
+
+export const kineticRam: UpgradeDefinition = {
+	toolKey: "kineticRam",
+	toolName: "Kinetic ram",
+	category: "movement",
+	type: "passive",
+	requirements: {
+		anyOf: [{ toolKey: "sprint" }, { toolKey: "spaceJump" }],
+	},
+	levels: [{
+		name: "Kinetic Ram",
+		desc: "Boosting collisions and Phase Jump paths deal heavy impact damage",
+		sprite: "kinetic_ram_upg1",
+		price: 38,
+		effects: {
+			unlocks: [{ unlockId: "kineticRam", description: "High-speed movement becomes a weapon" }],
+		},
+	}],
+}
+
+export const nearMissCapacitor: UpgradeDefinition = {
+	toolKey: "nearMissCapacitor",
+	toolName: "Near-miss capacitor",
+	category: "special",
+	type: "passive",
+	levels: [{
+		name: "Near-Miss Capacitor",
+		desc: "Graze five hostile projectiles to discharge a damaging defensive shockwave",
+		sprite: "near_miss_capacitor_upg1",
+		price: 40,
+		effects: {
+			unlocks: [{ unlockId: "nearMissCapacitor", description: "Projectile grazes charge a shockwave" }],
+		},
+	}],
+}

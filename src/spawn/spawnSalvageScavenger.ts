@@ -3,7 +3,7 @@ import { debrees, playerObj } from "../game"
 import { k, velocityScale } from "../main"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/threatService"
-import { easeDirection } from "../shared"
+import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
@@ -35,6 +35,12 @@ export function spawnSalvageScavenger(pos: Vec2, hp = 4, options: EnemySpawnOpti
 			scavenger.moveDirection = easeDirection(scavenger.moveDirection, toTarget.unit(), 6, delta)
 			scavenger.move(scavenger.moveDirection.scale(125 * profile.speedMultiplier * velocityScale() * scavenger.getTimescale()))
 			scavenger.angle = scavenger.moveDirection.angle() + 90
+			applyDirectionalSteeringLean(
+				scavenger,
+				scavenger.moveDirection,
+				toTarget.unit(),
+				profile.scale
+			)
 		}
 		if (!scavenger.retreating && scavenger.targetDebris?.exists() && scavenger.pos.dist(scavenger.targetDebris.pos) < 14) {
 			scavenger.haul += scavenger.targetDebris.salvageValue ?? 1

@@ -61,11 +61,15 @@ import {
 } from "./projectileBehaviorsNew"
 import {
 	afterburnerWake,
+	droneFusion,
 	enemyHacker,
 	glassReactor,
+	kineticRam,
+	nearMissCapacitor,
 	packIntelligence,
 	phaseEcho,
 	reactivePlating,
+	sawSatellite,
 	sacrificialProtocol,
 	salvageBattery,
 	scrapArmor,
@@ -117,6 +121,10 @@ const definitions: Record<string, UpgradeDefinition> = {
 	reactivePlating,
 	packIntelligence,
 	glassReactor,
+	droneFusion,
+	sawSatellite,
+	kineticRam,
+	nearMissCapacitor,
 
 	// Projectile modifiers
 	armorPiercing,
@@ -180,6 +188,10 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	reactivePlating: policy(RewardRarity.Rare, ["crate", "boss"], 48, 0, 112, 2),
 	packIntelligence: policy(RewardRarity.Epic, ["crate", "boss"], 22, 0, 132, 4),
 	glassReactor: policy(RewardRarity.Legendary, ["boss"], 0, 0, 42, 5),
+	droneFusion: policy(RewardRarity.Legendary, ["crate", "boss"], 10, 0, 62, 5),
+	sawSatellite: policy(RewardRarity.Rare, ["crate", "boss"], 42, 0, 115, 2),
+	kineticRam: policy(RewardRarity.Rare, ["crate", "boss"], 42, 0, 118, 3),
+	nearMissCapacitor: policy(RewardRarity.Epic, ["crate", "boss"], 22, 0, 132, 4),
 	armorPiercing: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 130, 35, 90),
 	cryoRounds: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 30, 80),
 	corrosivePayload: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 100, 20, 100),

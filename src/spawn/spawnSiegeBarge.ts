@@ -9,7 +9,7 @@ import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
 } from "../services/threatService"
-import { easeDirection } from "../shared"
+import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
@@ -38,6 +38,7 @@ export function spawnSiegeBarge(
 			hb: 18 * profile.scale,
 			damage: profile.damage,
 			moveDirection: k.vec2(0, 1),
+			facingDirection: k.vec2(0, 1),
 			attackTimer: k.rand(1, 2),
 			attacking: false,
 		},
@@ -64,7 +65,14 @@ export function spawnSiegeBarge(
 		barge.move(barge.moveDirection.scale(
 			38 * profile.speedMultiplier * velocityScale() * barge.getTimescale()
 		))
-		barge.angle = direction.angle() + 90
+		barge.facingDirection = easeDirection(barge.facingDirection, direction, 4, delta)
+		barge.angle = barge.facingDirection.angle() + 90
+		applyDirectionalSteeringLean(
+			barge,
+			barge.facingDirection,
+			direction,
+			profile.scale
+		)
 
 		if (!barge.attacking) {
 			barge.attackTimer -= delta * (barge.shieldFireRateMultiplier ?? 1)

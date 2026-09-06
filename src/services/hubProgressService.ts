@@ -49,7 +49,7 @@ export const HUB_LEVELS: readonly HubLevelDefinition[] = [
 ]
 
 export const HUB_FACILITIES: readonly HubFacilityDefinition[] = [
-	{ id: "trainingRange", name: "PHASE STATION", description: "Central registry for ship systems, weapons, and upgrades", cost: 0, requiredHubLevel: 1 },
+	{ id: "trainingRange", name: "PHASE STATION", description: "Central registry for ship systems, weapons, upgrades, and droids", cost: 0, requiredHubLevel: 1 },
 	{ id: "contractTerminal", name: "CONTRACT TERMINAL", description: "Select and prepare the next expedition", cost: 40, requiredHubLevel: 2 },
 	{ id: "salvageForge", name: "SALVAGE FORGE", description: "Improve reward recovery from destroyed hostiles", cost: 75, requiredHubLevel: 3 },
 	{ id: "debriefTerminal", name: "DEBRIEF TERMINAL", description: "Review the most recent expedition record", cost: 100, requiredHubLevel: 4 },

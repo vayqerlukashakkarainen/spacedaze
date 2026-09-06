@@ -8,9 +8,26 @@ import { tags } from "../tags"
 import { reduceActiveModuleCooldown } from "./activeModuleService"
 
 const VOLATILE_CARGO_REWARD = 40
+const DRONE_SET_SHIELD_COOLDOWN = 8
+let droneSetShieldReadyAt = 0
+let droneSetShieldPlayerId = -1
 
 export function tryBlockPlayerDamage(target: GameObj, damage: number) {
 	if (!target.tags.includes(tags.player)) return false
+	if (target.id !== droneSetShieldPlayerId) {
+		droneSetShieldPlayerId = target.id
+		droneSetShieldReadyAt = 0
+	}
+
+	if (player.droneSetBonus && k.time() >= droneSetShieldReadyAt) {
+		const drone = findClosestCombatDrone(target)
+		if (drone) {
+			droneSetShieldReadyAt = k.time() + DRONE_SET_SHIELD_COOLDOWN
+			spawnSacrificeLink(drone, target)
+			spawnDefensePulse(target, k.rgb(80, 220, 255))
+			return true
+		}
+	}
 
 	if (
 		player.salvageBattery !== undefined &&

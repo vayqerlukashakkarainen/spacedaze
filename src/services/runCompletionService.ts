@@ -2,6 +2,7 @@ import type { DebreeRunOutcome } from "./debreeEconomyService"
 import { recordHubDeposit, type HubDepositResult } from "./hubProgressService"
 import { endRunSession } from "./runDirectorService"
 import { finishRunStats, type RunStats } from "./runStatsService"
+import { finishRunTelemetry } from "./runTelemetryService"
 
 export interface RunEndSummary {
 	outcome: RunStats["outcome"]
@@ -14,6 +15,7 @@ let pendingSummary: RunEndSummary | undefined
 
 export function completeRun(outcome: RunStats["outcome"], debree: DebreeRunOutcome) {
 	const run = finishRunStats(outcome, debree)
+	finishRunTelemetry(outcome, debree)
 	const hub = recordHubDeposit(debree.deposited)
 	pendingSummary = { outcome, debree, hub, run }
 	endRunSession()

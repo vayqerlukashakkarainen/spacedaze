@@ -20,6 +20,13 @@ import {
 	RewardRarity,
 } from "../services/rewardService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { recordTelemetryRewardSelected } from "../services/runTelemetryService";
+import { interactable } from "../comp/interactable";
+import { createInteractionPrompt } from "../ui/common";
+import {
+	addLocalLight,
+	updateLocalLight,
+} from "../services/localLightService";
 
 interface RarityFeedback {
 	tier: number;
@@ -98,6 +105,8 @@ interface RewardPickupOptions {
 	stationary?: boolean;
 	label?: string;
 	armWhenPlayerLeaves?: boolean;
+	interactionOnly?: boolean;
+	suppressAcquisition?: boolean;
 	applyEffect?: (reward: Reward, pos: Vec2) => boolean;
 	onCollected?: (reward: Reward) => void;
 }
@@ -120,7 +129,7 @@ export function spawnRewardPickup(
 	let armed = !options.armWhenPlayerLeaves;
 	const feedback = RARITY_FEEDBACK[reward.rarity];
 	const rarityColor = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
-	const m = k.add([
+	const components: any[] = [
 		k.pos(pos),
 		k.sprite(reward.sprite, { width: 24, height: 24 }),
 		k.outline(1, rarityColor),
@@ -128,7 +137,7 @@ export function spawnRewardPickup(
 		k.scale(REWARD_PICKUP_SCALE),
 		k.anchor("center"),
 		timescale(),
-		k.offscreen({ destroy: true }),
+		k.offscreen({ destroy: !options.interactionOnly }),
 		{
 			dir: k.rand(k.vec2(-1, -1), k.vec2(1, 1)),
 			speed: options.stationary ? 0 : k.rand(40, 60),
@@ -137,7 +146,11 @@ export function spawnRewardPickup(
 		tags.props,
 		tags.unit,
 		tags.gameLoop,
-	]);
+	];
+	if (options.interactionOnly) {
+		components.push(interactable(48, () => collectPowerup()));
+	}
+	const m = k.add(components);
 	const pickupBackdrop = m.add([
 		k.circle(feedback.auraRadius - 3),
 		k.anchor("center"),
@@ -159,6 +172,60 @@ export function spawnRewardPickup(
 			k.layer(layers.gameEffects),
 		])
 	);
+	const interactionGlow = options.interactionOnly
+		? addLocalLight(m, {
+			size: feedback.auraRadius * 2.2,
+			color: REWARD_RARITY_COLORS[reward.rarity],
+			opacity: Math.max(0.35, feedback.auraOpacity),
+			z: -2,
+			pulse: {
+				scaleMin: 0.9,
+				scaleMax: 1.12,
+				scaleSpeed: 3.4,
+				opacityMin: 0.3,
+				opacityMax: 0.62,
+				opacitySpeed: 2.8,
+			},
+		})
+		: undefined;
+	if (options.interactionOnly) {
+		m.add([
+			k.pos(),
+			k.z(-1),
+			k.particles(
+				{
+					max: 18,
+					speed: [4, 11],
+					angle: [0, 360],
+					lifeTime: [0.6, 1.15],
+					colors: [rarityColor, k.WHITE],
+					opacities: [0, 0.9, 0],
+					scales: [0.15, 0.65, 0],
+					angularVelocity: [-90, 90],
+					texture: k.getSprite("particle4")!.data!.frames[0].tex,
+					quads: [k.getSprite("particle4")!.data!.frames[0].q],
+				},
+				{
+					rate: 2 + feedback.tier,
+					direction: -90,
+					spread: 360,
+					position: k.vec2(),
+				}
+			),
+		]);
+	}
+	const interactionPrompt = options.interactionOnly
+		? createInteractionPrompt({
+			target: m,
+			offset: k.vec2(0, -48),
+			content: {
+				title: reward.name,
+				action: "EQUIP",
+				detailLeft: reward.abilitySlot ?? "EQUIPMENT",
+				detailRight: reward.rarity,
+			},
+		})
+		: undefined;
 
 	if (options.label) {
 		m.add([
@@ -192,8 +259,11 @@ export function spawnRewardPickup(
 			? options.applyEffect(reward, powerupPos)
 			: applyReward(reward, powerupPos);
 		if (!applied) return;
-		if (reward.kind === "item" && reward.id === "rerollToken") {
+		if (options.suppressAcquisition) {
+			// Equipment swaps move an existing ability rather than granting it again.
+		} else if (reward.kind === "item" && reward.id === "rerollToken") {
 			showRewardAcquisitionPopover(reward);
+			recordTelemetryRewardSelected(reward.id, reward.rarity);
 		} else {
 			addCollectedPowerup(reward);
 		}
@@ -202,6 +272,8 @@ export function spawnRewardPickup(
 
 	registerBatchedEntityUpdate("world", m, () => {
 		const dist = m.pos.dist(playerObj.pos);
+		interactionPrompt?.update(m.isInRange === true);
+		if (interactionGlow) updateLocalLight(interactionGlow);
 		if (!armed && dist > 40) armed = true;
 
 		const pulse = k.wave(
@@ -232,6 +304,7 @@ export function spawnRewardPickup(
 
 			m.lifeSpan += dt() * 45;
 		}
+		if (options.interactionOnly) return;
 
 		// Check if hit by player projectiles
 		checkProjectileIntersection(m.pos, 16, tags.friendly, (p) => {

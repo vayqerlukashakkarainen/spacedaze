@@ -3,8 +3,13 @@ import { playerObj } from "../game"
 import { k, layers, mainSoundVolume, musicVolume } from "../main"
 import { tags } from "../tags"
 import { audioService } from "./audioService"
+import {
+	cancelActiveCutscene,
+	playCutscene,
+	type CutsceneDefinition,
+} from "./cutsceneService"
 import { applyDamage } from "./damageService"
-import { showDialogue, type DialogueLine } from "./dialogService"
+import type { DialogueLine } from "./dialogService"
 import {
 	beginNarrativePrologue,
 	cancelNarrativePrologue,
@@ -27,8 +32,16 @@ import {
 	spawnSpaceJumpBackdrop,
 	type SpaceJumpBackdrop,
 } from "./spaceJumpVisualService"
+import {
+	beginPrologueEnemyEvacuation,
+	cancelPrologueRecoverySequence,
+	playBattlefieldRecovery,
+	playHubRepairSequence,
+} from "./prologueRecoverySequence"
 
 const PROLOGUE_QUEST_ID = "lost-in-the-daze"
+const PROLOGUE_CUTSCENE_ID = "narrative-prologue"
+const HUB_INTRODUCTION_CUTSCENE_ID = "hub-introduction"
 const INTRO_BLACK_SCREEN_DURATION = 3
 const LANDING_DIALOG_DELAY = 0.6
 const INTRO_LINES: readonly DialogueLine[] = [
@@ -107,39 +120,20 @@ const LANDED_LINES: readonly DialogueLine[] = [
 		],
 	},
 ]
-const RECOVERY_LINES: readonly DialogueLine[] = [
-	{ speaker: "SHIP", text: "HULL FAILURE." },
-	{
-		speaker: "SHIP",
-		text: [
-			{ text: "PILOT SIGNAL" },
-			{ text: ".", waitAfter: 0.6 },
-			{ text: ".", waitAfter: 0.6 },
-			{ text: ". ", waitAfter: 0.6 },
-			{ text: "LOST." },
-		],
-	},
-	{ speaker: "UNKNOWN", text: "Found you." },
-	{
-		speaker: "UNKNOWN",
-		text: "I thought you were lost in the destruction...",
-	},
-	{ speaker: "UNKNOWN", text: "Pulling your phase echo back now." },
-]
 const HUB_LINES: readonly DialogueLine[] = [
 	{
-		speaker: "UNKNOWN",
+		speaker: "BURT",
 		text: [
-			{ text: "Easy.", waitAfter: 0.4 },
-			{ text: " Your ship was destroyed." },
+			{ text: "There you are.", waitAfter: 0.4 },
+			{ text: " Name's Burt." },
 		],
 	},
 	{
-		speaker: "UNKNOWN",
+		speaker: "BURT",
 		text: "Wake Station captured your phase pattern before it disappeared.",
 	},
 	{
-		speaker: "UNKNOWN",
+		speaker: "BURT",
 		text: [
 			{ text: "It seems your hyperjump module failed while trying to get to " },
 			{ text: "Galora", color: [0, 210, 255] },
@@ -147,7 +141,7 @@ const HUB_LINES: readonly DialogueLine[] = [
 		],
 	},
 	{
-		speaker: "UNKNOWN",
+		speaker: "BURT",
 		text: [
 			{ text: "You have landed on the outpost of " },
 			{ text: "Drius", color: [0, 210, 255] },
@@ -158,7 +152,7 @@ const HUB_LINES: readonly DialogueLine[] = [
 		],
 	},
 	{
-		speaker: "UNKNOWN",
+		speaker: "BURT",
 		text: [
 			{ text: "It was destroyed by the " },
 			{ text: "Federation", color: [255, 70, 70] },
@@ -166,22 +160,22 @@ const HUB_LINES: readonly DialogueLine[] = [
 		],
 	},
 	{
-		speaker: "UNKNOWN",
+		speaker: "BURT",
 		text: "The outpost's phase bay is still active, and that's what picked your signal up.",
 	},
 	{
-		speaker: "UNKNOWN",
+		speaker: "BURT",
 		text: "As long as you are close to the outpost, you will respawn here.",
 	},
 	{
-		speaker: "UNKNOWN",
+		speaker: "BURT",
 		text: [
 			{ text: "Out there, death isn't the end.", waitAfter: 0.4 },
 			{ text: " But it isn't free either." },
 		],
 	},
 	{
-		speaker: "UNKNOWN",
+		speaker: "BURT",
 		text: [
 			{ text: "Bring back debris. We'll rebuild you stronger.", waitAfter: 0.6 },
 			{ text: " And finally repair your " },
@@ -190,7 +184,7 @@ const HUB_LINES: readonly DialogueLine[] = [
 		],
 	},
 	{
-		speaker: "UNKNOWN",
+		speaker: "BURT",
 		text: [
 			{ text: "Good luck,", waitAfter: 0.4 },
 			{ text: " you'll need it." },
@@ -198,22 +192,137 @@ const HUB_LINES: readonly DialogueLine[] = [
 	},
 ]
 
+const PROLOGUE_CUTSCENE: CutsceneDefinition = {
+	id: PROLOGUE_CUTSCENE_ID,
+	pauseGameplay: true,
+	pauseVisualEffects: false,
+	steps: [
+		{
+			type: "action",
+			run: startPrologueCutsceneVisuals,
+		},
+		{
+			type: "wait",
+			duration: INTRO_BLACK_SCREEN_DURATION,
+		},
+		{
+			type: "action",
+			run: clearIntroOverlay,
+		},
+		{
+			type: "dialogue",
+			lines: INTRO_LINES,
+			skippable: true,
+			options: {
+				overlayOpacity: 0,
+				skipLabel: "SKIP INTRO",
+			},
+		},
+		{
+			type: "action",
+			run() {
+				clearPrologueSpaceJump()
+				k.flash(k.WHITE, 0.65)
+			},
+		},
+	],
+}
+
+const PROLOGUE_LANDED_COMMS: CutsceneDefinition = {
+	id: "prologue-landed-comms",
+	pauseGameplay: false,
+	restoreCameraOnEnd: false,
+	steps: [{
+		type: "dialogue",
+		lines: LANDED_LINES,
+		options: {
+			channel: "comms",
+			gameplay: "live",
+			advance: "auto",
+			input: "passthrough",
+			overlayOpacity: 0,
+			autoAdvanceDelay: 1.8,
+		},
+	}],
+}
+
+const HUB_INTRODUCTION_CUTSCENE: CutsceneDefinition = {
+	id: HUB_INTRODUCTION_CUTSCENE_ID,
+	steps: [{
+		type: "dialogue",
+		lines: HUB_LINES,
+	}],
+}
+
 let controller: GameObj | undefined
-let introLeadIn: {
-	overlay: GameObj
-	timer: ReturnType<typeof k.wait>
-	pausedObjects: GameObj[]
-} | undefined
-let landingDialogueTimer: ReturnType<typeof k.wait> | undefined
+let introOverlay: GameObj | undefined
 let spaceJumpBackdrop: SpaceJumpBackdrop | undefined
 let hyperspeedLoop: AudioPlay | undefined
 let hiddenGameplayUi: { object: GameObj; wasHidden: boolean }[] = []
 
 export function beginPrologueExperience(onSkip: () => void) {
-	clearIntroLeadIn()
+	cancelActiveCutscene(PROLOGUE_CUTSCENE_ID)
+	clearIntroOverlay()
 	clearPrologueSpaceJump()
 	hideGameplayUi()
 	beginNarrativePrologue()
+	void playCutscene(PROLOGUE_CUTSCENE, {
+		onComplete: startPrologueCombat,
+		onSkip: () => {
+			setThreatTier(undefined)
+			clearQuest(PROLOGUE_QUEST_ID)
+			skipNarrativeIntroduction()
+			onSkip()
+		},
+		onCancel: () => {
+			setThreatTier(undefined)
+			clearQuest(PROLOGUE_QUEST_ID)
+			cancelNarrativePrologue()
+		},
+	})
+}
+
+export function prologueExperienceActive() {
+	return narrativePrologueActive()
+}
+
+export function finishPrologueOnDeath() {
+	if (!narrativePrologueActive()) return false
+	cancelActiveCutscene(PROLOGUE_CUTSCENE_ID)
+	clearIntroOverlay()
+	clearPrologueSpaceJump()
+	hideGameplayUi()
+	if (controller?.exists()) k.destroy(controller)
+	controller = undefined
+	setThreatTier(undefined)
+	failQuest(PROLOGUE_QUEST_ID)
+	beginPrologueEnemyEvacuation(playerObj.pos)
+	completeNarrativePrologue()
+	return true
+}
+
+export function cancelPrologueExperience() {
+	cancelActiveCutscene(PROLOGUE_CUTSCENE_ID)
+	cancelActiveCutscene(HUB_INTRODUCTION_CUTSCENE_ID)
+	cancelPrologueRecoverySequence()
+	clearIntroOverlay()
+	clearPrologueSpaceJump()
+	restoreGameplayUi()
+	if (controller?.exists()) k.destroy(controller)
+	controller = undefined
+	setThreatTier(undefined)
+	clearQuest(PROLOGUE_QUEST_ID)
+	cancelNarrativePrologue()
+}
+
+function clearPrologueSpaceJump() {
+	destroySpaceJumpBackdrop(spaceJumpBackdrop)
+	spaceJumpBackdrop = undefined
+	if (hyperspeedLoop) audioService.stopSound(hyperspeedLoop, "space-jump-ended")
+	hyperspeedLoop = undefined
+}
+
+function startPrologueCutsceneVisuals() {
 	audioService.stopMusic()
 	audioService.playSound("hyperspeed_jump_start", {
 		volume: mainSoundVolume * 0.8,
@@ -224,7 +333,6 @@ export function beginPrologueExperience(onSkip: () => void) {
 		speed: 0.72,
 		loop: true,
 	})
-	const pausedObjects = pausePrologueObjects()
 	spaceJumpBackdrop = spawnSpaceJumpBackdrop({
 		tags: [tags.prologue],
 		onSpeedChange(progress) {
@@ -237,7 +345,7 @@ export function beginPrologueExperience(onSkip: () => void) {
 			})
 		},
 	})
-	const overlay = k.add([
+	introOverlay = k.add([
 		k.pos(0, 0),
 		k.rect(k.width(), k.height()),
 		k.color(0, 0, 0),
@@ -246,116 +354,38 @@ export function beginPrologueExperience(onSkip: () => void) {
 		k.z(8000),
 		tags.prologue,
 	])
-	const timer = k.wait(INTRO_BLACK_SCREEN_DURATION, () => {
-		clearIntroLeadIn()
-		if (!narrativePrologueActive()) return
-		void showDialogue(INTRO_LINES, {
-			overlayOpacity: 0,
-			skipLabel: "SKIP INTRO",
-			onComplete: startPrologueLanding,
-			onSkip: () => {
-				clearPrologueSpaceJump()
-				restoreGameplayUi()
-				if (controller?.exists()) k.destroy(controller)
-				controller = undefined
-				setThreatTier(undefined)
-				clearQuest(PROLOGUE_QUEST_ID)
-				skipNarrativeIntroduction()
-				onSkip()
-			},
-		})
-	})
-	introLeadIn = { overlay, timer, pausedObjects }
-}
-
-export function prologueExperienceActive() {
-	return narrativePrologueActive()
-}
-
-export function finishPrologueOnDeath() {
-	if (!narrativePrologueActive()) return false
-	clearLandingSequence()
-	clearPrologueSpaceJump()
-	restoreGameplayUi()
-	if (controller?.exists()) k.destroy(controller)
-	controller = undefined
-	setThreatTier(undefined)
-	failQuest(PROLOGUE_QUEST_ID)
-	completeNarrativePrologue()
-	return true
-}
-
-export function cancelPrologueExperience() {
-	clearIntroLeadIn()
-	clearLandingSequence()
-	clearPrologueSpaceJump()
-	restoreGameplayUi()
-	if (controller?.exists()) k.destroy(controller)
-	controller = undefined
-	setThreatTier(undefined)
-	clearQuest(PROLOGUE_QUEST_ID)
-	cancelNarrativePrologue()
-}
-
-function startPrologueLanding() {
-	if (!narrativePrologueActive()) return
-	clearPrologueSpaceJump()
-	k.flash(k.WHITE, 0.65)
-	clearLandingSequence()
-	landingDialogueTimer = k.wait(LANDING_DIALOG_DELAY, () => {
-		landingDialogueTimer = undefined
-		if (!narrativePrologueActive()) return
-		void showDialogue(LANDED_LINES, {
-			overlayOpacity: 0,
-			pauseVisualEffects: false,
-			onComplete: startPrologueCombat,
-		})
-	})
-}
-
-function clearLandingSequence() {
-	landingDialogueTimer?.cancel()
-	landingDialogueTimer = undefined
-}
-
-function clearPrologueSpaceJump() {
-	destroySpaceJumpBackdrop(spaceJumpBackdrop)
-	spaceJumpBackdrop = undefined
-	hyperspeedLoop?.stop()
-	hyperspeedLoop = undefined
-}
-
-function pausePrologueObjects() {
-	const pausedObjects: GameObj[] = []
-	for (const object of k.get<GameObj>(tags.gameLoop)) {
-		if (object.paused) continue
-		object.paused = true
-		pausedObjects.push(object)
+	return () => {
+		clearIntroOverlay()
+		clearPrologueSpaceJump()
+		restoreGameplayUi()
 	}
-	return pausedObjects
 }
 
-function clearIntroLeadIn() {
-	if (!introLeadIn) return
-	introLeadIn.timer.cancel()
-	for (const object of introLeadIn.pausedObjects) {
-		if (object.exists()) object.paused = false
-	}
-	if (introLeadIn.overlay.exists()) k.destroy(introLeadIn.overlay)
-	introLeadIn = undefined
+function clearIntroOverlay() {
+	if (introOverlay?.exists()) k.destroy(introOverlay)
+	introOverlay = undefined
 }
 
 export function showPrologueRecoveryDialogue() {
-	return showDialogue(RECOVERY_LINES, { blackout: true })
+	return playBattlefieldRecovery()
 }
 
-export function showHubIntroductionIfNeeded() {
-	if (!shouldShowHubIntroduction()) return Promise.resolve(false)
-	return showDialogue(HUB_LINES).then(() => {
+export function showPrologueHubRepair(
+	phaseStationPosition: ReturnType<typeof k.vec2>,
+	hubEntryPosition: ReturnType<typeof k.vec2>
+) {
+	return playHubRepairSequence(phaseStationPosition, hubEntryPosition)
+}
+
+export async function showHubIntroductionIfNeeded() {
+	if (!shouldShowHubIntroduction()) return false
+	const result = await playCutscene(HUB_INTRODUCTION_CUTSCENE)
+	if (result === "completed") {
 		completeHubIntroduction()
 		clearQuest(PROLOGUE_QUEST_ID)
 		return true
-	})
+	}
+	return false
 }
 
 function startPrologueCombat() {
@@ -363,6 +393,10 @@ function startPrologueCombat() {
 	restoreGameplayUi()
 	setThreatTier(undefined)
 	void playZoneExplorationMusic("zone1", true, musicVolume)
+	k.wait(LANDING_DIALOG_DELAY, () => {
+		if (!narrativePrologueActive()) return
+		void playCutscene(PROLOGUE_LANDED_COMMS)
+	})
 	startQuest({
 		id: PROLOGUE_QUEST_ID,
 		title: "LOST IN THE DAZE",

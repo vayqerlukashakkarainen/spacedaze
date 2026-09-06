@@ -1,3 +1,5 @@
+import { runtimeDebug } from "./runtimeDebugService";
+
 interface Command {
 	description: string;
 	run: (args: string[]) => string | void;
@@ -19,11 +21,17 @@ export const commandService = {
 		const parts = input.trim().split(/\s+/);
 		const name = parts.shift()?.toLowerCase();
 		if (!name) return "";
+		runtimeDebug.log("command", "command:execute", { name, args: parts });
 
 		const command = commands.get(name);
-		if (!command) return `Unknown command: ${name}. Type help.`;
+		if (!command) {
+			runtimeDebug.log("command", "command:unknown", { name });
+			return `Unknown command: ${name}. Type help.`;
+		}
 
-		return command.run(parts) ?? "OK";
+		const result = command.run(parts) ?? "OK";
+		runtimeDebug.log("command", "command:complete", { name, result });
+		return result;
 	},
 
 	list() {

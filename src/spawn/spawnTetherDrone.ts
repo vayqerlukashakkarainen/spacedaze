@@ -10,7 +10,7 @@ import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
 } from "../services/threatService"
-import { easeDirection } from "../shared"
+import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
@@ -70,9 +70,10 @@ export function spawnTetherDrone(
 			: distance > 190
 				? direction
 				: direction.normal().scale(0.45)
+		const desiredDirection = radial.unit()
 		drone.moveDirection = easeDirection(
 			drone.moveDirection,
-			radial.unit(),
+			desiredDirection,
 			4,
 			delta
 		)
@@ -80,6 +81,12 @@ export function spawnTetherDrone(
 			82 * profile.speedMultiplier * velocityScale() * drone.getTimescale()
 		))
 		drone.angle = drone.moveDirection.angle() + 90
+		applyDirectionalSteeringLean(
+			drone,
+			drone.moveDirection,
+			desiredDirection,
+			profile.scale
+		)
 		drone.tetherActive = distance <= TETHER_RANGE
 		if (drone.tetherActive) {
 			setEnemyMovementMultiplier(drone.id, profile.elite ? 0.58 : 0.72)

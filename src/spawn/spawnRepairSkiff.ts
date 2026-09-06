@@ -6,7 +6,7 @@ import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
 } from "../services/threatService"
-import { easeDirection } from "../shared"
+import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
@@ -75,6 +75,12 @@ export function spawnRepairSkiff(
 			98 * profile.speedMultiplier * velocityScale() * skiff.getTimescale()
 		))
 		skiff.angle = skiff.moveDirection.angle() + 90
+		applyDirectionalSteeringLean(
+			skiff,
+			skiff.moveDirection,
+			desired,
+			profile.scale
+		)
 
 		skiff.healTimer -= delta
 		if (

@@ -112,11 +112,14 @@ export function spawnMeteorite(props: Props) {
 
 	m.onDeath(() => {
 		const deathPos = m.pos.clone();
-		enemyOnDeath(
-			deathPos,
-			props.scoreOnKill * profile.rewardMultiplier,
-			(props.powerupMultiplier ?? 1) * profile.rewardMultiplier
-		);
+			enemyOnDeath(
+				deathPos,
+				props.scoreOnKill * profile.rewardMultiplier,
+				(props.powerupMultiplier ?? 1) * profile.rewardMultiplier,
+				"enemy",
+				true,
+				{ shipWreckage: false }
+			);
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume });
 		k.destroy(m);
 		props.onDeath?.(deathPos);

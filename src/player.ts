@@ -66,6 +66,10 @@ interface Ship {
 	reactivePlating: number | undefined;
 	packIntelligence: number | undefined;
 	glassReactor: number | undefined;
+	droneFusion: number | undefined;
+	sawSatellite: number | undefined;
+	kineticRam: number | undefined;
+	nearMissCapacitor: number | undefined;
 	droneSetBonus: boolean;
 	mobilitySetBonus: boolean;
 	ordnanceSetBonus: boolean;
@@ -236,6 +240,10 @@ export const player: Ship = {
 	reactivePlating: undefined,
 	packIntelligence: undefined,
 	glassReactor: undefined,
+	droneFusion: undefined,
+	sawSatellite: undefined,
+	kineticRam: undefined,
+	nearMissCapacitor: undefined,
 	droneSetBonus: false,
 	mobilitySetBonus: false,
 	ordnanceSetBonus: false,
@@ -327,6 +335,10 @@ export function loadPlayer() {
 	player.reactivePlating = getToolUpgradeLvlValue("reactivePlating");
 	player.packIntelligence = getToolUpgradeLvlValue("packIntelligence");
 	player.glassReactor = getToolUpgradeLvlValue("glassReactor");
+	player.droneFusion = getToolUpgradeLvlValue("droneFusion");
+	player.sawSatellite = getToolUpgradeLvlValue("sawSatellite");
+	player.kineticRam = getToolUpgradeLvlValue("kineticRam");
+	player.nearMissCapacitor = getToolUpgradeLvlValue("nearMissCapacitor");
 	if (player.glassReactor !== undefined) player.maxHealth = 1;
 	player.droneSetBonus = hasTechnologySet([
 		"followerBlasterDmg",
@@ -338,6 +350,8 @@ export function loadPlayer() {
 		"followerSalvager",
 		"sacrificialProtocol",
 		"enemyHacker",
+		"droneFusion",
+		"packIntelligence",
 	]);
 	player.mobilitySetBonus = hasTechnologySet([
 		"sprint",
@@ -347,6 +361,8 @@ export function loadPlayer() {
 		"phaseMagazine",
 		"movespeed",
 		"afterburnerWake",
+		"phaseEcho",
+		"kineticRam",
 	]);
 	player.ordnanceSetBonus = hasTechnologySet([
 		"blasterDmg",
@@ -362,9 +378,11 @@ export function loadPlayer() {
 		"debreeDist",
 		"debreeValue",
 		"scrapArmor",
+		"salvageBattery",
 		"maxHealth",
 	]);
 	if (player.mobilitySetBonus) player.speedMultiplier *= 1.08;
+	if (player.salvageSetBonus) player.debreeSeekDistanceMultiplier *= 1.35;
 	if (player.ordnanceSetBonus) {
 		player.blasterDmgMultiplier *= 1.12;
 		player.rocketDmgMultiplier = 1.12;
@@ -474,7 +492,7 @@ export function addScrapArmorProgress(value: number) {
 export function getActiveTechnologySetNames() {
 	const names: string[] = [];
 	if (player.droneSetBonus) names.push("SWARM INTELLIGENCE");
-	if (player.mobilitySetBonus) names.push("OVERDRIVE ARRAY");
+	if (player.mobilitySetBonus) names.push("PHASE CIRCUIT");
 	if (player.ordnanceSetBonus) names.push("MUNITIONS CASCADE");
 	if (player.salvageSetBonus) names.push("SALVAGE ENGINE");
 	return names;

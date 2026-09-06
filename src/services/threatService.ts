@@ -17,6 +17,7 @@ export const ENEMY_THREAT_RANK = {
 	heavyVehicle: 5,
 	sniper: 6,
 	mineLayer: 7,
+	miniBoss: 8,
 	hiveMind: 9,
 	boss: 10,
 } as const

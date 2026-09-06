@@ -4,6 +4,7 @@ import {
 	equipAbility,
 	getEquippedSecondaryAbilityId,
 } from "./abilityLoadoutService"
+import { getAbilityTierValues } from "./abilityTierService"
 
 export type ActiveModuleId =
 	| "rocketPod"
@@ -122,9 +123,13 @@ export function getActiveModuleDefinition(id: ActiveModuleId) {
 
 export function getEquippedActiveModule() {
 	const equippedModuleId = getEquippedSecondaryAbilityId()
-	return equippedModuleId
-		? getActiveModuleDefinition(equippedModuleId)
-		: undefined
+	if (!equippedModuleId) return undefined
+	const module = getActiveModuleDefinition(equippedModuleId)
+	const tier = getAbilityTierValues(equippedModuleId)
+	return {
+		...module,
+		cooldown: module.cooldown / tier.recovery,
+	}
 }
 
 export function getEquippedActiveModuleId() {
@@ -149,6 +154,10 @@ export function ensureDefaultActiveModule(rocketsUnlocked: boolean) {
 
 export function resetActiveModule() {
 	clearAbilitySlot("secondary")
+	cooldownRemaining = 0
+}
+
+export function resetActiveModuleCooldown() {
 	cooldownRemaining = 0
 }
 

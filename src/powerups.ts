@@ -9,6 +9,7 @@ import {
 } from "./player";
 import {
 	getDroneTypeCounts,
+	getFusedDroneCount,
 	spawnFollower,
 } from "./spawn/spawnFollower";
 import { spawnRing } from "./spawn/spawnRing";
@@ -123,6 +124,7 @@ export function getPlayerPowerupStatus(): [string, string][] {
 		["Gunship Drones", String(droneCounts.gunship)],
 		["Medic Drones", String(droneCounts.medic)],
 		["Salvager Drones", String(droneCounts.salvager)],
+		["Fused Drones", String(getFusedDroneCount())],
 		["Scrap Armor", String(session.scrapArmorCharges)],
 		[
 			"Volatile Cargo",

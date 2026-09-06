@@ -18,6 +18,8 @@ import { lerpAngleBetweenPos } from "../shared";
 import { loopService } from "../services/loopService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import { ENEMY_THREAT_RANK } from "../services/threatService";
+import { registerBossEncounter } from "../services/bossEncounterService";
+import { getBossDefinition } from "../services/bossRegistry";
 
 const blasterOffset = [22, -2];
 const headOffset = 25;
@@ -66,6 +68,7 @@ export function spawnBoss1(
 		tags.enemy,
 		tags.unit,
 		tags.enemyRolePressure,
+		tags.boss,
 		tags.gameLoop,
 		...(options.tags ?? []),
 	]);
@@ -117,9 +120,15 @@ export function spawnBoss1(
 		tags.gameLoop,
 	]);
 
+	const definition = getBossDefinition("federation-dreadnought");
+	registerBossEncounter(m, definition.id, {
+		maxHealth: hp,
+		onDefeated: options.onDefeated,
+	});
+
 	unitComponents[m.id!] = compose({
 		rewardSource: "boss",
-		onBodyDeath: () => options.onDefeated?.(targetPos.clone()),
+		rewardMultiplier: definition.rewardMultiplier,
 		parts: [
 			{ obj: m, hitbox: 64, isBody: true, scoreOnDestroy: am },
 			{ obj: blaster1, hitbox: 22, isBody: false, scoreOnDestroy: 0 },

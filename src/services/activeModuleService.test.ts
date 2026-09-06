@@ -8,6 +8,7 @@ import {
 	getEquippedActiveModuleId,
 	reduceActiveModuleCooldown,
 	resetActiveModule,
+	resetActiveModuleCooldown,
 	updateActiveModuleCooldown,
 } from "./activeModuleService"
 
@@ -33,7 +34,13 @@ assert.equal(getActiveModuleCooldownRemaining(), 0)
 assert.equal(beginActiveModuleActivation()?.id, "gravityCharge")
 assert.equal(reduceActiveModuleCooldown(4), 0)
 assert.equal(getActiveModuleCooldownRemaining(), 7)
-assert.equal(reduceActiveModuleCooldown(9), 2)
+resetActiveModuleCooldown()
+assert.equal(getEquippedActiveModuleId(), "gravityCharge")
+assert.equal(getActiveModuleCooldownRemaining(), 0)
+assert.equal(beginActiveModuleActivation()?.id, "gravityCharge")
+assert.equal(reduceActiveModuleCooldown(9), 0)
+assert.equal(getActiveModuleCooldownRemaining(), 2)
+assert.equal(reduceActiveModuleCooldown(4), 2)
 assert.equal(getActiveModuleCooldownRemaining(), 0)
 
 resetActiveModule()

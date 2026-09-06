@@ -6,6 +6,7 @@ import { k } from "../main"
 import { spawnAssasin } from "../spawn/spawnAssasin"
 import { spawnMeteorite } from "../spawn/spawnAsteroid"
 import { spawnBoss1 } from "../spawn/spawnBoss1"
+import { spawnImpactAce } from "../spawn/spawnImpactAce"
 import { spawnMineLayer } from "../spawn/spawnMineLayer"
 import { spawnGravityWarden } from "../spawn/spawnGravityWarden"
 import { spawnOrbitLancer } from "../spawn/spawnOrbitLancer"
@@ -44,6 +45,7 @@ export type DebugEnemyType =
 	| "hivemind"
 	| "asteroid"
 	| "boss"
+	| "mini-boss"
 
 const DEBUG_ENEMY_TYPES: readonly DebugEnemyType[] = [
 	"ship",
@@ -66,6 +68,7 @@ const DEBUG_ENEMY_TYPES: readonly DebugEnemyType[] = [
 	"hivemind",
 	"asteroid",
 	"boss",
+	"mini-boss",
 ]
 
 export function getDebugEnemyTypes() {
@@ -182,6 +185,9 @@ function spawnDebugEnemy(type: DebugEnemyType, pos: Vec2) {
 			return
 		case "boss":
 			spawnBoss1(pos, 10, 60, 1)
+			return
+		case "mini-boss":
+			spawnImpactAce(pos, 2, { persistOffscreen: true })
 	}
 }
 

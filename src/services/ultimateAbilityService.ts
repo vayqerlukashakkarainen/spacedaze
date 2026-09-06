@@ -1,4 +1,7 @@
-const MAX_ULTIMATE_CHARGE = 100
+import { getEquippedUltimateAbilityId } from "./abilityLoadoutService"
+import { getAbilityTierValues } from "./abilityTierService"
+
+const BASE_MAX_ULTIMATE_CHARGE = 100
 
 let charge = 0
 
@@ -7,21 +10,26 @@ export function getUltimateCharge() {
 }
 
 export function getUltimateChargeProgress() {
-	return charge / MAX_ULTIMATE_CHARGE
+	return charge / getMaxUltimateCharge()
 }
 
 export function grantUltimateCharge(amount: number) {
 	if (!Number.isFinite(amount) || amount <= 0) return charge
-	charge = Math.min(MAX_ULTIMATE_CHARGE, charge + amount)
+	charge = Math.min(getMaxUltimateCharge(), charge + amount)
 	return charge
 }
 
 export function consumeUltimateCharge() {
-	if (charge < MAX_ULTIMATE_CHARGE) return false
+	if (charge < getMaxUltimateCharge()) return false
 	charge = 0
 	return true
 }
 
 export function resetUltimateCharge() {
 	charge = 0
+}
+
+function getMaxUltimateCharge() {
+	const abilityId = getEquippedUltimateAbilityId()
+	return BASE_MAX_ULTIMATE_CHARGE / getAbilityTierValues(abilityId).recovery
 }

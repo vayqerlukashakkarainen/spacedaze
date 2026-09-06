@@ -54,6 +54,7 @@ function atlasEntry(index: number) {
 export async function init(k: KAPLAYCtx) {
 	await k.loadRoot("./"); // A good idea for Itch.io publishing later
 	await k.loadSprite("ship", "sprites/ship-v2.png");
+	await k.loadSprite("companion_burt", "sprites/companions/burt.png")
 	await k.loadSprite("crate1", "sprites/crate-v2.png");
 	await k.loadSprite(
 		"salvage_asteroid_normal",
@@ -236,6 +237,21 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("particle3", "sprites/particle3.png");
 	await k.loadSprite("particle4", "sprites/particle4.png");
 	await k.loadSprite("spark1", "sprites/spark1.png");
+	const emotionSprites = [
+		"emote_drops",
+		"emote_exclamation",
+		"emote_exclamations",
+		"emote_faceAngry",
+		"emote_faceHappy",
+		"emote_faceSad",
+		"emote_heart",
+		"emote_idea",
+		"emote_question",
+		"emote_sleeps",
+	]
+	for (const sprite of emotionSprites) {
+		await k.loadSprite(sprite, `sprites/emotes/${sprite}.png`)
+	}
 
 	await k.loadSprite("debree_part1", "sprites/debree_part1.png");
 	await k.loadSprite("room_rift_anchor", "sprites/rooms/rift-anchor.png");
@@ -390,6 +406,13 @@ export async function init(k: KAPLAYCtx) {
 		"reactive_plating_upg1",
 		"pack_intelligence_upg1",
 		"glass_reactor_upg1",
+		"drone_fusion_upg1",
+		"saw_satellite_upg1",
+		"kinetic_ram_upg1",
+		"near_miss_capacitor_upg1",
+		"phase_set_bonus",
+		"drone_set_bonus",
+		"salvage_set_bonus",
 	];
 	for (const sprite of systemUpgradeSprites) {
 		await k.loadSprite(sprite, `sprites/upgrades/${sprite}.png`);
@@ -415,6 +438,7 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
 
 	await k.loadSound("shoot1", "sounds/shoot1.wav");
+	await k.loadSound("weapon_burst_driver", "sounds/burst.wav");
 	await k.loadSound("rammer_launch", "sounds/rammer-launch.wav");
 	await k.loadSound("lay_mine", "sounds/lay-mine.wav");
 	await k.loadSound("fire_rocket1", "sounds/rocket_fire1.wav");
@@ -433,6 +457,10 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound("ui_click", "sounds/ui-click.wav");
 	await k.loadSound("text_print", "sounds/text-print.wav");
 	await k.loadSound("system_error", "sounds/system-error.mp3");
+	await k.loadSound(
+		"dialogue_scramble",
+		"sounds/scrambled-telecommunications.mp3"
+	);
 	await k.loadSound("purchase", "sounds/purchase.wav");
 	await k.loadSound("error", "sounds/error.wav");
 	await k.loadSound(
@@ -452,6 +480,7 @@ export async function init(k: KAPLAYCtx) {
 		"player_arrival_impact",
 		"sounds/player-arrival-impact.mp3"
 	);
+	await k.loadSound("warp_landing_bass", "sounds/extreme-bass.wav")
 	await k.loadSound(
 		"hyperspeed_jump_start",
 		"sounds/hyperspeed-jump-start.mp3"
@@ -462,6 +491,8 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSound("wormhole_rampup", "sounds/wormhole-rampup.mp3");
 	await k.loadSound("wormhole_ambience", "sounds/wormhole-ambience.mp3");
+	await k.loadSound("burt_repair_hammer", "sounds/burt-repair-hammer.mp3")
+	await k.loadSound("burt_repair_tool", "sounds/burt-repair-tool.mp3")
 	await k.loadSound(
 		"secret_cavern_reveal",
 		"sounds/secret-cavern-reveal.mp3"
@@ -489,6 +520,10 @@ export async function init(k: KAPLAYCtx) {
 		"golden_crate_destroyed",
 		"sounds/golden-crate-destroyed.mp3"
 	);
+	await k.loadSound(
+		"birthday_upbeat",
+		"sounds/birthday-upbeat-preview.mp3"
+	)
 
 	await k.loadMusic("arcadia", "songs/arcadia.mp3");
 	await k.loadMusic(
@@ -496,6 +531,7 @@ export async function init(k: KAPLAYCtx) {
 		"songs/flirt-flirt-oh-it-hurts.mp3"
 	);
 	await k.loadMusic("hub", "songs/hub.mp3");
+	await k.loadMusic("burts_recovery", "songs/burts-recovery.mp3")
 
 	k.loadShader(
 		"wormholeLighting",

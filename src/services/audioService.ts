@@ -2,6 +2,7 @@ import { AudioPlay, KEventController, Vec2 } from "kaplay";
 import { audioPlaybackSpeed, k } from "../main";
 import { tags } from "../tags";
 import { profileSection } from "./frameProfilerService";
+import { runtimeDebug } from "./runtimeDebugService";
 
 interface PlayingSound {
 	audio: AudioPlay;
@@ -239,6 +240,16 @@ function playTrackedSound(
 	spatial?: SpatialSound,
 	voiceBudgeted = false
 ) {
+	if (soundId !== "text_print") {
+		runtimeDebug.log("audio", "sound:play", {
+			id: soundId,
+			volume: options.volume ?? 1,
+			speed: options.speed ?? 1,
+			detune: options.detune ?? 0,
+			loop: options.loop === true,
+			spatial: spatial !== undefined,
+		});
+	}
 	syncMasterVolume();
 	const baseVolume = options.volume ?? 1;
 	const baseSpeed = options.speed ?? 1;
@@ -264,6 +275,9 @@ function playTrackedSound(
 	if (spatial) ensurePositionalAudioUpdate();
 
 	audio.onEnd(() => {
+		if (soundId !== "text_print") {
+			runtimeDebug.log("audio", "sound:end", { id: soundId });
+		}
 		const index = playingSounds.findIndex((current) => current.audio === audio);
 		if (index !== -1) playingSounds.splice(index, 1);
 	});
@@ -299,7 +313,14 @@ function playVoiceLimitedPositionalSound(
 	if (
 		activeVoices.length >= limit &&
 		!replaceQuietestPositionalVoice(spatial, activeVoices)
-	) return null;
+	) {
+		runtimeDebug.log("audio", "sound:voice-rejected", {
+			id: soundId,
+			reason: "per-sound-limit",
+			limit,
+		});
+		return null;
+	}
 
 	const positionalVoices = playingSounds.filter(
 		(sound) => sound.spatial && sound.voiceBudgeted
@@ -307,7 +328,14 @@ function playVoiceLimitedPositionalSound(
 	if (
 		positionalVoices.length >= MAX_POSITIONAL_EFFECT_VOICES &&
 		!replaceQuietestPositionalVoice(spatial, positionalVoices)
-	) return null;
+	) {
+		runtimeDebug.log("audio", "sound:voice-rejected", {
+			id: soundId,
+			reason: "global-positional-limit",
+			limit: MAX_POSITIONAL_EFFECT_VOICES,
+		});
+		return null;
+	}
 	return playTrackedSound(soundId, options, spatial, true);
 }
 
@@ -327,6 +355,10 @@ function replaceQuietestPositionalVoice(
 	if (nextGain <= quietestGain) return false;
 	const quietestIndex = playingSounds.indexOf(quietest);
 	if (quietestIndex !== -1) playingSounds.splice(quietestIndex, 1);
+	runtimeDebug.log("audio", "sound:stopped", {
+		id: quietest.id,
+		reason: "voice-replaced",
+	});
 	quietest.audio.stop();
 	return true;
 }
@@ -356,9 +388,26 @@ export const audioService = {
 		);
 	},
 
+	stopSound(audio: AudioPlay, reason = "requested") {
+		const sound = playingSounds.find((entry) => entry.audio === audio);
+		if (sound && sound.id !== "text_print") {
+			runtimeDebug.log("audio", "sound:stopped", {
+				id: sound.id,
+				reason,
+			});
+		}
+		const index = playingSounds.findIndex((entry) => entry.audio === audio);
+		if (index !== -1) playingSounds.splice(index, 1);
+		audio.stop();
+	},
+
 	updateSound(audio: AudioPlay, options: Pick<SoundOptions, "volume" | "speed" | "detune">) {
 		const sound = playingSounds.find((entry) => entry.audio === audio);
 		if (!sound) return;
+		runtimeDebug.log("audio", "sound:update", {
+			id: sound.id,
+			...options,
+		});
 		if (options.volume !== undefined) sound.baseVolume = options.volume;
 		if (options.speed !== undefined) {
 			sound.baseSpeed = options.speed;
@@ -372,11 +421,19 @@ export const audioService = {
 		musicId: string,
 		options?: MusicOptions
 	): AudioPlay | null {
+		runtimeDebug.log("audio", "music:play-request", {
+			id: musicId,
+			volume: options?.volume ?? 1,
+			loop: options?.loop === true,
+			continueIfPlaying: options?.continueIfPlaying === true,
+			current: currentMusicId,
+		});
 		syncMasterVolume();
 		cancelMusicFade();
 		optionalMusicRequest++;
 		currentMusicBaseVolume = options?.volume ?? 1;
 		if (browserNeedsAudioUnlock()) {
+			runtimeDebug.log("audio", "music:deferred-for-unlock", { id: musicId });
 			pendingMusic = { musicId, options };
 			listenForAudioUnlock();
 			return null;
@@ -388,6 +445,7 @@ export const audioService = {
 			currentMusic &&
 			currentMusicId === musicId
 		) {
+			runtimeDebug.log("audio", "music:continued", { id: musicId });
 			currentMusic.volume =
 				currentMusicBaseVolume * audioSettings.musicVolume * masterVolume();
 			currentMusic.paused = false;
@@ -395,6 +453,10 @@ export const audioService = {
 		}
 		// Stop current music if playing
 		if (currentMusic) {
+			runtimeDebug.log("audio", "music:replaced", {
+				previous: currentMusicId,
+				next: musicId,
+			});
 			currentMusic.stop();
 		}
 
@@ -405,6 +467,7 @@ export const audioService = {
 		});
 		currentMusic.speed = 1;
 		currentMusicId = musicId;
+		runtimeDebug.log("audio", "music:started", { id: musicId });
 
 		return currentMusic;
 	},
@@ -429,6 +492,10 @@ export const audioService = {
 	},
 
 	fadeOutMusic(durationSeconds: number) {
+		runtimeDebug.log("audio", "music:fade-out", {
+			id: currentMusicId,
+			durationSeconds,
+		});
 		cancelMusicFade();
 		if (!currentMusic) return;
 		if (durationSeconds <= 0) {
@@ -461,26 +528,34 @@ export const audioService = {
 	},
 
 	stopMusic() {
+		runtimeDebug.log("audio", "music:stop-request", {
+			id: currentMusicId,
+			hasMusic: currentMusic !== null,
+		});
 		optionalMusicRequest++;
 		cancelMusicFade();
 		pendingMusic = null;
 		stopListeningForAudioUnlock();
 		if (currentMusic) {
+			const stoppedMusicId = currentMusicId;
 			currentMusic.stop();
 			currentMusic = null;
 			currentMusicId = null;
+			runtimeDebug.log("audio", "music:stopped", { id: stoppedMusicId });
 		}
 	},
 
 	pauseMusic() {
 		if (currentMusic) {
 			currentMusic.paused = true;
+			runtimeDebug.log("audio", "music:paused", { id: currentMusicId });
 		}
 	},
 
 	resumeMusic() {
 		if (currentMusic) {
 			currentMusic.paused = false;
+			runtimeDebug.log("audio", "music:resumed", { id: currentMusicId });
 		}
 	},
 
@@ -544,6 +619,10 @@ export const audioService = {
 	},
 
 	stopAllSounds() {
+		runtimeDebug.log("audio", "sound:stop-all", {
+			count: playingSounds.length,
+			ids: [...new Set(playingSounds.map((sound) => sound.id))],
+		});
 		// Stop all sound effects
 		for (const sound of playingSounds) {
 			sound.audio.stop();

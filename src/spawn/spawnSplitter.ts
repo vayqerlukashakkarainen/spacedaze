@@ -6,7 +6,7 @@ import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
 } from "../services/threatService"
-import { easeDirection } from "../shared"
+import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
@@ -77,6 +77,12 @@ export function spawnSplitter(
 			67 * profile.speedMultiplier * velocityScale() * splitter.getTimescale()
 		))
 		splitter.angle = splitter.moveDirection.angle() + 90
+		applyDirectionalSteeringLean(
+			splitter,
+			splitter.moveDirection,
+			desired,
+			profile.scale
+		)
 		handleEnemyCombat(splitter, "SPLITTER", "enemy_splitter")
 	})
 

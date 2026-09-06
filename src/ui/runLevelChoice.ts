@@ -17,8 +17,10 @@ import {
 import {
 	consumeRunLevelSelection,
 	getAvailableRunLevelBonuses,
+	getRunLevelBonusValue,
 	getRunLevelSnapshot,
 	grantRunLevelBonus,
+	rollRunLevelBonusRarity,
 	type RunLevelBonusDefinition,
 } from "../services/runLevelService"
 import { tags } from "../tags"
@@ -30,10 +32,30 @@ import { playUiModalOpen } from "./common/modalTransition"
 import { UI_COLORS, UI_FONT_SIZES } from "./common/theme"
 import { playUiClickSound, playUiHoverSound } from "../services/uiSoundService"
 import { getUpgradeDefinition } from "../upgrades/upgradeRegistry"
+import {
+	getAbilityLoadout,
+	type AbilityId,
+	type AbilitySlot,
+} from "../services/abilityLoadoutService"
+import {
+	getNextAbilityTierRarity,
+	registerAbilityTier,
+	rollAbilityTierState,
+	type AbilityTierState,
+} from "../services/abilityTierService"
+import {
+	getAbilityDefinition,
+	type AbilityDefinition,
+} from "../services/abilityRegistry"
 
 type RunLevelChoice =
 	| { kind: "generic"; bonus: RunLevelBonusDefinition }
 	| { kind: "upgrade"; reward: Reward }
+	| {
+		kind: "abilityTier"
+		ability: AbilityDefinition
+		tier: AbilityTierState
+	}
 
 let isOpen = false
 let selectionLocked = false
@@ -203,11 +225,13 @@ function selectRunLevelChoice(choice: RunLevelChoice) {
 	selectionLocked = true
 	let applied = false
 	if (choice.kind === "generic") {
-		applied = grantRunLevelBonus(choice.bonus.id)
+		applied = grantRunLevelBonus(choice.bonus.id, choice.bonus.rarity)
 		if (applied) loadPlayer()
-	} else {
+	} else if (choice.kind === "upgrade") {
 		applied = applyReward(choice.reward, k.center())
 		if (applied) addCollectedPowerup(choice.reward)
+	} else {
+		applied = registerAbilityTier(choice.tier)
 	}
 	if (!applied) {
 		selectionLocked = false
@@ -220,21 +244,49 @@ function selectRunLevelChoice(choice: RunLevelChoice) {
 }
 
 function createRunLevelChoices(): RunLevelChoice[] {
-	const generic = shuffle(getAvailableRunLevelBonuses()).slice(0, 2)
+	const generic = shuffle(getAvailableRunLevelBonuses())
+		.slice(0, 2)
+		.map(withRolledRarity)
 	const choices: RunLevelChoice[] = generic.map((bonus) => ({
 		kind: "generic",
 		bonus,
 	}))
-	const upgrade = pickOwnedUpgradeReward()
-	if (upgrade) choices.push({ kind: "upgrade", reward: upgrade })
+	const special = shuffle([
+		pickOwnedUpgradeChoice(),
+		pickAbilityTierChoice(),
+	].filter((choice): choice is RunLevelChoice => choice !== undefined))[0]
+	if (special) choices.push(special)
 	else {
 		const used = new Set(generic.map((bonus) => bonus.id))
 		const fallback = shuffle(
 			getAvailableRunLevelBonuses().filter((bonus) => !used.has(bonus.id))
 		)[0]
-		if (fallback) choices.push({ kind: "generic", bonus: fallback })
+		if (fallback) choices.push({ kind: "generic", bonus: withRolledRarity(fallback) })
 	}
 	return shuffle(choices)
+}
+
+function pickOwnedUpgradeChoice(): RunLevelChoice | undefined {
+	const reward = pickOwnedUpgradeReward()
+	return reward ? { kind: "upgrade", reward } : undefined
+}
+
+function pickAbilityTierChoice(): RunLevelChoice | undefined {
+	const loadout = getAbilityLoadout()
+	const slots: AbilitySlot[] = ["primary", "secondary", "mobility", "ultimate"]
+	const candidates = slots.flatMap((slot) => {
+		const abilityId = loadout[slot] as AbilityId | undefined
+		if (!abilityId) return []
+		const ability = getAbilityDefinition(abilityId)
+		const rarity = getNextAbilityTierRarity(abilityId)
+		if (!ability || !rarity) return []
+		return [{
+			kind: "abilityTier" as const,
+			ability,
+			tier: rollAbilityTierState(abilityId, slot, rarity),
+		}]
+	})
+	return shuffle(candidates)[0]
 }
 
 function pickOwnedUpgradeReward() {
@@ -257,13 +309,32 @@ function pickOwnedUpgradeReward() {
 function getChoiceDetails(choice: RunLevelChoice) {
 	if (choice.kind === "generic") {
 		const stacks = getRunLevelSnapshot().bonuses[choice.bonus.id]
+		const value = getRunLevelBonusValue(choice.bonus, choice.bonus.rarity)
+		const formattedValue = choice.bonus.percentage
+			? `+${Math.round(value * 100)}%`
+			: `+${formatNumber(value)}%`
 		return {
 			name: choice.bonus.name,
 			description: choice.bonus.description,
-			effect: `${choice.bonus.stat}  ${choice.bonus.value}  //  STACK ${stacks + 1}`,
+			effect: `${choice.bonus.stat}  ${formattedValue}  //  STACK ${stacks + 1}`,
 			sprite: choice.bonus.sprite,
 			rarity: choice.bonus.rarity,
-			category: "PASSIVE CALIBRATION",
+			category: `${choice.bonus.rarity}  //  PASSIVE`,
+		}
+	}
+	if (choice.kind === "abilityTier") {
+		const values = choice.tier.values
+		return {
+			name: choice.ability.name,
+			description: `Advance the equipped ${choice.ability.slot} ability to the next tier`,
+			effect: [
+				`POWER ${formatMultiplier(values.power)}`,
+				`SPEED ${formatMultiplier(values.speed)}`,
+				`RECOVERY ${formatMultiplier(values.recovery)}`,
+			].join("  //  "),
+			sprite: choice.ability.icon,
+			rarity: choice.tier.rarity,
+			category: `${choice.tier.rarity}  //  ${choice.ability.slot.toUpperCase()}`,
 		}
 	}
 	return {
@@ -275,6 +346,13 @@ function getChoiceDetails(choice: RunLevelChoice) {
 		sprite: choice.reward.sprite,
 		rarity: choice.reward.rarity,
 		category: "OWNED UPGRADE",
+	}
+}
+
+function withRolledRarity(bonus: RunLevelBonusDefinition) {
+	return {
+		...bonus,
+		rarity: rollRunLevelBonusRarity(),
 	}
 }
 
@@ -297,4 +375,12 @@ function shuffle<T>(values: readonly T[]) {
 
 function formatStat(stat: string) {
 	return stat.replace(/([A-Z])/g, " $1").toUpperCase()
+}
+
+function formatNumber(value: number) {
+	return Number.isInteger(value) ? `${value}` : value.toFixed(1)
+}
+
+function formatMultiplier(value: number) {
+	return `X${value.toFixed(2)}`
 }

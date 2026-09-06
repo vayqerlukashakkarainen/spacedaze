@@ -9,6 +9,14 @@ import {
 import { startRunStats } from "./runStatsService"
 import { getUnlockedWarpZones, getWarpZone } from "./warpZoneService"
 import { beginDebreeRun } from "./debreeEconomyService"
+import { getAbilityLoadout } from "./abilityLoadoutService"
+import { getHubLevel } from "./hubProgressService"
+import { loadout } from "../upg"
+import {
+	recordTelemetryFloor,
+	startRunTelemetry,
+} from "./runTelemetryService"
+import { runtimeDebug } from "./runtimeDebugService"
 
 export interface RunFloorSelection {
 	levelKey: RunLevelKey
@@ -66,6 +74,33 @@ export function beginRunSession(zoneId: string): RunFloorSelection | undefined {
 	}
 	beginDebreeRun()
 	startRunStats(getSelectedContract()?.name ?? "UNASSIGNED EXPEDITION")
+	const contract = getSelectedContract()
+	startRunTelemetry({
+		zoneId: activeRun.zoneId,
+		poolId: activeRun.poolId,
+		baseSeed: activeRun.baseSeed,
+		levelKey: currentFloor.levelKey,
+		mapSeed: currentFloor.mapSeed,
+		contractId: contract?.id,
+		contractName: contract?.name ?? "UNASSIGNED EXPEDITION",
+		contractChallenge: contract?.challenge,
+		hubLevel: getHubLevel(),
+		loadout: getAbilityLoadout(),
+		upgrades: { ...loadout },
+	})
+	recordTelemetryFloor(
+		currentFloor.depth,
+		currentFloor.levelKey,
+		currentFloor.mapSeed
+	)
+	runtimeDebug.log("run", "run:started", {
+		zoneId,
+		poolId: pool.id,
+		baseSeed,
+		level: currentFloor.levelKey,
+		mapSeed: currentFloor.mapSeed,
+		contract: contract?.name ?? "UNASSIGNED EXPEDITION",
+	})
 	return currentFloor
 }
 
@@ -97,6 +132,12 @@ export function advanceRunSession(): RunFloorSelection | undefined {
 		activeRun.visited.add(levelKey)
 		activeRun.visitedLevelKeys.push(levelKey)
 	}
+	recordTelemetryFloor(currentFloor.depth, currentFloor.levelKey, currentFloor.mapSeed)
+	runtimeDebug.log("run", "run:floor-advanced", {
+		depth,
+		level: currentFloor.levelKey,
+		mapSeed: currentFloor.mapSeed,
+	})
 	return currentFloor
 }
 

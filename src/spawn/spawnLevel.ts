@@ -325,6 +325,6 @@ function addWormholeEffect(portal: any) {
 	});
 
 	portal.onDestroy(() => {
-		ambience.stop();
+		if (ambience) audioService.stopSound(ambience, "portal-destroyed");
 	});
 }

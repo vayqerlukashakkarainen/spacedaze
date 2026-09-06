@@ -59,8 +59,12 @@ import { spawnHubRestoration } from "../spawn/spawnHubRestoration";
 import {
 	HubRepairCrew,
 	spawnHubRepairCrew,
-} from "../spawn/spawnHubRepairCrew";
+} from "../spawn/npcs/spawnHubRepairCrew";
 import { playRequirementErrorSound } from "../services/uiSoundService";
+import { spawnHubAsteroidRunner } from "../spawn/npcs/spawnHubAsteroidRunner";
+import { spawnHubRingWatcher } from "../spawn/npcs/spawnHubRingWatcher";
+import { spawnHubBirthdayPair } from "../spawn/npcs/spawnHubBirthdayPair";
+import { spawnHubLampKeeper } from "../spawn/npcs/spawnHubLampKeeper";
 
 let lvlData: any = {};
 let bgAsteroidTimer = 0;
@@ -73,6 +77,7 @@ const phaseFieldOffsetY = 120;
 const phaseFieldInnerRadius = 162;
 const phaseFieldOuterRadius = 220;
 const trainingDummyRespawnDelay = 1.5;
+const trainingDummyOffsetY = 190;
 const hubFacilityScale = 1.35;
 const hubFacilityInteractRadius = 120;
 const hubFacilityLabelOffsetY = 126;
@@ -113,7 +118,7 @@ export const hub: Level = {
 			continueIfPlaying: true,
 		});
 		spawnHubBoundaries();
-		const wormholePos = k.center().add(650, -350);
+		const wormholePos = getHubWormholePosition();
 		const wormhole = spawnLevel({
 			pos: wormholePos,
 			levelName: "level1",
@@ -190,8 +195,14 @@ export const hub: Level = {
 			hubFacilityPositions.trainingRange,
 			k.vec2(hubHalfWidth, hubHalfHeight)
 		);
+		spawnHubLampKeeper(k.center());
 		spawnHubBackgroundDepth();
 		spawnPhaseShiftAsteroidField();
+		spawnHubAsteroidRunner(getPhaseFieldCenter());
+		spawnHubRingWatcher(
+			hubFacilityPositions.trainingRange.add(0, trainingDummyOffsetY)
+		);
+		spawnHubBirthdayPair(k.center().add(-150, 245));
 		saveGame("slot1");
 		k.wait(0.45, showPendingRunEndSummary);
 	},
@@ -534,7 +545,7 @@ function getPhaseFieldCenter() {
 	return k.center().add(phaseFieldOffsetX, phaseFieldOffsetY);
 }
 
-function getHubFacilityPositions() {
+export function getHubFacilityPositions() {
 	const center = k.center();
 	return {
 		contractTerminal: center.add(160, -300),
@@ -542,6 +553,10 @@ function getHubFacilityPositions() {
 		salvageForge: center.add(-360, -260),
 		debriefTerminal: center.add(-560, 100),
 	} satisfies Record<HubFacilityId, ReturnType<typeof k.vec2>>;
+}
+
+export function getHubWormholePosition() {
+	return k.center().add(650, -350);
 }
 
 function spawnHubFacilities(
@@ -720,7 +735,7 @@ function spawnTrainingDummy(
 	hubSession: typeof lvlData
 ) {
 	spawnMeteorite({
-		pos: facilityPos.add(offsetX, 90),
+		pos: facilityPos.add(offsetX, trainingDummyOffsetY),
 		dir: k.vec2(0, 0),
 		scoreOnKill: 0,
 		hp: 10000,

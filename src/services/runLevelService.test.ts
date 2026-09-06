@@ -7,7 +7,9 @@ import {
 	endRunLevelProgression,
 	getRunLevelSnapshot,
 	grantRunLevelBonus,
+	rollRunLevelBonusRarity,
 } from "./runLevelService"
+import { RewardRarity } from "../types/rewardTypes"
 
 beginRunLevelProgression()
 assert.deepEqual(
@@ -27,6 +29,14 @@ assert.deepEqual(
 			collectionRange: 0,
 			blastRadius: 0,
 		},
+		bonusPower: {
+			weaponDamage: 0,
+			projectileSpeed: 0,
+			moveSpeed: 0,
+			criticalChance: 0,
+			collectionRange: 0,
+			blastRadius: 0,
+		},
 	}
 )
 
@@ -37,7 +47,7 @@ assert.equal(getRunLevelSnapshot().pendingSelections, 2)
 assert.equal(consumeRunLevelSelection(), true)
 assert.equal(getRunLevelSnapshot().pendingSelections, 1)
 
-assert.equal(grantRunLevelBonus("weaponDamage"), true)
+assert.equal(grantRunLevelBonus("weaponDamage", RewardRarity.Rare), true)
 assert.equal(grantRunLevelBonus("moveSpeed"), true)
 const stats = {
 	blasterDmgMultiplier: 2,
@@ -50,9 +60,14 @@ const stats = {
 	rocketSplashSizeMultiplier: 1,
 }
 applyRunLevelBonuses(stats)
-assert.equal(stats.blasterDmgMultiplier, 2.16)
-assert.equal(stats.rocketDmgMultiplier, 1.08)
+assert.equal(stats.blasterDmgMultiplier, 2.24)
+assert.equal(stats.rocketDmgMultiplier, 1.12)
 assert.equal(stats.speedMultiplier, 1.07)
+assert.equal(rollRunLevelBonusRarity(() => 0), RewardRarity.Legendary)
+assert.equal(rollRunLevelBonusRarity(() => 0.02), RewardRarity.Epic)
+assert.equal(rollRunLevelBonusRarity(() => 0.1), RewardRarity.Rare)
+assert.equal(rollRunLevelBonusRarity(() => 0.3), RewardRarity.Uncommon)
+assert.equal(rollRunLevelBonusRarity(() => 0.9), RewardRarity.Common)
 
 endRunLevelProgression()
 assert.equal(getRunLevelSnapshot().active, false)

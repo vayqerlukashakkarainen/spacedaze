@@ -7,7 +7,7 @@ import {
 } from "../services/destructibleWallService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/threatService"
-import { easeDirection } from "../shared"
+import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
@@ -40,9 +40,16 @@ export function spawnBreachCrawler(pos: Vec2, hp = 8, options: EnemySpawnOptions
 		const targetPos = crawler.targetWall?.pos ?? playerObj.pos
 		const toTarget = targetPos.sub(crawler.pos)
 		if (toTarget.len() > 0) {
-			crawler.moveDirection = easeDirection(crawler.moveDirection, toTarget.unit(), 4.2, delta)
+			const desiredDirection = toTarget.unit()
+			crawler.moveDirection = easeDirection(crawler.moveDirection, desiredDirection, 4.2, delta)
 			crawler.move(crawler.moveDirection.scale(62 * profile.speedMultiplier * velocityScale() * crawler.getTimescale()))
 			crawler.angle = crawler.moveDirection.angle() + 90
+			applyDirectionalSteeringLean(
+				crawler,
+				crawler.moveDirection,
+				desiredDirection,
+				profile.scale
+			)
 		}
 		crawler.breachTimer -= delta
 		if (crawler.targetWall && toTarget.len() < 34 && crawler.breachTimer <= 0) {

@@ -8,6 +8,7 @@ import { updatePlayerHealthBar } from "../ui/gameUi"
 import { timescale } from "../comp/timescale"
 import { spawnDamageNumber } from "./spawnDamageNumber"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { recordTelemetryHealing } from "../services/runTelemetryService"
 
 export const HEALTH_ORB_DROP_CHANCE = 0.05
 
@@ -126,7 +127,9 @@ export function spawnHealthOrb(pos: Vec2) {
 	function collectHealthOrb() {
 		if (collected || !playerCanReceiveHealth()) return
 		collected = true
+		const previousHealth = playerObj.hp
 		playerObj.hp = Math.min(playerObj.maxHP, playerObj.hp + 1)
+		recordTelemetryHealing(playerObj.hp - previousHealth)
 		updatePlayerHealthBar(playerObj.hp)
 		spawnDamageNumber(playerObj.pos.clone(), 1, {
 			color: k.rgb(...ORB_COLOR),

@@ -27,4 +27,14 @@ for (let seed = 0; seed < 40; seed++) {
 	assert.equal(plan.some((entry) => entry.roles.includes("terrain")), false)
 }
 
+const blockedEnemies = new Set(["splitter", "phase-skirmisher", "salvage-scavenger"])
+for (let seed = 0; seed < 40; seed++) {
+	let state = seed + 1400
+	const plan = createBudgetEncounterPlan(5, () => {
+		state = state * 1664525 + 1013904223 >>> 0
+		return state / 0x100000000
+	}, true, (id) => !blockedEnemies.has(id))
+	assert.equal(plan.some((entry) => blockedEnemies.has(entry.id)), false)
+}
+
 console.log("Enemy encounter budget tests passed")

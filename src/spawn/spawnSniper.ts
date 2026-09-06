@@ -11,7 +11,11 @@ import {
 	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService"
-import { easeDirection, registerHitAnimation } from "../shared"
+import {
+	applyDirectionalSteeringLean,
+	easeDirection,
+	registerHitAnimation,
+} from "../shared"
 import { tags } from "../tags"
 import { randomExplosion } from "../util"
 import { timescale } from "../comp/timescale"
@@ -76,6 +80,12 @@ export function spawnSniper(
 			delta
 		)
 		sniper.angle = sniper.facingDirection.angle() + 90
+		applyDirectionalSteeringLean(
+			sniper,
+			sniper.facingDirection,
+			direction,
+			profile.scale
+		)
 
 		if (sniper.phase === "reposition") {
 			const tangent = k.vec2(-direction.y, direction.x).scale(sniper.strafeDirection)

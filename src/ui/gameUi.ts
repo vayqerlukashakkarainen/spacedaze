@@ -18,6 +18,7 @@ import { uiState } from "./uiState";
 import { recordRunReward } from "../services/runInventoryService";
 import { discoverBlueprint } from "../services/hubProgressService";
 import { recordRunReward as recordRunRewardStat } from "../services/runStatsService";
+import { recordTelemetryRewardSelected } from "../services/runTelemetryService";
 import {
 	showCollectedRewardPopover,
 	showDiscoveredRewardPopover,
@@ -304,7 +305,7 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 
 function setupRunLevelHud() {
 	runLevelHud = createUiPanel({
-		pos: k.vec2(0, k.height() - 6),
+		pos: k.vec2(0, k.height() - 8),
 		size: k.vec2(k.width(), 6),
 		tags: [tags.gameLoopUi],
 		frameless: true,
@@ -315,6 +316,12 @@ function setupRunLevelHud() {
 		height: 4,
 		value: 0,
 	});
+	const gainFlash = runLevelHud.add([
+		k.pos(HUD_MARGIN, -1),
+		k.rect(k.width() - HUD_MARGIN * 2, 6),
+		k.color(...UI_COLORS.warning),
+		k.opacity(0),
+	]);
 	const levelLabel = runLevelHud.add([
 		k.text("", { size: UI_FONT_SIZES.small, font: "unscii" }),
 		k.pos(k.width() / 2, -8),
@@ -324,6 +331,9 @@ function setupRunLevelHud() {
 	let displayedLevel = Number.NaN;
 	let displayedXp = Number.NaN;
 	let displayedRequiredXp = Number.NaN;
+	let displayedProgress = 0;
+	let gainPulse = 0;
+	let levelPulse = 0;
 	registerBatchedUiUpdate("hud", runLevelHud, () => {
 		const snapshot = getRunLevelSnapshot();
 		runLevelHud!.hidden = !snapshot.active;
@@ -333,12 +343,30 @@ function setupRunLevelHud() {
 			snapshot.xp !== displayedXp ||
 			snapshot.requiredXp !== displayedRequiredXp
 		) {
+			if (!Number.isNaN(displayedXp) && snapshot.xp !== displayedXp) {
+				gainPulse = 1;
+			}
+			if (!Number.isNaN(displayedLevel) && snapshot.level !== displayedLevel) {
+				levelPulse = 1;
+			}
 			displayedLevel = snapshot.level;
 			displayedXp = snapshot.xp;
 			displayedRequiredXp = snapshot.requiredXp;
 			levelLabel.text = `LEVEL ${snapshot.level}  //  ${snapshot.xp} / ${snapshot.requiredXp} DEBRIS`;
-			progress.setValue(snapshot.progress);
 		}
+		displayedProgress = k.lerp(
+			displayedProgress,
+			snapshot.progress,
+			k.clamp(k.dt() * 10, 0, 1)
+		);
+		progress.setValue(displayedProgress);
+		gainPulse = Math.max(0, gainPulse - k.dt() * 3.8);
+		levelPulse = Math.max(0, levelPulse - k.dt() * 1.8);
+		gainFlash.opacity = gainPulse * 0.5;
+		levelLabel.scale = k.vec2(1 + levelPulse * 0.4);
+		levelLabel.color = levelPulse > 0
+			? k.rgb(...UI_COLORS.warning)
+			: k.rgb(...UI_COLORS.accent);
 		if (snapshot.pendingSelections > 0) showRunLevelChoice();
 	});
 }
@@ -553,7 +581,7 @@ export function updatePhaseJumpUi(
 	if (phaseJumpChargeLabel) {
 		phaseJumpChargeLabel.text = mobilityId === "thrusterOverdrive"
 			? "READY"
-			: mobility ? `${charges}/${maxCharges}` : "EMPTY";
+			: mobility ? `${charges}/${maxCharges}` : "";
 	}
 }
 
@@ -629,6 +657,11 @@ export function addCollectedPowerup(rewardOrId: Reward | string) {
 	showRewardAcquisitionPopover(reward);
 	recordRunReward(reward);
 	recordRunRewardStat(reward.rarity);
+	recordTelemetryRewardSelected(
+		reward.id,
+		reward.rarity,
+		isAbilityReward(reward)
+	);
 	if (isAbilityReward(reward)) return;
 	const collectionKey = reward.weaponId
 		? "primaryWeapon"

@@ -99,6 +99,13 @@ import {
 	type AbilitySlot,
 } from "../services/abilityLoadoutService"
 import type { WarpZoneDefinition } from "../services/warpZoneService"
+import {
+	getDroidArchiveStatus,
+	getDroidDefinitions,
+	getDroidDiscoveryKey,
+	isDroidDiscovered,
+	type DroidId,
+} from "../npcs/droidRegistry"
 
 let panelOpen = false
 let panelClosing = false
@@ -756,17 +763,24 @@ function destroyChildren(parent: GameObj) {
 	for (const child of [...parent.children]) destroyObjectTree(child)
 }
 
-type PhaseStationTab = "ship" | "arsenal" | "modules" | "abilities" | "upgrades"
+type PhaseStationTab =
+	| "ship"
+	| "arsenal"
+	| "modules"
+	| "abilities"
+	| "upgrades"
+	| "droids"
 
 const PHASE_STATION_TABS: readonly {
 	id: PhaseStationTab
 	label: string
 }[] = [
-	{ id: "ship", label: "SHIP UPGRADES" },
+	{ id: "ship", label: "SHIP" },
 	{ id: "arsenal", label: "ARSENAL" },
 	{ id: "modules", label: "MODULES" },
 	{ id: "abilities", label: "ABILITIES" },
 	{ id: "upgrades", label: "UPGRADES" },
+	{ id: "droids", label: "DROIDS" },
 ]
 
 export function showPhaseStation(
@@ -792,6 +806,8 @@ export function showPhaseStation(
 	let upgradePage = 0
 	let upgradeDetailsPage = 0
 	let selectedUpgradeKey: string | undefined
+	let selectedDroidId = getDroidDefinitions()
+		.find((definition) => isDroidDiscovered(definition.id))?.id
 	const newBlueprintKeys = new Set(getUnseenBlueprintKeys())
 	const unreadTabs = new Set(
 		[...newBlueprintKeys].map(getPhaseStationTabForBlueprint)
@@ -963,12 +979,28 @@ export function showPhaseStation(
 				newBlueprintKeys,
 			)
 		}
+		if (activeTab === "droids") {
+			renderDroidArchive(
+				contentRoot,
+				panelLeft + innerPadding,
+				innerWidth,
+				contentTop,
+				contentBottom,
+				selectedDroidId,
+				(id) => {
+					selectedDroidId = id
+					render()
+				},
+				newBlueprintKeys
+			)
+		}
 	}
 
 	render()
 }
 
 function getPhaseStationTabForBlueprint(key: string): PhaseStationTab {
+	if (key.startsWith("droid:")) return "droids"
 	if (key.startsWith("weapon:")) return "arsenal"
 	if (key.startsWith("active:")) return "modules"
 	if (key.startsWith("mobility:") || key.startsWith("ultimate:")) {
@@ -978,6 +1010,129 @@ function getPhaseStationTabForBlueprint(key: string): PhaseStationTab {
 		return "ship"
 	}
 	return "upgrades"
+}
+
+function renderDroidArchive(
+	root: GameObj,
+	left: number,
+	width: number,
+	top: number,
+	bottom: number,
+	selectedDroidId: DroidId | undefined,
+	onSelect: (id: DroidId) => void,
+	newBlueprintKeys: ReadonlySet<string>
+) {
+	const definitions = getDroidDefinitions()
+	const listWidth = Math.min(286, width * 0.4)
+	const columnGap = 12
+	const detailLeft = left + listWidth + columnGap
+	const detailWidth = width - listWidth - columnGap
+	const detailHeight = bottom - top
+
+	addThemedText(root, {
+		text: `DROID RECORDS  //  ${definitions.filter((definition) => isDroidDiscovered(definition.id)).length} / ${definitions.length} DISCOVERED`,
+		pos: k.vec2(left, top),
+		variant: "eyebrow",
+		width: listWidth,
+	})
+	const rowsTop = top + 24
+	definitions.forEach((definition, index) => {
+		const discovered = isDroidDiscovered(definition.id)
+		const discoveryKey = getDroidDiscoveryKey(definition.id)
+		createUiSelectableRow(root, {
+			pos: k.vec2(left, rowsTop + index * 74),
+			width: listWidth,
+			height: 68,
+			title: discovered ? definition.name : "UNIDENTIFIED DROID",
+			meta: discovered ? definition.model : "NO RECORD",
+			status: discovered ? getDroidArchiveStatus(definition.id) : "UNKNOWN",
+			statusColor: discovered ? UI_COLORS.accent : UI_COLORS.muted,
+			icon: discovered ? definition.sprite : undefined,
+			iconText: discovered ? undefined : "?",
+			iconSize: 34,
+			notification: discovered && newBlueprintKeys.has(discoveryKey),
+			selected: discovered && definition.id === selectedDroidId,
+			disabled: !discovered,
+			onClick: discovered ? () => onSelect(definition.id) : undefined,
+		})
+	})
+
+	const selected = selectedDroidId
+		? definitions.find((definition) => definition.id === selectedDroidId)
+		: undefined
+	const detail = createUiSurface(root, {
+		pos: k.vec2(detailLeft, top),
+		size: k.vec2(detailWidth, detailHeight),
+		tone: "raised",
+	})
+	if (!selected || !isDroidDiscovered(selected.id)) {
+		addThemedText(detail, {
+			text: "NO DROID RECORD SELECTED",
+			pos: k.vec2(18, 18),
+			variant: "heading",
+			width: detailWidth - 36,
+		})
+		addThemedText(detail, {
+			text: "Encounter droids throughout the system to recover their archive records.",
+			pos: k.vec2(18, 48),
+			variant: "muted",
+			width: detailWidth - 36,
+			lineHeight: 1.3,
+		})
+		return
+	}
+
+	detail.add([
+		k.sprite(selected.sprite, { width: 72, height: 72 }),
+		k.pos(54, 58),
+		k.anchor("center"),
+		k.color(k.WHITE),
+	])
+	addThemedText(detail, {
+		text: selected.name,
+		pos: k.vec2(104, 18),
+		variant: "heading",
+		width: detailWidth - 122,
+	})
+	addThemedText(detail, {
+		text: `${selected.model}  //  ${selected.role}`,
+		pos: k.vec2(104, 44),
+		variant: "eyebrow",
+		width: detailWidth - 122,
+	})
+	addThemedText(detail, {
+		text: `STATUS  //  ${getDroidArchiveStatus(selected.id)}`,
+		pos: k.vec2(104, 68),
+		variant: "caption",
+		width: detailWidth - 122,
+		color: k.rgb(...UI_COLORS.accent),
+	})
+	addThemedText(detail, {
+		text: "ARCHIVE SUMMARY",
+		pos: k.vec2(18, 112),
+		variant: "eyebrow",
+		width: detailWidth - 36,
+	})
+	addThemedText(detail, {
+		text: selected.summary,
+		pos: k.vec2(18, 138),
+		variant: "body",
+		width: detailWidth - 36,
+		lineHeight: 1.3,
+	})
+	addThemedText(detail, {
+		text: "FIELD NOTES",
+		pos: k.vec2(18, 202),
+		variant: "eyebrow",
+		width: detailWidth - 36,
+	})
+	addThemedText(detail, {
+		text: selected.archiveNotes.map((note) => `> ${note}`).join("\n\n"),
+		pos: k.vec2(18, 228),
+		variant: "muted",
+		width: detailWidth - 36,
+		lineHeight: 1.35,
+	})
 }
 
 function renderMobilityAndUltimateAbilities(

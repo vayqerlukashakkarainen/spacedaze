@@ -12,7 +12,11 @@ import {
 	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService"
-import { easeDirection, registerHitAnimation } from "../shared"
+import {
+	applyDirectionalSteeringLean,
+	easeDirection,
+	registerHitAnimation,
+} from "../shared"
 import { tags } from "../tags"
 import { randomExplosion } from "../util"
 import { timescale } from "../comp/timescale"
@@ -119,6 +123,12 @@ export function spawnRammer(
 				delta
 			)
 			faceDirection(rammer, rammer.steeringDirection)
+			applyDirectionalSteeringLean(
+				rammer,
+				rammer.steeringDirection,
+				playerDirection,
+				profile.scale
+			)
 			rammer.move(
 				rammer.steeringDirection.scale(RAMMER_APPROACH_SPEED * profile.speedMultiplier * velocityScale() * rammer.getTimescale())
 			)
@@ -209,6 +219,12 @@ export function spawnRammer(
 				delta
 			)
 			faceDirection(rammer, rammer.steeringDirection)
+			applyDirectionalSteeringLean(
+				rammer,
+				rammer.steeringDirection,
+				playerDirection,
+				profile.scale
+			)
 			const recoverySpeed = k.lerp(
 				RAMMER_CHARGE_SPEED,
 				RAMMER_APPROACH_SPEED,

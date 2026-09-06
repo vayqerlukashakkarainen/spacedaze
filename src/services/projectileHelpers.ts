@@ -6,6 +6,7 @@ import { spawnProjectile } from "./projectileService";
 import { player, session } from "../player";
 import { getEquippedWeapon } from "./weaponService";
 import { spawnFlash } from "../spawn/spawnFlash";
+import { getAbilityTierValues } from "./abilityTierService";
 
 // Basic Blaster
 export function spawnBasicBlaster(
@@ -94,7 +95,9 @@ export function spawnPlayerBlaster(
 		knockback: weapon.knockback
 			? { strength: weapon.knockback }
 			: undefined,
-		fireSound: shotOptions.playFireSound === false ? undefined : "shoot1",
+		fireSound: shotOptions.playFireSound === false
+			? undefined
+			: weapon.fireSound ?? "shoot1",
 	};
 	if (weapon.piercing) {
 		config.piercing = { ...weapon.piercing };
@@ -486,22 +489,26 @@ function applyPlayerProjectileModifiers(
 
 // Player Rocket with all player modifiers
 export function spawnPlayerRocket(pos: Vec2, dir: Vec2, rot: number) {
+	const tier = getAbilityTierValues("rocketPod");
 	const config: ProjectileConfig = {
 		pos,
 		dir,
 		rotation: rot,
 		sprite: "rocket1",
 		speed: ROCKET_SPEED,
-		speedMultiplier: 1,
+		speedMultiplier: tier.speed,
 		tags: [tags.friendly, tags.rocket],
 		impact: {
 			damage: player.rocketImpactDmg,
-			damageMultiplier: player.rocketDmgMultiplier,
+			damageMultiplier: player.rocketDmgMultiplier * tier.power,
 		},
 		splash: {
 			damage: player.rocketSplashDmg,
-			radius: player.rocketSplashSize * player.rocketSplashSizeMultiplier,
-			damageMultiplier: player.rocketDmgMultiplier,
+			radius:
+				player.rocketSplashSize *
+				player.rocketSplashSizeMultiplier *
+				tier.speed,
+			damageMultiplier: player.rocketDmgMultiplier * tier.power,
 			damageFalloff: player.rocketSplashDmgFallOverDistance,
 			falloffDistance: player.rocketSplashDmgFallDistanceValue,
 		},

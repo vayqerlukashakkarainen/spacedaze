@@ -58,6 +58,11 @@ import type {
 	AbilityId,
 	AbilitySlot,
 } from "./abilityLoadoutService"
+import {
+	registerAbilityTier,
+	rollAbilityTierState,
+	type AbilityTierState,
+} from "./abilityTierService"
 
 export { RewardRarity }
 export type { RewardKind, RewardSource }
@@ -110,6 +115,7 @@ export interface Reward {
 	activeModuleId?: ActiveModuleId
 	abilityId?: AbilityId
 	abilitySlot?: AbilitySlot
+	abilityTier?: AbilityTierState
 	levelIndex?: number
 	newDiscovery?: boolean
 }
@@ -148,6 +154,7 @@ const STANDARD_DRONE_REQUIRED_UPGRADES = new Set([
 	"followerMedic",
 	"followerSalvager",
 	"sacrificialProtocol",
+	"droneFusion",
 ])
 
 const powerupRewardRegistry: Record<PowerupKey, RewardDefinition> = {
@@ -459,7 +466,12 @@ export function rollWeaponChestRewardChoices(
 			? matching
 			: getNearestRarityPool(candidates, targetRarity)
 		const selected = pickWeighted(selectionPool, "crate")
-		const reward = toReward(selected)
+		const reward = toReward(
+			selected,
+			selected && canResolveAtRarity(selected, targetRarity)
+				? targetRarity
+				: selected?.rarity
+		)
 		if (!reward) break
 		rewards.push(reward)
 	}
@@ -539,6 +551,7 @@ function rollDropRarity(
 export function applyReward(reward: Reward, pos: Vec2): boolean {
 	if (reward.abilityId && reward.abilitySlot) {
 		reward.newDiscovery = discoverAbility(reward.abilityId)
+		if (reward.abilityTier) registerAbilityTier(reward.abilityTier)
 		return true
 	}
 
@@ -590,14 +603,18 @@ function buildActiveModuleReward(
 		abilityId: module.id,
 		abilitySlot: "secondary",
 		name: module.name,
-		description: `${module.description} Unlocks for your next run.`,
+		description: module.description,
 		stats: {
 			SLOT: "SECONDARY",
 			...module.stats,
 		},
 		sprite: module.icon,
 		rarity: module.rarity,
-		progression: fixedProgression(module.rarity, "once", "permanent"),
+		progression: scalingProgression(
+			RewardRarity.Common,
+			"once",
+			"permanent"
+		),
 		allowedSources: ["crate", "enemy", "boss"],
 		weights: {
 			crate: module.crateWeight,
@@ -641,7 +658,7 @@ function buildWeaponReward(weapon: WeaponDefinition): RewardDefinition {
 		abilityId: weapon.id,
 		abilitySlot: "primary",
 		name: weapon.name,
-		description: `${weapon.description} Unlocks for your next run.`,
+		description: weapon.description,
 		stats: {
 			SLOT: "PRIMARY",
 			DAMAGE: formatMultiplier(weapon.damageMultiplier),
@@ -652,10 +669,8 @@ function buildWeaponReward(weapon: WeaponDefinition): RewardDefinition {
 		rarity: weapon.id === "standardBlaster"
 			? RewardRarity.Common
 			: RewardRarity.Rare,
-		progression: fixedProgression(
-			weapon.id === "standardBlaster"
-				? RewardRarity.Common
-				: RewardRarity.Rare,
+		progression: scalingProgression(
+			RewardRarity.Common,
 			"once",
 			"permanent"
 		),
@@ -676,14 +691,18 @@ function buildAbilityReward(
 		abilityId: ability.id,
 		abilitySlot: ability.slot,
 		name: ability.name,
-		description: `${ability.description} Unlocks for your next run.`,
+		description: ability.description,
 		stats: {
 			SLOT: ability.slot.toUpperCase(),
 			RESOURCE: ability.resource.type.toUpperCase(),
 		},
 		sprite: ability.icon,
 		rarity: ability.rarity,
-		progression: fixedProgression(ability.rarity, "once", "permanent"),
+		progression: scalingProgression(
+			RewardRarity.Common,
+			"once",
+			"permanent"
+		),
 		allowedSources: ["crate", "enemy", "boss"],
 		weights: ability.weights,
 		minimumHubLevel: ability.minimumHubLevel,
@@ -943,7 +962,16 @@ function toReward(
 	const scaledEffects = level
 		? scaleUpgradeEffects(level.effects, definition.rarity, rarity)
 		: undefined
-	const scaledStats = scaledEffects
+	const abilityTier = definition.abilityId && definition.abilitySlot
+		? rollAbilityTierState(
+			definition.abilityId,
+			definition.abilitySlot,
+			rarity
+		)
+		: undefined
+	const scaledStats = abilityTier
+		? formatAbilityTierStats(definition, abilityTier)
+		: scaledEffects
 		? formatUpgradeStats(scaledEffects)
 		: scaleQuantityStats(definition.stats, quantity)
 	const description = level && scaledEffects
@@ -967,7 +995,61 @@ function toReward(
 		activeModuleId: definition.activeModuleId,
 		abilityId: definition.abilityId,
 		abilitySlot: definition.abilitySlot,
+		abilityTier,
 		levelIndex: definition.levelIndex,
+	}
+}
+
+function formatAbilityTierStats(
+	definition: RewardDefinition,
+	tier: AbilityTierState
+): Readonly<Record<string, number | string>> {
+	const values = tier.values
+	if (definition.abilitySlot === "primary" && definition.weaponId) {
+		const weapon = WEAPONS.find((candidate) => candidate.id === definition.weaponId)
+		if (weapon) {
+			const trigger = getWeaponTriggerModifier(weapon)
+			return {
+				DAMAGE: formatMultiplier(weapon.damageMultiplier * values.power),
+				"PROJECTILE SPEED": formatMultiplier(
+					weapon.projectileSpeedMultiplier * values.speed
+				),
+				"FIRE RATE": trigger.usesCooldown
+					? `${(values.recovery / weapon.fireCooldown).toFixed(1)}/S`
+					: "PER CLICK",
+			}
+		}
+	}
+	if (definition.abilitySlot === "secondary" && definition.activeModuleId) {
+		const module = ACTIVE_MODULES.find(
+			(candidate) => candidate.id === definition.activeModuleId
+		)
+		return {
+			POWER: formatMultiplier(values.power),
+			SPEED: formatMultiplier(values.speed),
+			COOLDOWN: module
+				? `${(module.cooldown / values.recovery).toFixed(1)}S`
+				: formatMultiplier(values.recovery),
+		}
+	}
+	if (definition.abilityId === "phaseJump") {
+		return {
+			DISTANCE: Math.round(75 * values.speed),
+			RECHARGE: `${(2.5 / values.recovery).toFixed(1)}S`,
+			POWER: formatMultiplier(values.power),
+		}
+	}
+	if (definition.abilitySlot === "mobility") {
+		return {
+			SPEED: formatMultiplier(values.speed),
+			POWER: formatMultiplier(values.power),
+			RECOVERY: formatMultiplier(values.recovery),
+		}
+	}
+	return {
+		DAMAGE: Math.round(45 * values.power),
+		RADIUS: Math.round(260 * values.speed),
+		CHARGE: Math.round(100 / values.recovery),
 	}
 }
 

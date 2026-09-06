@@ -13,7 +13,11 @@ import {
 	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService"
-import { easeDirection, registerHitAnimation } from "../shared"
+import {
+	applyDirectionalSteeringLean,
+	easeDirection,
+	registerHitAnimation,
+} from "../shared"
 import { tags } from "../tags"
 import { randomExplosion } from "../util"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
@@ -46,6 +50,7 @@ const swarmDecisionSystem = createCadencedSystem<SwarmDecisionEntry>({
 	updateBucket(entries) {
 		for (let index = 0; index < entries.length; index++) {
 			const entry = entries[index]
+			if (!entry) continue
 			if (!entry.owner.exists() || entry.owner.paused) continue
 			updateSwarmDecision(entry.owner, entry.speedMultiplier)
 		}
@@ -60,7 +65,9 @@ const swarmContinuousSystem = createContinuousSystem<SwarmContinuousEntry>({
 	id: "swarm",
 	updateBatch(entries) {
 		for (let index = 0; index < entries.length; index++) {
-			const enemy = entries[index].owner
+			const entry = entries[index]
+			if (!entry) continue
+			const enemy = entry.owner
 			if (!enemy.exists() || enemy.paused) continue
 			const command = enemy.swarmCommand as SwarmCommand | undefined
 			if (enemy.desiredDirection) {
@@ -79,6 +86,12 @@ const swarmContinuousSystem = createContinuousSystem<SwarmContinuousEntry>({
 					)
 				)
 				enemy.angle = enemy.moveDirection.angle() + 90
+				applyDirectionalSteeringLean(
+					enemy,
+					enemy.moveDirection,
+					enemy.desiredDirection,
+					enemy.baseScale
+				)
 			}
 
 			checkProjectileIntersection(
@@ -145,6 +158,7 @@ export function spawnSwarmEnemy(
 			moveDirection: initialDirection,
 			desiredDirection: initialDirection,
 			desiredSpeed: 48 * profile.speedMultiplier,
+			baseScale: spriteScale,
 			hiveMind,
 			swarmCommand: undefined as SwarmCommand | undefined,
 		},
@@ -226,6 +240,7 @@ export function spawnHiveMind(
 			damage: profile.damage,
 			threatRank: ENEMY_THREAT_RANK.hiveMind,
 			moveDirection: k.vec2(0, -1),
+			baseScale: spriteScale,
 			members: [] as GameObj[],
 			phase: "gather" as SwarmPhase,
 			phaseTimer: 0,
@@ -431,10 +446,12 @@ function moveHiveMind(hive: GameObj, speedMultiplier: number) {
 	const targetDistance = hive.phase === "charge" ? 245 : 225
 	const target = playerObj.pos.sub(direction.scale(targetDistance))
 	const toTarget = target.sub(hive.pos)
+	let desiredDirection = direction
 	if (toTarget.len() > 4) {
+		desiredDirection = toTarget.unit()
 		hive.moveDirection = easeDirection(
 			hive.moveDirection,
-			toTarget.unit(),
+			desiredDirection,
 			HIVEMIND_TURN_RESPONSE,
 			k.dt() * hive.getTimescale()
 		)
@@ -453,6 +470,13 @@ function moveHiveMind(hive: GameObj, speedMultiplier: number) {
 		)
 		hive.angle = hive.moveDirection.angle() + 90
 	}
+	applyDirectionalSteeringLean(
+		hive,
+		hive.moveDirection,
+		desiredDirection,
+		hive.baseScale,
+		true
+	)
 }
 
 function centeredIndex(index: number) {

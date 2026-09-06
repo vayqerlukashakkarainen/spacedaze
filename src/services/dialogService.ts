@@ -1,26 +1,37 @@
-import type { GameObj, KEventController } from "kaplay"
+import type { Color, GameObj, KEventController } from "kaplay"
 import { k, layers } from "../main"
 import { tags } from "../tags"
 import {
+	createUiInlineReference,
 	createInputPromptRow,
+	formatUiInlineReferenceText,
 	UI_COLORS,
 	UI_FONT_SIZES,
 } from "../ui/common"
+import { getDroidDefinition, type DroidId } from "../npcs/droidRegistry"
+import {
+	getRewardDefinition,
+	REWARD_RARITY_COLORS,
+} from "./rewardService"
 import { audioService } from "./audioService"
 import {
 	getDialogueVoiceProfile,
 	playDialogueCharacter,
 } from "./dialogueVoiceService"
+import { acquireGameplayPause } from "./gameplayPauseService"
+import { runtimeDebug } from "./runtimeDebugService"
 
 export interface DialogueLine {
 	speaker: string
 	text: string | readonly DialogueTextSegment[]
 	autoAdvance?: boolean
+	holdAfter?: number
 	disturbance?: boolean
 }
 
 export interface DialogueTextSegment {
 	text: string
+	reference?: DialogueReference
 	waitAfter?: number
 	color?: readonly [number, number, number]
 	flash?: boolean
@@ -33,22 +44,52 @@ export interface DialogueTextSegment {
 	shake?: number
 }
 
+export type DialogueReference =
+	| { kind: "reward"; id: string }
+	| { kind: "npc"; id: DroidId }
+
+interface ResolvedDialogueReference {
+	name: string
+	sprite: string
+	color: Color
+}
+
+const dialogueReferenceCache = new Map<string, ResolvedDialogueReference>()
+
 export interface DialogueOptions {
+	channel?: "modal" | "comms"
+	gameplay?: "paused" | "live"
+	advance?: "manual" | "auto"
+	input?: "capture" | "passthrough"
+	autoAdvanceDelay?: number
 	blackout?: boolean
 	overlayOpacity?: number
+	pauseGameplay?: boolean
 	pauseVisualEffects?: boolean
 	onComplete?: () => void
 	onSkip?: () => void
 	skipLabel?: string
 }
 
+export type DialogueResult = "completed" | "skipped" | "cancelled"
+
 let activeDialog: GameObj | undefined
-let activeResolve: (() => void) | undefined
-let activeClose: (() => void) | undefined
+let activeResolve: ((result: DialogueResult) => void) | undefined
+let activeClose: ((result?: DialogueResult) => void) | undefined
 let activeDialogShake: ((strength: number) => void) | undefined
+let activeBlocksGameplay = false
+let activeCapturesInput = false
 
 export function dialogOpen() {
 	return activeDialog?.exists() === true
+}
+
+export function dialogBlocksGameplay() {
+	return dialogOpen() && activeBlocksGameplay
+}
+
+export function dialogCapturesInput() {
+	return dialogOpen() && activeCapturesInput
 }
 
 export function showDialogue(
@@ -58,12 +99,29 @@ export function showDialogue(
 	hideDialogue()
 	if (lines.length === 0) {
 		options.onComplete?.()
-		return Promise.resolve()
+		return Promise.resolve<DialogueResult>("completed")
 	}
 
-	const pausedObjects = pauseGameplayObjects(
-		options.pauseVisualEffects !== false
-	)
+	const gameplayMode = options.gameplay ??
+		(options.pauseGameplay === false ? "live" : "paused")
+	const releaseGameplayPause = gameplayMode === "paused"
+		? acquireGameplayPause(
+			"dialog",
+			getGameplayObjects(options.pauseVisualEffects !== false)
+		)
+		: () => {}
+	const autoFlow = options.advance === "auto"
+	const acceptsManualInput = !autoFlow
+	const capturesInput = options.input !== "passthrough" && acceptsManualInput
+	runtimeDebug.log("dialogue", "dialogue:open", {
+		lines: lines.length,
+		firstSpeaker: lines[0]?.speaker,
+		channel: options.channel ?? "modal",
+		gameplay: gameplayMode,
+		advance: autoFlow ? "auto" : "manual",
+	})
+	activeBlocksGameplay = gameplayMode === "paused"
+	activeCapturesInput = capturesInput
 	let lineIndex = 0
 	let visibleCharacters = 0
 	let waitRemaining = 0
@@ -72,6 +130,10 @@ export function showDialogue(
 	let shakeStrength = 0
 	let shakeRemaining = 0
 	let shakeOffset = k.vec2(0, 0)
+	let autoHoldRemaining: number | undefined
+	let disturbanceSound: ReturnType<typeof audioService.playSound> | undefined
+	let referenceLineIndex = -1
+	let referenceObjects: GameObj[] = []
 	const controllers: KEventController[] = []
 	const root = k.add([
 		k.pos(0, 0),
@@ -88,7 +150,7 @@ export function showDialogue(
 
 	const overlayOpacity = options.blackout === true
 		? 1
-		: options.overlayOpacity ?? 0.64
+		: options.overlayOpacity ?? (options.channel === "comms" ? 0 : 0.64)
 	if (overlayOpacity > 0) {
 		root.add([
 			k.pos(0, 0),
@@ -129,9 +191,12 @@ export function showDialogue(
 				const segment = getDialogueSegmentAt(line, index)
 				const disturbance = getDialogueDisturbance(line, index)
 				if (!segment) return {}
+				const reference = resolveDialogueReference(segment.reference)
 				return {
 					pos: disturbance?.offset,
-					color: segment.color ? k.rgb(...segment.color) : undefined,
+					color: segment.color
+						? k.rgb(...segment.color)
+						: reference?.color,
 					opacity: disturbance?.missing
 						? 0
 						: segment.flash
@@ -171,15 +236,17 @@ export function showDialogue(
 		speaker.color = speakerColor
 		speakerRail.color = speakerColor
 		body.text = lineText.slice(0, Math.floor(visibleCharacters))
-		prompt.opacity = line.autoAdvance
+		syncDialogueReferences(line, lineText)
+		prompt.opacity = line.autoAdvance || autoFlow
 			? 0
 			: dialogueLineComplete(line)
 			? k.wave(0.4, 1, k.time() * 4)
 			: 0.3
+		syncDisturbanceSound(line)
 	}
 	const advance = (automatic: boolean = false) => {
 		const line = lines[lineIndex]
-		if (line.autoAdvance && !automatic) return
+		if ((line.autoAdvance || autoFlow) && !automatic) return
 		const lineText = getDialogueLineText(line)
 		if (!dialogueLineComplete(line)) {
 			if (waitRemaining > 0) return
@@ -193,30 +260,49 @@ export function showDialogue(
 			return
 		}
 		if (lineIndex < lines.length - 1) {
+			const previousSpeaker = line.speaker
 			lineIndex++
+			runtimeDebug.log("dialogue", "dialogue:advance", {
+				fromLine: lineIndex - 1,
+				toLine: lineIndex,
+				previousSpeaker,
+				nextSpeaker: lines[lineIndex].speaker,
+				automatic,
+			})
 			visibleCharacters = 0
 			waitRemaining = 0
 			pauseIndex = 0
+			autoHoldRemaining = undefined
 			renderLine()
 			return
 		}
-		finish(true)
+		finish("completed")
 	}
-	const finish = (completed: boolean) => {
+	const finish = (result: DialogueResult) => {
 		if (closing) return
 		closing = true
+		runtimeDebug.log("dialogue", "dialogue:close", {
+			result,
+			lineIndex,
+			speaker: lines[lineIndex]?.speaker,
+		})
 		for (const controller of controllers) controller.cancel()
-		resumeGameplayObjects(pausedObjects)
+		releaseGameplayPause()
+		stopDisturbanceSound()
 		if (root.exists()) k.destroy(root)
-		if (activeDialog === root) activeDialog = undefined
+		if (activeDialog === root) {
+			activeDialog = undefined
+			activeBlocksGameplay = false
+			activeCapturesInput = false
+		}
 		if (activeDialog === undefined) activeDialogShake = undefined
 		activeClose = undefined
 		const resolve = activeResolve
 		activeResolve = undefined
-		if (completed) options.onComplete?.()
-		resolve?.()
+		if (result === "completed") options.onComplete?.()
+		resolve?.(result)
 	}
-	activeClose = () => finish(false)
+	activeClose = (result = "cancelled") => finish(result)
 
 	root.onUpdate(() => {
 		root.pos = root.pos.sub(shakeOffset)
@@ -266,35 +352,145 @@ export function showDialogue(
 			}
 		}
 		renderLine()
-		if (dialogueLineComplete(line) && line.autoAdvance) advance(true)
+		if (dialogueLineComplete(line) && (line.autoAdvance || autoFlow)) {
+			if (autoHoldRemaining === undefined) {
+				autoHoldRemaining = line.holdAfter ??
+					(line.autoAdvance
+						? 0
+						: options.autoAdvanceDelay ?? getAutomaticHold(lineText))
+			}
+			autoHoldRemaining = Math.max(0, autoHoldRemaining - k.dt())
+			if (autoHoldRemaining <= 0) advance(true)
+		}
 	})
-	controllers.push(k.onKeyPress("enter", () => advance(false)))
-	controllers.push(k.onKeyPress("space", () => advance(false)))
-	controllers.push(k.onMousePress("left", () => advance(false)))
+	if (acceptsManualInput) {
+		controllers.push(k.onKeyPress("enter", () => advance(false)))
+		controllers.push(k.onKeyPress("space", () => advance(false)))
+		controllers.push(k.onMousePress("left", () => advance(false)))
+	}
 	if (options.onSkip) {
 		controllers.push(k.onKeyPress("escape", () => {
-			finish(false)
+			finish("skipped")
 			options.onSkip?.()
 		}))
 	}
 	renderLine()
 
-	return new Promise<void>((resolve) => {
+	return new Promise<DialogueResult>((resolve) => {
 		activeResolve = resolve
 	})
+
+	function syncDisturbanceSound(line: DialogueLine) {
+		if (!line.disturbance) {
+			stopDisturbanceSound()
+			return
+		}
+		if (disturbanceSound) return
+		disturbanceSound = audioService.playSound("dialogue_scramble", {
+			volume: 0.65,
+			loop: true,
+		})
+	}
+
+	function stopDisturbanceSound() {
+		if (!disturbanceSound) return
+		audioService.stopSound(disturbanceSound, "dialogue-closed")
+		disturbanceSound = undefined
+	}
+
+	function syncDialogueReferences(line: DialogueLine, lineText: string) {
+		if (referenceLineIndex !== lineIndex) {
+			for (const object of referenceObjects) {
+				if (object.exists()) k.destroy(object)
+			}
+			referenceObjects = []
+			referenceLineIndex = lineIndex
+			if (typeof line.text === "string") return
+			const formatted = k.formatText({
+				text: lineText,
+				font: "unscii",
+				size: UI_FONT_SIZES.subheading,
+				width: panelWidth - 44,
+				lineSpacing: 6,
+			})
+			let segmentStart = 0
+			for (const { segment, text: renderedText } of getRenderedDialogueSegments(line)) {
+				const segmentEnd = segmentStart + renderedText.length
+				const resolved = resolveDialogueReference(segment.reference)
+				if (resolved) {
+					const labelStart = segmentEnd - resolved.name.length
+					const icon = createUiInlineReference(root, {
+						bodyPos: k.vec2(panelX + 22, panelY + 50),
+						formattedText: formatted,
+						segmentStart,
+						labelStart,
+						labelEnd: segmentEnd,
+						sprite: resolved.sprite,
+						color: resolved.color,
+						revealAt: labelStart,
+					})
+					if (icon) {
+						referenceObjects.push(icon)
+					}
+				}
+				segmentStart = segmentEnd
+			}
+		}
+		for (const object of referenceObjects) {
+			const revealAt = (object as GameObj & { revealAt?: number }).revealAt ?? 0
+			object.hidden = visibleCharacters < revealAt
+		}
+	}
+}
+
+function getAutomaticHold(text: string) {
+	return Math.max(1.4, Math.min(3.2, text.length / 18))
+}
+
+function getGameplayObjects(pauseVisualEffects: boolean) {
+	return k.get<GameObj>(tags.gameLoop).filter(
+		(object) => pauseVisualEffects || !isVisualEffect(object)
+	)
+}
+
+function isVisualEffect(object: GameObj) {
+	const objectLayer = (object as GameObj & { layer?: string }).layer
+	return objectLayer === layers.bg ||
+		objectLayer === layers.gameEffects ||
+		objectLayer === layers.gameText
 }
 
 function getDialogueLineText(line: DialogueLine) {
 	return typeof line.text === "string"
 		? line.text
-		: line.text.map((segment) => segment.text).join("")
+		: getRenderedDialogueSegments(line).map((entry) => entry.text).join("")
+}
+
+function getDialogueSegmentText(segment: DialogueTextSegment) {
+	if (!segment.reference) return segment.text
+	const resolved = resolveDialogueReference(segment.reference)
+	return formatUiInlineReferenceText(resolved?.name ?? segment.text, {
+		font: "unscii",
+		fontSize: UI_FONT_SIZES.subheading,
+	})
+}
+
+function getRenderedDialogueSegments(line: DialogueLine) {
+	if (typeof line.text === "string") return []
+	return line.text.map((segment, index) => {
+		let text = getDialogueSegmentText(segment)
+		if (!segment.reference && line.text[index + 1]?.reference) {
+			text = text.trimEnd()
+		}
+		return { segment, text }
+	})
 }
 
 function getDialogueLinePauses(line: DialogueLine) {
 	if (typeof line.text === "string") return []
 	let characterCount = 0
-	return line.text.flatMap((segment) => {
-		characterCount += segment.text.length
+	return getRenderedDialogueSegments(line).flatMap(({ segment, text }) => {
+		characterCount += text.length
 		return segment.waitAfter === undefined
 			? []
 			: [{
@@ -312,8 +508,8 @@ function getDialogueSegmentAt(
 		return { text: line.text }
 	}
 	let segmentStart = 0
-	for (const segment of line.text) {
-		const segmentEnd = segmentStart + segment.text.length
+	for (const { segment, text } of getRenderedDialogueSegments(line)) {
+		const segmentEnd = segmentStart + text.length
 		if (characterIndex >= segmentStart && characterIndex < segmentEnd) {
 			return segment
 		}
@@ -366,7 +562,7 @@ function triggerDialogueSegmentCues(
 ) {
 	if (typeof line.text === "string") return
 	let segmentStart = 0
-	for (const segment of line.text) {
+	for (const { segment, text } of getRenderedDialogueSegments(line)) {
 		if (
 			segmentStart >= previousCharacterCount &&
 			segmentStart < nextCharacterCount
@@ -379,39 +575,42 @@ function triggerDialogueSegmentCues(
 			}
 			if (segment.shake) shakeDialogue(segment.shake)
 		}
-		segmentStart += segment.text.length
+		segmentStart += text.length
 	}
 }
 
+function resolveDialogueReference(reference: DialogueReference | undefined) {
+	if (!reference) return undefined
+	const cacheKey = `${reference.kind}:${reference.id}`
+	const cached = dialogueReferenceCache.get(cacheKey)
+	if (cached) return cached
+	if (reference.kind === "npc") {
+		const npc = getDroidDefinition(reference.id)
+		if (!npc) return undefined
+		const resolved = {
+			name: npc.name,
+			sprite: npc.sprite,
+			color: k.rgb(...UI_COLORS.accent),
+		}
+		dialogueReferenceCache.set(cacheKey, resolved)
+		return resolved
+	}
+	const reward = getRewardDefinition(reference.id)
+	if (!reward) return undefined
+	const resolved = {
+		name: reward.name,
+		sprite: reward.sprite,
+		color: k.rgb(...REWARD_RARITY_COLORS[reward.rarity]),
+	}
+	dialogueReferenceCache.set(cacheKey, resolved)
+	return resolved
+}
+
 export function hideDialogue() {
-	activeClose?.()
+	activeClose?.("cancelled")
 }
 
 export function shakeDialogue(strength: number) {
 	k.shake(strength)
 	activeDialogShake?.(strength)
-}
-
-function pauseGameplayObjects(pauseVisualEffects: boolean) {
-	const pausedObjects: GameObj[] = []
-	for (const object of k.get<GameObj>(tags.gameLoop)) {
-		if (object.paused) continue
-		if (!pauseVisualEffects && isVisualEffect(object)) continue
-		object.paused = true
-		pausedObjects.push(object)
-	}
-	return pausedObjects
-}
-
-function isVisualEffect(object: GameObj) {
-	const objectLayer = (object as GameObj & { layer?: string }).layer
-	return objectLayer === layers.bg ||
-		objectLayer === layers.gameEffects ||
-		objectLayer === layers.gameText
-}
-
-function resumeGameplayObjects(objects: readonly GameObj[]) {
-	for (const object of objects) {
-		if (object.exists()) object.paused = false
-	}
 }

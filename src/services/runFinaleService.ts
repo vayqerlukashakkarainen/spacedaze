@@ -131,7 +131,9 @@ export function getRunFinaleRampProgress() {
 
 export function resetRunFinale() {
 	clearRunFinaleBattleZone()
-	transitionRampSound?.stop()
+	if (transitionRampSound) {
+		audioService.stopSound(transitionRampSound, "run-finale-reset")
+	}
 	transitionRampSound = undefined
 	finale?.reset()
 	finale = undefined

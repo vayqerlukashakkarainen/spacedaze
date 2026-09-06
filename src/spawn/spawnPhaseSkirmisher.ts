@@ -6,7 +6,7 @@ import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { spawnLineTelegraph } from "../services/enemyTelegraphService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/threatService"
-import { easeDirection } from "../shared"
+import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
@@ -33,6 +33,12 @@ export function spawnPhaseSkirmisher(pos: Vec2, hp = 5, options: EnemySpawnOptio
 			skirmisher.moveDirection = easeDirection(skirmisher.moveDirection, desired, 5, delta)
 			skirmisher.move(skirmisher.moveDirection.scale(105 * profile.speedMultiplier * velocityScale() * skirmisher.getTimescale()))
 			skirmisher.angle = skirmisher.moveDirection.angle() + 90
+			applyDirectionalSteeringLean(
+				skirmisher,
+				skirmisher.moveDirection,
+				desired,
+				profile.scale
+			)
 			skirmisher.blinkTimer -= delta
 			if (skirmisher.blinkTimer <= 0 && distance < 420) beginBlink(skirmisher, profile.elite, options.tags)
 		}

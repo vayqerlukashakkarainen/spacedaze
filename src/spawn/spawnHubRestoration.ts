@@ -6,6 +6,7 @@ import {
 	updateLocalLight,
 } from "../services/localLightService"
 import { tags } from "../tags"
+import { applySteeringLean, lerpAngleBetweenPos } from "../shared"
 
 const RESTORATION_TIER_COUNT = 8
 const RESTORATION_RING_RADIUS = 235
@@ -17,7 +18,7 @@ const HUB_LAMP_PLATFORM_COLOR = [52, 61, 68] as const
 const HAULER_SPEED = 145
 const HAULER_DEBRIS_COUNT = 3
 
-type HaulerPhase = "waiting" | "outbound" | "returning"
+type HaulerPhase = "waiting" | "outbound" | "scavenging" | "returning"
 
 export function spawnHubRestoration(
 	center: Vec2,
@@ -216,11 +217,13 @@ function spawnSalvageHaulers(
 	]
 	for (let index = 0; index < outsideDestinations.length; index++) {
 		const dockPos = phaseStationPos.add(dockingOffsets[index])
+		const outsideDestination = outsideDestinations[index]
 		const hauler = k.add([
 			k.pos(dockPos),
 			k.sprite("hub_salvage_hauler"),
 			k.anchor("center"),
 			k.rotate(0),
+			k.scale(1),
 			k.color(k.WHITE),
 			k.opacity(0.92),
 			k.layer(layers.game2),
@@ -228,33 +231,63 @@ function spawnSalvageHaulers(
 			{
 				phase: "waiting" as HaulerPhase,
 				phaseTimer: 1.5 + index * 2.3,
+				travelStart: dockPos.clone(),
+				travelDestination: outsideDestination.clone(),
+				travelElapsed: 0,
+				travelDuration: 1,
+				beginTravel(phase: "outbound" | "returning", destination: Vec2) {
+					this.phase = phase
+					this.travelStart = this.pos.clone()
+					this.travelDestination = destination.clone()
+					this.travelElapsed = 0
+					this.travelDuration = Math.max(
+						0.35,
+						this.travelStart.dist(destination) / HAULER_SPEED
+					)
+				},
 				update() {
-					if (this.phase === "waiting") {
+					if (this.phase === "waiting" || this.phase === "scavenging") {
 						this.phaseTimer -= k.dt()
-						if (this.phaseTimer <= 0) this.phase = "outbound"
+						applySteeringLean(this, this.angle, this.angle)
+						if (this.phaseTimer > 0) return
+						if (this.phase === "waiting") {
+							this.beginTravel("outbound", outsideDestination)
+						} else {
+							this.beginTravel("returning", dockPos)
+						}
 						return
 					}
-					const destination = this.phase === "outbound"
-						? outsideDestinations[index]
-						: dockPos
-					const toDestination = destination.sub(this.pos)
-					const distance = toDestination.len()
-					if (distance <= 3) {
-						this.pos = destination
+					this.travelElapsed += k.dt()
+					const progress = k.clamp(
+						this.travelElapsed / this.travelDuration,
+						0,
+						1
+					)
+					const eased = progress < 0.5
+						? 4 * progress * progress * progress
+						: 1 - Math.pow(-2 * progress + 2, 3) / 2
+					const { lerp, correctedDesiredRot } = lerpAngleBetweenPos(
+						this.angle,
+						this.pos,
+						this.travelDestination,
+						1 - Math.exp(-6 * k.dt()),
+						-90
+					)
+					this.angle = lerp
+					applySteeringLean(this, lerp, correctedDesiredRot)
+					this.pos = this.travelStart.lerp(this.travelDestination, eased)
+
+					if (progress >= 1) {
+						this.pos = this.travelDestination
 						if (this.phase === "outbound") {
-							this.phase = "returning"
+							this.phase = "scavenging"
+							this.phaseTimer = k.rand(0.45, 0.85)
 						} else {
 							this.phase = "waiting"
 							this.phaseTimer = 2.5 + index * 0.7
 							spawnHaulerDepositPulse(dockPos)
 						}
-						return
 					}
-					const direction = toDestination.scale(1 / distance)
-					this.pos = this.pos.add(
-						direction.scale(Math.min(distance, HAULER_SPEED * k.dt()))
-					)
-					this.angle = direction.angle() + 90
 				},
 			},
 			tags.hubRestoration,

@@ -7,7 +7,7 @@ import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
 } from "../services/threatService"
-import { easeDirection } from "../shared"
+import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
@@ -58,9 +58,10 @@ export function spawnOrbitLancer(
 				: k.vec2(0)
 		const desired = tangent.add(radial)
 		if (desired.len() > 0) {
+			const desiredDirection = desired.unit()
 			lancer.moveDirection = easeDirection(
 				lancer.moveDirection,
-				desired.unit(),
+				desiredDirection,
 				4.8,
 				delta
 			)
@@ -68,6 +69,12 @@ export function spawnOrbitLancer(
 				112 * profile.speedMultiplier * velocityScale() * lancer.getTimescale()
 			))
 			lancer.angle = lancer.moveDirection.angle() + 90
+			applyDirectionalSteeringLean(
+				lancer,
+				lancer.moveDirection,
+				desiredDirection,
+				profile.scale
+			)
 		}
 
 		lancer.fireTimer -= delta * (lancer.shieldFireRateMultiplier ?? 1)

@@ -3,10 +3,10 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-guard (4...6).contains(CommandLine.arguments.count),
+guard (4...7).contains(CommandLine.arguments.count),
 	let outputSize = Int(CommandLine.arguments[3]),
 	outputSize > 0 else {
-	fputs("Usage: swift scripts/prepareGeneratedSprite.swift <input.png> <output.png> <size> [logical-size] [1bit]\n", stderr)
+	fputs("Usage: swift scripts/prepareGeneratedSprite.swift <input.png> <output.png> <size> [logical-size] [grayscale|ink|dither] [ink-threshold]\n", stderr)
 	exit(1)
 }
 let requestedLogicalSize = CommandLine.arguments.count >= 5
@@ -19,11 +19,20 @@ guard let logicalSize = requestedLogicalSize,
 	fputs("logical-size must divide size evenly\n", stderr)
 	exit(1)
 }
-let paletteMode = CommandLine.arguments.count == 6
+let requestedStyle = CommandLine.arguments.count >= 6
 	? CommandLine.arguments[5]
 	: "grayscale"
-guard paletteMode == "grayscale" || paletteMode == "1bit" else {
-	fputs("palette mode must be 1bit when supplied\n", stderr)
+let style = requestedStyle == "1bit" ? "ink" : requestedStyle
+guard ["grayscale", "ink", "dither"].contains(style) else {
+	fputs("style must be grayscale, ink, or dither\n", stderr)
+	exit(1)
+}
+let requestedInkThreshold = CommandLine.arguments.count == 7
+	? Int(CommandLine.arguments[6])
+	: 128
+guard let inkThreshold = requestedInkThreshold,
+	(0...255).contains(inkThreshold) else {
+	fputs("ink threshold must be between 0 and 255\n", stderr)
 	exit(1)
 }
 
@@ -54,10 +63,30 @@ let rendered = sourcePixels.withUnsafeMutableBytes { bytes -> Bool in
 }
 guard rendered else { exit(1) }
 
+let sourceHasTransparency = stride(from: 3, to: sourcePixels.count, by: 4)
+	.contains { sourcePixels[$0] == 0 }
+let cornerIndices = [
+	0,
+	width - 1,
+	(height - 1) * width,
+	height * width - 1,
+]
+let cornerLuminance = cornerIndices.reduce(0) { result, index in
+	let offset = index * 4
+	return result + Int(sourcePixels[offset]) + Int(sourcePixels[offset + 1]) + Int(sourcePixels[offset + 2])
+} / (cornerIndices.count * 3)
+let sourceHasDarkBackground = !sourceHasTransparency && cornerLuminance < 128
+
 func isBackgroundCandidate(_ index: Int) -> Bool {
 	let offset = index * 4
-	return sourcePixels[offset + 3] == 0 ||
-		sourcePixels[offset] >= 225 &&
+	if sourcePixels[offset + 3] == 0 { return true }
+	guard !sourceHasTransparency else { return false }
+	if sourceHasDarkBackground {
+		return sourcePixels[offset] <= 48 &&
+			sourcePixels[offset + 1] <= 48 &&
+			sourcePixels[offset + 2] <= 48
+	}
+	return sourcePixels[offset] >= 225 &&
 		sourcePixels[offset + 1] >= 225 &&
 		sourcePixels[offset + 2] >= 225
 }
@@ -119,9 +148,13 @@ let drawnWidth = max(1, Int((Double(sourceWidth) * fitScale).rounded()))
 let drawnHeight = max(1, Int((Double(sourceHeight) * fitScale).rounded()))
 let originX = (logicalSize - drawnWidth) / 2
 let originY = (logicalSize - drawnHeight) / 2
-let palette = paletteMode == "1bit"
-	? [UInt8(0), UInt8(255)]
-	: [UInt8(0), UInt8(88), UInt8(176), UInt8(255)]
+let grayscalePalette = [UInt8(0), UInt8(88), UInt8(176), UInt8(255)]
+let bayer4x4 = [
+	0, 8, 2, 10,
+	12, 4, 14, 6,
+	3, 11, 1, 9,
+	15, 7, 13, 5,
+]
 var logicalPixels = [UInt8](repeating: 0, count: logicalSize * logicalSize * 4)
 
 for targetY in 0..<drawnHeight {
@@ -145,16 +178,60 @@ for targetY in 0..<drawnHeight {
 		}
 		let sampleCount = max(1, (sourceEndX - sourceStartX) * (sourceEndY - sourceStartY))
 		if Double(occupied) / Double(sampleCount) < 0.18 { continue }
-		let average = UInt8(max(0, min(255, Int((luminance / Double(max(1, occupied))).rounded()))))
-		let gray = palette.min(by: {
-			abs(Int($0) - Int(average)) < abs(Int($1) - Int(average))
-		}) ?? average
+		let average = max(0, min(255, luminance / Double(max(1, occupied))))
+		let gray: UInt8
+		switch style {
+		case "ink":
+			gray = average >= Double(inkThreshold) ? 255 : 0
+		case "dither":
+			let matrixIndex = (targetY % 4) * 4 + targetX % 4
+			let threshold = (Double(bayer4x4[matrixIndex]) + 0.5) / 16 * 255
+			gray = average >= threshold ? 255 : 0
+		default:
+			let roundedAverage = UInt8(average.rounded())
+			gray = grayscalePalette.min(by: {
+				abs(Int($0) - Int(roundedAverage)) < abs(Int($1) - Int(roundedAverage))
+			}) ?? roundedAverage
+		}
 		let targetIndex = ((originY + targetY) * logicalSize + originX + targetX) * 4
 		logicalPixels[targetIndex] = gray
 		logicalPixels[targetIndex + 1] = gray
 		logicalPixels[targetIndex + 2] = gray
 		logicalPixels[targetIndex + 3] = 255
 	}
+}
+
+if style == "ink" {
+	var cleanedPixels = logicalPixels
+	for y in 0..<logicalSize {
+		for x in 0..<logicalSize {
+			let index = y * logicalSize + x
+			let offset = index * 4
+			if logicalPixels[offset + 3] == 0 { continue }
+			let value = logicalPixels[offset]
+			var sameColorNeighbors = 0
+			var oppositeColorNeighbors = 0
+			for neighborY in max(0, y - 1)...min(logicalSize - 1, y + 1) {
+				for neighborX in max(0, x - 1)...min(logicalSize - 1, x + 1) {
+					if neighborX == x && neighborY == y { continue }
+					let neighborOffset = (neighborY * logicalSize + neighborX) * 4
+					if logicalPixels[neighborOffset + 3] == 0 { continue }
+					if logicalPixels[neighborOffset] == value {
+						sameColorNeighbors += 1
+					} else {
+						oppositeColorNeighbors += 1
+					}
+				}
+			}
+			if sameColorNeighbors == 0 && oppositeColorNeighbors >= 3 {
+				let cleanedValue: UInt8 = value == 0 ? 255 : 0
+				cleanedPixels[offset] = cleanedValue
+				cleanedPixels[offset + 1] = cleanedValue
+				cleanedPixels[offset + 2] = cleanedValue
+			}
+		}
+	}
+	logicalPixels = cleanedPixels
 }
 
 let minimumComponentPixels = max(2, logicalSize / 32)
@@ -222,6 +299,15 @@ let outputImage = outputPixels.withUnsafeMutableBytes { bytes -> CGImage? in
 	) else { return nil }
 	return context.makeImage()
 }
+do {
+	try FileManager.default.createDirectory(
+		at: output.deletingLastPathComponent(),
+		withIntermediateDirectories: true
+	)
+} catch {
+	fputs("Could not create output directory\n", stderr)
+	exit(1)
+}
 guard let outputImage,
 	let destination = CGImageDestinationCreateWithURL(
 		output as CFURL,
@@ -231,4 +317,4 @@ guard let outputImage,
 	) else { exit(1) }
 CGImageDestinationAddImage(destination, outputImage, nil)
 guard CGImageDestinationFinalize(destination) else { exit(1) }
-print("Prepared \(output.lastPathComponent) at \(outputSize)x\(outputSize) from \(logicalSize)x\(logicalSize) logical pixels using \(paletteMode)")
+print("Prepared \(output.lastPathComponent) at \(outputSize)x\(outputSize) from \(logicalSize)x\(logicalSize) logical pixels using \(style)")

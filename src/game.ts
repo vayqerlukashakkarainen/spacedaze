@@ -67,10 +67,9 @@ import {
 	findSpatialNearby,
 	forEachSpatialNearby,
 } from "./services/runtimeSpatialIndexService";
-import { resetEquippedWeapon } from "./services/weaponService";
 import {
 	hasEquippedActiveModule,
-	resetActiveModule,
+	resetActiveModuleCooldown,
 } from "./services/activeModuleService";
 import { shouldStartPrologue } from "./services/narrativeService";
 import {
@@ -78,6 +77,7 @@ import {
 	cancelPrologueExperience,
 	finishPrologueOnDeath,
 	showHubIntroductionIfNeeded,
+	showPrologueHubRepair,
 	showPrologueRecoveryDialogue,
 } from "./services/prologueService";
 import { hideDialogue } from "./services/dialogService";
@@ -93,6 +93,9 @@ import {
 	loseCarriedDebree,
 } from "./services/debreeEconomyService";
 import { chargeSalvageBattery } from "./services/shipUpgradeService";
+import { tracePrologue } from "./services/prologueTraceService";
+import { resetEquippedWeapon } from "./services/weaponService";
+import { spawnFlash } from "./spawn/spawnFlash";
 
 export let playerObj: GameObj<
 	PosComp | SpriteComp | RotateComp | AreaComp | AnchorComp | HealthComp
@@ -104,17 +107,20 @@ export let debrees: GameObj<AnimateComp | PosComp | SpriteComp>[] = [];
 export const projectiles: GameObj<PosComp | any>[] = [];
 
 export function startGame() {
+	const startsWithPrologue = shouldStartPrologue();
 	resetLevelLoadout();
 	resetSession();
 	clearRunInventory();
 	clearRecoveryOffers();
 	resetPowerupRuntime();
-	resetEquippedWeapon();
-	resetActiveModule();
+	resetActiveModuleCooldown();
 	loadPlayer();
-	playerObj = setupPlayer({ arrivalTransition: true });
+	playerObj = setupPlayer({
+		arrivalTransition: true,
+		arrivalBass: startsWithPrologue,
+	});
 	setupGameLoopUi(player.maxHealth, hasEquippedActiveModule());
-	if (shouldStartPrologue()) {
+	if (startsWithPrologue) {
 		loadLevel("level1");
 		beginPrologueExperience(() => {
 			transitionToLevel("hub");
@@ -208,9 +214,12 @@ export function collectDebreeImmediately(
 	k.destroy(debris);
 	recordDebreeCollected();
 	audioService.playSound("salvage_pickup", { volume: mainSoundVolume });
+	const duplicatedBySet = player.salvageSetBonus && k.chance(0.2);
 	const salvageGained = addScore(
-		player.scorePerPickup * salvageValue * player.debreeValueMultiplier
+		player.scorePerPickup * salvageValue * player.debreeValueMultiplier *
+			(duplicatedBySet ? 2 : 1)
 	);
+	if (duplicatedBySet) spawnFlash(collectionPos.clone(), 7, k.rgb(80, 255, 175));
 	if (debris.runLevelXp) addRunLevelXp(salvageGained);
 	addScrapArmorProgress(salvageGained);
 	chargeSalvageBattery(playerObj, salvageGained);
@@ -287,6 +296,7 @@ export function beginPlayerDeathSequence() {
 	const deathCause = getPlayerDeathCause();
 	const diedInHub = activeLevelKey() === "hub";
 	const diedInPrologue = finishPrologueOnDeath();
+	if (diedInPrologue) tracePrologue("death:classified-as-prologue");
 	let debreeOutcome: DebreeRunOutcome = { deposited: 0, lost: 0 };
 	let runEndSummary: RunEndSummary | undefined;
 	if (diedInPrologue) saveGame("slot1");
@@ -297,15 +307,18 @@ export function beginPlayerDeathSequence() {
 		prepareDeathRecoveryOffers();
 	}
 
-	setTimescale(0.15, 1, false);
 	k.shake(8);
 	if (diedInPrologue) {
+		setTimescale(1, 0, false);
+		tracePrologue("death:recovery-dispatch-scheduled", { delay: 1.1 });
 		k.wait(1.1, () => {
 			if (!isPlayerDying) return;
+			tracePrologue("death:recovery-dispatched");
 			void recoverFromPrologueDeath();
 		});
 		return;
 	}
+	setTimescale(0.15, 1, false);
 
 	k.wait(2, () => {
 		if (!isPlayerDying) return;
@@ -400,13 +413,33 @@ export function clearGame() {
 	k.destroyAll(tags.debree);
 	k.destroyAll(tags.props);
 	k.destroyAll(tags.damageNumber);
+	k.destroyAll(tags.emotion);
 	clearGameLoopUi();
 	changeGameState(GameState.MainMenu);
 }
 
 async function recoverFromPrologueDeath() {
-	await showPrologueRecoveryDialogue();
-	if (!isPlayerDying) return;
+	tracePrologue("game:battlefield-recovery-await-start");
+	let recovered = false;
+	try {
+		recovered = await showPrologueRecoveryDialogue();
+	} catch (error) {
+		tracePrologue("game:battlefield-recovery-error", {
+			error: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
+	}
+	tracePrologue("game:battlefield-recovery-await-complete", {
+		recovered,
+		isPlayerDying,
+	});
+	if (!recovered || !isPlayerDying) {
+		tracePrologue("game:hub-transition-blocked", {
+			recovered,
+			isPlayerDying,
+		});
+		return;
+	}
 
 	clearPlayer();
 	clearGameLoopUi();
@@ -418,12 +451,46 @@ async function recoverFromPrologueDeath() {
 	resetPowerupRuntime();
 	resetEquippedWeapon();
 	loadPlayer();
+	audioService.stopMusic();
+	tracePrologue("game:hub-transition-start", { target: "hub" });
 	transitionToLevel("hub");
-	playerObj = setupPlayer({ respawnTransition: true });
+	tracePrologue("game:hub-transition-complete", {
+		activeLevel: activeLevelKey(),
+	});
+	const {
+		getHubFacilityPositions,
+		getHubWormholePosition,
+	} = await import("./levels/hub");
+	tracePrologue("game:hub-repair-await-start");
+	const repairResult = await showPrologueHubRepair(
+		getHubFacilityPositions().trainingRange,
+		getHubWormholePosition()
+	);
+	tracePrologue("game:hub-repair-await-complete", {
+		repaired: repairResult !== false,
+		burtId: repairResult === false ? undefined : repairResult.burt.id,
+		isPlayerDying,
+	});
+	if (!isPlayerDying || !repairResult) {
+		tracePrologue("game:respawn-blocked", {
+			reason: !isPlayerDying ? "death-state-cleared" : "repair-incomplete",
+		});
+		return;
+	}
+	playerObj = setupPlayer({
+		arrivalTransition: true,
+		arrivalBass: true,
+		spawnPosition: repairResult.playerSpawnPosition,
+	});
+	tracePrologue("game:player-respawned", {
+		id: playerObj.id,
+		x: Math.round(repairResult.playerSpawnPosition.x),
+		y: Math.round(repairResult.playerSpawnPosition.y),
+	});
 	setupGameLoopUi(player.maxHealth, hasEquippedActiveModule());
 	setTimescale(1, 0.4, false);
 	isPlayerDying = false;
-	k.wait(0.6, () => void showHubIntroductionIfNeeded());
+	k.wait(0.4, () => void showHubIntroductionIfNeeded());
 }
 
 export function checkProjectileIntersection(

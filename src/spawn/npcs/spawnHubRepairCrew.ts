@@ -1,6 +1,6 @@
 import type { Vec2 } from "kaplay"
-import { k, layers } from "../main"
-import { tags } from "../tags"
+import { k, layers } from "../../main"
+import { tags } from "../../tags"
 
 const REPAIR_DRONE_COUNT = 6
 const PATROL_RADIUS_X = 145

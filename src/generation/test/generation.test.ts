@@ -587,6 +587,24 @@ test("Generated room content selection is deterministic", () => {
 	assertTrue(!!first, "Shrine room should resolve registered content");
 });
 
+test("Mini-boss combat rooms unlock from depth two", () => {
+	const depthOneResults = Array.from({ length: 80 }, (_, index) =>
+		selectGeneratedContent("combat", 7712, { q: index, r: 8 }, 1)?.id
+	);
+	const depthTwoResults = Array.from({ length: 80 }, (_, index) =>
+		selectGeneratedContent("combat", 7712, { q: index, r: 8 }, 2)?.id
+	);
+
+	assertFalse(
+		depthOneResults.includes("impact_ace_miniboss"),
+		"Impact Ace should not appear on the first floor"
+	);
+	assertTrue(
+		depthTwoResults.includes("impact_ace_miniboss"),
+		"Impact Ace should enter the combat-room pool from floor two"
+	);
+});
+
 test("Milestone boss content unlocks at depth three", () => {
 	const coord = { q: 20, r: 14 };
 	const early = selectGeneratedContent("boss", 9912, coord, 2);

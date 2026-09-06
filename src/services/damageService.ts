@@ -4,6 +4,11 @@ import { tags } from "../tags"
 import { isPlayerDamageInvulnerable } from "./playerDamageState"
 import { tryBlockPlayerDamage } from "./shipUpgradeService"
 import { getPlayerStatusMultiplier } from "./playerStatusEffectService"
+import {
+	recordTelemetryEnemyDamage,
+	recordTelemetryPlayerDamage,
+} from "./runTelemetryService"
+import { runtimeDebug } from "./runtimeDebugService"
 
 export interface DamageOptions {
 	critical?: boolean
@@ -62,7 +67,29 @@ export function applyDamage(
 	const appliedDamage = target.tags.includes(tags.player)
 		? damage * getPlayerStatusMultiplier("incomingDamage")
 		: damage
+	const healthBefore = target.hp
 	target.hp -= appliedDamage
+	if (target.tags.includes(tags.player)) {
+		runtimeDebug.log("combat", "player:damaged", {
+			amount: appliedDamage,
+			healthBefore,
+			healthAfter: target.hp,
+			source: options.source?.name ?? "UNKNOWN HAZARD",
+			fatal: target.hp <= 0,
+		})
+		recordTelemetryPlayerDamage(
+			appliedDamage,
+			options.source?.name ?? "UNKNOWN HAZARD"
+		)
+	}
+	if (target.tags.includes(tags.enemy)) {
+		const enemyType = typeof target.enemyType === "string"
+			? target.enemyType
+			: typeof target.sprite === "string"
+				? target.sprite
+				: "enemy"
+		recordTelemetryEnemyDamage(enemyType, appliedDamage)
+	}
 	if (options.showNumber !== false && numberPos) {
 		spawnDamageNumber(numberPos, appliedDamage, {
 			critical: options.critical,

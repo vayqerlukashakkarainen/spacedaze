@@ -12,11 +12,7 @@ import { hexDistance, hexNeighbors } from "../generation/hexUtils";
 import { gridCollision } from "../comp/gridCollision";
 import { gridRegistry } from "../grid/gridRegistry";
 import { ACTIVE_RUN_GRID_KEY } from "../grid/gridKeys";
-import {
-	createInputPromptRow,
-	UI_COLORS,
-	UI_FONT_SIZES,
-} from "../ui/common";
+import { UI_FONT_SIZES } from "../ui/common";
 import { CellType, HexGrid } from "../grid/hexGrid";
 import { playerObj } from "../game";
 import { resetVolatileCargoObjective, session } from "../player";
@@ -34,6 +30,9 @@ import { spawnChest } from "../spawn/spawnChest";
 import { spawnLevel } from "../spawn/spawnLevel";
 import { spawnCrate } from "../spawn/spawnCrate";
 import { spawnBoss1 } from "../spawn/spawnBoss1";
+import { spawnImpactAce } from "../spawn/spawnImpactAce";
+import { getBossHealth } from "../services/bossRegistry";
+import { getActiveBossEncounter } from "../services/bossEncounterService";
 import { spawnShrine } from "../spawn/shrine/spawnShrine";
 import { spawnDamageShrine } from "../spawn/shrine/spawnDamageShrine";
 import { getShrineLevelConfig } from "../spawn/shrine/shrineLevel";
@@ -117,7 +116,6 @@ import {
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import {
 	narrativePrologueActive,
-	shouldStartPrologue,
 } from "../services/narrativeService";
 import { updateQuestObjective } from "../services/questService";
 import { spawnDebreeDeposit } from "../spawn/spawnDebreeDeposit";
@@ -225,9 +223,6 @@ export function startGeneratedRunMap(
 	);
 
 	playerObj.pos = grid.hexToScreen(spawnCoord);
-	if (depth === 1 && shouldStartPrologue()) {
-		spawnFirstRunTutorialHints(grid, generatedMap, spawnCoord);
-	}
 	resetPlayerPath(playerObj.pos);
 	playerObj.use(gridCollision(RUN_GRID_KEY));
 	startThreatLevel(depth);
@@ -823,97 +818,6 @@ function getPlayerSpawn(map: GenerationMap) {
 	};
 }
 
-function spawnFirstRunTutorialHints(
-	grid: HexGrid,
-	map: GenerationMap,
-	spawnCoord: { q: number; r: number }
-) {
-	const hints = [
-		{ action: "move" as const, label: "TO MOVE AROUND" },
-		{ action: "fire" as const, label: "TO FIRE" },
-		{ action: "special" as const, label: "FOR SPECIAL" },
-		{ action: "map" as const, label: "TO OPEN THE MAP" },
-	];
-	const path = findTutorialHintPath(map, spawnCoord, 9);
-	for (let index = 0; index < hints.length; index++) {
-		const pathIndex = Math.min(
-			path.length - 1,
-			Math.max(1, Math.round((index + 1) * (path.length - 1) / hints.length))
-		);
-		const coord = path[pathIndex] ?? spawnCoord;
-		const hint = k.add([
-			k.pos(grid.hexToScreen(coord)),
-			k.layer(layers.gameText),
-			k.z(20),
-			tags.runMap,
-			tags.gameLoop,
-		]);
-		hint.add([
-			k.rect(172, 36),
-			k.anchor("center"),
-			k.color(0, 4, 7),
-			k.opacity(0.86),
-			k.outline(1, k.rgb(...UI_COLORS.accent)),
-		]);
-		createInputPromptRow(hint, {
-			pos: k.vec2(0, -8),
-			prompts: [{ action: hints[index].action }],
-			color: UI_COLORS.text,
-			iconHeight: 20,
-		})
-		hint.add([
-			k.text(hints[index].label, {
-				font: "unscii",
-				size: UI_FONT_SIZES.tiny,
-				width: 160,
-				align: "center",
-			}),
-			k.pos(0, 9),
-			k.anchor("center"),
-			k.color(k.WHITE),
-		]);
-	}
-}
-
-function findTutorialHintPath(
-	map: GenerationMap,
-	start: { q: number; r: number },
-	maxDistance: number
-) {
-	const startKey = runMapCellKey(start);
-	const queue = [start];
-	const parent = new Map<string, { q: number; r: number } | undefined>([
-		[startKey, undefined],
-	]);
-	const distance = new Map([[startKey, 0]]);
-	let farthest = start;
-
-	for (let queueIndex = 0; queueIndex < queue.length; queueIndex++) {
-		const current = queue[queueIndex];
-		const currentDistance = distance.get(runMapCellKey(current)) ?? 0;
-		if (currentDistance > (distance.get(runMapCellKey(farthest)) ?? 0)) {
-			farthest = current;
-		}
-		if (currentDistance >= maxDistance) continue;
-		for (const neighbor of hexNeighbors(current)) {
-			const key = runMapCellKey(neighbor);
-			const cell = map.getCell(neighbor);
-			if (!cell || cell.solid || parent.has(key)) continue;
-			parent.set(key, current);
-			distance.set(key, currentDistance + 1);
-			queue.push(neighbor);
-		}
-	}
-
-	const path = [farthest];
-	let cursor = parent.get(runMapCellKey(farthest));
-	while (cursor) {
-		path.push(cursor);
-		cursor = parent.get(runMapCellKey(cursor));
-	}
-	return path.reverse();
-}
-
 function renderRunMap(grid: HexGrid, map: GenerationMap) {
 	interface RockWallTile {
 		center: Vec2;
@@ -931,9 +835,6 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 	interface RenderChunk {
 		walls: RockWallTile[];
 		cavernCovers: Array<{ corners: Vec2[]; cavern: HiddenCavern }>;
-		staticPicture?: ReturnType<typeof k.endPicture>;
-		staticPictureDirty: boolean;
-		staticPrimitiveCount: number;
 	}
 
 	const chunks = new Map<string, RenderChunk>();
@@ -954,8 +855,6 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 			chunk = {
 				walls: [],
 				cavernCovers: [],
-				staticPictureDirty: true,
-				staticPrimitiveCount: 0,
 			};
 			chunks.set(chunkKey, chunk);
 		}
@@ -973,6 +872,7 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		string,
 		{ chunk: RenderChunk; visual: RockWallTile }
 	>();
+	let visibleStaticPictureDirty = true;
 	const createWallVisual = (genCell: GenCell): RockWallTile => {
 		const center = grid.hexToScreen(genCell.coord);
 		const corners = grid.getHexScreenCorners(genCell.coord);
@@ -1016,7 +916,7 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		if (!chunk) return;
 		const visual = createWallVisual(genCell);
 		chunk.walls.push(visual);
-		chunk.staticPictureDirty = true;
+		visibleStaticPictureDirty = true;
 		wallVisuals.set(runMapCellKey(genCell.coord), { chunk, visual });
 	};
 
@@ -1031,7 +931,7 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 			if (existing) {
 				const index = existing.chunk.walls.indexOf(existing.visual);
 				if (index >= 0) existing.chunk.walls.splice(index, 1);
-				existing.chunk.staticPictureDirty = true;
+				visibleStaticPictureDirty = true;
 				wallVisuals.delete(key);
 			}
 
@@ -1047,6 +947,8 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		cavern: HiddenCavern;
 	}> = [];
 	let visibleChunkSignature = "";
+	let visibleStaticPicture: ReturnType<typeof k.endPicture> | undefined;
+	let visibleStaticPrimitiveCount = 0;
 
 	const wallRenderer = k.add([
 		k.pos(0, 0),
@@ -1054,14 +956,13 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		{
 			draw() {
 				const startedAt = performance.now();
-				for (const chunk of visibleChunks) {
-					buildStaticWallPicture(chunk);
-					if (!chunk.staticPicture) continue;
+				buildVisibleStaticWallPicture();
+				if (visibleStaticPicture) {
 					incrementPerformanceCounter(
 						"wallPrimitives",
-						chunk.staticPrimitiveCount
+						visibleStaticPrimitiveCount
 					);
-					k.drawPicture(chunk.staticPicture, {});
+					k.drawPicture(visibleStaticPicture, {});
 				}
 				for (const visual of visibleDynamicWalls) {
 					if (visual.destructible?.destroyed) continue;
@@ -1103,57 +1004,59 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		tags.gameLoop,
 	]);
 	wallRenderer.onDestroy(() => {
-		for (const chunk of chunks.values()) chunk.staticPicture?.free();
+		visibleStaticPicture?.free();
 	});
 
-	const buildStaticWallPicture = (chunk: RenderChunk) => {
-		if (!chunk.staticPictureDirty) return;
-		chunk.staticPicture?.free();
-		chunk.staticPicture = undefined;
-		chunk.staticPrimitiveCount = 0;
+	const buildVisibleStaticWallPicture = () => {
+		if (!visibleStaticPictureDirty) return;
+		visibleStaticPicture?.free();
+		visibleStaticPicture = undefined;
+		visibleStaticPrimitiveCount = 0;
 		k.beginPicture();
-		for (const visual of chunk.walls) {
-			if (visual.destructible) continue;
-			chunk.staticPrimitiveCount++;
-			k.drawPolygon({
-				pts: visual.corners,
-				color: k.BLACK,
-			});
-			for (const edge of visual.edges) {
-				if (edge.outline.length >= 2) {
-					chunk.staticPrimitiveCount++;
-					k.drawLines({
-						pts: edge.outline,
-						width: 2,
-						color: k.WHITE,
-						opacity: 0.95,
-						join: "miter",
-					});
-				}
-				if (edge.ridge.length >= 2) {
-					chunk.staticPrimitiveCount++;
-					k.drawLines({
-						pts: edge.ridge,
-						width: 1,
-						color: k.WHITE,
-						opacity: 0.5,
-						join: "miter",
-					});
-				}
-				for (const crack of edge.cracks) {
-					chunk.staticPrimitiveCount++;
-					k.drawLine({
-						p1: crack.p1,
-						p2: crack.p2,
-						width: 1,
-						color: k.WHITE,
-						opacity: 0.42,
-					});
+		for (const chunk of visibleChunks) {
+			for (const visual of chunk.walls) {
+				if (visual.destructible) continue;
+				visibleStaticPrimitiveCount++;
+				k.drawPolygon({
+					pts: visual.corners,
+					color: k.BLACK,
+				});
+				for (const edge of visual.edges) {
+					if (edge.outline.length >= 2) {
+						visibleStaticPrimitiveCount++;
+						k.drawLines({
+							pts: edge.outline,
+							width: 2,
+							color: k.WHITE,
+							opacity: 0.95,
+							join: "miter",
+						});
+					}
+					if (edge.ridge.length >= 2) {
+						visibleStaticPrimitiveCount++;
+						k.drawLines({
+							pts: edge.ridge,
+							width: 1,
+							color: k.WHITE,
+							opacity: 0.5,
+							join: "miter",
+						});
+					}
+					for (const crack of edge.cracks) {
+						visibleStaticPrimitiveCount++;
+						k.drawLine({
+							p1: crack.p1,
+							p2: crack.p2,
+							width: 1,
+							color: k.WHITE,
+							opacity: 0.42,
+						});
+					}
 				}
 			}
 		}
-		chunk.staticPicture = k.endPicture();
-		chunk.staticPictureDirty = false;
+		visibleStaticPicture = k.endPicture();
+		visibleStaticPictureDirty = false;
 	};
 
 	const updateVisibleChunks = () => {
@@ -1166,6 +1069,7 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		].join(":");
 		if (signature === visibleChunkSignature) return;
 		visibleChunkSignature = signature;
+		visibleStaticPictureDirty = true;
 
 		visibleChunks = [];
 		visibleDynamicWalls = [];
@@ -1518,6 +1422,9 @@ function spawnGeneratedContent(
 	switch (contentId) {
 		case "combat_assassins":
 			spawnCombatRoomTrigger(pos, hexSize);
+			return;
+		case "impact_ace_miniboss":
+			spawnMiniBossRoomTrigger(pos, hexSize, depth);
 			return;
 		case "reward_chest":
 			spawnChest(pos, depth, {
@@ -1909,7 +1816,7 @@ function spawnBossRoomTrigger(pos: Vec2, hexSize: number, depth: number) {
 			return;
 		}
 		triggered = true;
-		spawnBoss1(pos, 10 + depth * 2, 60 + depth * 20, 1, {
+		spawnBoss1(pos, 10 + depth * 2, getBossHealth("federation-dreadnought", depth), 1, {
 			onDefeated: spawnFloorExit,
 			tags: [tags.runMap],
 		});
@@ -2004,6 +1911,34 @@ function spawnCombatRoomTrigger(pos: Vec2, hexSize: number) {
 	});
 }
 
+function spawnMiniBossRoomTrigger(
+	pos: Vec2,
+	hexSize: number,
+	depth: number
+) {
+	let triggered = false;
+	const trigger = k.add([
+		k.pos(pos),
+		{ triggerRadius: hexSize * 4 },
+		tags.runMap,
+		tags.gameLoop,
+	]);
+
+	registerBatchedEntityUpdate("world", trigger, () => {
+		if (triggered || trigger.pos.dist(playerObj.pos) > trigger.triggerRadius) {
+			return;
+		}
+		triggered = true;
+		addThreatTime(18);
+		spawnThreatArrival(pos, hexSize * 1.35);
+		spawnImpactAce(pos, depth, {
+			persistOffscreen: true,
+			tags: [tags.runMap],
+		});
+		k.destroy(trigger);
+	});
+}
+
 function spawnThreatDirector(
 	grid: HexGrid,
 	map: GenerationMap,
@@ -2045,6 +1980,7 @@ function spawnThreatDirector(
 		}
 
 		if (getRunPhase() !== "exploration") return;
+		if (getActiveBossEncounter()) return;
 		director.nextReinforcement -= k.dt();
 		if (director.nextReinforcement > 0) return;
 

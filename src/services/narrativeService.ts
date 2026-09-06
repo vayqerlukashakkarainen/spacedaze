@@ -1,19 +1,30 @@
+import { resetNpcDialogueHistory } from "./npcDialogueService"
+
 const NARRATIVE_PROGRESS_KEY = "spacedaze_narrative_progress_v1"
 
 interface NarrativeProgress {
 	prologueComplete: boolean
 	hubIntroductionComplete: boolean
+	asteroidRunnerComplete: boolean
+	birthdayEncounterComplete: boolean
 }
 
 const defaultProgress: NarrativeProgress = {
 	prologueComplete: false,
 	hubIntroductionComplete: false,
+	asteroidRunnerComplete: false,
+	birthdayEncounterComplete: false,
 }
 
 let progress = loadProgress()
 let prologueActive = false
 
 export function shouldStartPrologue() {
+	if (
+		import.meta.env.DEV
+		&& typeof window !== "undefined"
+		&& new URLSearchParams(window.location.search).get("prologue") === "1"
+	) return true
 	return !progress.prologueComplete
 }
 
@@ -44,6 +55,32 @@ export function completeHubIntroduction() {
 	saveProgress()
 }
 
+export function shouldShowAsteroidRunnerEncounter() {
+	return !progress.asteroidRunnerComplete
+}
+
+export function isAsteroidRunnerEncounterComplete() {
+	return progress.asteroidRunnerComplete
+}
+
+export function completeAsteroidRunnerEncounter() {
+	progress.asteroidRunnerComplete = true
+	saveProgress()
+}
+
+export function shouldShowBirthdayEncounter() {
+	return !progress.birthdayEncounterComplete
+}
+
+export function isBirthdayEncounterComplete() {
+	return progress.birthdayEncounterComplete
+}
+
+export function completeBirthdayEncounter() {
+	progress.birthdayEncounterComplete = true
+	saveProgress()
+}
+
 export function skipNarrativeIntroduction() {
 	prologueActive = false
 	progress.prologueComplete = true
@@ -54,6 +91,7 @@ export function skipNarrativeIntroduction() {
 export function resetNarrativeProgress() {
 	progress = { ...defaultProgress }
 	prologueActive = false
+	resetNpcDialogueHistory()
 	saveProgress()
 }
 
@@ -65,6 +103,8 @@ function loadProgress(): NarrativeProgress {
 	return {
 		prologueComplete: parsed.prologueComplete === true,
 		hubIntroductionComplete: parsed.hubIntroductionComplete === true,
+		asteroidRunnerComplete: parsed.asteroidRunnerComplete === true,
+		birthdayEncounterComplete: parsed.birthdayEncounterComplete === true,
 	}
 }
 

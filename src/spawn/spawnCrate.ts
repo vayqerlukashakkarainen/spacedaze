@@ -127,7 +127,14 @@ export function spawnCrate(props: Props) {
 	m.onDeath(() => {
 		const deathPos = m.pos.clone();
 		if (golden) {
-			enemyOnDeath(deathPos, 0, props.powerupMultiplier, "enemy", false);
+			enemyOnDeath(
+				deathPos,
+				0,
+				props.powerupMultiplier,
+				"enemy",
+				false,
+				{ shipWreckage: false }
+			);
 			spawnDebree(
 				deathPos,
 				Math.max(GOLDEN_MIN_DEBREE, props.am * GOLDEN_DEBREE_MULTIPLIER),
@@ -149,7 +156,14 @@ export function spawnCrate(props: Props) {
 				volume: mainSoundVolume,
 			});
 		} else {
-			enemyOnDeath(deathPos, props.am, props.powerupMultiplier, "enemy", false);
+			enemyOnDeath(
+				deathPos,
+				props.am,
+				props.powerupMultiplier,
+				"enemy",
+				false,
+				{ shipWreckage: false }
+			);
 			audioService.playPositionalSound("explosion4", deathPos, {
 				volume: mainSoundVolume,
 			});

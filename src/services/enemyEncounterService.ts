@@ -25,9 +25,15 @@ import {
 	type EnemySpawnOptions,
 } from "./threatService"
 import {
+	canCreateBudgetEncounter,
 	createBudgetEncounterPlan,
 	type BudgetEnemyId,
 } from "./enemyEncounterBudgetService"
+import {
+	isEnemyProgressionUnlocked,
+	type ProgressionEnemyId,
+} from "./enemyProgressionService"
+import { getHubLevel } from "./hubProgressService"
 
 type EncounterId =
 	| "minor_swarm"
@@ -52,26 +58,27 @@ interface EncounterDefinition {
 	id: EncounterId
 	minThreat: number
 	weight: number
+	enemies: readonly ProgressionEnemyId[]
 }
 
 const ENCOUNTERS: readonly EncounterDefinition[] = [
-	{ id: "minor_swarm", minThreat: 1, weight: 6 },
-	{ id: "patrol", minThreat: 2, weight: 5 },
-	{ id: "hunters", minThreat: 2, weight: 4 },
-	{ id: "rammers", minThreat: 2, weight: 3 },
-	{ id: "mixed", minThreat: 2, weight: 4 },
-	{ id: "sniper_nest", minThreat: 2, weight: 3 },
-	{ id: "hivemind_swarm", minThreat: 3, weight: 3 },
-	{ id: "mine_layer", minThreat: 3, weight: 2 },
-	{ id: "elite_hunt", minThreat: 4, weight: 2 },
-	{ id: "shielded_patrol", minThreat: 4, weight: 2 },
-	{ id: "orbit_screen", minThreat: 1, weight: 4 },
-	{ id: "splitter_pack", minThreat: 2, weight: 3 },
-	{ id: "siege_line", minThreat: 3, weight: 2 },
-	{ id: "tether_hunt", minThreat: 3, weight: 2 },
-	{ id: "repair_column", minThreat: 3, weight: 2 },
-	{ id: "gravity_lock", minThreat: 4, weight: 2 },
-	{ id: "budgeted_response", minThreat: 2, weight: 7 },
+	{ id: "minor_swarm", minThreat: 1, weight: 6, enemies: ["swarm-drone"] },
+	{ id: "patrol", minThreat: 2, weight: 5, enemies: ["fighter"] },
+	{ id: "hunters", minThreat: 2, weight: 4, enemies: ["assassin"] },
+	{ id: "rammers", minThreat: 2, weight: 3, enemies: ["rammer"] },
+	{ id: "mixed", minThreat: 2, weight: 4, enemies: ["assassin", "fighter"] },
+	{ id: "sniper_nest", minThreat: 2, weight: 3, enemies: ["sniper", "rammer"] },
+	{ id: "hivemind_swarm", minThreat: 3, weight: 3, enemies: ["hivemind", "swarm-drone"] },
+	{ id: "mine_layer", minThreat: 3, weight: 2, enemies: ["mine-layer", "assassin"] },
+	{ id: "elite_hunt", minThreat: 4, weight: 2, enemies: ["assassin", "fighter"] },
+	{ id: "shielded_patrol", minThreat: 4, weight: 2, enemies: ["sniper", "shield-drone", "rammer"] },
+	{ id: "orbit_screen", minThreat: 1, weight: 4, enemies: ["orbit-lancer"] },
+	{ id: "splitter_pack", minThreat: 2, weight: 3, enemies: ["splitter"] },
+	{ id: "siege_line", minThreat: 3, weight: 2, enemies: ["siege-barge", "orbit-lancer"] },
+	{ id: "tether_hunt", minThreat: 3, weight: 2, enemies: ["tether-drone", "rammer"] },
+	{ id: "repair_column", minThreat: 3, weight: 2, enemies: ["siege-barge", "repair-skiff", "fighter"] },
+	{ id: "gravity_lock", minThreat: 4, weight: 2, enemies: ["gravity-warden", "splitter"] },
+	{ id: "budgeted_response", minThreat: 2, weight: 7, enemies: [] },
 ]
 
 export function spawnThreatEncounter(
@@ -79,8 +86,20 @@ export function spawnThreatEncounter(
 	spacing: number,
 	options: { allowTerrainEnemies?: boolean } = {}
 ) {
-	const tier = getThreatSnapshot().tier
-	const definition = selectEncounter(tier)
+	const threat = getThreatSnapshot()
+	const tier = threat.tier
+	const progressionContext = {
+		runDepth: threat.depth,
+		hubLevel: getHubLevel(),
+	}
+	const isEnemyAvailable = (id: ProgressionEnemyId) =>
+		isEnemyProgressionUnlocked(id, progressionContext)
+	const definition = selectEncounter(
+		tier,
+		options.allowTerrainEnemies === true,
+		isEnemyAvailable
+	)
+	if (!definition) return undefined
 	const normalOptions: EnemySpawnOptions = {
 		persistOffscreen: true,
 		tags: [tags.runMap, tags.threatEnemy],
@@ -313,7 +332,8 @@ export function spawnThreatEncounter(
 			const plan = createBudgetEncounterPlan(
 				tier,
 				() => k.rand(),
-				options.allowTerrainEnemies === true
+				options.allowTerrainEnemies === true,
+				isEnemyAvailable
 			)
 			for (let index = 0; index < plan.length; index++) {
 				spawnBudgetEnemy(
@@ -343,10 +363,21 @@ function spawnBudgetEnemy(id: BudgetEnemyId, pos: Vec2, options: EnemySpawnOptio
 	}
 }
 
-function selectEncounter(tier: number) {
+function selectEncounter(
+	tier: number,
+	allowTerrainEnemies: boolean,
+	isEnemyAvailable: (id: ProgressionEnemyId) => boolean
+) {
 	const candidates = ENCOUNTERS.filter(
-		(definition) => definition.minThreat <= tier
+		(definition) => definition.minThreat <= tier &&
+		definition.enemies.every(isEnemyAvailable) &&
+		(definition.id !== "budgeted_response" || canCreateBudgetEncounter(
+			tier,
+			allowTerrainEnemies,
+			isEnemyAvailable
+		))
 	)
+	if (candidates.length === 0) return undefined
 	const totalWeight = candidates.reduce(
 		(total, definition) => total + definition.weight,
 		0

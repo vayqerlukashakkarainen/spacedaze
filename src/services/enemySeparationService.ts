@@ -25,7 +25,7 @@ const separationQuery = { allTags: [tags.enemy, tags.unit] }
 
 export function updateEnemySeparation(context: RunFrameContext) {
 	if (!context.gameplayActive || context.paused || context.dt <= 0) return
-	const enemies = k.get(tags.enemy) as GameObj[]
+	const enemies = k.get(tags.unit) as GameObj[]
 	prepareAccumulators(enemies)
 	let correctedEnemies = 0
 	let neighborChecks = 0
@@ -148,6 +148,9 @@ function accumulatePairCorrection(
 function canSeparate(enemy: GameObj) {
 	return enemy.exists() &&
 		enemy.pos !== undefined &&
+		enemy.is(tags.enemy) &&
+		enemy.is(tags.unit) &&
+		!enemy.is(tags.projectile) &&
 		!enemy.paused &&
 		!enemy.is(tags.trainingTarget) &&
 		enemy.separationDisabled !== true

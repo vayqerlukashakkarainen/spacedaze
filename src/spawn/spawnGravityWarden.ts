@@ -6,7 +6,7 @@ import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
 } from "../services/threatService"
-import { easeDirection } from "../shared"
+import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
@@ -75,11 +75,19 @@ export function spawnGravityWarden(
 			: distance > 275
 				? direction
 				: direction.normal()
-		warden.moveDirection = easeDirection(warden.moveDirection, desired.unit(), 3.4, delta)
+		const desiredDirection = desired.unit()
+		warden.moveDirection = easeDirection(warden.moveDirection, desiredDirection, 3.4, delta)
 		warden.move(warden.moveDirection.scale(
 			64 * profile.speedMultiplier * velocityScale() * warden.getTimescale()
 		))
 		warden.angle = warden.moveDirection.angle() + 90
+		applyDirectionalSteeringLean(
+			warden,
+			warden.moveDirection,
+			desiredDirection,
+			profile.scale,
+			true
+		)
 
 		gravity.pos = warden.pos.clone()
 		if (warden.fieldActive > 0) {

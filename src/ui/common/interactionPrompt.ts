@@ -23,6 +23,7 @@ interface InteractionPromptOptions {
 	offset: Vec2
 	content: InteractionPromptSource
 	width?: number
+	compact?: boolean
 }
 
 const DEFAULT_PROMPT_WIDTH = 220
@@ -34,11 +35,12 @@ export function createInteractionPrompt({
 	offset,
 	content,
 	width = DEFAULT_PROMPT_WIDTH,
+	compact = false,
 }: InteractionPromptOptions) {
 	let reveal = 0
 	let renderedContent = ""
 	let promptWidth = width
-	let promptHeight = MIN_PROMPT_HEIGHT
+	let promptHeight = compact ? 42 : MIN_PROMPT_HEIGHT
 	const root = k.add([
 		k.pos(target.pos.add(offset)),
 		k.scale(PROMPT_SCALE * 0.9),
@@ -91,6 +93,11 @@ export function createInteractionPrompt({
 			k.color(...UI_COLORS.border),
 		])
 	)
+	if (compact) {
+		title.hidden = true
+		notification.hidden = true
+		for (const separator of separators) separator.hidden = true
+	}
 	const detailLeft = addThemedText(root, {
 		text: "",
 		pos: k.vec2(-promptWidth / 2 + 10, -promptHeight / 2 + 66),
@@ -106,6 +113,10 @@ export function createInteractionPrompt({
 		width: promptWidth - 20,
 		align: "right",
 	})
+	if (compact) {
+		detailLeft.hidden = true
+		detailRight.hidden = true
+	}
 
 	function resolveContent() {
 		return typeof content === "function" ? content() : content
@@ -142,14 +153,25 @@ export function createInteractionPrompt({
 		action.text = actionText
 		detailLeft.text = detailLeftText
 		detailRight.text = detailRightText
-		promptHeight = Math.ceil(Math.max(
-			MIN_PROMPT_HEIGHT,
-			68,
-			68 + detailLeft.formattedText().height,
-			68 + detailRight.formattedText().height
-		))
+		promptHeight = compact
+			? 42
+			: Math.ceil(Math.max(
+				MIN_PROMPT_HEIGHT,
+				68,
+				74 + detailLeft.formattedText().height,
+				74 + detailRight.formattedText().height
+			))
 		surface.height = promptHeight
 		const promptTop = -promptHeight / 2
+		if (compact) {
+			action.pos = k.vec2(
+				-promptWidth / 2 + 10,
+				-action.formattedText().height / 2
+			)
+			inputPrompt.pos = k.vec2(promptWidth / 2 - 20, 0)
+			notification.hidden = true
+			return
+		}
 		title.pos = k.vec2(-promptWidth / 2 + 10, promptTop + 8)
 		notification.pos = k.vec2(promptWidth / 2 - 10, promptTop + 8)
 		action.pos = k.vec2(-promptWidth / 2 + 10, promptTop + 26)

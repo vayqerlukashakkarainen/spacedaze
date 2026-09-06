@@ -17,6 +17,7 @@ import { starsEmitter } from "../particles";
 import { tags } from "../tags";
 import { audioService } from "./audioService";
 import { profileSection } from "./frameProfilerService";
+import { runtimeDebug } from "./runtimeDebugService";
 
 const chargeDuration = 0.2;
 const entryDuration = 0.3;
@@ -41,8 +42,19 @@ export function levelTransitionActive() {
 }
 
 export function startLevelTransition(options: TransitionOptions) {
-	if (transitionActive) return;
+	if (transitionActive) {
+		runtimeDebug.log("level", "portal-transition:rejected", {
+			reason: "already-active",
+			target: options.targetLevel,
+		});
+		return;
+	}
 	transitionActive = true;
+	runtimeDebug.log("level", "portal-transition:start", {
+		target: options.targetLevel,
+		portalId: options.portal.id,
+		playerId: options.player.id,
+	});
 
 	let phase: "charge" | "entry" | "shutter" | "arrival" = "charge";
 	let phaseTime = 0;
@@ -105,6 +117,7 @@ export function startLevelTransition(options: TransitionOptions) {
 			if (progress >= 1) {
 				phase = "entry";
 				phaseTime = 0;
+				runtimeDebug.log("level", "portal-transition:phase", { phase });
 			}
 			return;
 		}
@@ -123,6 +136,7 @@ export function startLevelTransition(options: TransitionOptions) {
 			if (progress >= 1) {
 				phase = "shutter";
 				phaseTime = 0;
+				runtimeDebug.log("level", "portal-transition:phase", { phase });
 			}
 			return;
 		}
@@ -144,13 +158,20 @@ export function startLevelTransition(options: TransitionOptions) {
 			if (progress >= 1 && !levelSwapped) {
 				levelSwapped = true;
 				transitionToLevel(options.targetLevel);
+				runtimeDebug.log("level", "portal-transition:level-swapped", {
+					target: options.targetLevel,
+				});
 				cameraPos = options.player.pos.clone();
 				k.setCamPos(cameraPos);
 				k.setCamScale(WORLD_CAMERA_SCALE * 1.06);
 				options.player.angle = playerStartAngle;
-				spawnArrivalEffect(options.player.pos);
+				spawnArrivalEffect(
+					options.player.pos,
+					options.targetLevel === "hub"
+				);
 				phase = "arrival";
 				phaseTime = 0;
+				runtimeDebug.log("level", "portal-transition:phase", { phase });
 			}
 			return;
 		}
@@ -191,6 +212,9 @@ export function startLevelTransition(options: TransitionOptions) {
 		options.player.angle = playerStartAngle;
 		k.setCamScale(WORLD_CAMERA_SCALE);
 		transitionActive = false;
+		runtimeDebug.log("level", "portal-transition:complete", {
+			target: options.targetLevel,
+		});
 		k.destroy(topShutter);
 		k.destroy(bottomShutter);
 		k.destroy(transitionLine);
@@ -203,7 +227,12 @@ function setPortalIntensity(portal: GameObj, intensity: number) {
 		intensity;
 }
 
-function spawnArrivalEffect(pos: Vec2) {
+function spawnArrivalEffect(pos: Vec2, playWarpLandingBass: boolean) {
+	if (playWarpLandingBass) {
+		audioService.playSound("warp_landing_bass", {
+			volume: mainSoundVolume,
+		})
+	}
 	starsEmitter.emitter.position = pos;
 	starsEmitter.emit(32);
 }

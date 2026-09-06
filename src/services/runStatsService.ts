@@ -1,4 +1,5 @@
 import { clearSelectedContract } from "./contractService"
+import { recordTelemetrySalvageEarned } from "./runTelemetryService"
 
 const LAST_RUN_KEY = "spacedaze_last_run_v2"
 const LIFETIME_STATS_KEY = "spacedaze_lifetime_stats_v1"
@@ -101,6 +102,7 @@ export function recordPlaytime(deltaSeconds: number) {
 export function recordRunSalvage(amount: number) {
 	if (!activeRun) return
 	activeRun.salvageEarned += amount
+	recordTelemetrySalvageEarned(amount)
 }
 
 export function recordRunReward(rarity: string) {

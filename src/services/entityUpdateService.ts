@@ -45,9 +45,16 @@ export function registerBatchedEntityUpdate(
 	const pool = pools.get(group)
 	if (!pool) throw new Error(`Unknown entity update group: ${group}`)
 	const entryId = nextEntryId++
+	let registered = true
+	const unregister = () => {
+		if (!registered) return
+		registered = false
+		pool.remove(entryId)
+	}
 	pool.add({ id: entryId, obj, update })
-	obj.onDestroy(() => pool.remove(entryId))
+	obj.onDestroy(unregister)
 	ensureLegacyController()
+	return unregister
 }
 
 export function updateBatchedEntities() {

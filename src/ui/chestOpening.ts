@@ -55,11 +55,26 @@ import {
 	spawnCurrencyBurst,
 } from "../spawn/spawnCurrencyBurst";
 import { playRequirementErrorSound } from "../services/uiSoundService";
+import {
+	recordTelemetryChestReroll,
+	recordTelemetryChestResult,
+	recordTelemetryChestRetry,
+	recordTelemetryRewardOffered,
+} from "../services/runTelemetryService";
+import { equipAbilityWithWorldDrop } from "../services/abilitySwapService";
+import { playerObj } from "../game";
 
 interface TimingZone {
 	start: number; // 0-1
 	end: number; // 0-1
 	hit: boolean;
+}
+
+interface BezierSegment {
+	p0: Vec2;
+	p1: Vec2;
+	p2: Vec2;
+	p3: Vec2;
 }
 
 interface RewardRevealProfile {
@@ -139,6 +154,7 @@ const REWARD_REVEAL_PROFILES: Record<Rarity, RewardRevealProfile> = {
 };
 
 const CHEST_RETRY_COST = 20;
+const PERFECT_FEEDBACK_DURATION = 0.72;
 
 function isRarityAtLeast(rarity: Rarity, minimum: Rarity) {
 	const rarityOrder = Object.values(Rarity);
@@ -156,7 +172,8 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 	const challengeType = k.choose(challengeTypes);
 	const challengeConfig = createChestChallengeConfig(
 		consumeNextChestDifficulty(),
-		challengeType
+		challengeType,
+		{ random: () => k.rand() }
 	);
 	const rewardType = consumeNextChestRewardType();
 	const generateRewards = (
@@ -206,7 +223,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			zoneObjects: [] as GameObj[],
 			passes: 0,
 			maxPasses: challengeConfig.maxPasses,
-			bezierPoints: [] as Vec2[],
+			bezierSegments: [] as BezierSegment[],
 			frequencyPosition: 0.5,
 			frequencyTarget: 0.5,
 			frequencyRound: 0,
@@ -223,6 +240,8 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			explosionScale: 1,
 			challengeFinished: false,
 			challengeActive: false,
+			challengeActivationHandler: undefined as (() => void) | undefined,
+			perfectFeedbackPosition: k.vec2(0, 0),
 			perfectOpenSoundPlayed: false,
 			spaceKeyHandler: undefined as any,
 			barScale: k.vec2(1, 1),
@@ -257,7 +276,10 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 	};
 	const stopCapacitorChargeSound = () => {
 		if (!chestController.capacitorChargeSound) return;
-		chestController.capacitorChargeSound.stop();
+		audioService.stopSound(
+			chestController.capacitorChargeSound,
+			"capacitor-charge-ended"
+		);
 		chestController.capacitorChargeSound = null;
 	};
 	const claimDiscoveryReward = (reward: ChestReward) => {
@@ -285,26 +307,42 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 	const finishChallenge = () => {
 		if (chestController.challengeFinished) return;
 		chestController.challengeFinished = true;
+		chestController.challengeActive = false;
 		stopCapacitorChargeSound();
 		const normalizedHits = normalizeChestChallengeHits(
 			challengeConfig.type,
 			chestController.successfulHits
 		);
 		const missedZones = Math.max(0, 3 - Math.floor(normalizedHits));
-		if (
-			chestController.failedAttempts + missedZones === 0 &&
-			!chestController.perfectOpenSoundPlayed
-		) {
+		const totalFailures = chestController.failedAttempts + missedZones;
+		recordTelemetryChestResult(
+			challengeConfig.type,
+			totalFailures,
+			totalFailures === 0
+		);
+		const isPerfect = totalFailures === 0;
+		if (isPerfect && !chestController.perfectOpenSoundPlayed) {
 			chestController.perfectOpenSoundPlayed = true;
 			audioService.playSound("perfect_chest_open", {
 				volume: mainSoundVolume * 0.85,
 			});
+			showPerfectChallengeFeedback(
+				chestController.uiContainer,
+				chestController.perfectFeedbackPosition
+			);
 		}
-		chestController.enterState("explosion");
 		if (chestController.spaceKeyHandler) {
 			chestController.spaceKeyHandler.cancel();
 			chestController.spaceKeyHandler = undefined;
 		}
+		const enterExplosion = () => {
+			if (
+				chestController.exists() &&
+				chestController.state === "timingGame"
+			) chestController.enterState("explosion");
+		};
+		if (isPerfect) k.wait(PERFECT_FEEDBACK_DURATION, enterExplosion);
+		else enterExplosion();
 	};
 	const registerChallengeHit = (amount: number = 1, zoneIndex?: number) => {
 		chestController.successfulHits = Math.min(
@@ -397,15 +435,10 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		}
 
 		if (!countdown.exists() || chestController.state !== "timingGame") return;
-		countdown.text = "GO";
-		countdown.color = k.rgb(255, 165, 0);
-		await k.wait(0.3);
-		if (!chestController.exists() || chestController.state !== "timingGame") {
-			return;
-		}
+		chestController.challengeActive = true;
+		chestController.challengeActivationHandler?.();
 		k.destroy(countdown);
 		k.destroy(modeLabel);
-		chestController.challengeActive = true;
 	};
 
 	// State: Initial - Display chest briefly
@@ -488,6 +521,8 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		chestController.failedAttempts = 0;
 		chestController.challengeFinished = false;
 		chestController.challengeActive = false;
+		chestController.challengeActivationHandler = undefined;
+		chestController.perfectFeedbackPosition = k.vec2(0, 0);
 		chestController.perfectOpenSoundPlayed = false;
 
 		if (challengeConfig.type === "frequency") {
@@ -517,6 +552,10 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			);
 			const lockFrequency = () => {
 				if (!chestController.challengeActive) return;
+				chestController.perfectFeedbackPosition = k.vec2(
+					-150 + chestController.frequencyTarget * 300,
+					86
+				);
 				const distance = Math.abs(
 					chestController.frequencyPosition -
 					chestController.frequencyTarget
@@ -545,6 +584,13 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			chestController.capacitorCharge = 0;
 			chestController.capacitorCharging = false;
 			chestController.capacitorResolved = false;
+			chestController.perfectFeedbackPosition = k.vec2(
+				-150 + (
+					challengeConfig.capacitorPerfectCharge +
+					challengeConfig.capacitorPerfectMax
+				) * 150,
+				74
+			);
 			chestController.uiContainer.add([
 				k.pos(0, 65),
 				{
@@ -558,7 +604,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			]);
 			addChallengeInstructions(
 				chestController.uiContainer,
-				"RISK CAPACITOR",
+				`RISK CAPACITOR  //  ${challengeConfig.capacitorChargeProfile.toUpperCase()}`,
 				[{ action: "charge", label: "HOLD / RELEASE TO CHARGE" }]
 			);
 			const resolveCapacitor = () => {
@@ -571,20 +617,26 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				chestController.capacitorResolved = true;
 				chestController.capacitorCharging = false;
 				const charge = chestController.capacitorCharge;
-				const hits = charge >= challengeConfig.capacitorPerfectCharge
+				const hits = charge >= challengeConfig.capacitorPerfectCharge &&
+					charge <= challengeConfig.capacitorPerfectMax
 					? 3
-					: charge >= challengeConfig.capacitorGoodCharge
+					: charge < challengeConfig.capacitorPerfectCharge &&
+						charge >= challengeConfig.capacitorGoodCharge
 						? 2
-						: charge >= challengeConfig.capacitorMinimumCharge
+						: charge < challengeConfig.capacitorGoodCharge &&
+							charge >= challengeConfig.capacitorMinimumCharge
 							? 1
 							: 0;
 				if (hits > 0) registerChallengeHit(hits);
 				else registerChallengeMiss();
 				finishChallenge();
 			};
-			const pressController = k.onKeyPress("space", () => {
+			const beginCapacitorCharge = () => {
 				if (!chestController.challengeActive) return;
-				if (chestController.capacitorResolved) return;
+				if (
+					chestController.capacitorResolved ||
+					chestController.capacitorCharging
+				) return;
 				chestController.capacitorCharging = true;
 				stopCapacitorChargeSound();
 				chestController.capacitorChargeSound = audioService.playSound(
@@ -596,8 +648,12 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 						detune: -500,
 					}
 				);
-			});
+			};
+			const pressController = k.onKeyPress("space", beginCapacitorCharge);
 			const releaseController = k.onKeyRelease("space", resolveCapacitor);
+			chestController.challengeActivationHandler = () => {
+				if (k.isKeyDown("space")) beginCapacitorCharge();
+			};
 			chestController.spaceKeyHandler = {
 				cancel: () => {
 					pressController.cancel();
@@ -609,13 +665,12 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		}
 
 		if (isBezier) {
-			const curveDirection = k.rand() < 0.5 ? -1 : 1;
-			const p0 = k.vec2(-barWidth / 2, barY);
-			const p1 = k.vec2(-barWidth * 0.24, barY + 125 * curveDirection);
-			const p2 = k.vec2(barWidth * 0.24, barY - 125 * curveDirection);
-			const p3 = k.vec2(barWidth / 2, barY);
-			chestController.bezierPoints = [p0, p1, p2, p3];
-			const targetCenter = k.rand(0.32, 0.72);
+			chestController.bezierSegments = createBezierChallengePath(
+				challengeConfig.bezierSegmentCount,
+				barWidth,
+				barY
+			);
+			const targetCenter = k.rand(0.2, 0.84);
 			const hitWindow = challengeConfig.bezierHitWindow;
 			chestController.timingZones.push({
 				start: targetCenter - hitWindow / 2,
@@ -624,13 +679,11 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			});
 
 			const pathPoints: Vec2[] = [];
-			for (let index = 0; index <= 32; index++) {
-				pathPoints.push(cubicBezierPoint(
-					p0,
-					p1,
-					p2,
-					p3,
-					index / 32
+			const pathSampleCount = challengeConfig.bezierSegmentCount * 24;
+			for (let index = 0; index <= pathSampleCount; index++) {
+				pathPoints.push(sampleBezierPath(
+					chestController.bezierSegments,
+					index / pathSampleCount
 				));
 			}
 			chestController.uiContainer.add([
@@ -644,7 +697,11 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 					},
 				},
 			]);
-			const targetPos = cubicBezierPoint(p0, p1, p2, p3, targetCenter);
+			const targetPos = sampleBezierPath(
+				chestController.bezierSegments,
+				targetCenter
+			);
+			chestController.perfectFeedbackPosition = targetPos;
 			const targetRadius = 5 + hitWindow * 50;
 			const targetObj = chestController.uiContainer.add([
 				k.circle(targetRadius),
@@ -657,7 +714,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			chestController.zoneObjects.push(targetObj);
 			chestController.timingBarObj = chestController.uiContainer.add([
 				k.circle(5),
-				k.pos(p0),
+				k.pos(sampleBezierPath(chestController.bezierSegments, 0)),
 				k.anchor("center"),
 				k.color(255, 255, 255),
 				k.outline(2, k.rgb(100, 200, 255)),
@@ -735,6 +792,10 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 					chestController.timingBarPosition >= zone.start &&
 					chestController.timingBarPosition <= zone.end
 				) {
+					chestController.perfectFeedbackPosition = k.vec2(
+						-barWidth / 2 + (zone.start + zone.end) * barWidth / 2,
+						barY + barHeight / 2
+					);
 					zone.hit = true;
 					chestController.successfulHits++;
 					hitZone = true;
@@ -808,7 +869,10 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		if (!chestController.challengeActive) return;
 		if (challengeConfig.type === "frequency") {
 			chestController.timingBarPosition += k.dt();
-			if (chestController.timingBarPosition >= 6) {
+			if (
+				chestController.timingBarPosition >=
+				challengeConfig.frequencyTimeLimit
+			) {
 				chestController.failedAttempts +=
 					3 - chestController.frequencyRound;
 				finishChallenge();
@@ -829,7 +893,8 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		if (challengeConfig.type === "capacitor") {
 			chestController.timingBarPosition += k.dt();
 			if (
-				chestController.timingBarPosition >= 5 &&
+				chestController.timingBarPosition >=
+					challengeConfig.capacitorTimeLimit &&
 				!chestController.capacitorResolved
 			) {
 				chestController.capacitorResolved = true;
@@ -842,7 +907,11 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				!chestController.capacitorResolved
 			) {
 				chestController.capacitorCharge +=
-					challengeConfig.capacitorChargeSpeed * k.dt();
+					getCapacitorChargeRate(
+						challengeConfig,
+						chestController.capacitorCharge,
+						chestController.timingBarPosition
+					) * k.dt();
 				if (chestController.capacitorChargeSound) {
 					const chargeProgress = k.clamp(
 						chestController.capacitorCharge,
@@ -911,13 +980,10 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		if (chestController.timingBarObj) {
 			if (
 				challengeConfig.type === "bezier" &&
-				chestController.bezierPoints.length === 4
+				chestController.bezierSegments.length > 0
 			) {
-				chestController.timingBarObj.pos = cubicBezierPoint(
-					chestController.bezierPoints[0],
-					chestController.bezierPoints[1],
-					chestController.bezierPoints[2],
-					chestController.bezierPoints[3],
+				chestController.timingBarObj.pos = sampleBezierPath(
+					chestController.bezierSegments,
 					chestController.timingBarPosition
 				);
 			} else {
@@ -1022,6 +1088,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			...chestController.fixedDiscoveries,
 			...result.choices.slice(0, selectableSlotCount),
 		];
+		for (const reward of chestController.rewards) {
+			recordTelemetryRewardOffered(reward.id);
+		}
 		chestController.totalFailures = result.failures;
 		chestController.quality = result.quality;
 
@@ -1225,6 +1294,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			...newDiscoveries,
 			...rerolledChoices,
 		];
+		for (const reward of chestController.rewards) {
+			recordTelemetryRewardOffered(reward.id);
+		}
 		claimDiscoveryRewards(newDiscoveries);
 		chestController.totalFailures = result.failures;
 		chestController.quality = result.quality;
@@ -1240,9 +1312,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		clearDetailInteractions();
 		chestController.uiContainer.removeAll();
 		if (chestController.borderBox) chestController.borderBox.opacity = 0;
-		const selectableRewards = chestController.rewards.filter(
-			(reward) => !isAbilityReward(reward)
-		);
+		const selectableRewards = [...chestController.rewards];
 		const choiceCount = selectableRewards.length;
 		const slotCount = chestController.rewards.length;
 		const performanceLabel = chestController.totalFailures === 0
@@ -1294,14 +1364,18 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		let accepted = false;
 		const acceptControllers = chestController.detailControllers;
 		const acceptReward = (reward: ChestReward) => {
-			if (accepted || isAbilityReward(reward)) return;
+			if (accepted) return;
 			accepted = true;
 
-			if (!applyReward(reward, k.center())) {
+			const isDiscovery = isAbilityReward(reward);
+			const applied = isDiscovery
+				? equipDiscoveredAbility(reward)
+				: applyReward(reward, k.center());
+			if (!applied) {
 				accepted = false;
 				return;
 			}
-			addCollectedPowerup(reward);
+			if (!isDiscovery) addCollectedPowerup(reward);
 
 			// Play purchase sound
 			audioService.playSound("purchase1", { volume: mainSoundVolume });
@@ -1315,6 +1389,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				return;
 			}
 			accepted = true;
+			recordTelemetryChestReroll();
 			chestController.rerollExcludedIds = selectableRewards.map(
 				(reward) => reward.id
 			);
@@ -1329,6 +1404,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				return;
 			}
 			accepted = true;
+			recordTelemetryChestRetry();
 			spawnCurrencyBurst(k.mousePos(), {
 				particleCount: purchaseBurstParticleCount(CHEST_RETRY_COST),
 				fixed: true,
@@ -1383,8 +1459,6 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 
 		chestController.rewards.forEach((reward, index) => {
 			const rarityColor = REWARD_RARITY_COLORS[reward.rarity];
-			const isPermanent = reward.progression.persistence === "permanent";
-			const isDiscovery = isAbilityReward(reward);
 			const selectableIndex = selectableRewards.indexOf(reward);
 			const cardCenterX = panelWidth / 2 + layout.cardX(index);
 			const animationDelay = index * cardStagger;
@@ -1397,7 +1471,6 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			const cardControl = createUiSelectableCard(cardReveal, {
 				pos: k.vec2(-cardWidth / 2, -cardHeight / 2),
 				size: k.vec2(cardWidth, cardHeight),
-				disabled: isDiscovery,
 				onClick: () => {
 					if (cardReveal.opacity < 1) return;
 					acceptReward(reward);
@@ -1416,42 +1489,23 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				timing: [0, 0.72, 1],
 				easing: k.easings.easeOutCubic,
 			});
-			if (isPermanent) {
-				card.add([
-					k.pos(4, 4),
-					k.rect(cardWidth - 8, cardHeight - 8, { fill: false }),
-					k.outline(1, k.WHITE),
-					k.z(2),
-				]);
-			}
-
 			card.add([
 				k.sprite(reward.sprite, { width: 56, height: 56 }),
-				k.pos(cardWidth / 2, 42),
+				k.pos(cardWidth / 2, 60),
 				k.anchor("center"),
 				k.z(3),
 			]);
+			const slotBadge = getRewardSlotBadge(reward);
+			const badgeWidth = Math.min(cardWidth - 24, 112);
 			createUiBadge(card, {
-				pos: k.vec2(12, 76),
-				width: cardWidth - 24,
-				text: `${reward.rarity} ${reward.abilitySlot
-					? `${reward.abilitySlot.toUpperCase()} ABILITY`
-					: reward.kind.toUpperCase()}`,
-				color: rarityColor,
+				pos: k.vec2((cardWidth - badgeWidth) / 2, 10),
+				width: badgeWidth,
+				text: slotBadge.text,
+				color: slotBadge.color,
 			});
-			if (isPermanent) {
-				createUiBadge(card, {
-					pos: k.vec2(12, cardHeight - 66),
-					width: cardWidth - 24,
-					text: isDiscovery
-						? "DISCOVERED  //  ADDED TO PHASE STATION"
-						: "PERMANENT",
-					color: isDiscovery ? UI_COLORS.success : [255, 255, 255],
-				});
-			}
 			addThemedText(card, {
 				text: reward.name,
-				pos: k.vec2(12, 108),
+				pos: k.vec2(12, 102),
 				variant: "heading",
 				size: UI_FONT_SIZES.body,
 				width: cardWidth - 24,
@@ -1461,38 +1515,24 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				z: 3,
 			});
 			addThemedText(card, {
-				text: reward.description,
-				pos: k.vec2(14, 174),
+				text: formatRewardDescription(reward),
+				pos: k.vec2(14, 154),
 				variant: "body",
 				size: UI_FONT_SIZES.small,
 				width: cardWidth - 28,
 				align: "center",
 				lineHeight: 1.4,
+				color: k.rgb(...rarityColor),
 				z: 3,
 			});
-			const rewardStats = Object.entries(reward.stats)
-				.map(([stat, value]) => `${stat}: ${value}`)
-				.join("\n");
-			addThemedText(card, {
-				text: rewardStats,
-				pos: k.vec2(14, 250),
-				variant: "stat",
-				size: UI_FONT_SIZES.small,
-				width: cardWidth - 28,
-				align: "center",
-				color: k.rgb(100, 200, 255),
-				z: 3,
+			createInputPromptRow(card, {
+				pos: k.vec2(cardWidth / 2, cardHeight - 28),
+				prompts: [{
+					action: `select${selectableIndex + 1}` as "select1" | "select2" | "select3",
+					label: isAbilityReward(reward) ? "TO EQUIP" : "TO SELECT",
+				}],
+				color: UI_COLORS.accent,
 			});
-			if (!isDiscovery) {
-				createInputPromptRow(card, {
-					pos: k.vec2(cardWidth / 2, cardHeight - 28),
-					prompts: [{
-						action: `select${selectableIndex + 1}` as "select1" | "select2" | "select3",
-						label: "TO SELECT",
-					}],
-					color: UI_COLORS.accent,
-				});
-			}
 			if (reward.rarity === Rarity.Legendary) {
 				addLegendaryCardSweep(
 					card,
@@ -1501,27 +1541,54 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 					animationDelay + 0.18
 				);
 			}
-			if (!isDiscovery) {
-				acceptControllers.push(
-					k.onKeyPress(`${selectableIndex + 1}`, () => acceptReward(reward))
-				);
-			}
+			acceptControllers.push(
+				k.onKeyPress(`${selectableIndex + 1}`, () => acceptReward(reward))
+			);
 		});
 
 		if (selectableRewards.length > 0) {
 			acceptControllers.push(k.onKeyPress("enter", () => {
 				acceptReward(selectableRewards[0]);
 			}));
-		} else {
-			k.wait(1.2, () => {
-				if (chestController.exists()) finishSequence();
-			});
 		}
 	});
 
 	// Start state machine
 	chestController.enterState("initial");
 	chestController.onDestroy(stopCapacitorChargeSound);
+}
+
+function equipDiscoveredAbility(reward: ChestReward) {
+	if (!reward.abilityId || !reward.abilitySlot) return false;
+	return equipAbilityWithWorldDrop(
+		reward.abilitySlot,
+		reward.abilityId,
+		playerObj.pos.clone()
+	);
+}
+
+function formatRewardDescription(reward: ChestReward) {
+	const stats = Object.entries(reward.stats)
+		.map(([stat, value]) => `${stat.replace(/([A-Z])/g, " $1").toUpperCase()} ${value}`)
+		.join("  //  ");
+	const data = stats ? `${reward.rarity}  //  ${stats}` : reward.rarity;
+	return `${reward.description}\n\n${data}`;
+}
+
+function getRewardSlotBadge(reward: ChestReward): {
+	text: string;
+	color: readonly [number, number, number];
+} {
+	switch (reward.abilitySlot) {
+		case "primary": return { text: "PRIMARY", color: [255, 255, 255] };
+		case "secondary": return { text: "SECONDARY", color: [255, 255, 255] };
+		case "mobility": return { text: "MOBILITY", color: [70, 150, 255] };
+		case "ultimate": return { text: "ULTIMATE", color: [255, 75, 75] };
+		default: return {
+			text: reward.rarity,
+			color: REWARD_RARITY_COLORS[reward.rarity],
+		};
+	}
 }
 
 function addLegendaryCardSweep(
@@ -1793,6 +1860,35 @@ function getChallengeTitle(type: ChestChallengeType) {
 	}
 }
 
+function showPerfectChallengeFeedback(
+	parent: GameObj | null,
+	position: Vec2
+) {
+	if (!parent) return;
+	const feedback = parent.add([
+		k.text("PERFECT", {
+			size: UI_FONT_SIZES.heading,
+			font: "unscii",
+		}),
+		k.pos(position),
+		k.anchor("center"),
+		k.color(255, 205, 65),
+		k.opacity(0),
+		k.scale(0.25),
+		k.z(60),
+		k.animate(),
+	]);
+	feedback.animate("scale", [k.vec2(0.25), k.vec2(1.45), k.vec2(1)], {
+		duration: PERFECT_FEEDBACK_DURATION,
+		timing: [0, 0.42, 1],
+		easing: k.easings.easeOutBack,
+	});
+	feedback.animate("opacity", [0, 1, 1, 0], {
+		duration: PERFECT_FEEDBACK_DURATION,
+		timing: [0, 0.12, 0.62, 1],
+	});
+}
+
 function addChallengeInstructions(
 	parent: GameObj,
 	title: string,
@@ -1915,27 +2011,113 @@ function drawRiskCapacitor(
 	});
 	k.drawRect({
 		pos: k.vec2(left + config.capacitorPerfectCharge * width, 0),
-		width: (1 - config.capacitorPerfectCharge) * width,
+		width: (
+			config.capacitorPerfectMax - config.capacitorPerfectCharge
+		) * width,
 		height: 18,
 		color: k.rgb(255, 185, 45),
 		opacity: 0.55 * opacity,
 	});
 	k.drawRect({
+		pos: k.vec2(left + config.capacitorPerfectMax * width, 0),
+		width: (1 - config.capacitorPerfectMax) * width,
+		height: 18,
+		color: k.rgb(190, 45, 35),
+		opacity: 0.5 * opacity,
+	});
+	k.drawRect({
 		pos: k.vec2(left, 3),
 		width: clampedCharge * width,
 		height: 12,
-		color: clampedCharge >= config.capacitorPerfectCharge
-			? k.rgb(255, 230, 140)
-			: k.rgb(120, 210, 255),
+		color: clampedCharge > config.capacitorPerfectMax
+			? k.rgb(255, 80, 60)
+			: clampedCharge >= config.capacitorPerfectCharge
+				? k.rgb(255, 230, 140)
+				: k.rgb(120, 210, 255),
 		opacity: 0.9 * opacity,
 	});
 	k.drawRect({
-		pos: k.vec2(left + width - 3, -5),
+		pos: k.vec2(left + config.capacitorPerfectMax * width - 1.5, -5),
 		width: 3,
 		height: 28,
 		color: k.rgb(255, 70, 55),
 		opacity,
 	});
+}
+
+function getCapacitorChargeRate(
+	config: ChestChallengeConfig,
+	charge: number,
+	elapsed: number
+) {
+	if (config.capacitorChargeProfile === "accelerating") {
+		return config.capacitorChargeSpeed * k.lerp(
+			0.65,
+			1.45,
+			k.clamp(charge, 0, 1)
+		);
+	}
+	if (config.capacitorChargeProfile === "surging") {
+		return config.capacitorChargeSpeed * (
+			0.82 + (Math.sin(elapsed * 7.5) + 1) * 0.22
+		);
+	}
+	return config.capacitorChargeSpeed;
+}
+
+function createBezierChallengePath(
+	segmentCount: number,
+	width: number,
+	centerY: number
+): BezierSegment[] {
+	const count = Math.max(2, Math.round(segmentCount));
+	const segmentWidth = width / count;
+	const anchors: Vec2[] = [];
+	for (let index = 0; index <= count; index++) {
+		const progress = index / count;
+		const baseX = -width / 2 + progress * width;
+		const x = index === 0 || index === count
+			? baseX
+			: baseX + k.rand(-segmentWidth * 0.18, segmentWidth * 0.18);
+		const y = index === 0 || index === count
+			? centerY + k.rand(-18, 18)
+			: centerY + k.rand(-138, 138);
+		anchors.push(k.vec2(x, y));
+	}
+
+	const tension = k.rand(0.72, 1.15);
+	const segments: BezierSegment[] = [];
+	for (let index = 0; index < count; index++) {
+		const previous = anchors[Math.max(0, index - 1)];
+		const p0 = anchors[index];
+		const p3 = anchors[index + 1];
+		const next = anchors[Math.min(count, index + 2)];
+		const p1 = p0.add(p3.sub(previous).scale(tension / 6));
+		const p2 = p3.sub(next.sub(p0).scale(tension / 6));
+		segments.push({ p0, p1, p2, p3 });
+	}
+	return segments;
+}
+
+function sampleBezierPath(segments: BezierSegment[], progress: number) {
+	if (segments.length === 0) return k.vec2(0, 0);
+	const clampedProgress = k.clamp(progress, 0, 1);
+	const scaledProgress = clampedProgress * segments.length;
+	const segmentIndex = Math.min(
+		segments.length - 1,
+		Math.floor(scaledProgress)
+	);
+	const localProgress = clampedProgress >= 1
+		? 1
+		: scaledProgress - segmentIndex;
+	const segment = segments[segmentIndex];
+	return cubicBezierPoint(
+		segment.p0,
+		segment.p1,
+		segment.p2,
+		segment.p3,
+		localProgress
+	);
 }
 
 function cubicBezierPoint(

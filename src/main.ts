@@ -91,7 +91,6 @@ import {
 	RewardRarity,
 	RewardSource,
 } from "./services/rewardService";
-import { spawnRewardPickup } from "./spawn/spawnPowerup";
 import {
 	hideRecoveryShop,
 	recoveryShopOpen,
@@ -174,7 +173,11 @@ import { rebuildRuntimeSpatialIndex } from "./services/runtimeSpatialIndexServic
 import { updateEnemySeparation } from "./services/enemySeparationService";
 import { updateBatchedUi } from "./services/uiUpdateService";
 import { updateUiPointerRegions } from "./services/uiPointerService";
-import { dialogOpen } from "./services/dialogService";
+import {
+	dialogBlocksGameplay,
+	dialogCapturesInput,
+} from "./services/dialogService";
+import { cutsceneBlocksGameplay } from "./services/cutsceneService";
 import { setupQuestTracker } from "./ui/questTracker";
 import {
 	createLoadingScreen,
@@ -184,6 +187,15 @@ import {
 	resetNarrativeProgress,
 	shouldStartPrologue,
 } from "./services/narrativeService";
+import { formatPrologueTrace } from "./services/prologueTraceService";
+import {
+	getAvailableNpcDialogues,
+	startNpcDialogue,
+} from "./services/npcDialogueService";
+import {
+	runtimeDebug,
+	type RuntimeDebugCategory,
+} from "./services/runtimeDebugService";
 import {
 	getHubChestLuck,
 	getHubLevel,
@@ -194,9 +206,16 @@ import {
 	setHubLevelForDebug,
 } from "./services/hubProgressService";
 import { resetWarpZoneProgress } from "./services/warpZoneService";
-import { resetWeaponInventory } from "./services/weaponService";
-import { resetAbilityLoadout } from "./services/abilityLoadoutService";
-import { resetActiveModule } from "./services/activeModuleService";
+import {
+	resetWeaponInventory,
+} from "./services/weaponService";
+import {
+	resetAbilityLoadout,
+} from "./services/abilityLoadoutService";
+import {
+	resetActiveModule,
+} from "./services/activeModuleService";
+import { equipAbilityWithWorldDrop } from "./services/abilitySwapService";
 import {
 	addAvailableDebree,
 	DEFAULT_DEPOSITED_DEBREE,
@@ -209,6 +228,16 @@ import { clearPendingRunEndSummary } from "./services/runCompletionService";
 import {
 	debreeDepositPanelOpen,
 } from "./ui/debreeDepositPanel";
+import {
+	clearRunTelemetry,
+	downloadRunTelemetry,
+	formatLatestRunTelemetry,
+	formatRunTelemetrySummary,
+	recordTelemetryEnemyKill,
+	recordTelemetryEnemySpawn,
+	recordTelemetrySalvageSpent,
+	sampleRunTelemetry,
+} from "./services/runTelemetryService";
 
 export const layers = {
 	bg: "bg",
@@ -329,6 +358,23 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 	addBorderOffsets();
 	registerDebugCommands();
 	registerRunLoopSystems();
+	k.onAdd(tags.enemy, (enemy) => {
+		const spawnedAt = performance.now();
+		const enemyType = typeof enemy.enemyType === "string"
+			? enemy.enemyType
+			: typeof enemy.sprite === "string"
+				? enemy.sprite
+				: "enemy";
+		const elite = enemy.tags.includes(tags.elite);
+		recordTelemetryEnemySpawn(enemyType, elite);
+		if (typeof enemy.onDeath === "function") {
+			enemy.onDeath(() => recordTelemetryEnemyKill(
+				enemyType,
+				elite,
+				Math.max(0, (performance.now() - spawnedAt) / 1000)
+			));
+		}
+	});
 
 	changeGameState(GameState.MainMenu);
 	loadingScreen.finish();
@@ -337,6 +383,7 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 		beginDrawCallProfilerFrame();
 		const frameMs = k.dt() * 1000;
 		beginProfilerFrame(frameMs);
+		sampleRunTelemetry(k.dt(), getThreatSnapshot());
 		profileSection("rootUpdate", () => {
 			const context = createRunFrameContext();
 			if (runLoop.isEnabled()) {
@@ -355,7 +402,7 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 	// Pause toggle with Escape key
 	k.onKeyPress("escape", () => {
 		if (debreeDepositPanelOpen()) return;
-		if (dialogOpen()) return;
+		if (dialogCapturesInput()) return;
 		if (tacticalMapOpen()) {
 			hideTacticalMap();
 			return;
@@ -379,7 +426,7 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 
 	k.onKeyPress("tab", () => {
 		if (debreeDepositPanelOpen()) return;
-		if (dialogOpen()) return;
+		if (dialogCapturesInput()) return;
 		if (commandService.isCapturingInput()) return;
 		if (gameState !== GameState.Playing) return;
 		if (playerDeathSequenceActive()) return;
@@ -390,7 +437,7 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 	for (const consoleKey of ["§", "`"]) {
 		k.onKeyPress(consoleKey, () => {
 			if (debreeDepositPanelOpen()) return;
-			if (dialogOpen()) return;
+			if (dialogCapturesInput()) return;
 			if (tacticalMapOpen()) return;
 			if (hubFacilityPanelOpen()) return;
 			if (recoveryShopOpen()) return;
@@ -564,7 +611,8 @@ function updateTimescale(context: RunFrameContext) {
 function canUpdateGameplay() {
 	return gameState == GameState.Playing &&
 		!isPaused &&
-		!dialogOpen() &&
+		!cutsceneBlocksGameplay() &&
+		!dialogBlocksGameplay() &&
 		!commandConsoleOpen() &&
 		!recoveryShopOpen() &&
 		!hubFacilityPanelOpen() &&
@@ -599,6 +647,10 @@ function updateLegacyFrame(context: RunFrameContext) {
 export function changeGameState(state: number) {
 	const previousState = gameState;
 	gameState = state;
+	runtimeDebug.log("game", "game-state:changed", {
+		from: gameStateName(previousState),
+		to: gameStateName(state),
+	});
 
 	if (gameState == GameState.Playing) {
 		if (previousState === GameState.ChestOpening) {
@@ -618,6 +670,11 @@ export function changeGameState(state: number) {
 	}
 }
 
+function gameStateName(state: number) {
+	return Object.entries(GameState).find(([, value]) => value === state)?.[0]
+		?? `Unknown(${state})`;
+}
+
 export function resetGameProfile() {
 	deleteGameSave("slot1")
 	resetDebreeEconomy()
@@ -633,6 +690,7 @@ export function resetGameProfile() {
 	resetAbilityLoadout()
 	resetHubProgress()
 	clearPendingRunEndSummary()
+	clearRunTelemetry()
 	resetWarpZoneProgress()
 	resetRunStats()
 	resetNarrativeProgress()
@@ -653,7 +711,9 @@ export function addScore(am: number) {
 }
 
 export function spendScore(amount: number) {
-	return spendAvailableDebree(amount);
+	const spent = spendAvailableDebree(amount);
+	if (spent) recordTelemetrySalvageSpent(amount);
+	return spent;
 }
 
 export function getScore() {
@@ -666,12 +726,84 @@ function registerDebugCommands() {
 	});
 
 	commandService.register(
+		"telemetry",
+		"telemetry [last|export|clear] - Inspect or export run balance data",
+		(args) => {
+			const mode = args[0]?.toLowerCase() ?? "summary";
+			if (mode === "last") return formatLatestRunTelemetry();
+			if (mode === "export") {
+				return downloadRunTelemetry()
+					? "Run telemetry exported as JSON"
+					: "Telemetry export is unavailable";
+			}
+			if (mode === "clear") {
+				clearRunTelemetry();
+				return "Run telemetry cleared";
+			}
+			if (mode !== "summary") {
+				return "Usage: telemetry [last|export|clear]";
+			}
+			return formatRunTelemetrySummary();
+		}
+	);
+
+	commandService.register(
 		"intro",
 		"intro reset - Replay the first-run prologue on the next start",
 		(args) => {
 			if (args[0]?.toLowerCase() !== "reset") return "Usage: intro reset";
 			resetNarrativeProgress();
 			return "Intro progress reset. Return to the menu and start again.";
+		}
+	);
+	commandService.register(
+		"prologuelog",
+		"Print the latest prologue recovery trace",
+		() => formatPrologueTrace()
+	);
+	commandService.register(
+		"npc",
+		"npc list | npc <id> - Start an active NPC conversation",
+		(args) => {
+			const available = getAvailableNpcDialogues();
+			const id = args[0]?.toLowerCase();
+			if (!id || id === "list") {
+				return available.length > 0
+					? `Available NPC dialogues: ${available.join(", ")}`
+					: "No NPC dialogues are active in this scene";
+			}
+			if (!available.includes(id.replaceAll("_", "-"))) {
+				return `NPC dialogue not available: ${id}. Use npc list.`;
+			}
+			hideCommandConsole();
+			k.wait(0, () => startNpcDialogue(id));
+			return `Starting NPC dialogue: ${id}`;
+		}
+	);
+	commandService.register(
+		"debuglog",
+		"debuglog [on|off|clear|show] [category] - Runtime event logging",
+		(args) => {
+			const action = args[0]?.toLowerCase() ?? "status";
+			if (action === "on") {
+				runtimeDebug.clear();
+				runtimeDebug.setEnabled(true);
+				return "Runtime debug logging enabled; streaming to .debug/runtime.log";
+			}
+			if (action === "off") {
+				runtimeDebug.setEnabled(false);
+				return "Runtime debug logging disabled";
+			}
+			if (action === "clear") {
+				runtimeDebug.clear();
+				return "Runtime debug log cleared";
+			}
+			if (action === "show") {
+				return runtimeDebug.format(args[1] as RuntimeDebugCategory | undefined);
+			}
+			return runtimeDebug.isEnabled()
+				? "Runtime debug logging is enabled"
+				: "Runtime debug logging is disabled";
 		}
 	);
 
@@ -1041,8 +1173,8 @@ function registerDebugCommands() {
 			return `Spawned ${groups.map(({ count, type }) => {
 				const label = count === 1
 					? type
-					: type === "boss"
-						? "bosses"
+					: type === "boss" || type === "mini-boss"
+						? `${type}es`
 						: `${type}s`;
 				return `${count} ${label}`;
 			}).join(", ")}`;
@@ -1168,10 +1300,12 @@ function registerDebugCommands() {
 
 	commandService.register(
 		"reward",
-		"reward <id> [rarity] - Spawn a reward",
+		"reward <id> [rarity] - Grant and immediately use a reward",
 		(args) => {
 			const definition = getRewardDefinition(args[0] ?? "");
-			if (definition && !canReceiveReward(definition)) {
+			const isAbility = definition?.abilityId !== undefined &&
+				definition.abilitySlot !== undefined;
+			if (definition && !isAbility && !canReceiveReward(definition)) {
 				return getRewardLockReason(definition) ?? "Reward is locked";
 			}
 			const rarityName = args[1]?.toUpperCase();
@@ -1185,10 +1319,30 @@ function registerDebugCommands() {
 				? createReward(definition.id, rarity)
 				: undefined;
 			if (!reward) return "Unknown reward. Use rewards to list them.";
+			if (!playerObj || !playerObj.exists()) return "No active player";
 			hideCommandConsole();
-			spawnRewardPickup(playerObj.pos.clone(), reward);
-			return `Spawned ${reward.name}`;
+			if (!applyReward(reward, playerObj.pos.clone())) {
+				return `Could not apply ${reward.name}`;
+			}
+			const equipped = equipConsoleReward(reward, playerObj.pos.clone());
+			addCollectedPowerup(reward);
+			saveGame("slot1");
+			return equipped
+				? `Granted and equipped ${reward.name}`
+				: `Granted and applied ${reward.name}`;
 		}
+	);
+}
+
+function equipConsoleReward(
+	reward: ReturnType<typeof createReward>,
+	position: Vec2
+) {
+	if (!reward?.abilityId || !reward.abilitySlot) return false;
+	return equipAbilityWithWorldDrop(
+		reward.abilitySlot,
+		reward.abilityId,
+		position
 	);
 }
 

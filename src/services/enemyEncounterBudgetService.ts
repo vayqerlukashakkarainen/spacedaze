@@ -27,6 +27,8 @@ export interface BudgetEncounterEntry {
 	roles: EnemyRole[]
 }
 
+export type EnemyAvailability = (id: BudgetEnemyId) => boolean
+
 const DEFINITIONS: readonly BudgetEnemyDefinition[] = [
 	{ id: "rammer", cost: 2, minThreat: 2, roles: ["pressure"] },
 	{ id: "orbit-lancer", cost: 2, minThreat: 1, roles: ["pressure"] },
@@ -48,14 +50,15 @@ export function getEncounterBudget(threatTier: number) {
 export function createBudgetEncounterPlan(
 	threatTier: number,
 	random: () => number = Math.random,
-	allowTerrainEnemies: boolean = true
+	allowTerrainEnemies: boolean = true,
+	isEnemyAvailable: EnemyAvailability = () => true
 ) {
 	const tier = Math.max(1, Math.min(5, Math.round(threatTier)))
 	const budget = getEncounterBudget(tier)
 	const plan: BudgetEncounterEntry[] = []
 	let remaining = budget
 	const opener = pick(
-		availableDefinitions(tier, remaining, plan, allowTerrainEnemies).filter((definition) => definition.roles.includes("pressure")),
+		availableDefinitions(tier, remaining, plan, allowTerrainEnemies, isEnemyAvailable).filter((definition) => definition.roles.includes("pressure")),
 		random
 	)
 	if (opener) {
@@ -63,7 +66,7 @@ export function createBudgetEncounterPlan(
 		remaining -= opener.cost
 	}
 	for (let attempt = 0; attempt < 24 && remaining >= 2; attempt++) {
-		const selected = pick(availableDefinitions(tier, remaining, plan, allowTerrainEnemies), random)
+		const selected = pick(availableDefinitions(tier, remaining, plan, allowTerrainEnemies, isEnemyAvailable), random)
 		if (!selected) break
 		plan.push(toEntry(selected))
 		remaining -= selected.cost
@@ -71,15 +74,32 @@ export function createBudgetEncounterPlan(
 	return plan
 }
 
+export function canCreateBudgetEncounter(
+	threatTier: number,
+	allowTerrainEnemies: boolean = true,
+	isEnemyAvailable: EnemyAvailability = () => true
+) {
+	const tier = Math.max(1, Math.min(5, Math.round(threatTier)))
+	return availableDefinitions(
+		tier,
+		getEncounterBudget(tier),
+		[],
+		allowTerrainEnemies,
+		isEnemyAvailable
+	).some((definition) => definition.roles.includes("pressure"))
+}
+
 function availableDefinitions(
 	tier: number,
 	remaining: number,
 	plan: BudgetEncounterEntry[],
-	allowTerrainEnemies: boolean
+	allowTerrainEnemies: boolean,
+	isEnemyAvailable: EnemyAvailability
 ) {
 	const controlCount = plan.filter((entry) => entry.roles.includes("controller")).length
 	const supportCount = plan.filter((entry) => entry.roles.includes("support")).length
 	return DEFINITIONS.filter((definition) => {
+		if (!isEnemyAvailable(definition.id)) return false
 		if (!allowTerrainEnemies && definition.roles.includes("terrain")) return false
 		if (definition.minThreat > tier || definition.cost > remaining) return false
 		if (definition.maxPerEncounter !== undefined && plan.filter((entry) => entry.id === definition.id).length >= definition.maxPerEncounter) return false

@@ -65,6 +65,9 @@ const droneTargetEase = 5;
 const droneVelocityEase = 7;
 const droneArrivalEase = 4;
 const droneTurnEase = 9;
+const fusionScale = 1.65;
+const fusionDamageMultiplier = 2.4;
+let fusionInProgress = false;
 type DroneMovementType =
 	| "swarm"
 	| "intercept"
@@ -228,6 +231,7 @@ export function spawnFollower(props: Props) {
 				m.deployed = true;
 				starsEmitter.emitter.position = m.pos;
 				starsEmitter.emit(10);
+				tryFuseFollowers();
 			}
 			return;
 		}
@@ -263,9 +267,9 @@ export function spawnFollower(props: Props) {
 				if (hostileProjectile) {
 					spawnInterceptorPulse(m.pos, hostileProjectile.pos);
 					k.destroy(hostileProjectile);
-					m.interceptorCooldown = player.droneSetBonus
+					m.interceptorCooldown = (player.droneSetBonus
 						? interceptorCooldown * 0.7
-						: interceptorCooldown;
+						: interceptorCooldown) * getFusionCooldownMultiplier(m);
 				} else {
 					m.interceptorCooldown = interceptorSearchDelay;
 				}
@@ -287,9 +291,9 @@ export function spawnFollower(props: Props) {
 					[tags.friendly, tags.blaster],
 					player.followerProjectileLink !== undefined
 				);
-				m.gunshipCooldown = player.droneSetBonus
+				m.gunshipCooldown = (player.droneSetBonus
 					? gunshipCooldown * 0.78
-					: gunshipCooldown;
+					: gunshipCooldown) * getFusionCooldownMultiplier(m);
 			}
 		}
 
@@ -312,15 +316,18 @@ export function spawnFollower(props: Props) {
 					[tags.friendly, tags.rocket],
 					player.followerProjectileLink !== undefined
 				);
-				m.missileCooldown = player.droneSetBonus
+				m.missileCooldown = (player.droneSetBonus
 					? missileDroneCooldown * 0.75
-					: missileDroneCooldown;
+					: missileDroneCooldown) * getFusionCooldownMultiplier(m);
 			}
 		}
 
 		if (
 			m.droneType === "combat" &&
-			Math.floor(k.rand(0, player.droneSetBonus ? 105 : 150)) == 1
+			Math.floor(k.rand(
+				0,
+				(player.droneSetBonus ? 105 : 150) * getFusionCooldownMultiplier(m)
+			)) == 1
 		) {
 			if (m.pickTarget(m.pos, 400, tags.enemy)) {
 				spawnBasicBlaster(
@@ -357,14 +364,21 @@ export function spawnFollower(props: Props) {
 }
 
 function getPackDamageMultiplier(drone: GameObj) {
-	if (player.packIntelligence === undefined || !drone.lockedTarget) return 1;
+	const fusionMultiplier = drone.fusionCore ? fusionDamageMultiplier : 1;
+	if (player.packIntelligence === undefined || !drone.lockedTarget) {
+		return fusionMultiplier;
+	}
 	const focusedDrones = (k.get(tags.follower) as GameObj[]).filter(
 		(candidate) =>
 			candidate.exists() &&
 			candidate.id !== drone.id &&
 			candidate.lockedTarget?.id === drone.lockedTarget.id
 	).length;
-	return 1 + Math.min(0.8, focusedDrones * 0.2);
+	return (1 + Math.min(0.8, focusedDrones * 0.2)) * fusionMultiplier;
+}
+
+function getFusionCooldownMultiplier(drone: GameObj) {
+	return drone.fusionCore ? 0.58 : 1;
 }
 
 export function refreshFollowerTypes() {
@@ -381,6 +395,7 @@ export function refreshFollowerTypes() {
 	configuredDroneSlots = getDroneSlotSignature();
 
 	followers.forEach((follower, index) => {
+		if (follower.fusionCore) return;
 		const droneType = assignments[index] ?? "combat";
 		if (follower.droneType === droneType) return;
 		const profile = droneProfiles[droneType];
@@ -393,6 +408,66 @@ export function refreshFollowerTypes() {
 		starsEmitter.emitter.position = follower.pos;
 		starsEmitter.emit(8);
 	});
+	tryFuseFollowers();
+}
+
+function tryFuseFollowers() {
+	if (fusionInProgress || player.droneFusion === undefined) return;
+	const candidates = (k.get(tags.follower) as GameObj[])
+		.filter((follower) =>
+			follower.exists() &&
+			follower.deployed &&
+			!follower.fusionCore &&
+			!follower.temporaryActiveModuleDrone
+		)
+		.sort((a, b) => a.id - b.id);
+	if (candidates.length < 3) return;
+
+	fusionInProgress = true;
+	const group = candidates.slice(0, 3);
+	const rolePriority: DroneType[] = [
+		"gunship",
+		"missile",
+		"interceptor",
+		"medic",
+		"salvager",
+		"combat",
+	];
+	const fusedType = rolePriority.find((role) =>
+		group.some((drone) => drone.droneType === role)
+	) ?? "combat";
+	const leader = group.find((drone) => drone.droneType === fusedType) ?? group[0];
+	const totalHealth = group.reduce(
+		(total, drone) => total + Math.max(1, Number(drone.hp) || 1),
+		0
+	);
+	const profile = droneProfiles[fusedType];
+
+	leader.fusionCore = true;
+	leader.fusedDroneTypes = group.map((drone) => drone.droneType);
+	leader.droneType = fusedType;
+	leader.movementType = profile.movementType;
+	leader.droneScale = profile.scale * fusionScale;
+	leader.hb = 18;
+	leader.maxHP = totalHealth;
+	leader.hp = totalHealth;
+	leader.use(k.sprite(profile.sprite));
+	leader.scale = k.vec2(leader.droneScale);
+	leader.add([
+		k.circle(12, { fill: false }),
+		k.anchor("center"),
+		k.outline(1, k.rgb(80, 220, 255)),
+		k.opacity(0.65),
+		k.z(-1),
+	]);
+
+	for (const drone of group) {
+		if (drone.id !== leader.id && drone.exists()) k.destroy(drone);
+	}
+	starsEmitter.emitter.position = leader.pos;
+	starsEmitter.emit(32);
+	spawnFlash(leader.pos.clone(), 14, k.rgb(80, 220, 255));
+	fusionInProgress = false;
 }
 
 function getDroneSlotSignature() {
@@ -416,6 +491,14 @@ function updateDroneMovement(drone: GameObj, follow: GameObj<PosComp>) {
 	}
 	if (drone.movementType === "salvage") {
 		updateSalvagerMovement(drone, follow);
+		return;
+	}
+	if (player.droneSetBonus) {
+		const forward = k.Vec2.fromAngle((follow.angle ?? 0) - 90).scale(44);
+		const right = k.Vec2.fromAngle(follow.angle ?? 0).scale(
+			((drone.id % 5) - 2) * 16
+		);
+		updateSwarmMovement(drone, follow, forward.add(right), 0.38);
 		return;
 	}
 	updateSwarmMovement(drone, follow);
@@ -472,7 +555,8 @@ function updateSwarmMovement(
 		targetPos,
 		drone.speed *
 			droneProfiles[drone.droneType as DroneType].speedMultiplier *
-			2.2
+			2.2 *
+			(drone.fusionCore ? 1.15 : 1)
 	);
 }
 
@@ -571,6 +655,12 @@ export function getMissileDroneCount(): number {
 	return getDroneTypeCounts().missile;
 }
 
+export function getFusedDroneCount(): number {
+	return (k.get(tags.follower) as GameObj[]).filter(
+		(follower) => follower.exists() && follower.fusionCore
+	).length;
+}
+
 export function getDroneTypeCounts(): Record<DroneType, number> {
 	const counts: Record<DroneType, number> = {
 		combat: 0,
@@ -589,7 +679,10 @@ export function getDroneTypeCounts(): Record<DroneType, number> {
 }
 
 function updateMedicBehavior(medic: GameObj) {
-	if ((medic.medicKillCharge ?? 0) < medicKillsPerRepair) return;
+	const requiredKills = medic.fusionCore
+		? Math.ceil(medicKillsPerRepair * 0.6)
+		: medicKillsPerRepair;
+	if ((medic.medicKillCharge ?? 0) < requiredKills) return;
 	if (!playerObj.exists() || playerObj.hp >= playerObj.maxHP) return;
 	medic.medicKillCharge = 0;
 	playerObj.hp = Math.min(playerObj.maxHP, playerObj.hp + 1);

@@ -2,6 +2,7 @@ import {
 	equipAbility,
 	getEquippedPrimaryAbilityId,
 } from "./abilityLoadoutService"
+import { getAbilityTierValues } from "./abilityTierService"
 
 export type WeaponId =
 	| "standardBlaster"
@@ -38,6 +39,7 @@ export interface WeaponDefinition {
 	name: string
 	description: string
 	icon: string
+	fireSound?: string
 	damageMultiplier: number
 	projectileSpeedMultiplier: number
 	fireCooldown: number
@@ -149,6 +151,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		name: "BURST DRIVER",
 		description: "Fires three accurate rounds in a tightly timed burst.",
 		icon: "weapon_burst_driver",
+		fireSound: "weapon_burst_driver",
 		damageMultiplier: 0.74,
 		projectileSpeedMultiplier: 1.15,
 		fireCooldown: 0.46,
@@ -231,7 +234,21 @@ export function getWeaponDefinition(id: WeaponId) {
 }
 
 export function getEquippedWeapon() {
-	return getWeaponDefinition(getEquippedPrimaryAbilityId())
+	const weapon = getWeaponDefinition(getEquippedPrimaryAbilityId())
+	const tier = getAbilityTierValues(weapon.id)
+	return {
+		...weapon,
+		damageMultiplier: weapon.damageMultiplier * tier.power,
+		projectileSpeedMultiplier: weapon.projectileSpeedMultiplier * tier.speed,
+		fireCooldown: weapon.fireCooldown / tier.recovery,
+		splash: weapon.splash
+			? {
+				...weapon.splash,
+				radius: weapon.splash.radius * tier.speed,
+				damageMultiplier: weapon.splash.damageMultiplier * tier.power,
+			}
+			: undefined,
+	}
 }
 
 export function getWeaponTriggerModifier(

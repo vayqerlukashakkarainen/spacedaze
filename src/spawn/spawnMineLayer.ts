@@ -10,7 +10,11 @@ import {
 	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService"
-import { easeDirection, registerHitAnimation } from "../shared"
+import {
+	applyDirectionalSteeringLean,
+	easeDirection,
+	registerHitAnimation,
+} from "../shared"
 import { tags } from "../tags"
 import { randomExplosion } from "../util"
 import { timescale } from "../comp/timescale"
@@ -68,9 +72,10 @@ export function spawnMineLayer(
 				: k.vec2(0)
 		const movement = tangent.add(radial.scale(1.25))
 		if (movement.len() > 0) {
+			const desiredDirection = movement.unit()
 			mineLayer.moveDirection = easeDirection(
 				mineLayer.moveDirection,
-				movement.unit(),
+				desiredDirection,
 				4,
 				delta
 			)
@@ -80,6 +85,12 @@ export function spawnMineLayer(
 				)
 			)
 			mineLayer.angle = mineLayer.moveDirection.angle() + 90
+			applyDirectionalSteeringLean(
+				mineLayer,
+				mineLayer.moveDirection,
+				desiredDirection,
+				profile.scale
+			)
 		}
 
 		mineLayer.mineTimer -= delta

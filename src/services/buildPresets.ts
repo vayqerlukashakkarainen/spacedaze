@@ -15,6 +15,30 @@ export interface PlaytestBuild {
 
 export const PLAYTEST_BUILDS: readonly PlaytestBuild[] = [
 	{
+		id: "relics",
+		name: "RELIC ENGINE",
+		description: "Two fused elite drones, an orbital saw, kinetic movement, near-miss bursts, and all three technology sets.",
+		followers: 6,
+		initialScrapArmor: 4,
+		upgrades: {
+			blaster: 1,
+			followerBlasterDmg: 1,
+			followerMissiles: 0,
+			droneFusion: 0,
+			packIntelligence: 0,
+			sawSatellite: 0,
+			kineticRam: 0,
+			nearMissCapacitor: 0,
+			sprint: 0,
+			spaceJump: 0,
+			phaseEcho: 0,
+			debreeDist: 2,
+			debreeValue: 0,
+			scrapArmor: 0,
+			salvageBattery: 0,
+		},
+	},
+	{
 		id: "swarm",
 		name: "SWARM INTELLIGENCE",
 		description: "A complete six-drone roster with every specialization and a lethal-hit failsafe.",

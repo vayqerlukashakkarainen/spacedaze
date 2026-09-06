@@ -10,7 +10,11 @@ import {
 	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService"
-import { registerHitAnimation } from "../shared"
+import {
+	applyDirectionalSteeringLean,
+	easeDirection,
+	registerHitAnimation,
+} from "../shared"
 import { tags } from "../tags"
 import { randomExplosion } from "../util"
 import { timescale } from "../comp/timescale"
@@ -46,6 +50,7 @@ export function spawnShieldDrone(
 			damage: profile.damage,
 			orbitAngle: k.rand(360),
 			orbitCenter: protectedTarget.pos.clone(),
+			moveDirection: k.vec2(0, 1),
 		},
 		tags.enemy,
 		tags.unit,
@@ -119,8 +124,22 @@ export function spawnShieldDrone(
 			followBlend
 		)
 		const orbitOffset = k.Vec2.fromAngle(drone.orbitAngle).scale(36)
+		const desiredDirection = orbitOffset.normal().unit()
+		drone.moveDirection = easeDirection(
+			drone.moveDirection,
+			desiredDirection,
+			7,
+			delta
+		)
 		drone.pos = drone.orbitCenter.add(orbitOffset)
-		drone.angle = orbitOffset.angle() + 90
+		drone.angle = drone.moveDirection.angle() + 90
+		applyDirectionalSteeringLean(
+			drone,
+			drone.moveDirection,
+			desiredDirection,
+			profile.scale,
+			true
+		)
 		checkProjectileIntersection(drone.pos, drone.hb, tags.friendly, (projectile) => {
 			onEnemyHit(drone, projectile)
 		})

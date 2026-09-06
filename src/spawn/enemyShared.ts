@@ -22,6 +22,7 @@ import { grantUltimateCharge } from "../services/ultimateAbilityService";
 interface EnemyDeathVisualOptions {
 	intensity?: number;
 	starCount?: number;
+	shipWreckage?: boolean;
 }
 
 export function onEnemyHit(m: GameObj, p: GameObj) {
@@ -56,7 +57,8 @@ export function enemyOnDeath(
 	);
 	spawnEnemyDeathEffect(
 		pos,
-		visuals.intensity ?? Math.sqrt(Math.max(1, powerupMultiplier))
+		visuals.intensity ?? Math.sqrt(Math.max(1, powerupMultiplier)),
+		visuals.shipWreckage !== false
 	);
 	for (const follower of k.get(tags.follower) as GameObj[]) {
 		if (!follower.exists() || follower.droneType !== "medic") continue;

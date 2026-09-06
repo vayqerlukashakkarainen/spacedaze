@@ -5,7 +5,7 @@ import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { clearPlayerStatusEffectsFromSource } from "../services/playerStatusEffectService"
 import { spawnEnemyBlaster } from "../services/projectileHelpers"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/threatService"
-import { easeDirection } from "../shared"
+import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
@@ -16,7 +16,7 @@ export function spawnSuppressor(pos: Vec2, hp = 6, options: EnemySpawnOptions = 
 		k.pos(pos), k.sprite("enemy_suppressor"), k.color(k.WHITE), k.rotate(0),
 		k.anchor("center"), k.health(profile.hp), k.animate(), k.scale(profile.scale), timescale(),
 		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
-		{ hb: 14 * profile.scale, damage: profile.damage, moveDirection: k.vec2(0, 1), fireTimer: k.rand(0.7, 1.4), wideFan: false },
+		{ hb: 14 * profile.scale, damage: profile.damage, moveDirection: k.vec2(0, 1), facingDirection: k.vec2(0, 1), fireTimer: k.rand(0.7, 1.4), wideFan: false },
 		tags.enemy, tags.unit, tags.enemyRoleController,
 		...(profile.elite ? [tags.elite] : []), tags.gameLoop, ...(options.tags ?? []),
 	])
@@ -30,7 +30,14 @@ export function spawnSuppressor(pos: Vec2, hp = 6, options: EnemySpawnOptions = 
 		const radial = distance < 220 ? direction.scale(-1) : distance > 330 ? direction : direction.normal().scale(0.55)
 		suppressor.moveDirection = easeDirection(suppressor.moveDirection, radial.unit(), 3.8, delta)
 		suppressor.move(suppressor.moveDirection.scale(70 * profile.speedMultiplier * velocityScale() * suppressor.getTimescale()))
-		suppressor.angle = direction.angle() + 90
+		suppressor.facingDirection = easeDirection(suppressor.facingDirection, direction, 6, delta)
+		suppressor.angle = suppressor.facingDirection.angle() + 90
+		applyDirectionalSteeringLean(
+			suppressor,
+			suppressor.facingDirection,
+			direction,
+			profile.scale
+		)
 		suppressor.fireTimer -= delta * (suppressor.shieldFireRateMultiplier ?? 1)
 		if (suppressor.fireTimer <= 0 && distance < 470) {
 			fireSuppressorFan(suppressor, direction, profile.elite && suppressor.wideFan)

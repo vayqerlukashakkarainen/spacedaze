@@ -10,6 +10,7 @@ import { k, velocityScale } from "./main";
 import { adjustedTarget } from "./util";
 
 const MAX_STEERING_LEAN = 0.65;
+const ROUNDED_STEERING_STRETCH = 0.32;
 
 export function registerHitAnimation(m: GameObj<AnimateComp>) {
 	m.animate("opacity", [0, 1, 0, 1], {
@@ -69,19 +70,43 @@ export function applySteeringLean(
 	m: GameObj<ScaleComp | any>,
 	currentAngle: number,
 	desiredAngle: number,
-	baseScale = 1
+	baseScale = 1,
+	rounded = false
 ) {
+	const correctedDesiredAngle = adjustedTarget(currentAngle, desiredAngle);
 	const steeringAmount = k.clamp(
-		Math.abs(currentAngle - desiredAngle) / 100,
+		Math.abs(currentAngle - correctedDesiredAngle) / 100,
 		0,
 		1
 	);
 	const targetScaleX = (1 - steeringAmount * MAX_STEERING_LEAN) * baseScale;
-	const targetScaleY = (1 - steeringAmount / 40) * baseScale;
+	const targetScaleY = rounded
+		? (1 + steeringAmount * ROUNDED_STEERING_STRETCH) * baseScale
+		: (1 - steeringAmount / 40) * baseScale;
 	const bankLerp = k.clamp(12 * k.dt(), 0, 1);
 	m.scale = k.vec2(
 		k.lerp(m.scale.x, targetScaleX, bankLerp),
 		k.lerp(m.scale.y, targetScaleY, bankLerp)
+	);
+}
+
+export function applyDirectionalSteeringLean(
+	m: GameObj<ScaleComp | any>,
+	currentDirection: Vec2,
+	desiredDirection: Vec2,
+	baseScale = 1,
+	rounded = false
+) {
+	if (currentDirection.len() <= 0 || desiredDirection.len() <= 0) {
+		applySteeringLean(m, 0, 0, baseScale, rounded);
+		return;
+	}
+	applySteeringLean(
+		m,
+		currentDirection.angle(),
+		desiredDirection.angle(),
+		baseScale,
+		rounded
 	);
 }
 

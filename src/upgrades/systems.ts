@@ -79,6 +79,32 @@ export const glassReactor: Tool = singleLevelTool(
 	"glass_reactor_upg1", 48
 )
 
+export const droneFusion: Tool = singleLevelTool(
+	"Drone fusion", "Drone Fusion",
+	"Every three standard drones combine into one larger elite drone that inherits their strongest role",
+	"drone_fusion_upg1", 44,
+	{ allOf: [{ toolKey: "followerBlasterDmg" }] }
+)
+
+export const sawSatellite: Tool = singleLevelTool(
+	"Saw satellite", "Saw Satellite",
+	"A toothed satellite orbits the ship, damaging enemies and cutting down hostile projectiles",
+	"saw_satellite_upg1", 36
+)
+
+export const kineticRam: Tool = singleLevelTool(
+	"Kinetic ram", "Kinetic Ram",
+	"Boosting collisions and Phase Jump paths deal heavy impact damage",
+	"kinetic_ram_upg1", 38,
+	{ anyOf: [{ toolKey: "sprint" }, { toolKey: "spaceJump" }] }
+)
+
+export const nearMissCapacitor: Tool = singleLevelTool(
+	"Near-miss capacitor", "Near-Miss Capacitor",
+	"Graze five hostile projectiles to discharge a damaging defensive shockwave",
+	"near_miss_capacitor_upg1", 40
+)
+
 function singleLevelTool(
 	toolName: string,
 	name: string,

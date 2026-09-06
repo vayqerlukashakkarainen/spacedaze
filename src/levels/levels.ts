@@ -27,6 +27,8 @@ import {
 	loseCarriedDebree,
 } from "../services/debreeEconomyService";
 import { completeRun } from "../services/runCompletionService";
+import { cancelActiveCutscene } from "../services/cutsceneService";
+import { runtimeDebug } from "../services/runtimeDebugService";
 
 const levels = {
 	hub,
@@ -53,6 +55,10 @@ export interface Level {
 let currentLvl: Level | null = null;
 let currentLevelKey: LevelKey | null = null;
 export function loadLevel(levelKey: LevelKey) {
+	runtimeDebug.log("level", "level:load-start", {
+		level: levelKey,
+		previous: currentLevelKey,
+	});
 	const lvl = levels[levelKey];
 	currentLvl = lvl;
 	currentLevelKey = levelKey;
@@ -74,9 +80,15 @@ export function loadLevel(levelKey: LevelKey) {
 			musicVolume
 		);
 	}
+	runtimeDebug.log("level", "level:load-complete", { level: levelKey });
 }
 
 export function transitionToLevel(levelKey: LevelKey) {
+	runtimeDebug.log("level", "level:transition-request", {
+		from: currentLevelKey,
+		to: levelKey,
+	});
+	cancelActiveCutscene();
 	if (levelKey === "hub" && runSessionActive()) {
 		const cargoReward = extractVolatileCargo();
 		if (cargoReward > 0) {
@@ -103,17 +115,36 @@ export function transitionToLevel(levelKey: LevelKey) {
 	destroyTaggedObjects(tags.blaster);
 	destroyTaggedObjects(tags.rocket);
 	destroyTaggedObjects(tags.damageNumber);
+	destroyTaggedObjects(tags.emotion);
+	destroyTaggedObjects(tags.hubRestoration);
+	destroyTaggedObjects(tags.hubRepairDrone);
+	destroyTaggedObjects(tags.hubBoundary);
+	destroyTaggedObjects(tags.hubPhaseField);
 
 	loadLevel(levelKey);
+	runtimeDebug.log("level", "level:transition-complete", {
+		active: currentLevelKey,
+	});
 }
 
 function destroyTaggedObjects(tag: string) {
 	const objects = (k.get(tag) as GameObj[]).sort(
 		(a, b) => objectDepth(b) - objectDepth(a)
 	);
+	const destroyedIds = new Set<number>();
 	for (const obj of objects) {
-		if (obj.exists()) k.destroy(obj);
+		destroyObjectTree(obj, destroyedIds);
 	}
+}
+
+function destroyObjectTree(obj: GameObj, destroyedIds: Set<number>) {
+	if (destroyedIds.has(obj.id) || !obj.exists()) return;
+	for (const child of [...obj.children]) {
+		destroyObjectTree(child, destroyedIds);
+	}
+	if (!obj.exists()) return;
+	destroyedIds.add(obj.id);
+	k.destroy(obj);
 }
 
 function objectDepth(obj: GameObj) {

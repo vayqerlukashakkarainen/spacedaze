@@ -1,5 +1,9 @@
 # Asset credits
 
+## Graphics
+
+- **Emotes Pack** — Kenney. A curated set of pixel emotes was adapted to the game's monochrome palette. Licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/). Source: [Kenney Emotes Pack](https://kenney.nl/assets/emotes-pack).
+
 ## Music
 
 - **Flirt Flirt Oh It Hurts** — Bossfight, from *Caps On, Hats Off* (2012). Prototype copy downloaded from the [artist's Newgrounds upload](https://www.newgrounds.com/audio/listen/504114).
@@ -13,5 +17,17 @@
 - **space ship speed up.wav** — pointparkcinema. Sourced from [Freesound](https://freesound.org/people/pointparkcinema/sounds/407235/) and trimmed for the main-menu space-jump warp. Licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
 
 - **Hyperdrive1.wav** — Assimulation_Gaming. Sourced from [Freesound](https://freesound.org/people/Assimulation_Gaming/sounds/330402/) and edited into the player landing impact. Licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
+
+- **Scrambled Telecommunications** — Raining-0n-Satrn. Sourced from [Freesound](https://freesound.org/people/Raining-0n-Satrn/sounds/615906/) for disturbed dialogue transmissions. Licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
+
+- **Funny Cartoon Music** — MaksymMalko. Sourced from [Pixabay](https://pixabay.com/sound-effects/nature-funny-cartoon-music-532611/) for Burt's prologue recovery scene. Licensed under the [Pixabay Content License](https://pixabay.com/service/license-summary/).
+
+- **Pneumatic hammer - Deprag zn231 - Start 1b** — ldezem. Sourced from [Freesound](https://freesound.org/people/ldezem/sounds/386309/) for Burt's repair sequence. Licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
+
+- **Socket wrench.wav** — Loinnats. Sourced from [Freesound](https://freesound.org/people/Loinnats/sounds/616628/) for Burt's repair sequence. Licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
+
+- **Happy Birthday to You Upbeat** — SergeQuadrado. Preview sourced from [Freesound](https://freesound.org/people/SergeQuadrado/sounds/541178/) for the Gloom and Jubilee hub encounter. Licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/); replace or separately license before commercial distribution.
+
+- **Happy Birthday to You Upbeat** — SergeQuadrado. Preview sourced from [Freesound](https://freesound.org/people/SergeQuadrado/sounds/541178/) for the Gloom and Jubilee hub encounter. Licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/); replace or separately license before commercial distribution.
 
 The track is included for private, non-distributed prototyping. The artist's published licensing terms request contact before use in a project, so permission or a replacement track is required before sharing or distributing a build containing it.
