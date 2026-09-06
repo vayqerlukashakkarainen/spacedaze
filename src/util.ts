@@ -366,7 +366,7 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("mobility_gravity_sling", "sprites/upgrades/gravity_sling.png")
 	await k.loadSprite(
 		"reroll_token",
-		"sprites/upgrades/reroll_token.png"
+		"sprites/upgrades/reroll_token.svg"
 	);
 	await k.loadSprite(
 		"phase_capacitor_upg1",
@@ -402,17 +402,8 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSprite(
 		"ricochet_rounds_upg1",
-		"sprites/upgrades/ricochet_rounds_upg1.png"
+		"sprites/upgrades/source/ricochet_rounds_upg1.svg"
 	);
-	const followerRewardSprites = [
-		"follower_interceptor_upg1",
-		"follower_gunship_upg1",
-		"follower_medic_upg1",
-		"follower_salvager_upg1",
-	]
-	for (const sprite of followerRewardSprites) {
-		await k.loadSprite(sprite, `sprites/upgrades/${sprite}.png`)
-	}
 	const projectileBehaviorSprites = [
 		"fragmentation_core_upg1",
 		"hunter_guidance_upg1",

@@ -26,7 +26,7 @@ export const followerMissiles: Tool = {
 		{
 			name: "Missile Drone",
 			desc: "Convert one combat drone into a dedicated missile drone",
-			sprite: "follower_missiles_upg1",
+			sprite: "drone_missile",
 			price: 22,
 			value: 1,
 		},
@@ -58,7 +58,7 @@ export const followerInterceptorProtocol: Tool = {
 		{
 			name: "Interceptor Drone",
 			desc: "Convert one combat drone into a fast projectile interceptor",
-			sprite: "follower_interceptor_upg1",
+			sprite: "drone_interceptor",
 			price: 32,
 			value: 1,
 		},
@@ -71,7 +71,7 @@ export const followerGunship: Tool = {
 	upgrades: [{
 		name: "Gunship Drone",
 		desc: "Convert one combat drone into a slow heavy cannon platform",
-		sprite: "follower_gunship_upg1",
+		sprite: "drone_gunship",
 		price: 34,
 		value: 1,
 	}],
@@ -83,7 +83,7 @@ export const followerMedic: Tool = {
 	upgrades: [{
 		name: "Medic Drone",
 		desc: "Convert one combat drone into a rear-guard medic that repairs hull after eight kills",
-		sprite: "follower_medic_upg1",
+		sprite: "drone_medic",
 		price: 38,
 		value: 1,
 	}],
@@ -95,7 +95,7 @@ export const followerSalvager: Tool = {
 	upgrades: [{
 		name: "Salvager Drone",
 		desc: "Convert one combat drone into an autonomous debris collector",
-		sprite: "follower_salvager_upg1",
+		sprite: "drone_salvager",
 		price: 30,
 		value: 1,
 	}],
