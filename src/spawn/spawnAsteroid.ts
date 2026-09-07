@@ -101,6 +101,7 @@ export function spawnMeteorite(props: Props) {
 			playerObj.pos.dist(m.pos) < m.hb
 		) {
 			applyDamage(playerObj, m.damage, {
+				position: m.pos,
 				source: {
 					name: profile.elite ? "ELITE ASTEROID" : "ASTEROID",
 					sprite: spriteName,

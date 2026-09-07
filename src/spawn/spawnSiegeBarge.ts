@@ -96,6 +96,7 @@ export function spawnSiegeBarge(
 							playerObj.pos.dist(targetPos) <= IMPACT_RADIUS
 						) {
 							applyDamage(playerObj, barge.damage, {
+								position: targetPos,
 								source: { name: "SIEGE BARGE", sprite: "enemy_siege_barge" },
 							})
 						}

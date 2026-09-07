@@ -173,6 +173,7 @@ export function spawnImpactAce(
 			ace.pos.dist(playerObj.pos) < ace.hb + 8
 		) {
 			applyDamage(playerObj, ace.damage, {
+				position: ace.pos,
 				source: {
 					name: definition.name,
 					sprite: IMPACT_ACE_SPRITES[ace.phaseIndex],

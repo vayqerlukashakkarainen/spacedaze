@@ -296,6 +296,7 @@ export function spawnRammer(
 			rammer.pos.dist(playerObj.pos) < rammer.hb + 8
 		) {
 			applyDamage(playerObj, rammer.damage, {
+				position: rammer.pos,
 				source: { name: "RAMMER", sprite: "enemy_rammer" },
 			})
 			applyDamage(rammer, rammer.hp)

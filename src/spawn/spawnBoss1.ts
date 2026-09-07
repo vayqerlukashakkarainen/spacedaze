@@ -505,6 +505,7 @@ export function spawnBoss1(
 			boss.pos.dist(playerObj.pos) < boss.hb + 8
 		) {
 			applyDamage(playerObj, boss.damage, {
+				position: boss.pos,
 				source: { name: definition.name, sprite: "boss1_body" },
 			})
 		}

@@ -148,6 +148,7 @@ export function spawnShieldDrone(
 			drone.pos.dist(playerObj.pos) < drone.hb + 8
 		) {
 			applyDamage(playerObj, drone.damage, {
+				position: drone.pos,
 				source: { name: "SHIELD DRONE", sprite: "enemy_shield_drone" },
 			})
 			applyDamage(drone, drone.hp)

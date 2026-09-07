@@ -3,6 +3,7 @@ import { k, layers } from "../main"
 import { spawnFlash } from "../spawn/spawnFlash"
 import { spawnRing } from "../spawn/spawnRing"
 import { tags } from "../tags"
+import { registerBatchedUiUpdate } from "./uiUpdateService"
 
 interface EnemyProjectileImpactOptions {
 	position: Vec2
@@ -17,6 +18,9 @@ interface EnemyProjectileImpactOptions {
 const HIT_TINT_DURATION = 0.065
 const NORMAL_HIT_TINT = [120, 220, 255] as const
 const CRITICAL_HIT_TINT = [255, 92, 92] as const
+const PLAYER_DAMAGE_INDICATOR_RADIUS = 58
+const MAX_PLAYER_DAMAGE_INDICATORS = 4
+const activePlayerDamageIndicators: GameObj[] = []
 
 export function applyEnemyProjectileImpact(
 	target: GameObj,
@@ -47,6 +51,87 @@ export function applyEnemyProjectileImpact(
 	applyEnemyHitTint(target, color)
 	applyEnemyHitRecoil(target, direction, options)
 	applyWeaponImpactShake(options)
+}
+
+export function showPlayerDamageDirection(
+	player: GameObj,
+	damage: number,
+	sourcePosition?: Vec2,
+	incomingDirection?: Vec2
+) {
+	if (!player.exists() || !player.pos) return
+	const direction = resolvePlayerDamageDirection(
+		player.pos,
+		sourcePosition,
+		incomingDirection
+	)
+	if (!direction) return
+	while (activePlayerDamageIndicators.length >= MAX_PLAYER_DAMAGE_INDICATORS) {
+		const oldest = activePlayerDamageIndicators.shift()
+		if (oldest?.exists()) k.destroy(oldest)
+	}
+
+	const duration = 0.42 + k.clamp(damage * 0.018, 0, 0.16)
+	const indicator = k.add([
+		k.pos(k.toScreen(player.pos).add(direction.scale(PLAYER_DAMAGE_INDICATOR_RADIUS))),
+		k.polygon([
+			k.vec2(-7, -6),
+			k.vec2(8, 0),
+			k.vec2(-7, 6),
+		]),
+		k.anchor("center"),
+		k.rotate(direction.angle()),
+		k.color(255, 70, 70),
+		k.outline(1, k.WHITE),
+		k.opacity(1),
+		k.scale(1),
+		k.fixed(),
+		k.layer(layers.uiEffects),
+		k.z(120),
+		{
+			elapsed: 0,
+			direction,
+			duration,
+		},
+		tags.gameLoop,
+	])
+	activePlayerDamageIndicators.push(indicator)
+	indicator.onDestroy(() => {
+		const index = activePlayerDamageIndicators.findIndex(
+			(candidate) => candidate.id === indicator.id
+		)
+		if (index >= 0) activePlayerDamageIndicators.splice(index, 1)
+	})
+	registerBatchedUiUpdate("overlay", indicator, () => {
+		if (!player.exists()) {
+			k.destroy(indicator)
+			return
+		}
+		indicator.elapsed += k.dt()
+		const progress = k.clamp(indicator.elapsed / indicator.duration, 0, 1)
+		const pulse = progress < 0.18
+			? k.lerp(0.72, 1.18, progress / 0.18)
+			: k.lerp(1.18, 0.86, (progress - 0.18) / 0.82)
+		indicator.pos = k.toScreen(player.pos).add(
+			indicator.direction.scale(PLAYER_DAMAGE_INDICATOR_RADIUS + progress * 7)
+		)
+		indicator.scale = k.vec2(pulse)
+		indicator.opacity = 1 - Math.pow(progress, 1.8)
+		if (progress >= 1) k.destroy(indicator)
+	})
+}
+
+function resolvePlayerDamageDirection(
+	playerPosition: Vec2,
+	sourcePosition?: Vec2,
+	incomingDirection?: Vec2
+) {
+	if (incomingDirection && incomingDirection.len() > 0.001) {
+		return incomingDirection.scale(-1).unit()
+	}
+	if (!sourcePosition) return undefined
+	const direction = sourcePosition.sub(playerPosition)
+	return direction.len() > 0.001 ? direction.unit() : undefined
 }
 
 function spawnImpactSpark(

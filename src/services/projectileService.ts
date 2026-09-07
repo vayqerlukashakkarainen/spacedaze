@@ -1460,6 +1460,7 @@ export function applyProjectileDamage(
 		const damageApplied = applyDamage(target, damage, {
 			critical,
 			position: projectile.pos,
+			incomingDirection: projectile.dir,
 			source: projectile.projectileConfig?.damageSource,
 		});
 		if (damageApplied && target.tags.includes(tags.enemy)) {

@@ -119,6 +119,7 @@ const swarmContinuousSystem = createContinuousSystem<SwarmContinuousEntry>({
 				enemy.pos.dist(playerObj.pos) < enemy.hb + 8
 			) {
 				applyDamage(playerObj, enemy.damage, {
+					position: enemy.pos,
 					source: { name: "SWARM DRONE", sprite: "enemy_swarm_drone" },
 				})
 				applyDamage(enemy, enemy.hp)
@@ -323,6 +324,7 @@ export function spawnHiveMind(
 			hive.pos.dist(playerObj.pos) < hive.hb + 8
 		) {
 			applyDamage(playerObj, hive.damage, {
+				position: hive.pos,
 				source: { name: "SWARM HIVEMIND", sprite: "enemy_swarm_hivemind" },
 			})
 			applyDamage(hive, hive.hp)

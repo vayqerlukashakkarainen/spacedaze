@@ -123,6 +123,7 @@ export function spawnMineLayer(
 			mineLayer.pos.dist(playerObj.pos) < mineLayer.hb + 8
 		) {
 			applyDamage(playerObj, mineLayer.damage, {
+				position: mineLayer.pos,
 				source: { name: "MINE LAYER", sprite: "enemy_mine_layer" },
 			})
 			applyDamage(mineLayer, mineLayer.hp)

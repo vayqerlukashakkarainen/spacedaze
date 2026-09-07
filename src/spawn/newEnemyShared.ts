@@ -23,6 +23,7 @@ export function handleEnemyCombat(
 		enemy.pos.dist(playerObj.pos) < enemy.hb + 8
 	) {
 		applyDamage(playerObj, enemy.damage, {
+			position: enemy.pos,
 			source: { name, sprite },
 		})
 		applyDamage(enemy, enemy.hp)

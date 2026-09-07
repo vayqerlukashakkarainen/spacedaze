@@ -159,6 +159,7 @@ export function spawnSniper(
 			sniper.pos.dist(playerObj.pos) < sniper.hb + 8
 		) {
 			applyDamage(playerObj, sniper.damage, {
+				position: sniper.pos,
 				source: { name: "SNIPER", sprite: "enemy_sniper" },
 			})
 			applyDamage(sniper, sniper.hp)
