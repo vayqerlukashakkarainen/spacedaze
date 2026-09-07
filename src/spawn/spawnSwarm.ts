@@ -201,7 +201,11 @@ export function spawnSwarmEnemy(
 			profile.rewardMultiplier,
 			"enemy",
 			true,
-			{ intensity: 0.42, starCount: 5 }
+			{
+				intensity: 0.42,
+				starCount: 5,
+				tier: profile.elite ? "elite" : "normal",
+			}
 		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume * 0.25 })
 		k.destroy(enemy)
@@ -341,7 +345,14 @@ export function spawnHiveMind(
 	}
 	hive.onDeath(() => {
 		releaseSwarm()
-		enemyOnDeath(hive.pos, 10 * profile.rewardMultiplier, 1.6 * profile.rewardMultiplier)
+		enemyOnDeath(
+			hive.pos,
+			10 * profile.rewardMultiplier,
+			1.6 * profile.rewardMultiplier,
+			"enemy",
+			true,
+			{ tier: profile.elite ? "elite" : "normal" }
+		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
 		k.destroy(hive)
 	})

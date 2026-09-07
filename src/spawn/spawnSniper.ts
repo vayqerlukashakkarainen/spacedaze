@@ -167,7 +167,14 @@ export function spawnSniper(
 	})
 
 	sniper.onDeath(() => {
-		enemyOnDeath(sniper.pos, 5 * profile.rewardMultiplier, 1.2 * profile.rewardMultiplier)
+		enemyOnDeath(
+			sniper.pos,
+			5 * profile.rewardMultiplier,
+			1.2 * profile.rewardMultiplier,
+			"enemy",
+			true,
+			{ tier: profile.elite ? "elite" : "normal" }
+		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
 		k.destroy(sniper)
 	})

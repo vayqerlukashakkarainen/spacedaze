@@ -128,7 +128,14 @@ export function spawnAssasin(
 
 	m.onDeath(() => {
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume });
-		enemyOnDeath(m.pos, am * profile.rewardMultiplier, profile.rewardMultiplier);
+		enemyOnDeath(
+			m.pos,
+			am * profile.rewardMultiplier,
+			profile.rewardMultiplier,
+			"enemy",
+			true,
+			{ tier: profile.elite ? "elite" : "normal" }
+		);
 		k.destroy(m);
 	});
 

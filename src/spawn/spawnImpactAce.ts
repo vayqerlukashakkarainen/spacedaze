@@ -192,7 +192,6 @@ export function spawnImpactAce(
 			{ intensity: 4, starCount: 55 }
 		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
-		k.shake(9)
 		k.destroy(ace)
 	})
 	ace.onHurt(() => {

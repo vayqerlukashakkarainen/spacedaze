@@ -304,7 +304,14 @@ export function spawnRammer(
 	})
 
 	rammer.onDeath(() => {
-		enemyOnDeath(rammer.pos, 4 * profile.rewardMultiplier, profile.rewardMultiplier)
+		enemyOnDeath(
+			rammer.pos,
+			4 * profile.rewardMultiplier,
+			profile.rewardMultiplier,
+			"enemy",
+			true,
+			{ tier: profile.elite ? "elite" : "normal" }
+		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
 		k.destroy(rammer)
 	})

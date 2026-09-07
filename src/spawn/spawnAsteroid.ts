@@ -119,7 +119,10 @@ export function spawnMeteorite(props: Props) {
 				(props.powerupMultiplier ?? 1) * profile.rewardMultiplier,
 				"enemy",
 				true,
-				{ shipWreckage: false }
+				{
+					shipWreckage: false,
+					tier: profile.elite ? "elite" : "normal",
+				}
 			);
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume });
 		k.destroy(m);

@@ -43,7 +43,10 @@ export function registerEnemyLifecycle(
 		enemyOnDeath(
 			enemy.pos,
 			score * profile.rewardMultiplier,
-			powerupMultiplier * profile.rewardMultiplier
+			powerupMultiplier * profile.rewardMultiplier,
+			"enemy",
+			true,
+			{ tier: profile.elite ? "elite" : "normal" }
 		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
 		k.destroy(enemy)

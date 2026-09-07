@@ -525,7 +525,6 @@ export function spawnBoss1(
 			{ intensity: 4.5, starCount: 90 }
 		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
-		k.shake(12)
 		k.destroy(boss)
 	})
 	boss.onHurt(() => {

@@ -1,4 +1,4 @@
-import type { Vec2 } from "kaplay"
+import type { Color, Vec2 } from "kaplay"
 import { k, layers } from "../main"
 import { explosionEmitter } from "../particles"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
@@ -22,34 +22,70 @@ const SHIP_WRECKAGE_SPRITES = [
 const MIN_WRECKAGE_LIFETIME = 3.8
 const MAX_WRECKAGE_LIFETIME = 6.8
 
+export type EnemyDeathTier = "normal" | "elite" | "boss"
+
+interface EnemyDeathProfile {
+	color: Color
+	fragmentMultiplier: number
+	particleMultiplier: number
+	burstCount: number
+	shake: number
+	wreckageMultiplier: number
+}
+
 export function spawnEnemyDeathEffect(
 	pos: Vec2,
 	intensity: number = 1,
-	spawnWreckage = true
+	spawnWreckage = true,
+	tier: EnemyDeathTier = "normal"
 ) {
+	const profile = getDeathProfile(tier)
 	const effectIntensity = k.clamp(intensity, 0.35, 1.45)
 	const normalizedIntensity = (effectIntensity - 0.35) / 1.1
-	const fragmentCount = Math.round(k.lerp(4, 14, normalizedIntensity))
+	const fragmentCount = Math.round(
+		k.lerp(4, 14, normalizedIntensity) * profile.fragmentMultiplier
+	)
 	const wreckageIntensity = k.clamp(intensity, 0.35, 2.5)
 	const normalizedWreckageSize = (wreckageIntensity - 0.35) / 2.15
-	const wreckageCount = Math.round(k.lerp(2, 7, normalizedWreckageSize))
+	const wreckageCount = Math.round(
+		k.lerp(2, 7, normalizedWreckageSize) * profile.wreckageMultiplier
+	)
 
 	spawnExplosionEffect(pos, 13 * effectIntensity, {
-		ringIntensity: 0.24,
-		particleCount: Math.round(18 * effectIntensity),
+		ringIntensity: tier === "boss" ? 0.62 : tier === "elite" ? 0.4 : 0.24,
+		particleCount: Math.round(
+			18 * effectIntensity * profile.particleMultiplier
+		),
+		color: profile.color,
 	})
-	spawnFlash(pos, 5 * effectIntensity)
+	spawnFlash(pos, 5 * effectIntensity, profile.color)
+	if (tier !== "normal") {
+		spawnRing({
+			pos,
+			speed: tier === "boss" ? 270 : 220,
+			intensity: tier === "boss" ? 0.7 : 0.42,
+			maxRadius: 23 * effectIntensity,
+			visualize: true,
+			color: profile.color,
+		})
+	}
+	k.shake(profile.shake)
 
-	k.wait(0.055, () => {
-		const direction = k.Vec2.fromAngle(k.rand(0, 360))
-		const burstPos = pos.add(direction.scale(k.rand(4, 9) * effectIntensity))
-		explosionEmitter.emitter.position = burstPos
-		explosionEmitter.emit(Math.round(7 * effectIntensity))
-		spawnFlash(burstPos, 3.5 * effectIntensity)
-	})
+	for (let burstIndex = 0; burstIndex < profile.burstCount; burstIndex++) {
+		k.wait(0.05 + burstIndex * 0.055, () => {
+			const direction = k.Vec2.fromAngle(k.rand(0, 360))
+			const burstDistance = tier === "boss" ? k.rand(7, 17) : k.rand(4, 10)
+			const burstPos = pos.add(direction.scale(burstDistance * effectIntensity))
+			explosionEmitter.emitter.position = burstPos
+			explosionEmitter.emit(Math.round(
+				7 * effectIntensity * profile.particleMultiplier
+			))
+			spawnFlash(burstPos, 3.5 * effectIntensity, profile.color)
+		})
+	}
 
 	for (let index = 0; index < fragmentCount; index++) {
-		spawnDeathFragment(pos, effectIntensity, index)
+		spawnDeathFragment(pos, effectIntensity, index, fragmentCount, profile.color)
 	}
 	for (let index = 0; spawnWreckage && index < wreckageCount; index++) {
 		spawnShipWreckage(
@@ -59,6 +95,37 @@ export function spawnEnemyDeathEffect(
 			index,
 			wreckageCount
 		)
+	}
+}
+
+function getDeathProfile(tier: EnemyDeathTier): EnemyDeathProfile {
+	if (tier === "boss") {
+		return {
+			color: k.rgb(255, 78, 78),
+			fragmentMultiplier: 1.8,
+			particleMultiplier: 1.7,
+			burstCount: 4,
+			shake: 9,
+			wreckageMultiplier: 1.6,
+		}
+	}
+	if (tier === "elite") {
+		return {
+			color: k.rgb(70, 205, 255),
+			fragmentMultiplier: 1.35,
+			particleMultiplier: 1.25,
+			burstCount: 2,
+			shake: 2.2,
+			wreckageMultiplier: 1.25,
+		}
+	}
+	return {
+		color: k.WHITE,
+		fragmentMultiplier: 1,
+		particleMultiplier: 1,
+		burstCount: 1,
+		shake: 0.28,
+		wreckageMultiplier: 1,
 	}
 }
 
@@ -115,9 +182,15 @@ function spawnShipWreckage(
 	})
 }
 
-function spawnDeathFragment(pos: Vec2, intensity: number, index: number) {
+function spawnDeathFragment(
+	pos: Vec2,
+	intensity: number,
+	index: number,
+	pieceCount: number,
+	color: Color
+) {
 	const direction = k.Vec2.fromAngle(
-		(index / 11) * 360 + k.rand(-18, 18)
+		(index / Math.max(1, pieceCount)) * 360 + k.rand(-18, 18)
 	)
 	const speed = k.rand(38, 92) * intensity
 	const lifetime = k.rand(0.65, 1.15)
@@ -127,7 +200,7 @@ function spawnDeathFragment(pos: Vec2, intensity: number, index: number) {
 		k.anchor("center"),
 		k.rotate(k.rand(0, 360)),
 		k.scale(k.rand(0.32, 0.72) * intensity),
-		k.color(k.WHITE),
+		k.color(color),
 		k.opacity(1),
 		k.layer(layers.gameEffects),
 		k.lifespan(lifetime, { fade: Math.min(0.35, lifetime * 0.4) }),
