@@ -11,7 +11,7 @@ import {
 	UI_COLORS,
 } from "./common"
 import type { UiConfirmationDialogController } from "./common"
-import { createUiVolumeControls } from "./volumeControls"
+import { createUiOptionsPanel } from "./optionsPanel"
 import {
 	playShopMenuCloseSound,
 	playShopMenuOpenSound,
@@ -24,14 +24,14 @@ interface PauseMenuActions {
 	onQuit: () => void
 }
 
-const PAUSE_WIDTH = 620
-const PAUSE_HEIGHT = 360
+const PAUSE_WIDTH = 720
+const PAUSE_HEIGHT = 450
 const CONTENT_TOP = 68
-const CONTENT_HEIGHT = 276
+const CONTENT_HEIGHT = 366
 const COMMAND_LEFT = 16
-const COMMAND_WIDTH = 248
-const AUDIO_LEFT = 276
-const AUDIO_WIDTH = 328
+const COMMAND_WIDTH = 252
+const OPTIONS_LEFT = 280
+const OPTIONS_WIDTH = 424
 let confirmationDialog: UiConfirmationDialogController | undefined
 
 export function showPauseMenu({
@@ -96,27 +96,10 @@ export function showPauseMenu({
 	})
 	addSessionCommands(root, { onResume, onExitRun, onQuit })
 
-	createUiSurface(root, {
-		pos: k.vec2(AUDIO_LEFT, CONTENT_TOP),
-		size: k.vec2(AUDIO_WIDTH, CONTENT_HEIGHT),
-		tone: "raised",
-	})
-	createUiVolumeControls(root, {
-		pos: k.vec2(AUDIO_LEFT, CONTENT_TOP),
-		width: AUDIO_WIDTH,
-	})
-	addThemedText(root, {
-		pos: k.vec2(AUDIO_LEFT + 12, CONTENT_TOP + 202),
-		text: "AUDIO ROUTING REMAINS LIVE WHILE FLIGHT SYSTEMS ARE SUSPENDED.",
-		variant: "muted",
-		width: AUDIO_WIDTH - 24,
-		lineHeight: 1.35,
-	})
-	addThemedText(root, {
-		pos: k.vec2(AUDIO_LEFT + 12, CONTENT_TOP + 249),
-		text: "STATUS  //  HOLDING POSITION",
-		variant: "caption",
-		width: AUDIO_WIDTH - 24,
+	createUiOptionsPanel(root, {
+		pos: k.vec2(OPTIONS_LEFT, CONTENT_TOP),
+		width: OPTIONS_WIDTH,
+		height: CONTENT_HEIGHT,
 	})
 }
 
@@ -190,7 +173,7 @@ function addSessionCommands(
 	))
 
 	addThemedText(parent, {
-		pos: k.vec2(COMMAND_LEFT + 12, CONTENT_TOP + 249),
+		pos: k.vec2(COMMAND_LEFT + 12, CONTENT_TOP + CONTENT_HEIGHT - 27),
 		text: actions.onExitRun
 			? "QUIT RUN ABANDONS CURRENT EXPEDITION"
 			: "HUB SESSION ACTIVE",

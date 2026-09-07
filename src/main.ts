@@ -246,6 +246,7 @@ import {
 	formatSyntheticRewardDiversity,
 	simulateSyntheticRuns,
 } from "./services/runSimulationService";
+import { installDisplaySettings } from "./services/displaySettingsService";
 
 export const layers = {
 	bg: "bg",
@@ -302,6 +303,8 @@ export const k = kaplay({
 	crisp: true,
 	texFilter: "nearest",
 });
+
+installDisplaySettings(k);
 
 installDrawCallProfiler(k.canvas);
 

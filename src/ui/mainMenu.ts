@@ -26,7 +26,7 @@ import {
 	UI_FONT_SIZES,
 } from "./common"
 import type { UiConfirmationDialogController } from "./common"
-import { createUiVolumeControls } from "./volumeControls"
+import { createUiOptionsPanel } from "./optionsPanel"
 import { registerBatchedUiUpdate } from "../services/uiUpdateService"
 import { PLANET_CHUNK_SPRITES } from "../planetChunkSprites"
 import { audioService } from "../services/audioService"
@@ -147,7 +147,7 @@ export function enterMainMenu() {
 		nextCommandY = 372
 	}
 	const soundSettings = createUiCollapsible(interfaceRoot, {
-		pos: k.vec2(440, 270),
+		pos: k.vec2(430, 88),
 		createContent: addOptionsPanel,
 	})
 	const creditsPanel = createUiCollapsible(interfaceRoot, {
@@ -364,15 +364,10 @@ function addSavedProfileTelemetry(parent: GameObj) {
 }
 
 function addOptionsPanel(parent: GameObj) {
-	createUiSurface(parent, {
+	createUiOptionsPanel(parent, {
 		pos: k.vec2(0, 0),
-		size: k.vec2(326, 192),
-		tone: "raised",
-		opacity: 0.98,
-	})
-	createUiVolumeControls(parent, {
-		pos: k.vec2(0, 0),
-		width: 326,
+		width: 374,
+		height: 390,
 	})
 }
 

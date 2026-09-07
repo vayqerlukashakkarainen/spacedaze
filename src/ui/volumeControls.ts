@@ -81,11 +81,12 @@ export function createVolumeControls({
 interface UiVolumeControlsProps {
 	pos: Vec2;
 	width: number;
+	sliderHandleVisible?: (screenPosition: Vec2) => boolean;
 }
 
 export function createUiVolumeControls(
 	parent: GameObj,
-	{ pos, width }: UiVolumeControlsProps,
+	{ pos, width, sliderHandleVisible }: UiVolumeControlsProps,
 ) {
 	const controls = parent.add([k.pos(pos)]);
 	createUiSectionHeader(controls, {
@@ -107,6 +108,7 @@ export function createUiVolumeControls(
 		pos: k.vec2(12, 82),
 		width: sliderWidth,
 		value: audioService.getMusicVolume(),
+		handleVisible: sliderHandleVisible,
 		onChange: (value) => {
 			audioService.setMusicVolume(value);
 			musicLabel.text = volumeLabel("MUSIC", value);
@@ -123,6 +125,7 @@ export function createUiVolumeControls(
 		pos: k.vec2(12, 122),
 		width: sliderWidth,
 		value: audioService.getSoundVolume(),
+		handleVisible: sliderHandleVisible,
 		onChange: (value) => {
 			audioService.setSoundVolume(value);
 			soundLabel.text = volumeLabel("SOUND EFFECTS", value);

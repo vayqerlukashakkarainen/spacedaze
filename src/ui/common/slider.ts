@@ -26,11 +26,12 @@ export interface UiSliderProps {
 	width: number;
 	value: number;
 	onChange: (value: number) => void;
+	handleVisible?: (screenPosition: Vec2) => boolean;
 }
 
 export function createUiSlider(
 	parent: GameObj,
-	{ pos, width, value, onChange }: UiSliderProps,
+	{ pos, width, value, onChange, handleVisible }: UiSliderProps,
 ): SliderComponents {
 	const trackHeight = 4;
 	const handleWidth = 8;
@@ -75,7 +76,9 @@ export function createUiSlider(
 			verticalLength / handleHeight
 		);
 		handle.angle = k.Vec2.toAngle(screenEnd.sub(screenStart));
-		handle.opacity = getUiTreeTransitionOpacity(slider);
+		handle.opacity = handleVisible?.(handle.pos) === false
+			? 0
+			: getUiTreeTransitionOpacity(slider);
 	};
 	const updateValue = (mousePosition: Vec2) => {
 		currentValue = getTrackValueFromScreenPosition(
