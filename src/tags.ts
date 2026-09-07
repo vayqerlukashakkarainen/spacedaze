@@ -26,6 +26,7 @@ export const tags = {
 	hubPhaseField: "hubPhaseField",
 	hubRestoration: "hubRestoration",
 	hubRepairDrone: "hubRepairDrone",
+	hubGuidance: "hubGuidance",
 	shieldDrone: "shieldDrone",
 	enemyRolePressure: "enemyRolePressure",
 	enemyRoleArtillery: "enemyRoleArtillery",

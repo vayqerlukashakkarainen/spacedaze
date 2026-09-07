@@ -79,6 +79,7 @@ import {
 	HUB_PHASE_FIELD_OFFSET,
 	HUB_WORMHOLE_OFFSET,
 } from "../services/hubLayoutService";
+import { createHubGuidance } from "../ui/hubGuidance";
 
 let lvlData: any = {};
 let bgAsteroidTimer = 0;
@@ -216,6 +217,10 @@ export const hub: Level = {
 		const hubFacilityPositions = getHubFacilityPositions();
 		const repairCrew = spawnHubRepairCrew(hubFacilityPositions.trainingRange);
 		spawnHubFacilities(hubFacilityPositions, repairCrew);
+		createHubGuidance({
+			facilityPositions: hubFacilityPositions,
+			wormholePosition: wormholePos,
+		});
 		spawnHubSettlement();
 		spawnHubBurt(hubFacilityPositions.trainingRange.add(-260, 40));
 		spawnHubRestoration(
