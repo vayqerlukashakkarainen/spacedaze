@@ -29,11 +29,6 @@ export function onEnemyHit(m: GameObj, p: GameObj) {
 	// Use new projectile damage system
 	const shouldDestroy = applyProjectileDamage(m, p);
 
-	// Shake on splash damage
-	if (p.splashDamage !== undefined && !p.isDeployedMine) {
-		k.shake(3);
-	}
-
 	if (shouldDestroy) {
 		k.destroy(p);
 	}

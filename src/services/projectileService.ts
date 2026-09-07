@@ -71,6 +71,7 @@ import { spawnRing } from "../spawn/spawnRing";
 import { randomExplosion } from "../util";
 import { player } from "../player";
 import { applyDamage } from "./damageService";
+import { applyEnemyProjectileImpact } from "./combatImpactService";
 import {
 	createExplosion,
 	type ExplosionContext,
@@ -1456,10 +1457,25 @@ export function applyProjectileDamage(
 			}
 		}
 
-		applyDamage(target, damage, {
+		const damageApplied = applyDamage(target, damage, {
 			critical,
+			position: projectile.pos,
 			source: projectile.projectileConfig?.damageSource,
 		});
+		if (damageApplied && target.tags.includes(tags.enemy)) {
+			const piercing = projectile.piercesRemaining !== undefined &&
+				projectile.piercesRemaining > 0;
+			applyEnemyProjectileImpact(target, {
+				position: projectile.pos.clone(),
+				direction: projectile.dir,
+				damage,
+				critical,
+				piercing,
+				splash: projectile.splashRadius !== undefined,
+				knockback: projectile.knockbackStrength ?? 0,
+			});
+			projectile.suppressDestroyFlash = true;
+		}
 		if (target.tags.includes(tags.player) && projectile.playerStatusEffect) {
 			applyPlayerStatusEffect(projectile.playerStatusEffect);
 		}
@@ -1514,13 +1530,6 @@ export function applyProjectileDamage(
 		projectile.piercesRemaining !== undefined &&
 		projectile.piercesRemaining > 0
 	) {
-		spawnFlash(
-			projectile.pos,
-			5,
-			projectile.didCrit
-				? k.RED
-				: projectile.projectileConfig?.effectTint ?? k.WHITE
-		);
 		projectile.hitTargets.add(target.id);
 		projectile.piercesRemaining--;
 		projectile.impactDamage *= projectile.pierceReduction;
