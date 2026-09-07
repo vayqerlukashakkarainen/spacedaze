@@ -219,7 +219,6 @@ export const hub: Level = {
 		spawnHubFacilities(hubFacilityPositions, repairCrew);
 		createHubGuidance({
 			facilityPositions: hubFacilityPositions,
-			wormholePosition: wormholePos,
 		});
 		spawnHubSettlement();
 		spawnHubBurt(hubFacilityPositions.trainingRange.add(-260, 40));

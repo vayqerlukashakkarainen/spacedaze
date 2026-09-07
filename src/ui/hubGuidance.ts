@@ -18,7 +18,6 @@ import { uiState } from "./uiState"
 
 interface HubGuidanceOptions {
 	facilityPositions: Record<HubFacilityId, Vec2>
-	wormholePosition: Vec2
 }
 
 interface HubDestination {
@@ -28,7 +27,7 @@ interface HubDestination {
 	interactionRadius: number
 	status: () => string
 	priority: () => number
-	showAtEdge: () => boolean
+	shouldShow: () => boolean
 }
 
 interface HubGuideMarker {
@@ -53,23 +52,11 @@ const MAX_EDGE_MARKERS = 3
 
 export function createHubGuidance({
 	facilityPositions,
-	wormholePosition,
 }: HubGuidanceOptions) {
-	const destinations: HubDestination[] = [
-		...HUB_FACILITIES.map((facility) => createFacilityDestination(
-			facility,
-			facilityPositions[facility.id]
-		)),
-		{
-			id: "expedition-gate",
-			title: "EXPEDITION GATE",
-			position: wormholePosition,
-			interactionRadius: 110,
-			status: () => "SELECT RUN",
-			priority: () => 90,
-			showAtEdge: () => true,
-		},
-	]
+	const destinations = HUB_FACILITIES.map((facility) => createFacilityDestination(
+		facility,
+		facilityPositions[facility.id]
+	))
 	const markers = destinations.map(createGuideMarker)
 	const controller = k.add([
 		k.pos(0, 0),
@@ -100,9 +87,17 @@ function createFacilityDestination(
 		interactionRadius: 120,
 		status: () => facilityStatus(facility),
 		priority: () => facilityPriority(facility),
-		showAtEdge: () => isFacilityBuilt(facility.id) ||
-			isFacilityUnlocked(facility.id),
+		shouldShow: () => facilityNeedsAttention(facility),
 	}
+}
+
+function facilityNeedsAttention(facility: HubFacilityDefinition) {
+	const construction = getFacilityConstruction()
+	if (construction?.facilityId === facility.id) return true
+	if (isFacilityBuilt(facility.id)) {
+		return facility.id === "trainingRange" && hasUnseenBlueprints()
+	}
+	return isFacilityUnlocked(facility.id)
 }
 
 function facilityStatus(facility: HubFacilityDefinition) {
@@ -120,9 +115,6 @@ function facilityStatus(facility: HubFacilityDefinition) {
 		))
 		return `REPAIRING // ${progress}%`
 	}
-	if (!isFacilityUnlocked(facility.id)) {
-		return `LOCKED // HUB LEVEL ${facility.requiredHubLevel}`
-	}
 	if (getScore() < facility.cost) return `NEED ${facility.cost} SCRAP`
 	return facility.cost > 0 ? `BUILD // ${facility.cost} SCRAP` : "BUILD // FREE"
 }
@@ -132,9 +124,7 @@ function facilityPriority(facility: HubFacilityDefinition) {
 	if (construction?.facilityId === facility.id) return 150
 	if (!isFacilityBuilt(facility.id) && isFacilityUnlocked(facility.id)) return 140
 	if (facility.id === "trainingRange" && hasUnseenBlueprints()) return 130
-	if (facility.id === "contractTerminal" && isFacilityBuilt(facility.id)) return 110
-	if (facility.id === "trainingRange" && isFacilityBuilt(facility.id)) return 80
-	return isFacilityBuilt(facility.id) ? 70 : 0
+	return 0
 }
 
 function createGuideMarker(destination: HubDestination): HubGuideMarker {
@@ -201,7 +191,7 @@ function updateMarkers(markers: HubGuideMarker[]) {
 	const edgeCandidates = markers
 		.filter((marker) => {
 			const screen = k.toScreen(marker.destination.position)
-			return marker.destination.showAtEdge() && !isDestinationOnScreen(screen)
+			return marker.destination.shouldShow() && !isDestinationOnScreen(screen)
 		})
 		.sort((a, b) => {
 			const priority = b.destination.priority() - a.destination.priority()
@@ -218,7 +208,8 @@ function updateMarkers(markers: HubGuideMarker[]) {
 		const screen = k.toScreen(destination.position)
 		const worldDistance = playerObj.pos.dist(destination.position)
 		const onScreen = isDestinationOnScreen(screen)
-		const showWorldLabel = onScreen &&
+		const showWorldLabel = destination.shouldShow() &&
+			onScreen &&
 			worldDistance > Math.max(LABEL_MIN_DISTANCE, destination.interactionRadius) &&
 			worldDistance < LABEL_MAX_DISTANCE
 		const showEdge = edgeIds.has(destination.id)
