@@ -9,6 +9,10 @@ import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import { audioService } from "../services/audioService";
 import { UI_FONT_SIZES } from "../ui/common";
 import { menuBlocksPostProcessing } from "../ui/uiState";
+import {
+	getPostProcessingEnabled,
+	onPostProcessingEnabledChange,
+} from "../services/displaySettingsService";
 
 interface Props {
 	pos: Vec2;
@@ -39,6 +43,7 @@ interface WormholeEffectOptions {
 }
 
 let secondaryPostEffectPortal: any | undefined;
+const WORMHOLE_PARTICLE_COUNT = 24;
 
 export function spawnLevel(props: Props) {
 	let collected = false;
@@ -166,25 +171,8 @@ export function addWormholeEffect(
 	options: WormholeEffectOptions = {}
 ) {
 	const effectColor = options.color ?? k.WHITE;
-	if (options.secondaryPostEffect) {
-		secondaryPostEffectPortal = portal;
-		portal.onDestroy(() => {
-			if (secondaryPostEffectPortal === portal) {
-				secondaryPostEffectPortal = undefined;
-			}
-		});
-	}
-	if (options.postEffect !== false) k.usePostEffect("wormholeLighting", () => {
-		if (!portal.exists() || menuBlocksPostProcessing()) {
-			return {
-				u_lightCenter: k.vec2(-1000, -1000),
-				u_resolution: k.vec2(k.width(), k.height()),
-				u_radius: 1,
-				u_intensity: 0,
-				u_time: k.time(),
-				...getSecondaryWormholeUniforms(false),
-			}
-		}
+	let postEffectActive = false;
+	const postEffectUniforms = () => {
 		const activationProgress = portal.portalProgress ?? 0
 		const stateIntensity = portal.portalState === "dormant"
 			? 0.18
@@ -205,7 +193,39 @@ export function addWormholeEffect(
 			u_time: k.time(),
 			...getSecondaryWormholeUniforms(true),
 		}
-	});
+	};
+	const setPostEffectActive = (active: boolean) => {
+		if (options.postEffect === false) return
+		if (active === postEffectActive) return
+		postEffectActive = active
+		if (active) {
+			k.usePostEffect("wormholeLighting", postEffectUniforms)
+			return
+		}
+		// KAPLAY has no public clear method, but its implementation accepts null
+		// and removes the framebuffer pass entirely.
+		;(k.usePostEffect as (name: string | null) => void)(null)
+	};
+	const syncPostEffect = () => {
+		setPostEffectActive(
+			getPostProcessingEnabled() && !menuBlocksPostProcessing()
+		)
+	};
+	if (options.secondaryPostEffect) {
+		secondaryPostEffectPortal = portal;
+		portal.onDestroy(() => {
+			if (secondaryPostEffectPortal === portal) {
+				secondaryPostEffectPortal = undefined;
+			}
+		});
+	}
+	const removePostProcessingListener = onPostProcessingEnabledChange(
+		() => syncPostEffect()
+	);
+	const postEffectSyncController = options.postEffect === false
+		? undefined
+		: k.onUpdate(syncPostEffect);
+	syncPostEffect();
 	const ambience = options.ambience === false
 		? undefined
 		: audioService.playPositionalSound(
@@ -261,11 +281,11 @@ export function addWormholeEffect(
 			k.layer(layers.gameEffects),
 		]),
 	}));
-	const particles = Array.from({ length: 40 }, (_, index) => ({
-		phase: index / 40,
+	const particles = Array.from({ length: WORMHOLE_PARTICLE_COUNT }, (_, index) => ({
+		phase: index / WORMHOLE_PARTICLE_COUNT,
 		speed: 0.13 + (index % 5) * 0.014,
 		startRadius: 92 + (index % 4) * 10,
-		activationAt: 0.04 + (index / 40) * 0.88,
+		activationAt: 0.04 + (index / WORMHOLE_PARTICLE_COUNT) * 0.88,
 		width: 2 + (index % 4),
 		height: index % 5 === 0 ? 2 : 1,
 		shade: 170 + (index % 5) * 17,
@@ -397,6 +417,9 @@ export function addWormholeEffect(
 	});
 
 	portal.onDestroy(() => {
+		removePostProcessingListener();
+		postEffectSyncController?.cancel();
+		setPostEffectActive(false);
 		if (ambience) audioService.stopSound(ambience, "portal-destroyed");
 	});
 }

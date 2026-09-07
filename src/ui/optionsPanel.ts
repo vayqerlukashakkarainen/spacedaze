@@ -1,8 +1,10 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { k } from "../main"
 import {
+	getPostProcessingEnabled,
 	getScreenFlashIntensity,
 	getScreenShakeIntensity,
+	setPostProcessingEnabled,
 	setScreenFlashIntensity,
 	setScreenShakeIntensity,
 } from "../services/displaySettingsService"
@@ -23,7 +25,7 @@ interface UiOptionsPanelProps {
 	height: number
 }
 
-const CONTENT_HEIGHT = 514
+const CONTENT_HEIGHT = 566
 
 export function createUiOptionsPanel(
 	parent: GameObj,
@@ -62,7 +64,7 @@ export function createUiOptionsPanel(
 		sliderHandleVisible: handleVisible,
 	})
 	addDisplayControls(scrollable.content, 190, contentWidth, handleVisible)
-	addControlReference(scrollable.content, 378, contentWidth)
+	addControlReference(scrollable.content, 430, contentWidth)
 	scrollable.scrollToStart()
 	return panel
 }
@@ -135,6 +137,23 @@ function addDisplayControls(
 			flashLabel.text = intensityLabel("SCREEN FLASH", value)
 		},
 	})
+
+	const postProcessingStatus = addThemedText(parent, {
+		pos: k.vec2(0, y + 211),
+		text: postProcessingStatusText(),
+		variant: "caption",
+		width,
+		align: "right",
+	})
+	createUiActionButton(parent, {
+		pos: k.vec2(0, y + 199),
+		size: k.vec2(Math.min(190, width - 140), 32),
+		text: "TOGGLE POST FX",
+		onClick: () => {
+			setPostProcessingEnabled(!getPostProcessingEnabled())
+			postProcessingStatus.text = postProcessingStatusText()
+		},
+	})
 }
 
 function addControlReference(parent: GameObj, y: number, width: number) {
@@ -165,4 +184,8 @@ function intensityLabel(label: string, value: number) {
 
 function fullscreenStatusText() {
 	return k.isFullscreen() ? "FULLSCREEN" : "WINDOWED"
+}
+
+function postProcessingStatusText() {
+	return getPostProcessingEnabled() ? "ENHANCED" : "PERFORMANCE"
 }

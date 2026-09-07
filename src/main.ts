@@ -299,7 +299,9 @@ export const k = kaplay({
 	global: false,
 	loadingScreen: false,
 	scale: UI_ZOOM,
-	pixelDensity: Math.min(window.devicePixelRatio || 1, 2),
+	// The game is authored as pixel art. Rendering at device DPR 2 quadruples
+	// fragment work without adding useful sprite detail.
+	pixelDensity: 1,
 	crisp: true,
 	texFilter: "nearest",
 });
