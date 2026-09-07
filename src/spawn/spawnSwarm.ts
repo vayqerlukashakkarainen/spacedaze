@@ -1,5 +1,6 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { timescale } from "../comp/timescale"
+import { addShipThruster, getShipThrusterFlash } from "../comp/shipThruster"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
 import { audioService } from "../services/audioService"
@@ -60,11 +61,13 @@ const swarmDecisionSystem = createCadencedSystem<SwarmDecisionEntry>({
 
 interface SwarmContinuousEntry {
 	owner: GameObj
+	thruster: ReturnType<typeof addShipThruster>
 }
 
 const swarmContinuousSystem = createContinuousSystem<SwarmContinuousEntry>({
 	id: "swarm",
 	updateBatch(entries) {
+		const flashVisible = getShipThrusterFlash(k.time())
 		for (let index = 0; index < entries.length; index++) {
 			const entry = entries[index]
 			if (!entry) continue
@@ -101,6 +104,10 @@ const swarmContinuousSystem = createContinuousSystem<SwarmContinuousEntry>({
 				)
 			}
 
+			entry.thruster.updateShared(
+				enemy.desiredDirection ? enemy.desiredSpeed * enemy.getTimescale() : 0,
+				flashVisible
+			)
 			checkProjectileIntersection(
 				enemy.pos,
 				enemy.hb,
@@ -181,7 +188,10 @@ export function spawnSwarmEnemy(
 
 	registerHitAnimation(enemy)
 	swarmDecisionSystem.add({ owner: enemy, speedMultiplier: profile.speedMultiplier })
-	swarmContinuousSystem.add({ owner: enemy })
+	swarmContinuousSystem.add({
+		owner: enemy,
+		thruster: addShipThruster(enemy, enemy.height / 2 - 2),
+	})
 
 	enemy.onDeath(() => {
 		enemyOnDeath(

@@ -1,10 +1,14 @@
 import { endSong } from "../web";
 import type { Color, Vec2 } from "kaplay";
 import { audioService } from "../services/audioService";
-import { spawnLevel } from "../spawn/spawnLevel";
+import {
+	spawnDecorativeWormhole,
+	spawnLevel,
+} from "../spawn/spawnLevel";
 import { getScore, k, layers, spendScore } from "../main";
 import { Level } from "./levels";
 import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject";
+import { getReddishBackgroundTint } from "../services/backgroundPaletteService";
 import { spawnChest } from "../spawn/spawnChest";
 import { spawnCrate } from "../spawn/spawnCrate";
 import { playerObj, projectiles } from "../game";
@@ -66,20 +70,40 @@ import { spawnHubRingWatcher } from "../spawn/npcs/spawnHubRingWatcher";
 import { spawnHubBirthdayPair } from "../spawn/npcs/spawnHubBirthdayPair";
 import { spawnHubLampKeeper } from "../spawn/npcs/spawnHubLampKeeper";
 import { spawnHubBurt } from "../spawn/npcs/spawnHubBurt";
+import { spawnHubSettlement } from "../spawn/spawnHubSettlement";
+import { addBuildingPlayerDepth } from "../comp/buildingPlayerDepth";
+import {
+	HUB_FACILITY_OFFSETS,
+	HUB_HALF_HEIGHT,
+	HUB_HALF_WIDTH,
+	HUB_PHASE_FIELD_OFFSET,
+	HUB_WORMHOLE_OFFSET,
+} from "../services/hubLayoutService";
 
 let lvlData: any = {};
 let bgAsteroidTimer = 0;
 let phaseFieldDamageCooldown = 0;
-const hubHalfWidth = 1400;
-const hubHalfHeight = 760;
+const hubHalfWidth = HUB_HALF_WIDTH;
+const hubHalfHeight = HUB_HALF_HEIGHT;
 const boundaryRevealRadius = 160;
-const phaseFieldOffsetX = 980;
-const phaseFieldOffsetY = 120;
+const phaseFieldOffsetX = HUB_PHASE_FIELD_OFFSET[0];
+const phaseFieldOffsetY = HUB_PHASE_FIELD_OFFSET[1];
 const phaseFieldInnerRadius = 162;
 const phaseFieldOuterRadius = 220;
 const trainingDummyRespawnDelay = 1.5;
 const trainingDummyOffsetY = 190;
-const hubFacilityScale = 1.35;
+const hubFacilityBuiltScales: Record<HubFacilityId, number> = {
+	contractTerminal: 1.78,
+	trainingRange: 1.59,
+	salvageForge: 1.49,
+	debriefTerminal: 1.41,
+}
+const hubFacilityDestroyedScales: Record<HubFacilityId, number> = {
+	contractTerminal: 1.84,
+	trainingRange: 1.33,
+	salvageForge: 1.49,
+	debriefTerminal: 1.36,
+}
 const hubFacilityInteractRadius = 120;
 const hubFacilityLabelOffsetY = 126;
 const ghostChestCosts = [15, 30, 50] as const;
@@ -108,6 +132,7 @@ const hubFacilitySprites: Record<
 export const hub: Level = {
 	reset: () => {
 		lvlData = {};
+		bgAsteroidTimer = 0;
 		phaseFieldDamageCooldown = 0;
 		audioService.stopMusic();
 		endSong();
@@ -191,6 +216,7 @@ export const hub: Level = {
 		const hubFacilityPositions = getHubFacilityPositions();
 		const repairCrew = spawnHubRepairCrew(hubFacilityPositions.trainingRange);
 		spawnHubFacilities(hubFacilityPositions, repairCrew);
+		spawnHubSettlement();
 		spawnHubBurt(hubFacilityPositions.trainingRange.add(-260, 40));
 		spawnHubRestoration(
 			k.center(),
@@ -226,10 +252,10 @@ export const hub: Level = {
 		);
 		damagePlayerInPhaseField();
 
-		// Continuously spawn background asteroids
+		// Keep an occasional distant asteroid moving through the hub backdrop.
 		bgAsteroidTimer += k.dt();
 
-		if (bgAsteroidTimer >= 2) {
+		if (bgAsteroidTimer >= 6) {
 			bgAsteroidTimer = 0;
 
 			// Randomly choose spawn side and direction
@@ -264,9 +290,8 @@ export const hub: Level = {
 						Math.floor(k.rand(0, ASTEROID_SPRITES.length))
 					],
 				scale: k.rand(0.5, 1.5),
-				color: k.rgb(k.rand(80, 120), k.rand(80, 120), k.rand(80, 120)),
+				color: getReddishBackgroundTint(k.rand(28, 52)),
 				parallaxLevel: k.rand(4, 10),
-				opacity: k.rand(0.3, 0.7),
 				rotation: k.rand(0, 360),
 				rotationSpeed: k.chance(0.5) ? k.rand(-0.5, 0.5) : 0,
 			});
@@ -311,78 +336,16 @@ function spawnHubBackgroundDepth() {
 		sprite: "bg_destroyed_planet",
 		scale: 1.76,
 		color: k.rgb(16, 24, 32),
-		opacity: 1,
 		parallaxLevel: 36,
 		rotation: -8,
 		rotationSpeed: 0,
 	});
-
-	const scenery = [
-		{
-			pos: center.add(-390, -190),
-			sprite: "bg_destroyed_planet",
-			scale: 0.28,
-			color: k.rgb(21, 29, 37),
-			opacity: 1,
-			parallaxLevel: 18,
-			rotation: -12,
-			rotationSpeed: 0,
-		},
-		{
-			pos: center.add(410, 205),
-			sprite: "bg_destroyed_planet_sliced",
-			scale: 0.25,
-			color: k.rgb(19, 27, 35),
-			opacity: 1,
-			parallaxLevel: 15,
-			rotation: 28,
-			rotationSpeed: 0,
-		},
-		...[
-			[-430, -135, 2.1, -15, 12, 0],
-			[420, -150, 1.8, 32, 10, 0],
-			[-420, 155, 2.2, 18, 8, 0],
-			[430, 145, 2, -28, 9, 0],
-			[-40, -265, 1.7, 8, 11, 0],
-			[70, 255, 1.9, -8, 10, 0],
-		].map(([x, y, scale, rotation, parallaxLevel, rotationSpeed]) => ({
-			pos: center.add(x, y),
-			sprite: "bg_building1",
-			scale,
-			color: k.rgb(13, 16, 20),
-			opacity: 1,
-			parallaxLevel,
-			rotation,
-			rotationSpeed,
-		})),
-		...[
-			[-260, -125, 1, 7],
-			[275, -120, 0.85, 11],
-			[-285, 135, 0.9, 9],
-			[290, 120, 1.05, 6],
-			[15, -210, 0.75, 14],
-			[-20, 210, 0.8, 12],
-		].map(([x, y, scale, parallaxLevel]) => ({
-			pos: center.add(x, y),
-			sprite: "bg_moon1",
-			scale,
-			color: k.rgb(34, 39, 45),
-			opacity: 1,
-			parallaxLevel,
-			rotation: x % 360,
-			rotationSpeed: 0,
-		})),
-	];
-
-	for (const object of scenery) spawnBackgroundObject(object);
 
 	const planetChunks = [
 		[-620, -270, 7, 0.62, -18, 24, -0.025],
 		[650, -230, 5, 0.52, 24, 19, 0.035],
 		[-680, 280, 6, 0.48, 16, 17, 0.03],
 		[660, 300, 4, 0.6, -32, 21, -0.02],
-		[20, -390, 1, 0.6, 8, 14, 0.04],
-		[40, 390, 3, 0.65, -12, 15, -0.035],
 	] as const;
 	for (const [x, y, spriteIndex, scale, rotation, parallaxLevel, rotationSpeed]
 		of planetChunks) {
@@ -390,16 +353,16 @@ function spawnHubBackgroundDepth() {
 			pos: center.add(x, y),
 			sprite: PLANET_CHUNK_SPRITES[spriteIndex],
 			scale,
-			color: k.rgb(28, 36, 44),
-			opacity: 0.72,
+			color: getReddishBackgroundTint(24),
 			parallaxLevel,
 			rotation,
 			rotationSpeed,
 		});
 	}
 
-	for (let index = 0; index < 28; index++) {
-		const angle = (360 / 28) * index + k.rand(-4, 4);
+	const asteroidCount = 10;
+	for (let index = 0; index < asteroidCount; index++) {
+		const angle = (360 / asteroidCount) * index + k.rand(-8, 8);
 		const distance = 205 + (index % 4) * 78 + k.rand(-22, 22);
 		spawnBackgroundObject({
 			pos: center.add(k.Vec2.fromAngle(angle).scale(distance)),
@@ -408,12 +371,7 @@ function spawnHubBackgroundDepth() {
 					Math.floor(k.rand(0, ASTEROID_SPRITES.length))
 				],
 			scale: k.rand(0.45, 1.25),
-			color: k.rgb(
-				k.rand(27, 40),
-				k.rand(32, 46),
-				k.rand(38, 52)
-			),
-			opacity: 1,
+			color: getReddishBackgroundTint(k.rand(27, 46)),
 			parallaxLevel: k.rand(6, 14),
 			rotation: k.rand(0, 360),
 			rotationSpeed: k.chance(0.45) ? k.rand(-0.9, 0.9) : 0,
@@ -423,6 +381,12 @@ function spawnHubBackgroundDepth() {
 
 function spawnPhaseShiftAsteroidField() {
 	const fieldCenter = getPhaseFieldCenter();
+	spawnDecorativeWormhole({
+		pos: fieldCenter,
+		color: k.rgb(166, 108, 112),
+		scale: 0.92,
+		tags: [tags.hubPhaseField],
+	});
 	const asteroids: PhaseFieldAsteroid[] = [];
 	spawnAsteroidRing(177, 46, 0, asteroids);
 	spawnAsteroidRing(207, 54, 0.5, asteroids);
@@ -550,15 +514,15 @@ function getPhaseFieldCenter() {
 export function getHubFacilityPositions() {
 	const center = k.center();
 	return {
-		contractTerminal: center.add(160, -300),
-		trainingRange: center.add(570, 260),
-		salvageForge: center.add(-360, -260),
-		debriefTerminal: center.add(-560, 100),
+		contractTerminal: center.add(...HUB_FACILITY_OFFSETS.contractTerminal),
+		trainingRange: center.add(...HUB_FACILITY_OFFSETS.trainingRange),
+		salvageForge: center.add(...HUB_FACILITY_OFFSETS.salvageForge),
+		debriefTerminal: center.add(...HUB_FACILITY_OFFSETS.debriefTerminal),
 	} satisfies Record<HubFacilityId, ReturnType<typeof k.vec2>>;
 }
 
 export function getHubWormholePosition() {
-	return k.center().add(650, -350);
+	return k.center().add(...HUB_WORMHOLE_OFFSET);
 }
 
 function spawnHubFacilities(
@@ -607,13 +571,19 @@ function spawnHubFacility(
 		tags.props,
 	]);
 	const buildingVisual = building.add([
+		k.pos(0, 0),
 		k.sprite(built ? sprites.built : sprites.destroyed),
 		k.anchor("center"),
-		k.layer(layers.buildings),
+		k.layer(layers.game),
 		k.scale(getHubFacilityVisualScale(facility.id, built)),
 		k.color(getHubFacilityVisualColor(facility.id, built)),
-		k.opacity(built ? 1 : 0.68),
+		k.opacity(1),
 	]);
+	addBuildingPlayerDepth(buildingVisual, {
+		centerY: () => building.pos.y + buildingVisual.pos.y,
+		renderedHeight: () =>
+			buildingVisual.height * Math.abs(buildingVisual.scale.y),
+	})
 	const newInfoMarker = facility.id === "trainingRange"
 		? building.add([
 			k.text("!", { size: UI_FONT_SIZES.display, font: "unscii" }),
@@ -677,6 +647,7 @@ function spawnHubFacility(
 					action: "RESTORATION LOCKED",
 					detailLeft: `REQUIRES HUB LEVEL ${facility.requiredHubLevel}`,
 					detailRight: `LEVEL ${getHubLevel()}`,
+					requirementsMet: false,
 				}
 				: {
 				title: facility.name,
@@ -685,6 +656,7 @@ function spawnHubFacility(
 					? "FREE"
 					: `COST ${facility.cost} SCRAP`,
 				detailRight: `${getScore()} AVAILABLE`,
+				requirementsMet: getScore() >= facility.cost,
 			},
 	});
 
@@ -692,7 +664,8 @@ function spawnHubFacility(
 		const construction = getFacilityConstruction();
 		if (!built && isFacilityBuilt(facility.id)) finishBuilding();
 		if (!built && construction?.facilityId === facility.id) {
-			buildingVisual.opacity = k.wave(0.46, 0.76, k.time() * 5);
+			const repairPulse = k.wave(96, 132, k.time() * 5);
+			buildingVisual.color = k.rgb(repairPulse, repairPulse + 10, repairPulse + 20);
 		}
 		if (newInfoMarker) {
 			const visible = built && hasUnseenBlueprints();
@@ -707,8 +680,8 @@ function spawnHubFacility(
 }
 
 function getHubFacilityVisualScale(id: HubFacilityId, built: boolean) {
-	if (id === "trainingRange" && !built) return hubFacilityScale
-	return hubFacilityScale * 0.5
+	if (built) return hubFacilityBuiltScales[id]
+	return hubFacilityDestroyedScales[id]
 }
 
 function getHubFacilityVisualColor(id: HubFacilityId, built: boolean) {

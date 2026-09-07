@@ -1,12 +1,14 @@
 import { getCurrentRunFloor } from "../services/runDirectorService"
 import type { Level } from "./levels"
 import { clearGeneratedRunMap, startGeneratedRunMap } from "./runMap"
+import { RUN_ROCK_PROJECTION_Y_SCALE } from "./runRockTiles"
 
 export const level2: Level = {
 	mapGeneration: {
-		width: 60,
-		height: 45,
-		hexSize: 48,
+		width: 48,
+		height: 36,
+		hexSize: 96,
+		projectionYScale: RUN_ROCK_PROJECTION_Y_SCALE,
 		generator: {
 			fill: { percentage: 0.44 },
 			ca: { iterations: 4 },

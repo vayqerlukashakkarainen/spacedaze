@@ -9,7 +9,6 @@ interface BackgroundObjectProps {
 	scale: number;
 	color: Color;
 	parallaxLevel: number;
-	opacity?: number;
 	rotation?: number;
 	rotationSpeed?: number;
 	anchor?: string;
@@ -27,7 +26,6 @@ export function spawnBackgroundObject(props: BackgroundObjectProps): GameObj {
 	const initialWorldPos = props.pos.clone();
 
 	// Default values
-	const opacity = props.opacity !== undefined ? props.opacity : 1;
 	const rotation = props.rotation !== undefined ? props.rotation : 0;
 
 	// Calculate direction if moveTo is specified
@@ -47,7 +45,8 @@ export function spawnBackgroundObject(props: BackgroundObjectProps): GameObj {
 		k.sprite(props.sprite),
 		k.scale(props.scale),
 		k.color(props.color),
-		k.opacity(opacity),
+		// Scenery depth comes from solid RGB values, never transparency.
+		k.opacity(1),
 		k.rotate(rotation),
 		k.layer(layers.bg),
 		k.z(zIndex),

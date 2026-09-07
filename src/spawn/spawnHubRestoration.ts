@@ -24,7 +24,7 @@ const HUB_LAMP_PLATFORM_SPRITES = [
 	"hub_progression_lamp_platform_06",
 ] as const
 const HAULER_SPEED = 145
-const HAULER_DEBRIS_COUNT = 3
+const HAULER_CARGO_OFFSETS = [[-3, -4], [0, -6], [3, -4], [-1.5, -2], [1.5, -2]] as const
 
 type HaulerPhase = "waiting" | "outbound" | "scavenging" | "returning"
 
@@ -90,16 +90,15 @@ function spawnRestorationLamps(center: Vec2) {
 			tags.gameLoop,
 		])
 		const light = addLocalLight(lamp, {
-			size: 74,
-			color: [70, 180, 255],
+			size: 132,
+			color: [90, 210, 255],
 			opacity: 0,
-			z: 2,
 			pulse: {
-				scaleMin: 0.9,
-				scaleMax: 1.12,
+				scaleMin: 0.92,
+				scaleMax: 1.18,
 				scaleSpeed: 3.4,
-				opacityMin: 0.52,
-				opacityMax: 0.76,
+				opacityMin: 0.72,
+				opacityMax: 1,
 				opacitySpeed: 2.8,
 			},
 		})
@@ -145,29 +144,20 @@ function spawnRestorationTier(
 	level: number
 ) {
 	switch (level) {
-		case 1:
-			spawnMaintenanceDrone(center, 150, 82, 0.18, 0, "room_convoy_drone")
-			break
-		case 2:
-			spawnMaintenanceDrone(center, 205, 116, -0.15, 0.38, "drone_combat")
-			break
 		case 3:
 			spawnSalvageHaulers(center, phaseStationPos, hubHalfBounds)
 			break
-		case 4:
-			spawnSignalArray(center.add(-330, 120))
-			break
 		case 5:
 			spawnMaintenanceDrone(center, 300, 176, 0.13, 0.67, "drone_salvager")
-			spawnMaintenanceDrone(center, 326, 190, -0.11, 0.12, "drone_medic")
+			spawnMaintenanceDrone(center, 326, 190, -0.11, 0.12, "hub_droid_repair")
 			break
 		case 6:
 			spawnDockingGantries(center)
 			break
 		case 7:
 			spawnTrafficGrid(center)
-			spawnMaintenanceDrone(center, 430, 245, 0.1, 0.2, "drone_interceptor")
-			spawnMaintenanceDrone(center, 460, 270, -0.085, 0.72, "drone_gunship")
+			spawnMaintenanceDrone(center, 430, 245, 0.1, 0.2, "hub_droid_repair")
+			spawnMaintenanceDrone(center, 460, 270, -0.085, 0.72, "hub_droid_repair")
 			break
 		case 8:
 			spawnPhaseCrown(center)
@@ -185,7 +175,10 @@ function spawnMaintenanceDrone(
 ) {
 	const drone = k.add([
 		k.pos(center),
-		k.sprite(sprite, { width: 28, height: 28 }),
+		k.sprite(sprite, {
+			width: 16,
+			height: 16,
+		}),
 		k.anchor("center"),
 		k.rotate(0),
 		k.color(205, 240, 245),
@@ -241,7 +234,7 @@ function spawnSalvageHaulers(
 		const outsideDestination = outsideDestinations[index]
 		const hauler = k.add([
 			k.pos(dockPos),
-			k.sprite("hub_salvage_hauler"),
+			k.sprite("drone_salvager", { width: 16, height: 16 }),
 			k.anchor("center"),
 			k.rotate(0),
 			k.scale(1),
@@ -314,10 +307,11 @@ function spawnSalvageHaulers(
 			tags.hubRestoration,
 			tags.gameLoop,
 		])
-		const cargo = Array.from({ length: HAULER_DEBRIS_COUNT }, (_, cargoIndex) =>
+		const cargo = HAULER_CARGO_OFFSETS.map(([x, y], cargoIndex) =>
 			hauler.add([
-				k.sprite("debree_part1"),
-				k.pos((cargoIndex % 2 === 0 ? -1 : 1) * 3, 11 + cargoIndex * 8),
+				k.sprite("particle2"),
+				k.pos(x, y),
+				k.scale(0.35),
 				k.anchor("center"),
 				k.rotate(cargoIndex * 67),
 				k.color(150, 170, 176),
@@ -349,36 +343,6 @@ function spawnHaulerDepositPulse(pos: Vec2) {
 		tags.hubRestoration,
 		tags.gameLoop,
 	])
-}
-
-function spawnSignalArray(center: Vec2) {
-	for (let index = 0; index < 3; index++) {
-		const angle = -90 + index * 120
-		const node = k.add([
-			k.pos(center.add(k.Vec2.fromAngle(angle).scale(72))),
-			k.sprite("room_signal_relay", { width: 42, height: 42 }),
-			k.anchor("center"),
-			k.rotate(angle),
-			k.color(135, 210, 230),
-			k.opacity(0.84),
-			k.layer(layers.buildings),
-			k.z(-2),
-			{
-				update() {
-					this.opacity = k.wave(0.62, 0.94, k.time() * 2.2 + index)
-				},
-			},
-			tags.hubRestoration,
-			tags.gameLoop,
-		])
-		node.add([
-			k.circle(22, { fill: false }),
-			k.anchor("center"),
-			k.outline(1, k.rgb(...HUB_CYAN)),
-			k.opacity(0.28),
-			k.z(-1),
-		])
-	}
 }
 
 function spawnDockingGantries(center: Vec2) {

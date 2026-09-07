@@ -26,6 +26,7 @@ import {
 } from "./dialogueVoiceService"
 import { acquireGameplayPause } from "./gameplayPauseService"
 import { runtimeDebug } from "./runtimeDebugService"
+import { acquireInteractionPromptSuppression } from "./interactionPromptVisibilityService"
 
 export interface DialogueLine {
 	speaker: string
@@ -151,6 +152,9 @@ export function showDialogue(
 		tags.dialog,
 	])
 	activeDialog = root
+	const releaseInteractionPromptSuppression =
+		acquireInteractionPromptSuppression()
+	root.onDestroy(releaseInteractionPromptSuppression)
 	activeDialogShake = (strength) => {
 		shakeStrength = Math.max(shakeStrength, strength)
 		shakeRemaining = Math.max(shakeRemaining, 0.18)
@@ -300,6 +304,7 @@ export function showDialogue(
 		})
 		for (const controller of controllers) controller.cancel()
 		speakerMotion.stop()
+		releaseInteractionPromptSuppression()
 		releaseGameplayPause()
 		stopDisturbanceSound()
 		if (root.exists()) k.destroy(root)

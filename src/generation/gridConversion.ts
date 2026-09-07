@@ -9,13 +9,15 @@ export function generationMapToHexGrid(
 	map: GenerationMap,
 	hexSize: number,
 	offsetX: number = 0,
-	offsetY: number = 0
+	offsetY: number = 0,
+	projectionYScale: number = 1
 ): HexGrid {
 	const grid = new HexGrid({
 		width: map.width,
 		height: map.height,
 		hexSize,
 		offset: { x: offsetX, y: offsetY },
+		projectionYScale,
 	});
 
 	// Convert each generated cell to grid cell

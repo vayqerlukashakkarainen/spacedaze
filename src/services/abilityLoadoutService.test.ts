@@ -7,6 +7,13 @@ import {
 	setAbilityLoadout,
 } from "./abilityLoadoutService"
 import { getAbilityDefinition } from "./abilityRegistry"
+import {
+	beginAbilityTierRun,
+	endAbilityTierRun,
+	getAbilityTierValues,
+	registerAbilityTier,
+} from "./abilityTierService"
+import { RewardRarity } from "../types/rewardTypes"
 
 const hubLevelOneAdditions = [
 	"pulseRepeater",
@@ -52,6 +59,21 @@ assert.deepEqual(getAbilityLoadout(), {
 	secondary: "decoyBeacon",
 	mobility: "gravitySling",
 	ultimate: "phaseNova",
+})
+
+beginAbilityTierRun()
+registerAbilityTier({
+	abilityId: "pulseRepeater",
+	slot: "primary",
+	rarity: RewardRarity.Epic,
+	values: { power: 1.5, speed: 1.45, recovery: 1.4 },
+})
+endAbilityTierRun()
+assert.equal(getAbilityLoadout().primary, "pulseRepeater")
+assert.deepEqual(getAbilityTierValues("pulseRepeater"), {
+	power: 1,
+	speed: 1,
+	recovery: 1,
 })
 
 clearAbilitySlot("secondary")

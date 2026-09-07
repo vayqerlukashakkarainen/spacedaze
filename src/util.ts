@@ -21,6 +21,10 @@ import {
 	isAbilityIdForSlot,
 	migrateLegacyAbilityDiscoveries,
 } from "./services/abilityRegistry";
+import {
+	HUB_SETTLEMENT_ATLAS,
+	HUB_SETTLEMENT_ROCK_FOUNDATION_ATLAS,
+} from "./hubSettlementSprites";
 
 const SAVE_VERSION = 2;
 const LEGACY_SAVE_KEYS = [
@@ -42,18 +46,30 @@ interface SaveSlot {
 	abilityLoadout?: Partial<AbilityLoadout>;
 }
 
-function atlasEntry(index: number) {
+function atlasEntry(index: number, size: number = 16) {
+	// 24px cells hold the drones and the existing 16px upgrade icons.
 	return {
-		x: index % 4 * 16,
-		y: Math.floor(index / 4) * 16,
-		width: 16,
-		height: 16,
+		x: index % 4 * 24,
+		y: Math.floor(index / 4) * 24,
+		width: size,
+		height: size,
 	};
+}
+
+function hubShipAtlasEntry(index: number) {
+	return {
+		x: index % 3 * 32,
+		y: 120 + Math.floor(index / 3) * 32,
+		width: 32,
+		height: 32,
+	}
 }
 
 export async function init(k: KAPLAYCtx) {
 	await k.loadRoot("./"); // A good idea for Itch.io publishing later
-	await k.loadSprite("ship", "sprites/ship-v2.png");
+	// Keep the original 16px registration in place so the automatic atlas
+	// layout for neighboring sprites remains stable.
+	await k.loadSprite("ship_legacy", "sprites/ship-v2.png");
 	await k.loadSprite("crate1", "sprites/crate-v2.png");
 	await k.loadSprite(
 		"salvage_asteroid_normal",
@@ -73,11 +89,11 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSprite(
 		"facility_contract_terminal_1bit",
-		"sprites/facilities/v3/facility-contract-terminal-1bit-512.png"
+		"sprites/facilities/v3/facility-contract-terminal-pixellab-256.png"
 	)
 	await k.loadSprite(
 		"facility_contract_terminal_destroyed_1bit",
-		"sprites/facilities/v3/facility-contract-terminal-destroyed-1bit-512.png"
+		"sprites/facilities/v3/facility-contract-terminal-broken-pixellab-256.png"
 	)
 	await k.loadSprite(
 		"facility_training_range",
@@ -85,11 +101,11 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSprite(
 		"facility_phase_station_minimal",
-		"sprites/facilities/v3/facility-phase-station-minimal-512.png"
+		"sprites/facilities/v3/facility-phase-station-pixellab-256.png"
 	)
 	await k.loadSprite(
 		"facility_training_range_destroyed",
-		"sprites/facilities/v2/facility-training-range-destroyed.png"
+		"sprites/facilities/v3/facility-phase-station-broken-pixellab-256.png"
 	);
 	await k.loadSprite(
 		"facility_salvage_forge",
@@ -101,11 +117,11 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSprite(
 		"facility_salvage_forge_1bit",
-		"sprites/facilities/v3/facility-salvage-forge-1bit-512.png"
+		"sprites/facilities/v3/facility-salvage-forge-pixellab-256.png"
 	)
 	await k.loadSprite(
 		"facility_salvage_forge_destroyed_1bit",
-		"sprites/facilities/v3/facility-salvage-forge-destroyed-1bit-512.png"
+		"sprites/facilities/v3/facility-salvage-forge-broken-pixellab-256.png"
 	)
 	await k.loadSprite(
 		"facility_debrief_terminal",
@@ -117,31 +133,49 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSprite(
 		"facility_debrief_terminal_1bit",
-		"sprites/facilities/v3/facility-debrief-terminal-1bit-512.png"
+		"sprites/facilities/v3/facility-debrief-terminal-pixellab-256.png"
 	)
 	await k.loadSprite(
 		"facility_debrief_terminal_destroyed_1bit",
-		"sprites/facilities/v3/facility-debrief-terminal-destroyed-1bit-512.png"
+		"sprites/facilities/v3/facility-debrief-terminal-broken-pixellab-256.png"
 	)
 	await k.loadSprite(
 		"recovery_shop_1bit",
-		"sprites/shops/v3/recovery-shop-1bit-512.png"
+		"sprites/shops/v3/recovery-shop-pixellab-256.png"
 	)
+	await k.loadSprite("room_repair_station", "sprites/rooms/repair-station.png")
 	await k.loadSprite("bullet1", "sprites/bullet1.png");
 	await k.loadSprite("rocket1", "sprites/rocket1.png");
 	await k.loadSpriteAtlas("sprites/swarm-atlas.png", {
-		drone_combat: atlasEntry(0),
-		drone_gunship: atlasEntry(1),
-		drone_interceptor: atlasEntry(2),
-		drone_medic: atlasEntry(3),
-		drone_missile: atlasEntry(4),
-		drone_salvager: atlasEntry(5),
+		drone_combat: atlasEntry(0, 24),
+		drone_gunship: atlasEntry(1, 24),
+		drone_interceptor: atlasEntry(2, 24),
+		drone_medic: atlasEntry(3, 24),
+		drone_missile: atlasEntry(4, 24),
+		drone_salvager: atlasEntry(5, 24),
 		arc_capacitor_upg1: atlasEntry(6),
 		follower_blaster_dmg_upg1: atlasEntry(7),
 		follower_upg1: atlasEntry(8),
 		blaster1: atlasEntry(9),
 		parallel_blasters_upg1: atlasEntry(10),
+		hub_droid_lamp_keeper: atlasEntry(13, 24),
+		hub_droid_repair: atlasEntry(16, 24),
+		hub_ship_ring_runner: hubShipAtlasEntry(0),
+		hub_ship_range_keeper: hubShipAtlasEntry(1),
+		hub_ship_gloom: hubShipAtlasEntry(2),
+		hub_ship_jubilee: hubShipAtlasEntry(3),
 	});
+	await k.loadSpriteAtlas("sprites/player-ship-8dir.png", {
+		ship: { x: 0, y: 0, width: 24, height: 24 },
+		ship_north_east: { x: 24, y: 0, width: 24, height: 24 },
+		ship_east: { x: 48, y: 0, width: 24, height: 24 },
+		ship_south_east: { x: 72, y: 0, width: 24, height: 24 },
+		ship_south: { x: 96, y: 0, width: 24, height: 24 },
+		ship_south_west: { x: 120, y: 0, width: 24, height: 24 },
+		ship_west: { x: 144, y: 0, width: 24, height: 24 },
+		ship_north_west: { x: 168, y: 0, width: 24, height: 24 },
+		ship_root: { x: 192, y: 0, width: 24, height: 24 },
+	})
 	const inputPromptSprites = [
 		"escape",
 		"enter",
@@ -262,7 +296,6 @@ export async function init(k: KAPLAYCtx) {
 
 	await k.loadSprite("debree_part1", "sprites/debree_part1.png");
 	await k.loadSprite("room_rift_anchor", "sprites/rooms/rift-anchor.png");
-	await k.loadSprite("room_repair_station", "sprites/rooms/repair-station.png");
 	await k.loadSprite("room_gravity_core", "sprites/rooms/gravity-core.png");
 	await k.loadSprite("room_proximity_mine", "sprites/rooms/proximity-mine.png");
 	await k.loadSprite("room_convoy_drone", "sprites/rooms/convoy-drone.png");
@@ -444,7 +477,6 @@ export async function init(k: KAPLAYCtx) {
 	}
 
 	await k.loadSprite("bg_moon1", "sprites/bg/moon1.png");
-	await k.loadSprite("bg_building1", "sprites/bg/building1.png");
 	await k.loadSprite(
 		"bg_destroyed_planet",
 		"sprites/bg/destroyed-planet.png"
@@ -459,6 +491,14 @@ export async function init(k: KAPLAYCtx) {
 			`sprites/planet-chunks/planet-chunk-${index + 1}.png`
 		);
 	}
+	await k.loadSpriteAtlas(
+		"sprites/hub/settlement-atlas.png",
+		HUB_SETTLEMENT_ATLAS
+	)
+	await k.loadSpriteAtlas(
+		"sprites/hub/settlement-rock-foundations-atlas.png",
+		HUB_SETTLEMENT_ROCK_FOUNDATION_ATLAS
+	)
 	await k.loadSprite("companion_burt", "sprites/companions/burt.png")
 	await k.loadSprite(
 		"companion_burt_house",
@@ -479,10 +519,34 @@ export async function init(k: KAPLAYCtx) {
 			`sprites/hub/progression-lamp-platform-${number}.png`
 		)
 	}
-
+	await k.loadSprite(
+		"chest_salvage_world",
+		"sprites/chests/salvage-chest-world.png"
+	)
+	await k.loadSprite(
+		"chest_weapon_world",
+		"sprites/chests/weapon-chest-world.png"
+	)
+	await k.loadSprite(
+		"chest_salvage_open_world",
+		"sprites/chests/salvage-chest-open-world.png"
+	)
+	await k.loadSprite(
+		"chest_weapon_open_world",
+		"sprites/chests/weapon-chest-open-world.png"
+	)
+	await k.loadSprite(
+		"chest_salvage_ui",
+		"sprites/chests/salvage-chest-ui.png"
+	)
+	await k.loadSprite(
+		"chest_weapon_ui",
+		"sprites/chests/weapon-chest-ui.png"
+	)
 	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
 
 	await k.loadSound("shoot1", "sounds/shoot1.wav");
+	await k.loadSound("weapon_scatter_array", "sounds/laser-shoot-2.wav");
 	await k.loadSound("weapon_burst_driver", "sounds/burst.wav");
 	await k.loadSound("rammer_launch", "sounds/rammer-launch.wav");
 	await k.loadSound("lay_mine", "sounds/lay-mine.wav");
@@ -514,9 +578,12 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSound("purchase1", "sounds/purchase1.wav");
 	await k.loadSound("powerup1", "sounds/powerup1.wav");
+	await k.loadSound("rail_lance_charge", "sounds/rail-lance-charge.wav")
+	await k.loadSound("rail_lance_ready", "sounds/rail-lance-ready.wav")
 	await k.loadSound("run_level_up", "sounds/run-level-up.mp3")
 	await k.loadSound("crit1", "sounds/crit1.wav");
 	await k.loadSound("slowdown", "sounds/slowdown.wav");
+	await k.loadSound("going_fast", "sounds/going-fast.wav")
 	await k.loadSound("swap_level", "sounds/swap_level.wav");
 	await k.loadSound(
 		"menu_spacejump_warp",
@@ -588,6 +655,9 @@ export async function init(k: KAPLAYCtx) {
 		uniform float u_radius;
 		uniform float u_intensity;
 		uniform float u_time;
+		uniform vec2 u_secondaryLightCenter;
+		uniform float u_secondaryRadius;
+		uniform float u_secondaryIntensity;
 
 		vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
 			vec2 screenPos = uv * u_resolution;
@@ -607,8 +677,30 @@ export async function init(k: KAPLAYCtx) {
 			float displacement = (ripple * 3.2 - inwardPull)
 				* distortionMask
 				* u_intensity;
+			vec2 secondaryFromLight = screenPos - u_secondaryLightCenter;
+			float secondaryDistance = length(secondaryFromLight);
+			float secondaryNormalizedDistance = secondaryDistance
+				/ max(u_secondaryRadius, 1.0);
+			float secondaryDistortionMask = 1.0 - smoothstep(
+				0.06,
+				1.0,
+				secondaryNormalizedDistance
+			);
+			vec2 secondaryDirection = secondaryDistance > 0.001
+				? secondaryFromLight / secondaryDistance
+				: vec2(0.0);
+			float secondaryRipple = sin(
+				secondaryNormalizedDistance * 39.0 + u_time * 6.8
+			);
+			float secondaryInwardPull =
+				(1.0 - secondaryNormalizedDistance) * 5.4;
+			float secondaryDisplacement =
+				(secondaryRipple * 4.1 - secondaryInwardPull)
+				* secondaryDistortionMask
+				* u_secondaryIntensity;
 			vec2 distortedUv = clamp(
-				uv + direction * displacement / u_resolution,
+				uv + direction * displacement / u_resolution
+					+ secondaryDirection * secondaryDisplacement / u_resolution,
 				vec2(0.0),
 				vec2(1.0)
 			);
@@ -621,6 +713,16 @@ export async function init(k: KAPLAYCtx) {
 			float pulse = 0.92 + sin(u_time * 2.4) * 0.08;
 			float lightStrength = radialLight * pulse * u_intensity;
 			vec3 lightColor = vec3(0.18, 0.68, 1.0);
+			float secondaryRadialLight = 1.0 - smoothstep(
+				u_secondaryRadius * 0.1,
+				u_secondaryRadius,
+				secondaryDistance
+			);
+			float secondaryPulse = 0.88 + sin(u_time * 3.1) * 0.12;
+			float secondaryLightStrength = secondaryRadialLight
+				* secondaryPulse
+				* u_secondaryIntensity;
+			vec3 secondaryLightColor = vec3(0.62, 0.22, 0.25);
 			float surfaceMask = smoothstep(
 				0.015,
 				0.24,
@@ -631,9 +733,18 @@ export async function init(k: KAPLAYCtx) {
 				max(baseColor.rgb, lightColor * 0.82),
 				lightStrength * surfaceMask * 0.52
 			);
+			illuminatedSurface = mix(
+				illuminatedSurface,
+				max(illuminatedSurface, secondaryLightColor * 0.78),
+				secondaryLightStrength * surfaceMask * 0.68
+			);
 			vec3 atmosphericGlow = lightColor
 				* lightStrength
 				* 0.055
+				* (1.0 - surfaceMask);
+			atmosphericGlow += secondaryLightColor
+				* secondaryLightStrength
+				* 0.075
 				* (1.0 - surfaceMask);
 			return vec4(illuminatedSurface + atmosphericGlow, baseColor.a);
 		}
@@ -663,6 +774,24 @@ export async function init(k: KAPLAYCtx) {
 	`
 	);
 
+	k.loadShader(
+		"rockFoundationPalette",
+		null,
+		`
+		vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
+			vec4 source = texture2D(tex, uv);
+			float alpha = step(0.5, source.a);
+			float highlight = step(
+				0.5,
+				max(source.r, max(source.g, source.b))
+			);
+			vec3 shadowColor = vec3(0.098, 0.145, 0.184);
+			vec3 surfaceColor = vec3(0.255, 0.329, 0.384);
+			return vec4(mix(shadowColor, surfaceColor, highlight), alpha);
+		}
+		`
+	);
+
 	await k.loadSprite(
 		"enemy_ship1_left_wing",
 		"sprites/ships/enemy1/enemy_ship1_left_wing.png"
@@ -675,6 +804,19 @@ export async function init(k: KAPLAYCtx) {
 		"enemy_ship1_body",
 		"sprites/ships/enemy1/enemy_ship1_body.png"
 	);
+	await k.loadSprite(
+		"run_rock_low",
+		"sprites/terrain/run-rock-low-atlas.png",
+		{ sliceX: 16, sliceY: 16 }
+	)
+	await k.loadSprite(
+		"plasma_mortar_projectile",
+		"sprites/projectiles/plasma-mortar.png"
+	)
+	await k.loadSprite(
+		"impact_driver_arc_projectile",
+		"sprites/projectiles/impact-driver-arc.png"
+	)
 
 	await k.loadSprite("boss1_body", "sprites/boss/boss1/boss1_body.png");
 	await k.loadSprite(

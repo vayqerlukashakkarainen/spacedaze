@@ -6,7 +6,10 @@ import { audioService } from "../services/audioService"
 import { applyDamage } from "../services/damageService"
 import { createCadencedSystem } from "../services/cadencedSystemService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
+import {
+	getEnemyNavigationDirection,
+	hasEnemyLineOfSight,
+} from "../services/enemyNavigationService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import {
 	createEnemySpawnProfile,
@@ -21,6 +24,7 @@ import {
 import { tags } from "../tags"
 import { randomExplosion } from "../util"
 import { timescale } from "../comp/timescale"
+import { addShipThruster, getShipThrusterFlash } from "../comp/shipThruster"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 
 type RammerPhase = "approach" | "telegraph" | "charge" | "recover"
@@ -33,6 +37,8 @@ const RAMMER_CHARGE_SPEED = 390
 const RAMMER_RECOVERY_DURATION = 0.9
 const RAMMER_WINDUP_Y_SCALE = 0.8
 const RAMMER_WINDUP_X_SCALE = 1.08
+const RAMMER_THRUSTER_WEIGHT = 1.25
+const RAMMER_WINDUP_FLAME_LENGTH = 6
 
 interface RammerDecisionEntry {
 	owner: GameObj
@@ -43,7 +49,9 @@ const rammerDecisionSystem = createCadencedSystem<RammerDecisionEntry>({
 	rate: 20,
 	updateBucket(entries) {
 		for (let index = 0; index < entries.length; index++) {
-			const rammer = entries[index].owner
+			const entry = entries[index]
+			if (!entry) continue
+			const rammer = entry.owner
 			if (!rammer.exists() || rammer.paused) continue
 			const toPlayer = playerObj.pos.sub(rammer.pos)
 			rammer.playerDistance = toPlayer.len()
@@ -89,7 +97,6 @@ export function spawnRammer(
 			steeringDirection: initialDirection,
 			playerDirection: initialDirection,
 			playerDistance: initialDistance,
-			trailTimer: 0,
 		},
 		tags.enemy,
 		tags.unit,
@@ -98,6 +105,7 @@ export function spawnRammer(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
+	const thruster = addShipThruster(rammer, rammer.height / 2 - 2)
 	const chargeLine = rammer.add([
 		k.rect(2, 190),
 		k.pos(0, -105),
@@ -111,6 +119,9 @@ export function spawnRammer(
 	rammerDecisionSystem.add({ owner: rammer })
 	registerBatchedEntityUpdate("enemies", rammer, () => {
 		const delta = k.dt() * rammer.getTimescale()
+		let thrustSpeed = RAMMER_APPROACH_SPEED
+		let launchBurst = false
+		let emitTrail = false
 		rammer.phaseTimer += delta
 		const distance = rammer.playerDistance
 		const playerDirection = rammer.playerDirection ?? rammer.lockedDirection
@@ -138,7 +149,10 @@ export function spawnRammer(
 			rammer.move(
 				rammer.steeringDirection.scale(RAMMER_APPROACH_SPEED * profile.speedMultiplier * velocityScale() * rammer.getTimescale())
 			)
-			if (distance < 250 || rammer.phaseTimer >= 1.8) {
+			if (
+				(distance < 250 || rammer.phaseTimer >= 1.8) &&
+				hasEnemyLineOfSight(rammer, playerObj.pos)
+			) {
 				rammer.phase = "telegraph"
 				rammer.phaseTimer = 0
 				rammer.lockedDirection = playerDirection
@@ -157,6 +171,7 @@ export function spawnRammer(
 				)
 			}
 		} else if (rammer.phase === "telegraph") {
+			thrustSpeed = 0
 			faceDirection(rammer, rammer.lockedDirection)
 			const chargeProgress = k.clamp(rammer.phaseTimer / chargeWindup, 0, 1)
 			const pulse = 1 + Math.sin(k.time() * 34) * 0.025 * chargeProgress
@@ -170,38 +185,37 @@ export function spawnRammer(
 			rammer.opacity = flashPhase < 0.55 ? 1 : 0.25
 			chargeLine.opacity = k.wave(0.15, 0.9, k.time() * 14)
 			if (rammer.phaseTimer >= chargeWindup) {
-				rammer.phase = "charge"
-				rammer.phaseTimer = 0
-				rammer.trailTimer = 0
-				rammer.steeringDirection = rammer.lockedDirection
-				rammer.opacity = 1
-				rammer.scale = k.vec2(profile.scale)
-				chargeLine.opacity = 0
-				emitRammerLaunchBurst(
-					rammer.pos,
-					rammer.lockedDirection,
-					profile.scale,
-					profile.elite
-				)
-				audioService.playPositionalSound(
-					"rammer_launch",
-					() => rammer.exists() ? rammer.pos : undefined,
-					{
-						voiceLimit: 12,
-						volume: mainSoundVolume * 0.8,
-						minDistance: 35,
-						maxDistance: 560,
-						panDistance: 280,
-					}
-				)
+				if (!hasEnemyLineOfSight(rammer, playerObj.pos)) {
+					rammer.phase = "approach"
+					rammer.phaseTimer = 0
+					rammer.opacity = 1
+					rammer.scale = k.vec2(profile.scale)
+					chargeLine.opacity = 0
+				} else {
+					rammer.phase = "charge"
+					rammer.phaseTimer = 0
+					rammer.steeringDirection = rammer.lockedDirection
+					rammer.opacity = 1
+					rammer.scale = k.vec2(profile.scale)
+					chargeLine.opacity = 0
+					thrustSpeed = RAMMER_CHARGE_SPEED
+					launchBurst = true
+					audioService.playPositionalSound(
+						"rammer_launch",
+						() => rammer.exists() ? rammer.pos : undefined,
+						{
+							voiceLimit: 12,
+							volume: mainSoundVolume * 0.8,
+							minDistance: 35,
+							maxDistance: 560,
+							panDistance: 280,
+						}
+					)
+				}
 			}
 		} else if (rammer.phase === "charge") {
+			thrustSpeed = RAMMER_CHARGE_SPEED
 			faceDirection(rammer, rammer.lockedDirection)
-			rammer.trailTimer += delta
-			if (rammer.trailTimer >= 0.025) {
-				rammer.trailTimer %= 0.025
-				emitRammerTrail(rammer, rammer.lockedDirection, profile.scale)
-			}
 			rammer.move(
 				rammer.lockedDirection.scale(
 					RAMMER_CHARGE_SPEED * profile.speedMultiplier * velocityScale() * rammer.getTimescale()
@@ -241,6 +255,7 @@ export function spawnRammer(
 				RAMMER_APPROACH_SPEED,
 				recoveryEase
 			)
+			thrustSpeed = recoverySpeed
 			rammer.move(
 				rammer.steeringDirection.scale(
 					recoverySpeed * profile.speedMultiplier * velocityScale() * rammer.getTimescale()
@@ -250,6 +265,27 @@ export function spawnRammer(
 				rammer.phase = "approach"
 				rammer.phaseTimer = 0
 			}
+		}
+
+		const thrusterSpeed = rammer.phase === "telegraph"
+			? 0
+			: thrustSpeed * profile.speedMultiplier * rammer.getTimescale()
+		thruster.updateShared(
+			thrusterSpeed,
+			getShipThrusterFlash(k.time()),
+			RAMMER_THRUSTER_WEIGHT,
+			rammer.phase === "telegraph" ? RAMMER_WINDUP_FLAME_LENGTH : 0
+		)
+		if (rammer.phase === "charge") {
+			emitTrail = thruster.consumeParticleEmission(thrusterSpeed, delta)
+		} else {
+			thruster.consumeParticleEmission(0, delta)
+		}
+		if (emitTrail) {
+			emitEnemyTrail(rammer, thruster.getExhaustPosition(), rammer.lockedDirection.angle() + 180)
+		}
+		if (launchBurst) {
+			emitRammerLaunchBurst(thruster.getExhaustPosition(), rammer.lockedDirection, profile.elite)
 		}
 
 		checkProjectileIntersection(rammer.pos, rammer.hb, tags.friendly, (projectile) => {
@@ -283,21 +319,11 @@ function faceDirection(enemy: { angle: number }, direction: Vec2) {
 	enemy.angle = direction.angle() + 90
 }
 
-function emitRammerTrail(rammer: GameObj, direction: Vec2, scale: number) {
-	emitEnemyTrail(
-		rammer,
-		rammer.pos.sub(direction.scale(13 * scale)),
-		direction.angle() + 180
-	)
-}
-
 function emitRammerLaunchBurst(
-	pos: Vec2,
+	rear: Vec2,
 	direction: Vec2,
-	scale: number,
 	elite: boolean
 ) {
-	const rear = pos.sub(direction.scale(15 * scale))
 	const exhaustDirection = direction.angle() + 180
 
 	starsEmitterDir.emitter.position = rear

@@ -4,7 +4,10 @@ import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
 import { audioService } from "../services/audioService"
 import { applyDamage } from "../services/damageService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
+import {
+	getEnemyNavigationDirection,
+	hasEnemyLineOfSight,
+} from "../services/enemyNavigationService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import { spawnEnemyBlaster } from "../services/projectileHelpers"
 import {
@@ -114,27 +117,37 @@ export function spawnSniper(
 					)
 				)
 			}
-			if (sniper.phaseTimer >= 2.1) {
+			if (
+				sniper.phaseTimer >= 2.1 &&
+				hasEnemyLineOfSight(sniper, playerObj.pos)
+			) {
 				sniper.phase = "aim"
 				sniper.phaseTimer = 0
 			}
 		} else {
 			aimLine.opacity = k.wave(0.2, 0.9, k.time() * 10)
 			if (sniper.phaseTimer >= 1) {
-				const shot = spawnEnemyBlaster(
-					sniper.pos.clone(),
-					sniper.facingDirection,
-					sniper.angle,
-					sniper.damage,
-					{ name: "SNIPER", sprite: "enemy_sniper" }
-				)
-				shot.speed = 520 * profile.speedMultiplier
-				shot.color = k.rgb(255, 70, 150)
-				shot.scale = k.vec2(1.35)
-				sniper.phase = "reposition"
-				sniper.phaseTimer = 0
-				sniper.strafeDirection *= -1
-				aimLine.opacity = 0
+				if (!hasEnemyLineOfSight(sniper, playerObj.pos)) {
+					sniper.phase = "reposition"
+					sniper.phaseTimer = 0
+					sniper.strafeDirection *= -1
+					aimLine.opacity = 0
+				} else {
+					const shot = spawnEnemyBlaster(
+						sniper.pos.clone(),
+						sniper.facingDirection,
+						sniper.angle,
+						sniper.damage,
+						{ name: "SNIPER", sprite: "enemy_sniper" }
+					)
+					shot.speed = 520 * profile.speedMultiplier
+					shot.color = k.rgb(255, 70, 150)
+					shot.scale = k.vec2(1.35)
+					sniper.phase = "reposition"
+					sniper.phaseTimer = 0
+					sniper.strafeDirection *= -1
+					aimLine.opacity = 0
+				}
 			}
 		}
 

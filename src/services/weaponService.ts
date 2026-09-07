@@ -19,14 +19,20 @@ export type WeaponId =
 export interface WeaponTriggerModifier {
 	mode: "press" | "hold" | "charge"
 	usesCooldown: boolean
+	holdCooldown?: number
 }
 
 export interface WeaponFirePattern {
 	projectileCount?: number
 	spreadDegrees?: number
 	lateralSpacing?: number
+	wiggle?: {
+		amplitude: number
+		frequency: number
+	}
 	burstCount?: number
 	burstInterval?: number
+	burstDamageStep?: number
 }
 
 export interface WeaponChargeModifier {
@@ -44,6 +50,8 @@ export interface WeaponDefinition {
 	description: string
 	icon: string
 	fireSound?: string
+	fireSoundVolume?: number
+	fireSoundDetune?: number
 	damageMultiplier: number
 	projectileSpeedMultiplier: number
 	fireCooldown: number
@@ -54,8 +62,13 @@ export interface WeaponDefinition {
 	muzzleOffsetY: number
 	pattern?: WeaponFirePattern
 	charge?: WeaponChargeModifier
+	projectileSprite?: string
 	projectileScale?: number
 	projectileTint?: [number, number, number]
+	projectileFlash?: boolean
+	projectileFlashMinOpacity?: number
+	projectileWobble?: number
+	explosionDelay?: number
 	lifespan?: number
 	splash?: {
 		radius: number
@@ -65,6 +78,11 @@ export interface WeaponDefinition {
 	piercing?: {
 		maxPierces: number
 		damageReduction: number
+	}
+	bounce?: {
+		maxBounces: number
+		speedRetention?: number
+		damageRetention?: number
 	}
 	chain?: {
 		maxChains: number
@@ -86,6 +104,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		triggerModifier: {
 			mode: "press",
 			usesCooldown: false,
+			holdCooldown: 0.3,
 		},
 		spreadDegrees: 1.5,
 		mountScale: 0.45,
@@ -98,6 +117,9 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		name: "PULSE REPEATER",
 		description: "Hold to unleash rapid low-damage fire with a loose firing pattern.",
 		icon: "weapon_pulse_repeater",
+		fireSound: "shoot1",
+		fireSoundVolume: 0.6,
+		fireSoundDetune: 200,
 		damageMultiplier: 0.48,
 		projectileSpeedMultiplier: 1.18,
 		fireCooldown: 0.075,
@@ -105,8 +127,8 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 			mode: "hold",
 			usesCooldown: true,
 		},
-		spreadDegrees: 4.2,
-		mountScale: 1.2,
+		spreadDegrees: 6,
+		mountScale: 0.6,
 		mountOffsetY: -5,
 		muzzleOffsetY: -13,
 	},
@@ -114,8 +136,10 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		id: "twinNeedle",
 		minimumHubLevel: 1,
 		name: "TWIN NEEDLE",
-		description: "Fires two accurate, lightweight rounds side by side.",
+		description: "Fires two lightweight rounds that weave around each other.",
 		icon: "weapon_twin_needle",
+		fireSound: "shoot1",
+		fireSoundDetune: -150,
 		damageMultiplier: 0.58,
 		projectileSpeedMultiplier: 1.28,
 		fireCooldown: 0.22,
@@ -123,13 +147,20 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 			mode: "press",
 			usesCooldown: true,
 		},
-		spreadDegrees: 0.8,
-		mountScale: 1.2,
+		spreadDegrees: 0,
+		mountScale: 0.6,
 		mountOffsetY: -5,
 		muzzleOffsetY: -13,
 		pattern: {
 			projectileCount: 2,
 			lateralSpacing: 5,
+			wiggle: {
+				amplitude: 5,
+				frequency: 13,
+			},
+		},
+		bounce: {
+			maxBounces: 1,
 		},
 	},
 	{
@@ -146,9 +177,10 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 			usesCooldown: true,
 		},
 		spreadDegrees: 0.9,
-		mountScale: 1.2,
+		mountScale: 0.6,
 		mountOffsetY: -5,
 		muzzleOffsetY: -13,
+		projectileSprite: "impact_driver_arc_projectile",
 		projectileScale: 1.35,
 		knockback: 52,
 	},
@@ -176,6 +208,9 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		name: "ARC CARBINE",
 		description: "Rapid, lighter fire that arcs to one nearby target.",
 		icon: "weapon_arc_carbine",
+		fireSound: "shoot1",
+		fireSoundVolume: 0.6,
+		fireSoundDetune: 350,
 		damageMultiplier: 0.72,
 		projectileSpeedMultiplier: 1.18,
 		fireCooldown: 0.11,
@@ -195,11 +230,13 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		name: "SCATTER ARRAY",
 		description: "Five short-range pellets turn every modifier into a close-range barrage.",
 		icon: "weapon_scatter_array",
+		fireSound: "weapon_scatter_array",
+		fireSoundVolume: 0.7,
 		damageMultiplier: 0.42,
 		projectileSpeedMultiplier: 0.88,
 		fireCooldown: 0.52,
 		spreadDegrees: 1.2,
-		mountScale: 1.2,
+		mountScale: 0.6,
 		mountOffsetY: -5,
 		muzzleOffsetY: -12,
 		pattern: {
@@ -213,7 +250,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		id: "burstDriver",
 		minimumHubLevel: 3,
 		name: "BURST DRIVER",
-		description: "Fires three accurate rounds in a tightly timed burst.",
+		description: "Fires three accurate rounds. Each round hits 25% harder than the last.",
 		icon: "weapon_burst_driver",
 		fireSound: "weapon_burst_driver",
 		damageMultiplier: 0.74,
@@ -224,29 +261,48 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 			usesCooldown: true,
 		},
 		spreadDegrees: 1,
-		mountScale: 1.2,
+		mountScale: 0.6,
 		mountOffsetY: -5,
 		muzzleOffsetY: -13,
 		pattern: {
 			burstCount: 3,
 			burstInterval: 0.075,
+			burstDamageStep: 0.25,
 		},
 	},
 	{
 		id: "plasmaMortar",
 		minimumHubLevel: 4,
 		name: "PLASMA MORTAR",
-		description: "Launches a slow, oversized plasma shell with built-in splash damage.",
+		description: "Hold and release to launch a charged plasma shell with built-in splash damage.",
 		icon: "weapon_plasma_mortar",
+		fireSound: "shoot1",
+		fireSoundDetune: -500,
 		damageMultiplier: 1.45,
 		projectileSpeedMultiplier: 0.48,
 		fireCooldown: 0.68,
+		triggerModifier: {
+			mode: "charge",
+			usesCooldown: true,
+		},
 		spreadDegrees: 1.5,
-		mountScale: 1.2,
+		mountScale: 0.6,
 		mountOffsetY: -5,
 		muzzleOffsetY: -13,
-		projectileScale: 2,
+		charge: {
+			maxDuration: 1.15,
+			minDamageMultiplier: 0.55,
+			maxDamageMultiplier: 2.2,
+			minSpeedMultiplier: 0.8,
+			maxSpeedMultiplier: 1.15,
+		},
+		projectileSprite: "plasma_mortar_projectile",
+		projectileScale: 1.5,
 		projectileTint: [150, 90, 235],
+		projectileFlash: true,
+		projectileFlashMinOpacity: 0.45,
+		projectileWobble: 0.2,
+		explosionDelay: 0.2,
 		lifespan: 2.4,
 		splash: {
 			radius: 66,
@@ -260,15 +316,17 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		name: "RAIL LANCE",
 		description: "Hold and release to drive a charged shot through an enemy column.",
 		icon: "weapon_rail_lance",
+		fireSound: "shoot1",
+		fireSoundDetune: 500,
 		damageMultiplier: 1.35,
-		projectileSpeedMultiplier: 1.8,
+		projectileSpeedMultiplier: 2.25,
 		fireCooldown: 0.72,
 		triggerModifier: {
 			mode: "charge",
 			usesCooldown: true,
 		},
 		spreadDegrees: 0.15,
-		mountScale: 1.2,
+		mountScale: 0.6,
 		mountOffsetY: -6,
 		muzzleOffsetY: -15,
 		charge: {
@@ -305,6 +363,14 @@ export function getEquippedWeapon() {
 		damageMultiplier: weapon.damageMultiplier * tier.power,
 		projectileSpeedMultiplier: weapon.projectileSpeedMultiplier * tier.speed,
 		fireCooldown: weapon.fireCooldown / tier.recovery,
+		triggerModifier: weapon.triggerModifier
+			? {
+				...weapon.triggerModifier,
+				holdCooldown: weapon.triggerModifier.holdCooldown === undefined
+					? undefined
+					: weapon.triggerModifier.holdCooldown / tier.recovery,
+			}
+			: undefined,
 		splash: weapon.splash
 			? {
 				...weapon.splash,

@@ -50,14 +50,16 @@ import type { GeneratedMapConfig } from "./levels";
 import {
 	activateRunFinale,
 	getRunFinaleRampProgress,
+	getRunFinaleObjective,
 	getRunFinaleTransitionSecondsRemaining,
 	getRunPhase,
 } from "../services/runFinaleService";
 import {
-	getConnectedHexWallEdgeProfile,
-	getHexWallTopology,
-	HexWallEnvironmentKind,
-} from "./hexWallTiles";
+	getRunRockTileFrame,
+	RUN_ROCK_TILE_ANCHOR_Y,
+	RUN_ROCK_TILE_SOURCE_RADIUS,
+	RUN_ROCK_TILE_SPRITE,
+} from "./runRockTiles";
 import {
 	advanceRunSession,
 	getCurrentRunFloor,
@@ -123,11 +125,14 @@ import {
 } from "../services/narrativeService";
 import { updateQuestObjective } from "../services/questService";
 import { spawnDebreeDeposit } from "../spawn/spawnDebreeDeposit";
+import { planRunVillageZones } from "../services/runVillageService";
+import { spawnRunVillages } from "../spawn/spawnRunVillage";
 
 export const RUN_GRID_KEY = ACTIVE_RUN_GRID_KEY;
 const RUN_RENDER_CHUNK_SIZE = 6;
 const RUN_RENDER_PADDING_CELLS = 2;
 const RUN_MAP_REVEAL_RADIUS = 4;
+const RUN_WALL_FOREGROUND_HEIGHT_RATIO = 0.8;
 const WALL_EXPLOSION_SOUND_REPEAT_WINDOW = 0.4;
 const WALL_EXPLOSION_SOUND_REPEAT_CHANCE = 0.25;
 let currentRunSeed: number | undefined;
@@ -153,21 +158,6 @@ interface HiddenCavern {
 interface RewardWall {
 	coord: { q: number; r: number };
 	wallState?: DestructibleWallState;
-}
-
-interface RunMapWallEdge {
-	outline: Vec2[];
-	ridge: Vec2[];
-	cracks: Array<{ p1: Vec2; p2: Vec2 }>;
-	kind: HexWallEnvironmentKind;
-	hash: number;
-}
-
-interface RunMapSurfaceDetail {
-	kind: HexWallEnvironmentKind;
-	hash: number;
-	center: Vec2;
-	corners: Vec2[];
 }
 
 export interface GeneratedRunMapCell {
@@ -220,12 +210,14 @@ export function startGeneratedRunMap(
 		spawnCoord
 	);
 	currentRewardWalls = getGeneratedRewardWalls(generatedMap);
+	const villageZones = planRunVillageZones(generatedMap, selectedSeed);
 	currentGeneratedMap = generatedMap;
 	const grid = generationMapToHexGrid(
 		generatedMap,
 		config.hexSize,
 		0,
-		0
+		0,
+		config.projectionYScale
 	);
 
 	const uncenteredSpawn = grid.hexToScreen(spawnCoord);
@@ -234,6 +226,7 @@ export function startGeneratedRunMap(
 	gridRegistry.register(RUN_GRID_KEY, grid, false);
 	setupDestructibleWalls(grid, generatedMap, selectedSeed, depth);
 	renderRunMap(grid, generatedMap);
+	spawnRunVillages(grid, villageZones);
 	spawnGeneratedParallax(
 		grid,
 		generatedMap.width,
@@ -253,12 +246,14 @@ export function startGeneratedRunMap(
 		selectedSeed,
 		depth
 	);
-	spawnGeneratedDebreeDeposits(
-		grid,
-		generatedMap,
-		config.hexSize,
-		selectedSeed
-	);
+	if (depth > 1) {
+		spawnGeneratedDebreeDeposits(
+			grid,
+			generatedMap,
+			config.hexSize,
+			selectedSeed
+		);
+	}
 	spawnCargoDeliveryIndicator();
 	spawnThreatDirector(grid, generatedMap, config.hexSize);
 
@@ -431,9 +426,12 @@ function startRunMapExploration(
 }
 
 function toRunMapPosition(grid: HexGrid, worldPosition: Vec2) {
-	return worldPosition
-		.sub(grid.config.offset)
-		.scale(1 / grid.config.hexSize);
+	const local = worldPosition.sub(grid.config.offset);
+	const projectionYScale = grid.config.projectionYScale ?? 1;
+	return k.vec2(
+		local.x / grid.config.hexSize,
+		local.y / (grid.config.hexSize * projectionYScale)
+	);
 }
 
 function revealRunMapAround(center: { q: number; r: number }) {
@@ -847,11 +845,8 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 	interface RockWallTile {
 		center: Vec2;
 		corners: Vec2[];
-		typeId: string;
-		connectionCount: number;
+		frame: number;
 		destructible?: DestructibleWallState;
-		edges: RunMapWallEdge[];
-		surfaceDetail?: RunMapSurfaceDetail;
 	}
 
 	interface RenderChunk {
@@ -860,15 +855,6 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 	}
 
 	const chunks = new Map<string, RenderChunk>();
-	const wallEdgeCornerIndices = [
-		[0, 1],
-		[5, 0],
-		[4, 5],
-		[3, 4],
-		[2, 3],
-		[1, 2],
-	];
-
 	for (const genCell of map.getAllCells()) {
 		const corners = grid.getHexScreenCorners(genCell.coord);
 		const chunkKey = getRunRenderChunkKey(genCell.coord.q, genCell.coord.r);
@@ -908,33 +894,12 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 			const neighbor = map.getCell(coord);
 			return !neighbor || neighbor.solid ? mask | (1 << index) : mask;
 		}, 0);
-		const topology = getHexWallTopology(connectionMask);
-		const edges = neighbors.flatMap((_, direction) => {
-			if ((connectionMask & (1 << direction)) !== 0) return [];
-			const [startIndex, endIndex] = wallEdgeCornerIndices[direction];
-			return [
-				createRockWallEdge(
-					corners[startIndex],
-					corners[endIndex],
-					center,
-					tileHash + direction * 41,
-					topology.connectionCount
-				),
-			];
-		});
+		const exposedMask = ~connectionMask & 0b111111;
 		return {
 			center,
 			corners,
-			typeId: topology.typeId,
-			connectionCount: topology.connectionCount,
+			frame: getRunRockTileFrame(exposedMask, tileHash),
 			destructible: getRunDestructibleWallState(genCell.coord),
-			edges,
-			surfaceDetail: createRunMapSurfaceDetail(
-				center,
-				corners,
-				tileHash,
-				topology.connectionCount
-			),
 		};
 	};
 	const addWallVisual = (genCell: GenCell) => {
@@ -977,6 +942,18 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 	let visibleChunkSignature = "";
 	let visibleStaticPicture: ReturnType<typeof k.endPicture> | undefined;
 	let visibleStaticPrimitiveCount = 0;
+	const tileScale = grid.config.hexSize / RUN_ROCK_TILE_SOURCE_RADIUS;
+	const tileCenterOffsetY =
+		(RUN_ROCK_TILE_SOURCE_RADIUS - RUN_ROCK_TILE_ANCHOR_Y) * tileScale;
+	const drawWallTile = (visual: RockWallTile) => {
+		k.drawSprite({
+			sprite: RUN_ROCK_TILE_SPRITE,
+			frame: visual.frame,
+			pos: visual.center.add(0, tileCenterOffsetY),
+			anchor: "center",
+			scale: k.vec2(tileScale),
+		});
+	};
 
 	const wallRenderer = k.add([
 		k.pos(0, 0),
@@ -995,28 +972,7 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 				for (const visual of visibleDynamicWalls) {
 					if (visual.destructible?.destroyed) continue;
 					incrementPerformanceCounter("wallPrimitives");
-					k.drawPolygon({
-						pts: visual.corners,
-						color: k.BLACK,
-					});
-					for (const edge of visual.edges) {
-						drawRockPolyline(edge.outline, 2, 0.95);
-						drawRockPolyline(edge.ridge, 1, 0.5);
-						drawRunMapEdgeDecoration(edge);
-						for (const crack of edge.cracks) {
-							incrementPerformanceCounter("wallPrimitives");
-							k.drawLine({
-								p1: crack.p1,
-								p2: crack.p2,
-								width: 1,
-								color: k.WHITE,
-								opacity: 0.42,
-							});
-						}
-					}
-					if (visual.surfaceDetail) {
-						drawRunMapSurfaceDetail(visual.surfaceDetail);
-					}
+					drawWallTile(visual);
 					if (visual.destructible) {
 						drawDestructibleWallCracks(visual);
 					}
@@ -1039,63 +995,90 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		visibleStaticPicture?.free();
 	});
 
+	interface ShiftedShipDepth {
+		ship: GameObj;
+		layer: string;
+		z: number;
+	}
+	const shiftedShipDepths = new Map<number, ShiftedShipDepth>();
+	const renderedTileHeight = RUN_ROCK_TILE_SOURCE_RADIUS * 2 * tileScale;
+	const maxVerticalDistance =
+		renderedTileHeight * RUN_WALL_FOREGROUND_HEIGHT_RATIO;
+	const maxHorizontalDistance = grid.config.hexSize;
+	const shouldShipRenderBehindWall = (ship: GameObj) => {
+		const shipCoord = grid.screenToHex(ship.pos);
+		return [shipCoord, ...hexNeighbors(shipCoord)].some((coord) => {
+			const visual = wallVisuals.get(runMapCellKey(coord))?.visual;
+			if (!visual || visual.destructible?.destroyed) return false;
+			const verticalDistance = visual.center.y - ship.pos.y;
+			return verticalDistance > 0 &&
+				verticalDistance <= maxVerticalDistance &&
+				Math.abs(visual.center.x - ship.pos.x) <= maxHorizontalDistance;
+		});
+	};
+	const restoreShipDepth = (shipId: number) => {
+		const previous = shiftedShipDepths.get(shipId);
+		if (!previous) return;
+		shiftedShipDepths.delete(shipId);
+		if (!previous.ship.exists()) return;
+		previous.ship.use(k.layer(previous.layer));
+		previous.ship.use(k.z(previous.z));
+	};
+	const shipDepthController = k.add([
+		{
+			update() {
+				const ships = [
+					playerObj,
+					...k.get<GameObj>(tags.unit).filter(
+						(unit) => !unit.is(tags.enemyRoleTerrain)
+					),
+				];
+				const activeShipIds = new Set<number>();
+				for (const ship of ships) {
+					if (!ship.exists()) continue;
+					activeShipIds.add(ship.id);
+					if (shouldShipRenderBehindWall(ship)) {
+						if (shiftedShipDepths.has(ship.id)) continue;
+						shiftedShipDepths.set(ship.id, {
+							ship,
+							layer: ship.layer ?? layers.game,
+							z: ship.z ?? 0,
+						});
+						ship.use(k.layer(layers.game2));
+						ship.use(k.z(-1));
+						continue;
+					}
+					restoreShipDepth(ship.id);
+				}
+				for (const shipId of shiftedShipDepths.keys()) {
+					if (!activeShipIds.has(shipId)) restoreShipDepth(shipId);
+				}
+			},
+		},
+		tags.runMap,
+		tags.gameLoop,
+	]);
+	shipDepthController.onDestroy(() => {
+		for (const shipId of [...shiftedShipDepths.keys()]) {
+			restoreShipDepth(shipId);
+		}
+	});
+
 	const buildVisibleStaticWallPicture = () => {
 		if (!visibleStaticPictureDirty) return;
 		visibleStaticPicture?.free();
 		visibleStaticPicture = undefined;
 		visibleStaticPrimitiveCount = 0;
 		k.beginPicture();
-		for (const chunk of visibleChunks) {
-			for (const visual of chunk.walls) {
-				if (visual.destructible) continue;
-				visibleStaticPrimitiveCount++;
-				k.drawPolygon({
-					pts: visual.corners,
-					color: k.BLACK,
-				});
-				for (const edge of visual.edges) {
-					if (edge.outline.length >= 2) {
-						visibleStaticPrimitiveCount++;
-						k.drawLines({
-							pts: edge.outline,
-							width: 2,
-							color: k.WHITE,
-							opacity: 0.95,
-							join: "miter",
-						});
-					}
-					if (edge.ridge.length >= 2) {
-						visibleStaticPrimitiveCount++;
-						k.drawLines({
-							pts: edge.ridge,
-							width: 1,
-							color: k.WHITE,
-							opacity: 0.5,
-							join: "miter",
-						});
-					}
-					visibleStaticPrimitiveCount += drawRunMapEdgeDecoration(
-						edge,
-						false
-					);
-					for (const crack of edge.cracks) {
-						visibleStaticPrimitiveCount++;
-						k.drawLine({
-							p1: crack.p1,
-							p2: crack.p2,
-							width: 1,
-							color: k.WHITE,
-							opacity: 0.42,
-						});
-					}
-				}
-				if (visual.surfaceDetail) {
-					visibleStaticPrimitiveCount += drawRunMapSurfaceDetail(
-						visual.surfaceDetail,
-						false
-					);
-				}
-			}
+		const staticWalls = visibleChunks
+			.flatMap((chunk) => chunk.walls)
+			.filter((visual) => !visual.destructible)
+			.sort(
+				(a, b) => a.center.y - b.center.y || a.center.x - b.center.x
+			);
+		for (const visual of staticWalls) {
+			visibleStaticPrimitiveCount++;
+			drawWallTile(visual);
 		}
 		visibleStaticPicture = k.endPicture();
 		visibleStaticPictureDirty = false;
@@ -1135,6 +1118,9 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 				visibleCavernCovers.push(...chunk.cavernCovers);
 			}
 		}
+		visibleDynamicWalls.sort(
+			(a, b) => a.center.y - b.center.y || a.center.x - b.center.x
+		);
 	};
 
 	refreshRunMapWallTopology = (coord) => {
@@ -1151,261 +1137,6 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		tags.gameLoop,
 	]);
 	updateVisibleChunks();
-}
-
-function createRockWallEdge(
-	p1: Vec2,
-	p2: Vec2,
-	center: Vec2,
-	hash: number,
-	connectionCount: number
-) {
-	const kind = selectRunMapEnvironmentKind(hash);
-	const edgeMidpoint = p1.add(p2).scale(0.5);
-	const jaggedAmount = 0.025 + (hash % 5) * 0.008;
-	const jaggedMidpoint = edgeMidpoint.lerp(center, jaggedAmount);
-	const ridgeInset = 0.13 + ((hash >> 3) % 4) * 0.012;
-	const ridgeStart = p1.lerp(center, ridgeInset);
-	const ridgeEnd = p2.lerp(center, ridgeInset);
-	const ridgeMidpoint = jaggedMidpoint.lerp(center, ridgeInset * 0.75);
-	const crackStart = ridgeMidpoint.lerp(
-		ridgeStart,
-		0.18 + (hash % 3) * 0.13
-	);
-	const crackEnd = crackStart.lerp(
-		center,
-		0.17 + ((hash >> 2) % 3) * 0.035
-	);
-	const cracks = [{ p1: crackStart, p2: crackEnd }];
-
-	if (connectionCount <= 2 && hash % 2 === 0) {
-		cracks.push({
-			p1: crackEnd,
-			p2: crackEnd.lerp(center, 0.1).lerp(ridgeEnd, 0.08),
-		});
-	}
-
-	return {
-		outline: createConnectedRunMapEdgeOutline(p1, p2, center, hash, kind),
-		ridge: [ridgeStart, ridgeMidpoint, ridgeEnd],
-		cracks,
-		kind,
-		hash,
-	};
-}
-
-function createConnectedRunMapEdgeOutline(
-	p1: Vec2,
-	p2: Vec2,
-	center: Vec2,
-	hash: number,
-	kind: HexWallEnvironmentKind
-) {
-	return getConnectedHexWallEdgeProfile(kind, hash).map((point) =>
-		p1.lerp(p2, point.along).lerp(center, point.inset)
-	);
-}
-
-function selectRunMapEnvironmentKind(hash: number): HexWallEnvironmentKind {
-	const roll = Math.abs(hash) % 10;
-	if (roll < 6) return "rock";
-	if (roll < 8) return "ruin";
-	return "machinery";
-}
-
-function createRunMapSurfaceDetail(
-	center: Vec2,
-	corners: Vec2[],
-	hash: number,
-	connectionCount: number
-): RunMapSurfaceDetail | undefined {
-	const chance = connectionCount === 6 ? 72 : connectionCount >= 4 ? 48 : 24;
-	if (Math.abs(hash >>> 5) % 100 >= chance) return undefined;
-
-	return {
-		kind: selectRunMapEnvironmentKind(hash >>> 7),
-		hash,
-		center,
-		corners,
-	};
-}
-
-function drawRunMapEdgeDecoration(
-	edge: RunMapWallEdge,
-	recordPerformance: boolean = true
-) {
-	if (edge.ridge.length < 3) return 0;
-	const start = edge.ridge[0];
-	const middle = edge.ridge[1];
-	const end = edge.ridge[2];
-	let primitiveCount = 0;
-
-	if (edge.kind === "rock") {
-		const leftChip = start.lerp(middle, 0.48);
-		const rightChip = end.lerp(middle, 0.42);
-		primitiveCount += drawRockPolyline(
-			[leftChip, middle, rightChip],
-			2,
-			0.34,
-			recordPerformance
-		);
-		return primitiveCount;
-	}
-
-	if (edge.kind === "ruin") {
-		const facadeStart = start.lerp(middle, 0.18);
-		const facadeEnd = end.lerp(middle, 0.18);
-		primitiveCount += drawRockPolyline(
-			[facadeStart, facadeEnd],
-			2,
-			0.56,
-			recordPerformance
-		);
-		for (const amount of [0.28, 0.5, 0.72]) {
-			const outer = edge.outline[0].lerp(edge.outline.at(-1)!, amount);
-			const inner = facadeStart.lerp(facadeEnd, amount);
-			primitiveCount += drawRockPolyline(
-				[outer, inner],
-				1,
-				0.46,
-				recordPerformance
-			);
-		}
-		return primitiveCount;
-	}
-
-	const pipeStart = start.lerp(middle, 0.12);
-	const pipeEnd = end.lerp(middle, 0.12);
-	primitiveCount += drawRockPolyline(
-		[pipeStart, middle, pipeEnd],
-		2,
-		0.5,
-		recordPerformance
-	);
-	for (const amount of [0.24, 0.76]) {
-		const outer = edge.outline[0].lerp(edge.outline.at(-1)!, amount);
-		const inner = pipeStart.lerp(pipeEnd, amount);
-		primitiveCount += drawRockPolyline(
-			[outer, inner],
-			2,
-			0.42,
-			recordPerformance
-		);
-	}
-	return primitiveCount;
-}
-
-function drawRunMapSurfaceDetail(
-	detail: RunMapSurfaceDetail,
-	recordPerformance: boolean = true
-) {
-	const radius = detail.center.dist(detail.corners[0]);
-	const angle = (Math.abs(detail.hash) % 6) * 60;
-	const forward = k.Vec2.fromAngle(angle);
-	const side = k.Vec2.fromAngle(angle + 90);
-	const longRadius = radius * (0.29 + ((detail.hash >>> 3) % 5) * 0.022);
-	const shortRadius = radius * (0.18 + ((detail.hash >>> 6) % 4) * 0.02);
-	let primitiveCount = 0;
-
-	if (detail.kind === "rock") {
-		const points: Vec2[] = [];
-		for (let index = 0; index < 7; index++) {
-			const pointAngle = angle + index * (360 / 7);
-			const pointRadius =
-				longRadius * (0.76 + ((detail.hash >>> (index + 2)) & 3) * 0.08);
-			points.push(
-				detail.center.add(k.Vec2.fromAngle(pointAngle).scale(pointRadius))
-			);
-		}
-		if (recordPerformance) incrementPerformanceCounter("wallPrimitives");
-		primitiveCount++;
-		k.drawPolygon({
-			pts: points,
-			fill: false,
-			outline: { width: 1, color: k.WHITE, opacity: 0.36 },
-		});
-		primitiveCount += drawRockPolyline(
-			[
-				detail.center.add(forward.scale(-longRadius * 0.42)),
-				detail.center.add(side.scale(shortRadius * 0.25)),
-				detail.center.add(forward.scale(longRadius * 0.36)),
-			],
-			1,
-			0.28,
-			recordPerformance
-		);
-		return primitiveCount;
-	}
-
-	if (detail.kind === "ruin") {
-		const frontLeft = detail.center
-			.add(forward.scale(longRadius))
-			.add(side.scale(-shortRadius));
-		const frontRight = detail.center
-			.add(forward.scale(longRadius))
-			.add(side.scale(shortRadius));
-		const backRight = detail.center
-			.add(forward.scale(-longRadius))
-			.add(side.scale(shortRadius));
-		const backLeft = detail.center
-			.add(forward.scale(-longRadius))
-			.add(side.scale(-shortRadius));
-		primitiveCount += drawRockPolyline(
-			[frontLeft, frontRight, backRight, backLeft, frontLeft],
-			2,
-			0.42,
-			recordPerformance
-		);
-		primitiveCount += drawRockPolyline(
-			[
-				frontLeft.lerp(backLeft, 0.35),
-				frontRight.lerp(backRight, 0.35),
-			],
-			1,
-			0.36,
-			recordPerformance
-		);
-		primitiveCount += drawRockPolyline(
-			[
-				frontLeft.lerp(frontRight, 0.3),
-				backLeft.lerp(backRight, 0.3),
-			],
-			1,
-			0.3,
-			recordPerformance
-		);
-		return primitiveCount;
-	}
-
-	const outer: Vec2[] = [];
-	const inner: Vec2[] = [];
-	for (let index = 0; index < 8; index++) {
-		const pointAngle = angle + index * 45;
-		const direction = k.Vec2.fromAngle(pointAngle);
-		outer.push(detail.center.add(direction.scale(longRadius)));
-		inner.push(detail.center.add(direction.scale(longRadius * 0.5)));
-	}
-	primitiveCount += drawRockPolyline(
-		[...outer, outer[0]],
-		2,
-		0.42,
-		recordPerformance
-	);
-	primitiveCount += drawRockPolyline(
-		[...inner, inner[0]],
-		1,
-		0.34,
-		recordPerformance
-	);
-	for (const index of [0, 2, 4, 6]) {
-		primitiveCount += drawRockPolyline(
-			[inner[index], outer[index]],
-			1,
-			0.3,
-			recordPerformance
-		);
-	}
-	return primitiveCount;
 }
 
 function drawRockPolyline(
@@ -1984,7 +1715,7 @@ function spawnFloorExit(pos: Vec2) {
 				k.flash(k.WHITE, 0.85);
 			}
 			portal.setPortalProgress(0);
-			portal.setPortalState("dormant", "SURVIVE");
+			portal.setPortalState("dormant", getRunFinaleObjective());
 			gravity.radius = 36;
 			gravity.strength = 8;
 		}

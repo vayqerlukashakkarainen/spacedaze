@@ -3,7 +3,7 @@ import { k } from "../main"
 import { showRecoveryShop } from "../ui/recoveryShop"
 import { spawnBuilding } from "./spawnBuilding"
 
-const recoveryShopScale = 0.5
+const recoveryShopScale = 1
 const recoveryShopLabelOffsetY = 150
 
 export function spawnRecoveryShop(pos: Vec2) {

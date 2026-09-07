@@ -47,7 +47,6 @@ export const PLAYTEST_BUILDS: readonly PlaytestBuild[] = [
 		upgrades: {
 			blaster: 1,
 			blasterParallel: 0,
-			mouseAim: 0,
 			followerBlasterDmg: 1,
 			followerMissiles: 0,
 			followerProjectileLink: 0,
@@ -68,7 +67,6 @@ export const PLAYTEST_BUILDS: readonly PlaytestBuild[] = [
 		extraHealth: 1,
 		upgrades: {
 			blaster: 1,
-			mouseAim: 0,
 			sprint: 0,
 			sprintSpeed: 1,
 			movespeed: 1,
@@ -104,7 +102,6 @@ export const PLAYTEST_BUILDS: readonly PlaytestBuild[] = [
 			blasterParallel: 0,
 			blasterDmg: 0,
 			blasterSpeed: 0,
-			mouseAim: 0,
 			arcCapacitor: 2,
 			cryoRounds: 2,
 			stasisBurst: 1,
@@ -127,7 +124,6 @@ export const PLAYTEST_BUILDS: readonly PlaytestBuild[] = [
 			blasterParallel: 0,
 			blasterDmg: 0,
 			blasterSpeed: 0,
-			mouseAim: 0,
 			rockets: 0,
 			nrOfRockets: 3,
 			rocketShards: 2,

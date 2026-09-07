@@ -2,7 +2,10 @@ import type { Vec2 } from "kaplay"
 import { playerObj } from "../game"
 import { k, velocityScale } from "../main"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
+import {
+	getEnemyNavigationDirection,
+	hasEnemyLineOfSight,
+} from "../services/enemyNavigationService"
 import { spawnEnemyBlaster } from "../services/projectileHelpers"
 import {
 	createEnemySpawnProfile,
@@ -83,7 +86,11 @@ export function spawnOrbitLancer(
 		}
 
 		lancer.fireTimer -= delta * (lancer.shieldFireRateMultiplier ?? 1)
-		if (lancer.fireTimer <= 0 && distance < 390) {
+		if (
+			lancer.fireTimer <= 0 &&
+			distance < 390 &&
+			hasEnemyLineOfSight(lancer, playerObj.pos)
+		) {
 			const spread = profile.elite ? [-8, 0, 8] : [-5, 5]
 			for (const angle of spread) {
 				const shotDirection = k.Vec2.fromAngle(direction.angle() + angle)

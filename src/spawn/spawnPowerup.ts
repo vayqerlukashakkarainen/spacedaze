@@ -11,7 +11,6 @@ import {
 	addCollectedPowerup,
 	showRewardAcquisitionPopover,
 } from "../ui/gameUi";
-import { UI_FONT_SIZES } from "../ui/common";
 import {
 	applyReward,
 	createReward,
@@ -44,6 +43,7 @@ interface RarityFeedback {
 }
 
 const REWARD_PICKUP_SCALE = 0.7;
+const REWARD_PICKUP_LABEL_SIZE = 7;
 const POWERUP_PICKUP_VOLUME = 0.8;
 
 const RARITY_FEEDBACK: Record<RewardRarity, RarityFeedback> = {
@@ -192,7 +192,6 @@ export function spawnRewardPickup(
 			size: feedback.auraRadius * 2.2,
 			color: REWARD_RARITY_COLORS[reward.rarity],
 			opacity: Math.max(0.35, feedback.auraOpacity),
-			z: -2,
 			pulse: {
 				scaleMin: 0.9,
 				scaleMax: 1.12,
@@ -246,7 +245,7 @@ export function spawnRewardPickup(
 		m.add([
 			k.text(options.label, {
 				font: "unscii",
-				size: UI_FONT_SIZES.tiny,
+				size: REWARD_PICKUP_LABEL_SIZE,
 				width: 140,
 				align: "center",
 			}),

@@ -42,6 +42,7 @@ export interface GeneratedMapConfig {
 	width: number;
 	height: number;
 	hexSize: number;
+	projectionYScale?: number;
 	generator?: CaveGenConfigOverrides;
 }
 

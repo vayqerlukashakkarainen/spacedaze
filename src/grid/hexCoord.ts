@@ -83,9 +83,13 @@ export function hexDistance(a: HexCoord, b: HexCoord): number {
  * Convert hex coordinate to pixel position (center of hex)
  * Using pointy-top orientation
  */
-export function hexToPixel(hex: HexCoord, size: number): Vec2 {
+export function hexToPixel(
+	hex: HexCoord,
+	size: number,
+	projectionYScale: number = 1
+): Vec2 {
 	const x = size * (Math.sqrt(3) * hex.q + (Math.sqrt(3) / 2) * hex.r);
-	const y = size * ((3 / 2) * hex.r);
+	const y = size * ((3 / 2) * hex.r) * projectionYScale;
 	return k.vec2(x, y);
 }
 
@@ -93,9 +97,15 @@ export function hexToPixel(hex: HexCoord, size: number): Vec2 {
  * Convert pixel position to hex coordinate
  * Using pointy-top orientation
  */
-export function pixelToHex(pixel: Vec2, size: number): HexCoord {
-	const q = ((Math.sqrt(3) / 3) * pixel.x - (1 / 3) * pixel.y) / size;
-	const r = ((2 / 3) * pixel.y) / size;
+export function pixelToHex(
+	pixel: Vec2,
+	size: number,
+	projectionYScale: number = 1
+): HexCoord {
+	const unprojectedY = pixel.y / projectionYScale;
+	const q =
+		((Math.sqrt(3) / 3) * pixel.x - (1 / 3) * unprojectedY) / size;
+	const r = ((2 / 3) * unprojectedY) / size;
 
 	// Round to nearest hex using cube coordinates
 	return hexRound(q, r);
@@ -164,8 +174,12 @@ export function hexRange(center: HexCoord, radius: number): HexCoord[] {
  * Get corners of a hex in pixel space
  * Returns 6 points for polygon rendering
  */
-export function hexCorners(hex: HexCoord, size: number): Vec2[] {
-	const center = hexToPixel(hex, size);
+export function hexCorners(
+	hex: HexCoord,
+	size: number,
+	projectionYScale: number = 1
+): Vec2[] {
+	const center = hexToPixel(hex, size, projectionYScale);
 	const corners: Vec2[] = [];
 
 	for (let i = 0; i < 6; i++) {
@@ -174,7 +188,7 @@ export function hexCorners(hex: HexCoord, size: number): Vec2[] {
 		corners.push(
 			k.vec2(
 				center.x + size * Math.cos(angleRad),
-				center.y + size * Math.sin(angleRad)
+				center.y + size * Math.sin(angleRad) * projectionYScale
 			)
 		);
 	}

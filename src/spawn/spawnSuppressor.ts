@@ -2,7 +2,10 @@ import type { Vec2 } from "kaplay"
 import { playerObj } from "../game"
 import { k, velocityScale } from "../main"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
+import {
+	getEnemyNavigationDirection,
+	hasEnemyLineOfSight,
+} from "../services/enemyNavigationService"
 import { clearPlayerStatusEffectsFromSource } from "../services/playerStatusEffectService"
 import { spawnEnemyBlaster } from "../services/projectileHelpers"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/threatService"
@@ -45,7 +48,11 @@ export function spawnSuppressor(pos: Vec2, hp = 6, options: EnemySpawnOptions = 
 			profile.scale
 		)
 		suppressor.fireTimer -= delta * (suppressor.shieldFireRateMultiplier ?? 1)
-		if (suppressor.fireTimer <= 0 && distance < 470) {
+		if (
+			suppressor.fireTimer <= 0 &&
+			distance < 470 &&
+			hasEnemyLineOfSight(suppressor, playerObj.pos)
+		) {
 			fireSuppressorFan(suppressor, direction, profile.elite && suppressor.wideFan)
 			suppressor.wideFan = !suppressor.wideFan
 			suppressor.fireTimer = profile.elite ? 1.45 : 1.85

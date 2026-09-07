@@ -2,6 +2,7 @@ import { Comp, GameObj } from "kaplay"
 
 export interface InteractableComp extends Comp {
 	interactRadius: number
+	interactionPriority: number
 	onInteract: () => void
 	isInRange: boolean
 	setInteractRadius(radius: number): void
@@ -10,11 +11,13 @@ export interface InteractableComp extends Comp {
 
 export function interactable(
 	radius: number,
-	callback: () => void
+	callback: () => void,
+	priority = INTERACTION_PRIORITY.default
 ): InteractableComp {
 	return {
 		id: "interactable",
 		interactRadius: radius,
+		interactionPriority: priority,
 		onInteract: callback,
 		isInRange: false,
 
@@ -27,3 +30,8 @@ export function interactable(
 		},
 	}
 }
+
+export const INTERACTION_PRIORITY = {
+	dialogue: 0,
+	default: 1,
+} as const

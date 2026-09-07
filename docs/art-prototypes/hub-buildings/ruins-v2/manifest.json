@@ -1,0 +1,9 @@
+[
+  {"id":"smelter-annex","requiredHubLevel":2,"editJobId":"fd4c02c4-d582-49e2-b84a-634d35497c97","paletteJobId":"ca38fbe9-c300-487d-b403-140f3dac4c7c"},
+  {"id":"listening-post","requiredHubLevel":3,"editJobId":"5f47861f-477a-4a43-a526-45ced22bae8e","paletteJobId":"371399d7-a6f7-4b32-b3bc-630043070547"},
+  {"id":"repair-drydock","requiredHubLevel":4,"editJobId":"894a5d76-069e-45d0-8047-a97de76e4097","paletteJobId":"5e249f0a-386f-478f-9e72-ec202a3c114d"},
+  {"id":"fuel-farm","requiredHubLevel":5,"editJobId":"5ade0d3c-6c7a-4e90-9d8e-a14006852e32","paletteJobId":"959fbbf6-a2ce-435e-a457-e13563201366"},
+  {"id":"freight-terminal","requiredHubLevel":6,"editJobId":"3d478a73-56a4-4b7e-9522-52d474cd175a","paletteJobId":"cebb70df-bffc-4656-83af-0222e6e3489e"},
+  {"id":"habitat-cluster","requiredHubLevel":7,"editJobId":"ce6fd2bd-98f7-4c57-b58d-1fb863cc1def","paletteJobId":"c72fbe91-3a6f-4266-ab14-fbd30e01578c"},
+  {"id":"observatory-crown","requiredHubLevel":8,"editJobId":"c2af6e68-40ef-4e6c-b7d8-b5455ff99abf","paletteJobId":"a99a9704-3bcf-4757-ae15-00566213a87f"}
+]

@@ -99,8 +99,43 @@
 
 ## Run Level Up
 
-"Cute Level Up 3" by floraphonic
+"Achievement Badge Pop Sound #1" by Vadim_Makes_Sound
 
-- Source: https://pixabay.com/sound-effects/film-special-effects-cute-level-up-3-189853/
+- Source: https://pixabay.com/sound-effects/film-special-effects-achievement-badge-pop-sound-1-547860/
 - License: Pixabay Content License
 - In-game asset: `run-level-up.mp3`
+
+## Thruster Overclock
+
+User-provided audio asset.
+
+- Source: Local file supplied by the project owner
+- Creator and license: Not provided
+- In-game asset: `going-fast.wav`
+
+## Rail Lance Ready
+
+User-provided audio asset.
+
+- Source: Local file supplied by the project owner
+- Creator and license: Not provided
+- Original filename: `powerUp.wav`
+- In-game asset: `rail-lance-ready.wav`
+
+## Rail Lance Charge
+
+User-provided audio asset.
+
+- Source: Local file supplied by the project owner
+- Creator and license: Not provided
+- Original filename: `charge_up.wav`
+- In-game asset: `rail-lance-charge.wav`
+
+## Scatter Array
+
+User-provided audio asset.
+
+- Source: Local file supplied by the project owner
+- Creator and license: Not provided
+- Original filename: `laster_shoot_2.wav`
+- In-game asset: `laser-shoot-2.wav`

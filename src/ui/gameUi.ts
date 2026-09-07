@@ -55,8 +55,6 @@ let secondaryWarning: GameObj<OpacityComp> | null = null;
 let secondaryEmptyRing: GameObj<OpacityComp> | null = null;
 let phaseJumpIcon: GameObj | null = null;
 let phaseJumpSegments: GameObj<OpacityComp>[] = [];
-let phaseJumpChargeLabel: GameObj | null = null;
-let mobilityNameLabel: GameObj | null = null;
 let mobilityWarning: GameObj<OpacityComp> | null = null;
 let ultimateIcon: GameObj | null = null;
 let ultimateEmptyRing: GameObj<OpacityComp> | null = null;
@@ -149,13 +147,13 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		k.color(...UI_COLORS.accent),
 	]);
 	const salvageLabel = salvageDisplay.add([
-		k.text("", { size: UI_FONT_SIZES.small, font: "unscii" }),
+		k.text("", { size: 7, font: "unscii" }),
 		k.pos(0, 0),
 		k.anchor("right"),
 		k.color(...UI_COLORS.accent),
 	]);
 	const salvageModeLabel = salvageDisplay.add([
-		k.text("", { size: UI_FONT_SIZES.micro, font: "unscii" }),
+		k.text("", { size: 7, font: "unscii" }),
 		k.pos(0, -10),
 		k.anchor("right"),
 		k.color(...UI_COLORS.muted),
@@ -382,12 +380,12 @@ export function showSalvageGain(
 	}
 
 	const gain = k.add([
-		k.text(`+${amount}`, { size: UI_FONT_SIZES.tiny, font: "unscii" }),
+		k.text(`+${amount}`, { size: 7, font: "unscii" }),
 		k.pos(pos.add(k.rand(-7, 7), k.rand(-25, -19))),
 		k.anchor("center"),
 		k.color(color),
 		k.opacity(1),
-		k.scale(1.35),
+		k.scale(1),
 		k.z(100),
 		k.layer(layers.gameText),
 		{
@@ -405,8 +403,8 @@ export function showSalvageGain(
 		gain.pos.y = gain.startY - rise * 24;
 		gain.opacity = 1 - progress * progress;
 		const popScale = progress < 0.18
-			? k.lerp(1.35, 1.65, progress / 0.18)
-			: k.lerp(1.65, 0.85, (progress - 0.18) / 0.82);
+			? k.lerp(1, 1.15, progress / 0.18)
+			: k.lerp(1.15, 0.75, (progress - 0.18) / 0.82);
 		gain.scale = k.vec2(popScale);
 
 		if (progress >= 1) k.destroy(gain);
@@ -522,15 +520,6 @@ export function updatePhaseJumpUi(
 			k.opacity(1),
 		]);
 
-		mobilityNameLabel = systemsPanel.add([
-			k.text(mobility?.name ?? "", {
-				size: UI_FONT_SIZES.tiny,
-				font: "unscii",
-			}),
-			k.pos(101, 1),
-			k.color(k.WHITE),
-		]);
-
 		const segmentGap = 2;
 		const segmentWidth =
 			(abilityBarWidth - segmentGap * (phaseJumpSegmentCount - 1)) /
@@ -544,12 +533,6 @@ export function updatePhaseJumpUi(
 			]));
 		}
 
-		phaseJumpChargeLabel = systemsPanel.add([
-			k.text("", { size: UI_FONT_SIZES.tiny, font: "unscii" }),
-			k.pos(240, 18),
-			k.anchor("right"),
-			k.color(k.WHITE),
-		]);
 		mobilityWarning = systemsPanel.add([
 			k.pos(79, 0),
 			k.rect(166, weaponSocketSize),
@@ -562,9 +545,6 @@ export function updatePhaseJumpUi(
 	if (mobilityChanged) {
 		displayedMobilityId = mobilityId ?? "";
 		if (phaseJumpIcon && mobility) phaseJumpIcon.sprite = mobility.icon;
-		if (mobilityNameLabel) {
-			mobilityNameLabel.text = mobility?.name ?? "";
-		}
 	}
 
 	if (
@@ -578,18 +558,17 @@ export function updatePhaseJumpUi(
 	displayedJumpProgress = rechargeProgress;
 	phaseJumpIcon.opacity = mobility ? charges > 0 ? 1 : 0.25 : 0.18;
 	const filledSegments = rechargeProgress * phaseJumpSegmentCount;
+	const overdriveOverused =
+		mobilityId === "thrusterOverdrive" && charges <= 0;
 	for (let index = 0; index < phaseJumpSegments.length; index++) {
 		phaseJumpSegments[index].color = mobility
-			? k.rgb(...UI_COLORS.accent)
+			? overdriveOverused
+				? k.rgb(...UI_COLORS.danger)
+				: k.rgb(...UI_COLORS.accent)
 			: k.rgb(...UI_COLORS.muted);
 		phaseJumpSegments[index].opacity = mobility
 			? index < filledSegments ? 1 : 0.22
 			: 0.12;
-	}
-	if (phaseJumpChargeLabel) {
-		phaseJumpChargeLabel.text = mobilityId === "thrusterOverdrive"
-			? "READY"
-			: mobility ? `${charges}/${maxCharges}` : "";
 	}
 }
 
@@ -859,8 +838,6 @@ export function clearGameLoopUi() {
 	secondaryEmptyRing = null;
 	phaseJumpIcon = null;
 	phaseJumpSegments = [];
-	phaseJumpChargeLabel = null;
-	mobilityNameLabel = null;
 	mobilityWarning = null;
 	ultimateIcon = null;
 	ultimateEmptyRing = null;

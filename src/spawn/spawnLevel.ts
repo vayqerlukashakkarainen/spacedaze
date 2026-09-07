@@ -1,4 +1,4 @@
-import { Vec2 } from "kaplay";
+import { Color, Vec2 } from "kaplay";
 import { checkProjectileIntersection, playerObj } from "../game";
 import { k, layers } from "../main";
 import { tags } from "../tags";
@@ -8,6 +8,7 @@ import { startLevelTransition } from "../services/levelTransitionService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import { audioService } from "../services/audioService";
 import { UI_FONT_SIZES } from "../ui/common";
+import { menuBlocksPostProcessing } from "../ui/uiState";
 
 interface Props {
 	pos: Vec2;
@@ -22,6 +23,22 @@ interface Props {
 		cancel: () => void
 	) => void;
 }
+
+interface DecorativeWormholeProps {
+	pos: Vec2;
+	color: Color;
+	scale?: number;
+	tags?: string[];
+}
+
+interface WormholeEffectOptions {
+	color?: Color;
+	postEffect?: boolean;
+	secondaryPostEffect?: boolean;
+	ambience?: boolean;
+}
+
+let secondaryPostEffectPortal: any | undefined;
 
 export function spawnLevel(props: Props) {
 	let collected = false;
@@ -120,15 +137,52 @@ export function spawnLevel(props: Props) {
 	return m;
 }
 
-function addWormholeEffect(portal: any) {
-	k.usePostEffect("wormholeLighting", () => {
-		if (!portal.exists()) {
+export function spawnDecorativeWormhole(props: DecorativeWormholeProps) {
+	const portal = k.add([
+		k.pos(props.pos),
+		k.rotate(0),
+		k.scale(props.scale ?? 1),
+		k.anchor("center"),
+		timescale(),
+		{
+			portalState: "active",
+			portalProgress: 1,
+		},
+		tags.props,
+		tags.gameLoop,
+		...(props.tags ?? []),
+	]);
+	addWormholeEffect(portal, {
+		color: props.color,
+		postEffect: false,
+		secondaryPostEffect: true,
+		ambience: false,
+	});
+	return portal;
+}
+
+export function addWormholeEffect(
+	portal: any,
+	options: WormholeEffectOptions = {}
+) {
+	const effectColor = options.color ?? k.WHITE;
+	if (options.secondaryPostEffect) {
+		secondaryPostEffectPortal = portal;
+		portal.onDestroy(() => {
+			if (secondaryPostEffectPortal === portal) {
+				secondaryPostEffectPortal = undefined;
+			}
+		});
+	}
+	if (options.postEffect !== false) k.usePostEffect("wormholeLighting", () => {
+		if (!portal.exists() || menuBlocksPostProcessing()) {
 			return {
 				u_lightCenter: k.vec2(-1000, -1000),
 				u_resolution: k.vec2(k.width(), k.height()),
 				u_radius: 1,
 				u_intensity: 0,
 				u_time: k.time(),
+				...getSecondaryWormholeUniforms(false),
 			}
 		}
 		const activationProgress = portal.portalProgress ?? 0
@@ -149,27 +203,41 @@ function addWormholeEffect(portal: any) {
 			u_radius: worldRadius * k.getCamScale().x,
 			u_intensity: stateIntensity + (portal.transitionIntensity ?? 0) * 0.3,
 			u_time: k.time(),
+			...getSecondaryWormholeUniforms(true),
 		}
-	})
-	const ambience = audioService.playPositionalSound(
-		"wormhole_ambience",
-		() => portal.exists() ? portal.pos : undefined,
-		{
-			volume: 0.5,
-			loop: true,
-			voiceLimit: false,
-			minDistance: 55,
-			maxDistance: 400,
-			rolloff: 1.5,
-			panDistance: 280,
-		}
-	);
+	});
+	const ambience = options.ambience === false
+		? undefined
+		: audioService.playPositionalSound(
+				"wormhole_ambience",
+				() => portal.exists() ? portal.pos : undefined,
+				{
+					volume: 0.5,
+					loop: true,
+					voiceLimit: false,
+					minDistance: 55,
+					maxDistance: 400,
+					rolloff: 1.5,
+					panDistance: 280,
+				}
+			);
+	if (options.color) {
+		portal.add([
+			k.circle(70),
+			k.anchor("center"),
+			k.scale(1, 0.72),
+			k.color(effectColor),
+			k.opacity(0.025),
+			k.layer(layers.gameEffects),
+			k.z(-1),
+		]);
+	}
 	const core = portal.add([
 		k.circle(9),
 		k.anchor("center"),
 		k.color(0, 0, 0),
 		k.opacity(0.95),
-		k.outline(1, k.WHITE),
+		k.outline(1, effectColor),
 		k.layer(layers.gameEffects),
 		k.z(2),
 	]);
@@ -189,7 +257,7 @@ function addWormholeEffect(portal: any) {
 			k.scale(1, ring.squash),
 			k.rotate(ring.phase * 20),
 			k.opacity(0.55),
-			k.outline(1, k.WHITE),
+			k.outline(1, effectColor),
 			k.layer(layers.gameEffects),
 		]),
 	}));
@@ -252,7 +320,11 @@ function addWormholeEffect(portal: any) {
 						height: particle.height * scale,
 						angle: angle + index * 19,
 						anchor: "center",
-						color: k.rgb(particle.shade, particle.shade, particle.shade),
+						color: k.rgb(
+							effectColor.r * particle.shade / 255,
+							effectColor.g * particle.shade / 255,
+							effectColor.b * particle.shade / 255
+						),
 						opacity: particleOpacity,
 					});
 				}
@@ -327,4 +399,30 @@ function addWormholeEffect(portal: any) {
 	portal.onDestroy(() => {
 		if (ambience) audioService.stopSound(ambience, "portal-destroyed");
 	});
+}
+
+function getSecondaryWormholeUniforms(enabled: boolean) {
+	if (
+		!enabled ||
+		!secondaryPostEffectPortal?.exists() ||
+		menuBlocksPostProcessing()
+	) {
+		return {
+			u_secondaryLightCenter: k.vec2(-1000, -1000),
+			u_secondaryRadius: 1,
+			u_secondaryIntensity: 0,
+		};
+	}
+	const screenPos = k.toScreen(secondaryPostEffectPortal.pos);
+	const activationProgress = secondaryPostEffectPortal.portalProgress ?? 1;
+	const isCharging = secondaryPostEffectPortal.portalState === "charging";
+	return {
+		u_secondaryLightCenter: k.vec2(screenPos.x, k.height() - screenPos.y),
+		u_secondaryRadius: (isCharging
+			? k.lerp(72, 185, activationProgress)
+			: 185) * k.getCamScale().x,
+		u_secondaryIntensity: isCharging
+			? k.lerp(0.12, 1.05, activationProgress)
+			: 1.05,
+	};
 }

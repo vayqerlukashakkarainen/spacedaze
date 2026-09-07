@@ -18,7 +18,10 @@ import {
 	type EnemySpawnOptions,
 } from "../services/threatService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
-import { getEnemyNavigationTarget } from "../services/enemyNavigationService";
+import {
+	getEnemyNavigationTarget,
+	hasEnemyLineOfSight,
+} from "../services/enemyNavigationService";
 
 export function spawnAssasin(
 	pos: Vec2,
@@ -82,7 +85,10 @@ export function spawnAssasin(
 				1,
 				Math.round(200 / (m.shieldFireRateMultiplier ?? 1))
 			);
-			if (Math.floor(k.rand(0, fireRollRange)) == 1) {
+			if (
+				Math.floor(k.rand(0, fireRollRange)) == 1 &&
+				hasEnemyLineOfSight(m, playerObj.pos)
+			) {
 				spawnEnemyBlaster(
 					m.pos,
 					k.Vec2.fromAngle(m.angle - 90),

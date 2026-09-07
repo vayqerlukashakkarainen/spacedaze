@@ -49,4 +49,29 @@ assert.equal(updates.get(1), 2)
 assert.equal(updates.get(2), 3)
 
 clearCadencedSystemEntries()
+
+const removalVisits: number[] = []
+const removalSystem = createCadencedSystem<{ owner: GameObj }>({
+	id: "removal-during-update",
+	rate: 60,
+	updateBucket(entries) {
+		const countAtStart = entries.length
+		for (let index = 0; index < countAtStart; index++) {
+			const entry = entries[index]
+			assert.ok(entry)
+			removalVisits.push(entry.owner.id)
+			if (index === 0) owners[1].destroy()
+		}
+	},
+})
+
+for (const owner of owners) removalSystem.add({ owner: owner as unknown as GameObj })
+updateCadencedSystems(1 / 60)
+assert.deepEqual(removalVisits, [0, 1, 2])
+
+removalVisits.length = 0
+updateCadencedSystems(1 / 60)
+assert.deepEqual(removalVisits.sort(), [0, 2])
+
+clearCadencedSystemEntries()
 console.log("Cadenced system service tests passed")

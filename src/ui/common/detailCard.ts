@@ -57,7 +57,7 @@ export function createUiDetailCard(
 			variant: "caption",
 			color: accent,
 			size: UI_FONT_SIZES.label,
-			gapAfter: 7,
+			gapAfter: 10,
 		})
 	}
 	if (props.description) {
@@ -65,9 +65,9 @@ export function createUiDetailCard(
 			text: props.description,
 			variant: "body",
 			color: k.WHITE,
-			size: UI_FONT_SIZES.body,
-			lineHeight: 1.3,
-			gapAfter: props.rows?.length ? 9 : 0,
+			size: UI_FONT_SIZES.small,
+			lineHeight: 1.4,
+			gapAfter: props.rows?.length ? 12 : 0,
 		})
 	}
 	if (props.sectionTitle && props.rows?.length) {
@@ -76,7 +76,7 @@ export function createUiDetailCard(
 			variant: "caption",
 			color: accent,
 			size: UI_FONT_SIZES.label,
-			gapAfter: 3,
+			gapAfter: 5,
 		})
 	}
 	for (const row of props.rows ?? []) {

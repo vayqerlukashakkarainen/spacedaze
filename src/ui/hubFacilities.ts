@@ -125,6 +125,10 @@ interface RunPreparationProps {
 
 type RunPreparationTab = "loadout" | "contracts"
 
+const LOADOUT_SELECTION_MAX_PAGE_SIZE = 5
+const LOADOUT_SELECTION_MIN_ROW_HEIGHT = 52
+const LOADOUT_SELECTION_ROW_GAP = 5
+
 const LOADOUT_SLOT_DETAILS: ReadonlyArray<{
 	slot: AbilitySlot
 	label: string
@@ -141,12 +145,21 @@ export function showRunPreparation(props: RunPreparationProps) {
 		Math.min(900, k.width() - 24),
 		Math.min(580, k.height() - 24)
 	)
+	const padding = 20
+	const closeButtonWidth = 180
+	const deployButtonWidth = 250
+	const footerButtonGap = 18
+	const footerRight = panelSize.x / 2 - padding
+	const deployButtonLeft = footerRight - deployButtonWidth
+	const closeButtonCenterX = deployButtonLeft - footerButtonGap -
+		closeButtonWidth / 2
 	let launchRequested = false
 	const panel = openPanel(
 		undefined,
 		panelSize,
 		true,
-		() => launchRequested ? props.onLaunch() : props.onCancel()
+		() => launchRequested ? props.onLaunch() : props.onCancel(),
+		closeButtonCenterX
 	)
 	if (!panel) {
 		props.onCancel()
@@ -155,7 +168,6 @@ export function showRunPreparation(props: RunPreparationProps) {
 
 	const left = -panelSize.x / 2
 	const top = -panelSize.y / 2
-	const padding = 20
 	const innerWidth = panelSize.x - padding * 2
 	const tabTop = top + 62
 	const contentTop = top + 108
@@ -168,6 +180,7 @@ export function showRunPreparation(props: RunPreparationProps) {
 	const contentRoot = panel.add([k.pos(0, 0)])
 	let activeTab: RunPreparationTab = "loadout"
 	let editingSlot: AbilitySlot | undefined
+	let loadoutSelectionPage = 0
 
 	createUiSectionHeader(panel, {
 		pos: k.vec2(left + 1, top + 1),
@@ -198,6 +211,7 @@ export function showRunPreparation(props: RunPreparationProps) {
 				onClick: () => {
 					activeTab = tab.id
 					editingSlot = undefined
+					loadoutSelectionPage = 0
 					render()
 				},
 			})
@@ -228,8 +242,14 @@ export function showRunPreparation(props: RunPreparationProps) {
 				innerWidth,
 				contentHeight,
 				editingSlot,
+				loadoutSelectionPage,
+				(page) => {
+					loadoutSelectionPage = page
+					render()
+				},
 				() => {
 					editingSlot = undefined
+					loadoutSelectionPage = 0
 					render()
 				},
 				render
@@ -246,15 +266,17 @@ export function showRunPreparation(props: RunPreparationProps) {
 			props.zone,
 			(slot) => {
 				editingSlot = slot
+				loadoutSelectionPage = getEquippedLoadoutPage(slot, contentHeight)
 				render()
 			}
 		)
 	}
 
 	createUiActionButton(panel, {
-		pos: k.vec2(110, panelSize.y / 2 - 54),
-		size: k.vec2(250, 38),
+		pos: k.vec2(deployButtonLeft, panelSize.y / 2 - 54),
+		size: k.vec2(deployButtonWidth, 38),
 		text: `DEPLOY  //  ${props.zone.name}`,
+		primary: true,
 		onClick: () => {
 			launchRequested = true
 			hideHubFacilityPanel()
@@ -366,15 +388,13 @@ function renderLoadoutSelection(
 	width: number,
 	height: number,
 	slot: AbilitySlot,
+	page: number,
+	onPageChange: (page: number) => void,
 	onBack: () => void,
 	render: () => void
 ) {
 	const details = LOADOUT_SLOT_DETAILS.find((candidate) => candidate.slot === slot)
-	const abilities = getAbilitiesForSlot(slot).filter((ability) =>
-		slot === "primary"
-			? isWeaponOwned(ability.id as WeaponId)
-			: isAbilityDiscovered(ability)
-	)
+	const abilities = getSelectableAbilitiesForSlot(slot)
 	createUiSectionHeader(root, {
 		pos: k.vec2(left, top),
 		width,
@@ -391,14 +411,28 @@ function renderLoadoutSelection(
 
 	const canClear = slot !== "primary"
 	const entryCount = abilities.length + (canClear ? 1 : 0)
-	const gap = 5
+	const pageSize = getLoadoutSelectionPageSize(height)
+	const pageCount = Math.max(
+		1,
+		Math.ceil(entryCount / pageSize)
+	)
+	const currentPage = k.clamp(Math.floor(page), 0, pageCount - 1)
+	const firstEntry = currentPage * pageSize
+	const visibleEntryCount = Math.min(
+		pageSize,
+		entryCount - firstEntry
+	)
+	const gap = LOADOUT_SELECTION_ROW_GAP
 	const rowsTop = top + 56
+	const paginationTop = top + height - 28
+	const rowsBottom = paginationTop - 8
 	const rowHeight = Math.min(
 		58,
-		(height - 56 - gap * Math.max(0, entryCount - 1)) / Math.max(1, entryCount)
+		(rowsBottom - rowsTop - gap * Math.max(0, visibleEntryCount - 1)) /
+			Math.max(1, visibleEntryCount)
 	)
 	let row = 0
-	if (canClear) {
+	if (canClear && firstEntry === 0) {
 		const emptyEquipped = getEquippedAbilityId(slot) === undefined
 		createUiSelectableRow(root, {
 			pos: k.vec2(left, rowsTop),
@@ -417,7 +451,12 @@ function renderLoadoutSelection(
 		})
 		row++
 	}
-	for (const ability of abilities) {
+	const firstAbility = Math.max(0, firstEntry - (canClear ? 1 : 0))
+	const abilitySlotsOnPage = visibleEntryCount - row
+	for (const ability of abilities.slice(
+		firstAbility,
+		firstAbility + abilitySlotsOnPage
+	)) {
 		const equipped = getEquippedAbilityId(slot) === ability.id
 		createUiSelectableRow(root, {
 			pos: k.vec2(left, rowsTop + row * (rowHeight + gap)),
@@ -427,7 +466,7 @@ function renderLoadoutSelection(
 			meta: `${ability.rarity.toUpperCase()}  //  ${ability.trigger.toUpperCase()}`,
 			description: ability.description,
 			status: equipped ? "EQUIPPED" : "EQUIP",
-			statusColor: REWARD_RARITY_COLORS[ability.rarity],
+			statusColor: equipped ? UI_COLORS.accent : UI_COLORS.text,
 			selected: equipped,
 			icon: ability.icon,
 			iconSize: Math.min(30, rowHeight - 12),
@@ -439,6 +478,59 @@ function renderLoadoutSelection(
 		})
 		row++
 	}
+
+	createUiActionButton(root, {
+		pos: k.vec2(left, paginationTop),
+		size: k.vec2(104, 24),
+		text: "< PREV",
+		disabled: currentPage === 0,
+		onClick: () => onPageChange(currentPage - 1),
+	})
+	addThemedText(root, {
+		text: `PAGE ${currentPage + 1} / ${pageCount}`,
+		pos: k.vec2(left + width / 2 - 70, paginationTop + 6),
+		variant: "caption",
+		width: 140,
+		align: "center",
+	})
+	createUiActionButton(root, {
+		pos: k.vec2(left + width - 104, paginationTop),
+		size: k.vec2(104, 24),
+		text: "NEXT >",
+		disabled: currentPage >= pageCount - 1,
+		onClick: () => onPageChange(currentPage + 1),
+	})
+}
+
+function getSelectableAbilitiesForSlot(slot: AbilitySlot) {
+	return getAbilitiesForSlot(slot).filter((ability) =>
+		slot === "primary"
+			? isWeaponOwned(ability.id as WeaponId)
+			: isAbilityDiscovered(ability)
+	)
+}
+
+function getLoadoutSelectionPageSize(height: number) {
+	const rowsHeight = height - 92
+	return k.clamp(
+		Math.floor(
+			(rowsHeight + LOADOUT_SELECTION_ROW_GAP) /
+				(LOADOUT_SELECTION_MIN_ROW_HEIGHT + LOADOUT_SELECTION_ROW_GAP)
+		),
+		1,
+		LOADOUT_SELECTION_MAX_PAGE_SIZE
+	)
+}
+
+function getEquippedLoadoutPage(slot: AbilitySlot, height: number) {
+	const equippedId = getEquippedAbilityId(slot)
+	if (!equippedId) return 0
+	const abilityIndex = getSelectableAbilitiesForSlot(slot).findIndex(
+		(ability) => ability.id === equippedId
+	)
+	if (abilityIndex < 0) return 0
+	const entryIndex = abilityIndex + (slot === "primary" ? 0 : 1)
+	return Math.floor(entryIndex / getLoadoutSelectionPageSize(height))
 }
 
 function equipLoadoutAbility(slot: AbilitySlot, abilityId: AbilityId) {
@@ -699,6 +791,7 @@ function renderRunTerminalForge(
 		size: k.vec2(width - 32, 34),
 		text: `UPGRADE FORGE  //  ${cost} SALVAGE`,
 		disabled: getScore() < cost,
+		requirementsMet: getScore() >= cost,
 		onDisabledClick: playRequirementErrorSound,
 		onClick: () => {
 			if (!spendScore(cost) || !upgradeForge()) {
@@ -803,6 +896,8 @@ export function showPhaseStation(
 	const contentRoot = panel.add([k.pos(0, 0)])
 	let activeTab: PhaseStationTab = initialTab
 	let arsenalPage = 0
+	let modulePage = 0
+	let abilityPage = 0
 	let upgradePage = 0
 	let upgradeDetailsPage = 0
 	let selectedUpgradeKey: string | undefined
@@ -914,23 +1009,33 @@ export function showPhaseStation(
 			)
 		}
 		if (activeTab === "modules") {
-			renderActiveModules(
+			modulePage = renderActiveModules(
 				contentRoot,
 				panelLeft + innerPadding,
 				innerWidth,
 				contentTop,
 				contentBottom,
+				modulePage,
+				(nextPage) => {
+					modulePage = nextPage
+					render()
+				},
 				render,
 				newBlueprintKeys
 			)
 		}
 		if (activeTab === "abilities") {
-			renderMobilityAndUltimateAbilities(
+			abilityPage = renderMobilityAndUltimateAbilities(
 				contentRoot,
 				panelLeft + innerPadding,
 				innerWidth,
 				contentTop,
 				contentBottom,
+				abilityPage,
+				(nextPage) => {
+					abilityPage = nextPage
+					render()
+				},
 				render,
 				newBlueprintKeys
 			)
@@ -1141,6 +1246,8 @@ function renderMobilityAndUltimateAbilities(
 	width: number,
 	top: number,
 	bottom: number,
+	requestedPage: number,
+	onPageChange: (page: number) => void,
 	render: () => void,
 	newBlueprintKeys: ReadonlySet<string>
 ) {
@@ -1148,61 +1255,83 @@ function renderMobilityAndUltimateAbilities(
 		{ slot: "mobility" as const, label: "MOBILITY  //  SPACE OR SHIFT" },
 		{ slot: "ultimate" as const, label: "ULTIMATE  //  Q" },
 	]
-	const groupGap = 16
-	const groupHeight = (bottom - top - groupGap) / groups.length
-	for (let groupIndex = 0; groupIndex < groups.length; groupIndex++) {
-		const group = groups[groupIndex]
-		const groupTop = top + groupIndex * (groupHeight + groupGap)
-		const abilities = getAbilitiesForSlot(group.slot)
-		addThemedText(root, {
-			text: group.label,
-			pos: k.vec2(left, groupTop),
-			variant: "eyebrow",
+	const entries = groups.flatMap((group) =>
+		getAbilitiesForSlot(group.slot).map((ability) => ({ group, ability }))
+	)
+	const pageSize = 5
+	const pageCount = Math.max(1, Math.ceil(entries.length / pageSize))
+	const page = k.clamp(requestedPage, 0, pageCount - 1)
+	const visibleEntries = entries.slice(page * pageSize, (page + 1) * pageSize)
+	const firstGroup = visibleEntries[0]?.group
+	const pageLabel = firstGroup && visibleEntries.every(
+		(entry) => entry.group.slot === firstGroup.slot
+	)
+		? firstGroup.label
+		: "ABILITIES"
+	addThemedText(root, {
+		text: `${pageLabel}  //  PAGE ${page + 1} / ${pageCount}`,
+		pos: k.vec2(left, top),
+		variant: "eyebrow",
+		width: width - 90,
+	})
+	createUiActionButton(root, {
+		pos: k.vec2(left + width - 78, top - 5),
+		size: k.vec2(34, 20),
+		text: "<",
+		disabled: page === 0,
+		onClick: () => onPageChange(page - 1),
+	})
+	createUiActionButton(root, {
+		pos: k.vec2(left + width - 34, top - 5),
+		size: k.vec2(34, 20),
+		text: ">",
+		disabled: page >= pageCount - 1,
+		onClick: () => onPageChange(page + 1),
+	})
+	const rowsTop = top + 24
+	const rowGap = 6
+	const rowHeight = Math.min(
+		68,
+		(bottom - rowsTop - rowGap * (pageSize - 1)) / pageSize
+	)
+	visibleEntries.forEach(({ group, ability }, index) => {
+		const discoveryKey = getAbilityDiscoveryKey(ability)
+		const discovered = isAbilityDiscovered(ability)
+		const equipped = getEquippedAbilityId(group.slot) === ability.id
+		const hubLocked = getHubLevel() < ability.minimumHubLevel
+		createUiSelectableRow(root, {
+			pos: k.vec2(left, rowsTop + index * (rowHeight + rowGap)),
 			width,
+			height: rowHeight,
+			title: discovered ? ability.name : "??????",
+			notification: discovered && newBlueprintKeys.has(discoveryKey),
+			meta: discovered
+				? `${ability.rarity}  //  ${ability.resource.type.toUpperCase()}`
+				: hubLocked
+					? `LOCKED DROP  //  HUB LEVEL ${ability.minimumHubLevel}`
+					: "UNDISCOVERED",
+			description: discovered ? ability.description : "??????",
+			status: discovered
+				? equipped ? "EQUIPPED" : "EQUIP"
+				: hubLocked ? `REQUIRES HUB LEVEL ${ability.minimumHubLevel}` : "??????",
+			statusColor: discovered
+				? equipped ? UI_COLORS.accent : UI_COLORS.text
+				: hubLocked ? UI_COLORS.danger : UI_COLORS.muted,
+			selected: equipped,
+			icon: discovered ? ability.icon : undefined,
+			iconText: discovered ? undefined : "?",
+			iconSize: Math.min(30, rowHeight - 12),
+			disabled: !discovered,
+			onClick: discovered && !equipped
+				? () => {
+					equipAbilityInSlot(group.slot, ability.id)
+					saveGame("slot1")
+					render()
+				}
+				: undefined,
 		})
-		const rowsTop = groupTop + 24
-		const rowGap = 6
-		const rowHeight = Math.min(
-			68,
-			(groupHeight - 24 - rowGap * Math.max(0, abilities.length - 1)) /
-				Math.max(1, abilities.length)
-		)
-		abilities.forEach((ability, index) => {
-			const discoveryKey = getAbilityDiscoveryKey(ability)
-			const discovered = isAbilityDiscovered(ability)
-			const equipped = getEquippedAbilityId(group.slot) === ability.id
-			const hubLocked = getHubLevel() < ability.minimumHubLevel
-			const rarityColor = REWARD_RARITY_COLORS[ability.rarity]
-			createUiSelectableRow(root, {
-				pos: k.vec2(left, rowsTop + index * (rowHeight + rowGap)),
-				width,
-				height: rowHeight,
-				title: discovered ? ability.name : "??????",
-				notification: discovered && newBlueprintKeys.has(discoveryKey),
-				meta: discovered
-					? `${ability.rarity}  //  ${ability.resource.type.toUpperCase()}`
-					: hubLocked
-						? `LOCKED DROP  //  HUB LEVEL ${ability.minimumHubLevel}`
-						: "UNDISCOVERED",
-				description: discovered ? ability.description : "??????",
-				status: discovered
-					? equipped ? "EQUIPPED" : "EQUIP"
-					: hubLocked ? `REQUIRES HUB LEVEL ${ability.minimumHubLevel}` : "??????",
-				statusColor: discovered ? rarityColor : UI_COLORS.muted,
-				icon: discovered ? ability.icon : undefined,
-				iconText: discovered ? undefined : "?",
-				iconSize: Math.min(30, rowHeight - 12),
-				disabled: !discovered,
-				onClick: discovered && !equipped
-					? () => {
-						equipAbilityInSlot(group.slot, ability.id)
-						saveGame("slot1")
-						render()
-					}
-					: undefined,
-			})
-		})
-	}
+	})
+	return page
 }
 
 function renderActiveModules(
@@ -1211,28 +1340,51 @@ function renderActiveModules(
 	width: number,
 	top: number,
 	bottom: number,
+	requestedPage: number,
+	onPageChange: (page: number) => void,
 	render: () => void,
 	newBlueprintKeys: ReadonlySet<string>
 ) {
+	const pageSize = 5
+	const pageCount = Math.max(1, Math.ceil(ACTIVE_MODULES.length / pageSize))
+	const page = k.clamp(requestedPage, 0, pageCount - 1)
 	addThemedText(root, {
-		text: "ACTIVE MODULES  //  RECOVERED THROUGH CHESTS",
+		text: `ACTIVE MODULES  //  PAGE ${page + 1} / ${pageCount}`,
 		pos: k.vec2(left, top),
 		variant: "eyebrow",
-		width,
+		width: width - 90,
+	})
+	createUiActionButton(root, {
+		pos: k.vec2(left + width - 78, top - 5),
+		size: k.vec2(34, 20),
+		text: "<",
+		disabled: page === 0,
+		onClick: () => onPageChange(page - 1),
+	})
+	createUiActionButton(root, {
+		pos: k.vec2(left + width - 34, top - 5),
+		size: k.vec2(34, 20),
+		text: ">",
+		disabled: page >= pageCount - 1,
+		onClick: () => onPageChange(page + 1),
 	})
 	const rowGap = 6
 	const rowsTop = top + 24
-	const rowHeight = (
-		bottom - rowsTop - rowGap * (ACTIVE_MODULES.length - 1)
-	) / ACTIVE_MODULES.length
+	const rowHeight = Math.min(
+		68,
+		(bottom - rowsTop - rowGap * (pageSize - 1)) / pageSize
+	)
+	const visibleModules = ACTIVE_MODULES.slice(
+		page * pageSize,
+		(page + 1) * pageSize
+	)
 	const equippedModuleId = getEquippedActiveModuleId()
-	for (let index = 0; index < ACTIVE_MODULES.length; index++) {
-		const module = ACTIVE_MODULES[index]
+	for (let index = 0; index < visibleModules.length; index++) {
+		const module = visibleModules[index]
 		const equipped = equippedModuleId === module.id
 		const hubLocked = getHubLevel() < module.minimumHubLevel
 		const discovered = equipped ||
 			isBlueprintDiscovered(`active:${module.id}`)
-		const rarityColor = REWARD_RARITY_COLORS[module.rarity]
 		createUiSelectableRow(root, {
 			pos: k.vec2(left, rowsTop + index * (rowHeight + rowGap)),
 			width,
@@ -1248,7 +1400,10 @@ function renderActiveModules(
 			status: discovered
 				? equipped ? "EQUIPPED" : "EQUIP"
 				: hubLocked ? `REQUIRES HUB LEVEL ${module.minimumHubLevel}` : "??????",
-			statusColor: discovered ? rarityColor : UI_COLORS.muted,
+			statusColor: discovered
+				? equipped ? UI_COLORS.accent : UI_COLORS.text
+				: hubLocked ? UI_COLORS.danger : UI_COLORS.muted,
+			selected: equipped,
 			icon: discovered ? module.icon : undefined,
 			iconText: discovered ? undefined : "?",
 			iconSize: Math.min(30, rowHeight - 12),
@@ -1262,6 +1417,7 @@ function renderActiveModules(
 				: undefined,
 		})
 	}
+	return page
 }
 
 function renderPermanentShipSystems(
@@ -1407,6 +1563,9 @@ function renderArsenal(
 				: hubLocked ? `REQUIRES HUB LEVEL ${weapon.minimumHubLevel}` : "??????",
 			pos: k.vec2(62, 34),
 			variant: owned ? "body" : "muted",
+			color: !owned && hubLocked
+				? k.rgb(...UI_COLORS.danger)
+				: undefined,
 			width: cardWidth - 74,
 			lineHeight: 1.15,
 		})
@@ -1468,7 +1627,7 @@ function renderUpgradeCatalog(
 		.sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name))
 		.map((definition) => ({ kind: "reward" as const, definition }))
 	const entries = [...upgradeEntries, ...rewardEntries]
-	const pageSize = 8
+	const pageSize = 5
 	const pageCount = Math.max(1, Math.ceil(entries.length / pageSize))
 	const page = k.clamp(requestedPage, 0, pageCount - 1)
 	addThemedText(root, {
@@ -1494,9 +1653,10 @@ function renderUpgradeCatalog(
 	const rowGap = 4
 	const rowCount = pageSize
 	const rowsTop = top + 24
-	const rowHeight = (
-		bottom - rowsTop - rowGap * (rowCount - 1)
-	) / rowCount
+	const rowHeight = Math.min(
+		68,
+		(bottom - rowsTop - rowGap * (rowCount - 1)) / rowCount
+	)
 	entries.slice(page * pageSize, (page + 1) * pageSize).forEach(
 		(entry, index) => {
 			if (entry.kind === "reward") {
@@ -1521,7 +1681,7 @@ function renderUpgradeCatalog(
 						: hubLocked ? `REQUIRES HUB LEVEL ${minimumHubLevel}` : "??????",
 					statusColor: discovered
 						? REWARD_RARITY_COLORS[reward.rarity]
-						: UI_COLORS.muted,
+						: hubLocked ? UI_COLORS.danger : UI_COLORS.muted,
 					icon: discovered ? reward.sprite : undefined,
 					iconText: discovered ? undefined : "?",
 					iconSize: Math.min(26, rowHeight - 10),
@@ -1559,7 +1719,7 @@ function renderUpgradeCatalog(
 					: hubLocked ? `REQUIRES HUB LEVEL ${minimumHubLevel}` : "??????",
 				statusColor: discovered
 					? REWARD_RARITY_COLORS[rarity]
-					: UI_COLORS.muted,
+					: hubLocked ? UI_COLORS.danger : UI_COLORS.muted,
 				icon: discovered ? definition.levels[0]?.sprite : undefined,
 				iconText: discovered ? undefined : "?",
 				iconSize: Math.min(26, rowHeight - 10),
@@ -1884,7 +2044,8 @@ function openPanel(
 	title?: string,
 	size = k.vec2(720, 440),
 	playTransitionSound = true,
-	onClose?: () => void
+	onClose?: () => void,
+	closeButtonCenterX = 0
 ) {
 	if (panelOpen) return undefined
 	panelOpen = true
@@ -1919,7 +2080,7 @@ function openPanel(
 	})
 	addButton(
 		panel,
-		k.vec2(0, size.y / 2 - 35),
+		k.vec2(closeButtonCenterX, size.y / 2 - 35),
 		"CLOSE",
 		() => hideHubFacilityPanel()
 	)

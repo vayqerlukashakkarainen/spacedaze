@@ -17,6 +17,7 @@ export interface InputPromptRowProps {
 	prompts: readonly InputPromptEntry[]
 	align?: "left" | "center" | "right"
 	color?: readonly [number, number, number]
+	labelColor?: readonly [number, number, number]
 	fontSize?: number
 	iconHeight?: number
 	promptGap?: number
@@ -27,6 +28,7 @@ interface PromptElement {
 	value: string
 	width: number
 	height?: number
+	color?: readonly [number, number, number]
 }
 
 export function createInputPromptRow(parent: GameObj, {
@@ -34,6 +36,7 @@ export function createInputPromptRow(parent: GameObj, {
 	prompts,
 	align = "center",
 	color = UI_COLORS.muted,
+	labelColor,
 	fontSize = UI_FONT_SIZES.tiny,
 	iconHeight = 24,
 	promptGap = 14,
@@ -66,6 +69,7 @@ export function createInputPromptRow(parent: GameObj, {
 				type: "text",
 				value: prompt.label,
 				width: prompt.label.length * fontSize + 7,
+				color: labelColor,
 			})
 		}
 	}
@@ -89,7 +93,7 @@ export function createInputPromptRow(parent: GameObj, {
 				k.text(element.value, { font: "unscii", size: fontSize }),
 				k.pos(centerX, 0),
 				k.anchor("center"),
-				k.color(...color),
+				k.color(...(element.color ?? color)),
 			])
 		}
 		cursor += element.width

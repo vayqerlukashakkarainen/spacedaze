@@ -548,9 +548,9 @@ test("Generated runs include a shrine room", () => {
 	assertFalse(shrineAnchors[0].solid, "Shrine room should be navigable");
 });
 
-test("Large generated runs include all special room starters", () => {
+test("Run-sized generated maps include all special room starters", () => {
 	const generator = new CaveGenerator(1142);
-	const map = generator.generate(60, 45);
+	const map = generator.generate(48, 36);
 	const rooms = [
 		["rift", "rift_junction"],
 		["repair", "repair_station"],

@@ -6,7 +6,10 @@ import {
 	setEnemyMovementMultiplier,
 } from "../services/enemyMovementModifierService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
+import {
+	getEnemyNavigationDirection,
+	hasEnemyLineOfSight,
+} from "../services/enemyNavigationService"
 import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
@@ -92,7 +95,9 @@ export function spawnTetherDrone(
 			desiredDirection,
 			profile.scale
 		)
-		drone.tetherActive = distance <= TETHER_RANGE
+		drone.tetherActive =
+			distance <= TETHER_RANGE &&
+			hasEnemyLineOfSight(drone, playerObj.pos)
 		if (drone.tetherActive) {
 			setEnemyMovementMultiplier(drone.id, profile.elite ? 0.58 : 0.72)
 		} else {

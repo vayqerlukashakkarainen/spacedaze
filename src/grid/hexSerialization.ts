@@ -12,6 +12,7 @@ export interface SerializedGrid {
 		height: number
 		hexSize: number
 		offset: { x: number; y: number }
+		projectionYScale?: number
 	}
 	cells: Record<string, CellType> // Map of "q,r" -> cellType
 }
@@ -30,6 +31,7 @@ export function serializeGrid(grid: HexGrid): string {
 				x: grid.config.offset.x,
 				y: grid.config.offset.y,
 			},
+			projectionYScale: grid.config.projectionYScale,
 		},
 		cells: {},
 	}
@@ -62,6 +64,7 @@ export function deserializeGrid(jsonString: string): HexGrid {
 		height: data.config.height,
 		hexSize: data.config.hexSize,
 		offset: k.vec2(data.config.offset.x, data.config.offset.y),
+		projectionYScale: data.config.projectionYScale,
 	}
 	const grid = new HexGrid(config)
 

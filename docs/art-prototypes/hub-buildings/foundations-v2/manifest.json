@@ -1,0 +1,8 @@
+[
+  {"id":"ground-small-a","name":"Small Broken Slab","width":96,"height":64,"jobId":"d5c1a94d-2751-4a45-805d-57d351242247","selectedFrame":2,"paletteJobId":"d5ff0596-bb23-4d3d-a165-5ed44b17e3ea"},
+  {"id":"ground-small-b","name":"Small Long Slab","width":128,"height":96,"jobId":"d1dee1b8-540d-4023-9b49-3398900fa96d","selectedFrame":0,"paletteJobId":"23d91388-658a-4266-ab8a-ac4bd0d53641"},
+  {"id":"ground-medium-a","name":"Medium Workshop Slab","width":160,"height":112,"jobId":"20d446ff-d228-473e-bc04-4c334009226b","selectedFrame":1,"paletteJobId":"3ebfbed8-78c1-4b8c-ae8f-d964f455bdb5"},
+  {"id":"ground-medium-b","name":"Medium Dock Slab","width":192,"height":128,"jobId":"b1aa9980-98e2-4f7f-a4d8-c818cd2a37e6","selectedFrame":0,"paletteJobId":"b587ada0-d16a-4e77-83eb-536ef05a223f"},
+  {"id":"ground-large-a","name":"Large Settlement Slab","width":224,"height":160,"jobId":"4ce9db7d-6c7d-491c-8d1f-47e35d700657","selectedFrame":0,"paletteJobId":"2abeaa29-2244-440a-b915-d9f1248ffdb4"},
+  {"id":"ground-large-b","name":"Large Landmark Slab","width":256,"height":192,"jobId":"587a2083-c78f-44d3-aa8d-048321d15699","selectedFrame":0,"paletteJobId":"58e5af16-4265-4ce6-be27-e090b6e68784"}
+]

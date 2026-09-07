@@ -67,7 +67,7 @@ export function spawnGameplaySpaceAmbience() {
 		starCount: 82,
 		seed: 31,
 		parallax: true,
-		backgroundOpacity: 0.92,
+		backgroundOpacity: 1,
 		glowOpacity: 0,
 		tags: [tags.levelBg, tags.gameLoop],
 	})

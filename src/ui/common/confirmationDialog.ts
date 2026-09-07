@@ -3,10 +3,11 @@ import { k, layers } from "../../main"
 import { tags } from "../../tags"
 import { createUiCommandButton } from "./commandButton"
 import { uiHitRegion } from "./hitRegion"
-import { playUiModalClose } from "./modalTransition"
+import { playUiModalClose, playUiModalOpen } from "./modalTransition"
 import { createUiPanel } from "./panel"
 import { addThemedText } from "./text"
 import { UI_COLORS, UI_FONT_SIZES } from "./theme"
+import { uiState } from "../uiState"
 
 export interface UiConfirmationDialogOptions {
 	title: string
@@ -29,6 +30,7 @@ export function showUiConfirmationDialog(
 	options: UiConfirmationDialogOptions
 ): UiConfirmationDialogController {
 	k.destroyAll(tags.confirmationDialog)
+	uiState.modalOpen = true
 
 	const panelPos = k.center()
 	const backdrop = k.add([
@@ -92,6 +94,7 @@ export function showUiConfirmationDialog(
 			backdropOpacity: BACKDROP_OPACITY,
 		}).then(() => {
 			open = false
+			uiState.modalOpen = false
 			destroy()
 			if (confirmed) options.onConfirm()
 			else options.onCancel?.()
@@ -115,7 +118,15 @@ export function showUiConfirmationDialog(
 	})
 
 	backdrop.onClick(() => close(false))
-	backdrop.onDestroy(() => escapeController.cancel())
+	backdrop.onDestroy(() => {
+		escapeController.cancel()
+		open = false
+		uiState.modalOpen = false
+	})
+	playUiModalOpen(backdrop, panel, {
+		panelPos,
+		backdropOpacity: BACKDROP_OPACITY,
+	})
 
 	return {
 		close: () => close(false),

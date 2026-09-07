@@ -5,12 +5,17 @@ import { createInputPromptRow } from "./inputPrompt"
 import { createUiSurface } from "./surface"
 import { addThemedText } from "./text"
 import { UI_COLORS, UI_FONT_SIZES } from "./theme"
+import {
+	interactionPromptsSuppressed,
+	registerInteractionPromptHide,
+} from "../../services/interactionPromptVisibilityService"
 
 export interface InteractionPromptContent {
 	title: string
 	action: string
 	detailLeft?: string
 	detailRight?: string
+	requirementsMet?: boolean
 	notification?: boolean
 }
 
@@ -50,6 +55,13 @@ export function createInteractionPrompt({
 		tags.gameLoop,
 	])
 	root.hidden = true
+	const hidePrompt = () => {
+		reveal = 0
+		root.opacity = 0
+		root.hidden = true
+	}
+	const unregisterPromptHide = registerInteractionPromptHide(hidePrompt)
+	root.onDestroy(unregisterPromptHide)
 	const surface = createUiSurface(root, {
 		pos: k.vec2(0, 0),
 		size: k.vec2(promptWidth, promptHeight),
@@ -153,6 +165,11 @@ export function createInteractionPrompt({
 		action.text = actionText
 		detailLeft.text = detailLeftText
 		detailRight.text = detailRightText
+		const requirementColor = next.requirementsMet === undefined
+			? undefined
+			: next.requirementsMet ? UI_COLORS.accent : UI_COLORS.danger
+		detailLeft.color = k.rgb(...(requirementColor ?? UI_COLORS.muted))
+		detailRight.color = k.rgb(...(requirementColor ?? UI_COLORS.accent))
 		promptHeight = compact
 			? 42
 			: Math.ceil(Math.max(
@@ -205,10 +222,8 @@ export function createInteractionPrompt({
 	return {
 		update(visible: boolean) {
 			if (!root.exists() || !target.exists()) return
-			if (!visible) {
-				reveal = 0
-				root.opacity = 0
-				root.hidden = true
+			if (!visible || interactionPromptsSuppressed()) {
+				hidePrompt()
 				return
 			}
 			root.hidden = false

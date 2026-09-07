@@ -46,7 +46,7 @@ export const sprint: Tool = {
 	upgrades: [
 		{
 			name: "Level 1",
-			desc: "Hold SHIFT to overclock thrusters, increasing speed",
+			desc: "Hold SHIFT to overclock thrusters. Fully draining them causes overuse until the meter recharges",
 			sprite: "overclock_thrusters_upg1",
 			price: 32,
 			value: 1.2,

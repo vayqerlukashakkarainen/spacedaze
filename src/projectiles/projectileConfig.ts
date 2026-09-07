@@ -31,7 +31,7 @@ export interface CritModifier {
 }
 
 export interface TrailModifier {
-	emitterType: "trail" | "spark" | "dust" | "stars";
+	emitterType: "trail" | "boost" | "spark" | "dust" | "stars";
 	offset?: number;
 	particleCount?: number;
 }
@@ -232,7 +232,12 @@ export interface ProjectileConfig {
 	rotation: number;
 	sprite: string;
 	tint?: Color;
+	effectTint?: Color;
+	flashLikeThruster?: boolean;
+	flashMinOpacity?: number;
+	visualWobble?: number;
 	visualScale?: number;
+	explosionDelay?: number;
 	speed: number;
 	tags: string[];
 	speedMultiplier?: number;
@@ -276,5 +281,7 @@ export interface ProjectileConfig {
 
 	// Audio
 	fireSound?: string;
+	fireSoundVolume?: number;
+	fireSoundDetune?: number;
 	destroySound?: string;
 }

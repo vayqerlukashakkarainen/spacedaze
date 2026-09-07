@@ -207,6 +207,7 @@ import {
 import { resetWarpZoneProgress } from "./services/warpZoneService";
 import {
 	resetWeaponInventory,
+	WEAPONS,
 } from "./services/weaponService";
 import {
 	resetAbilityLoadout,
@@ -215,8 +216,10 @@ import {
 	resetActiveModule,
 } from "./services/activeModuleService";
 import { equipAbilityWithWorldDrop } from "./services/abilitySwapService";
+import { spawnRewardPickup } from "./spawn/spawnPowerup";
 import {
 	addAvailableDebree,
+	clearAvailableDebree,
 	DEFAULT_DEPOSITED_DEBREE,
 	getAvailableDebree,
 	loadDepositedDebree,
@@ -275,7 +278,7 @@ export const musicVolume = 0.6;
 // Keep world zoom and UI zoom independent. KAPLAY's global scale controls all
 // fixed UI, while the camera compensates so changing UI_ZOOM does not alter
 // how much of the game world is visible.
-export const GAME_ZOOM = 1.6;
+export const GAME_ZOOM = 1.8;
 export const UI_ZOOM = 1;
 export const WORLD_CAMERA_SCALE = GAME_ZOOM / UI_ZOOM;
 
@@ -405,6 +408,7 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 
 	// Pause toggle with Escape key
 	k.onKeyPress("escape", () => {
+		if (k.get(tags.confirmationDialog).length > 0) return;
 		if (debreeDepositPanelOpen()) return;
 		if (dialogCapturesInput()) return;
 		if (tacticalMapOpen()) {
@@ -1269,6 +1273,21 @@ function registerDebugCommands() {
 		return `Added ${amount} score`;
 	});
 
+	commandService.register(
+		"debree",
+		"debree clear - Clear the player's available debree",
+		(args) => {
+			if (args[0]?.toLowerCase() !== "clear") {
+				return "Usage: debree clear";
+			}
+			const cleared = clearAvailableDebree();
+			saveGame("slot1");
+			return cleared > 0
+				? `Cleared ${cleared} debree`
+				: "Player debree is already clear";
+		}
+	);
+
 	commandService.register("hublevel", "hublevel [1-8] - Show or set hub level", (args) => {
 		if (args.length === 0) {
 			return `Hub level ${getHubLevel()} | XP ${getHubLifetimeDeposited()} | Chest luck +${Math.round(getHubChestLuck() * 100)}%`;
@@ -1344,8 +1363,13 @@ function registerDebugCommands() {
 
 	commandService.register(
 		"reward",
-		"reward <id> [rarity] - Grant and immediately use a reward",
+		"reward <id> [rarity] | reward allweapons - Grant rewards or drop every weapon",
 		(args) => {
+			if (args[0]?.toLowerCase() === "allweapons") {
+				if (!playerObj || !playerObj.exists()) return "No active player";
+				hideCommandConsole();
+				return spawnAllWeaponTestPickups(playerObj.pos.clone());
+			}
 			const definition = getRewardDefinition(args[0] ?? "");
 			const isAbility = definition?.abilityId !== undefined &&
 				definition.abilitySlot !== undefined;
@@ -1376,6 +1400,36 @@ function registerDebugCommands() {
 				: `Granted and applied ${reward.name}`;
 		}
 	);
+}
+
+function spawnAllWeaponTestPickups(position: Vec2) {
+	const radius = 170;
+	let spawned = 0;
+	for (let index = 0; index < WEAPONS.length; index++) {
+		const weapon = WEAPONS[index];
+		const reward = createReward(
+			`weapon:${weapon.id}`,
+			RewardRarity.Common
+		);
+		if (!reward) continue;
+		const angle = -90 + index * (360 / WEAPONS.length);
+		spawnRewardPickup(
+			position.add(k.Vec2.fromAngle(angle).scale(radius)),
+			reward,
+			{
+				stationary: true,
+				interactionOnly: true,
+				suppressAcquisition: true,
+				label: weapon.name,
+				applyEffect: (pickedReward, pickupPosition) => {
+					if (!applyReward(pickedReward, pickupPosition)) return false;
+					return equipConsoleReward(pickedReward, pickupPosition);
+				},
+			}
+		);
+		spawned++;
+	}
+	return `Dropped ${spawned} weapons around the player`;
 }
 
 function equipConsoleReward(

@@ -87,7 +87,7 @@ export function enterMainMenu() {
 		size: k.vec2(k.width(), k.height()),
 		starCount: Math.min(160, Math.max(54, Math.round(54 * viewportArea / menuArea))),
 		seed: 19,
-		backgroundOpacity: 0.96,
+		backgroundOpacity: 1,
 	})
 
 	const menu = root.add([

@@ -1,5 +1,5 @@
 import type { GameObj, PosComp } from "kaplay"
-import { interactable } from "../../comp/interactable"
+import { interactable, INTERACTION_PRIORITY } from "../../comp/interactable"
 import {
 	k,
 	layers,
@@ -69,14 +69,18 @@ export function spawnHubAsteroidRunner(fieldCenter: ReturnType<typeof k.vec2>) {
 
 	const runner = k.add([
 		k.pos(startPos),
-		k.sprite("enemy_rammer"),
+		k.sprite("hub_ship_ring_runner", { width: 32, height: 32 }),
 		k.anchor("center"),
 		k.rotate(launchDirection.angle() + 90),
 		k.scale(0.82),
 		k.color(k.WHITE),
 		k.layer(layers.game),
 		k.z(12),
-		interactable(INTERACT_RADIUS, startEncounter),
+		interactable(
+			INTERACT_RADIUS,
+			startEncounter,
+			INTERACTION_PRIORITY.dialogue
+		),
 		tags.props,
 		tags.gameLoop,
 	])

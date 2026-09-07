@@ -1,6 +1,6 @@
 import type { Vec2 } from "kaplay"
 import { playerObj } from "../../game"
-import { k, layers, mainSoundVolume, spendScore } from "../../main"
+import { getScore, k, layers, mainSoundVolume, spendScore } from "../../main"
 import { addThreatTime } from "../../services/threatService"
 import { spawnThreatEncounter } from "../../services/enemyEncounterService"
 import { audioService } from "../../services/audioService"
@@ -33,6 +33,7 @@ export function spawnRepairStation(props: RepairStationProps) {
 	const station = spawnBuilding({
 		pos: props.pos,
 		sprite: "room_repair_station",
+		spriteSize: k.vec2(128, 128),
 		scale: 0.62,
 		interactRadius: 75,
 		interactPromptOffset: k.vec2(0, -138),
@@ -40,6 +41,8 @@ export function spawnRepairStation(props: RepairStationProps) {
 			title: "REPAIR STATION",
 			action: "START REPAIR",
 			detailLeft: `COST ${props.cost} SCRAP`,
+			detailRight: `${getScore()} AVAILABLE`,
+			requirementsMet: getScore() >= props.cost,
 		}),
 		onInteract: beginRepair,
 	})

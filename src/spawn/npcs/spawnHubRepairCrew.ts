@@ -36,7 +36,7 @@ export function spawnHubRepairCrew(phaseStationPos: Vec2): HubRepairCrew {
 
 		k.add([
 			k.pos(initialPos),
-			k.sprite("drone_medic"),
+			k.sprite("hub_droid_repair", { width: 16, height: 16 }),
 			k.anchor("center"),
 			k.rotate(0),
 			k.color(255, 255, 255),

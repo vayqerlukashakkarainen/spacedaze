@@ -1,5 +1,5 @@
 import { Vec2 } from "kaplay";
-import { checkProjectileComponentIntersection } from "../game";
+import { checkProjectileComponentIntersection, playerObj } from "../game";
 import { k, velocityScale } from "../main";
 import { emitEnemyTrail } from "../particles";
 import { spawnEnemyBlaster } from "../services/projectileHelpers";
@@ -21,6 +21,7 @@ import {
 	type EnemySpawnOptions,
 } from "../services/threatService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { hasEnemyLineOfSight } from "../services/enemyNavigationService";
 
 const wingOffset = [6, 2];
 export const unitComponents: Record<number, Component[]> = {};
@@ -122,7 +123,10 @@ export function spawnShip1(
 			1,
 			Math.round(500 / (m.shieldFireRateMultiplier ?? 1))
 		);
-		if (Math.floor(k.rand(0, fireRollRange)) == 10) {
+		if (
+			Math.floor(k.rand(0, fireRollRange)) == 10 &&
+			hasEnemyLineOfSight(m, playerObj.pos)
+		) {
 			spawnEnemyBlaster(
 				m.pos,
 				k.Vec2.fromAngle(m.angle - 90),

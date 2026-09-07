@@ -94,7 +94,7 @@ export const followerSalvager: Tool = {
 	requirements: { anyOf: [{ toolKey: "followerBlasterDmg" }] },
 	upgrades: [{
 		name: "Salvager Drone",
-		desc: "Convert one combat drone into an autonomous debris collector",
+		desc: "Convert one combat drone into a salvager that carries five debris pieces back to you",
 		sprite: "drone_salvager",
 		price: 30,
 		value: 1,

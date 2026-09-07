@@ -4,7 +4,6 @@ import {
 	blasterMultiple,
 	blasterSpeed,
 	blasterDmg,
-	mouseAim,
 } from "./blastersNew";
 import { rocket, increaseRockets, rocketShards } from "./rocketsNew";
 import {
@@ -81,7 +80,6 @@ const definitions: Record<string, UpgradeDefinition> = {
 	blasterParallel: blasterMultiple,
 	blasterSpeed,
 	blasterDmg,
-	mouseAim,
 
 	// Rockets
 	rockets: rocket,
@@ -160,7 +158,6 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	blasterParallel: policy(RewardRarity.Rare, ["crate", "boss"], 80, 0, 140),
 	blasterSpeed: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 130, 30, 90),
 	blasterDmg: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 120, 25, 100),
-	mouseAim: policy(RewardRarity.Legendary, ["crate", "boss"], 20, 0, 180, 5),
 	rockets: policy(RewardRarity.Rare, ["crate", "boss"], 70, 0, 180),
 	nrOfRockets: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 140, 35, 100),
 	rocketShards: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 120, 30, 100),

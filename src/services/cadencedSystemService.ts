@@ -54,7 +54,7 @@ export function createCadencedSystem<T extends CadencedEntry>(
 			const elapsed = elapsedByBucket[bucketIndex]
 			elapsedByBucket[bucketIndex] = 0
 			profileSection(`cadence:${options.id}`, () => {
-				options.updateBucket(bucket.items, elapsed)
+				bucket.withItems((entries) => options.updateBucket(entries, elapsed))
 			})
 			setPerformanceCounter(`cadence:${options.id}:count`, bucket.size)
 		},

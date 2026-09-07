@@ -1,6 +1,6 @@
 import type { KAPLAYCtx } from "kaplay"
 
-const INITIAL_ASSET_COUNT = 170
+const INITIAL_ASSET_COUNT = 177
 const TRACKED_LOADERS = new Set([
 	"loadBitmapFont",
 	"loadMusic",

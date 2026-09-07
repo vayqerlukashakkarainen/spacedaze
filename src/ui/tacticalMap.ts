@@ -13,7 +13,21 @@ import {
 	getRoomColor,
 	getRoomLabel,
 } from "../levels/runMap"
+import { activeLevelKey } from "../levels/levels"
 import { k, layers } from "../main"
+import {
+	getHubLevel,
+	HUB_FACILITIES,
+	isFacilityBuilt,
+} from "../services/hubProgressService"
+import {
+	HUB_FACILITY_OFFSETS,
+	HUB_HALF_HEIGHT,
+	HUB_HALF_WIDTH,
+	HUB_PHASE_FIELD_OFFSET,
+	HUB_WORMHOLE_OFFSET,
+} from "../services/hubLayoutService"
+import { getHubSettlementState } from "../services/hubSettlementService"
 import { loopService } from "../services/loopService"
 import { tags } from "../tags"
 import { createUiScrollable, UiScrollableControl } from "./common/scrollable"
@@ -51,8 +65,24 @@ let pausedObjects = new Set<GameObj>()
 let zoneScroll: UiScrollableControl | undefined
 let activeRoot: GameObj | undefined
 let activeBackdrop: GameObj | undefined
-let rememberedMapSeed: number | undefined
+let rememberedMapKey: string | undefined
 let rememberedZoomMultiplier = 1
+
+type HubMapLandmarkKind = "core" | "facility" | "settlement" | "phase" | "wormhole"
+
+interface HubMapLandmark {
+	id: string
+	label: string
+	position: Vec2
+	kind: HubMapLandmarkKind
+	built: boolean
+}
+
+interface HubMapSnapshot {
+	level: number
+	playerPosition: Vec2
+	landmarks: HubMapLandmark[]
+}
 
 export function tacticalMapOpen() {
 	return open
@@ -68,8 +98,11 @@ export function toggleTacticalMap() {
 
 export function showTacticalMap() {
 	if (open) return true
-	const snapshot = getGeneratedRunMapSnapshot()
-	if (!snapshot) return false
+	const hubSnapshot = activeLevelKey() === "hub"
+		? createHubMapSnapshot()
+		: undefined
+	const runSnapshot = hubSnapshot ? undefined : getGeneratedRunMapSnapshot()
+	if (!hubSnapshot && !runSnapshot) return false
 
 	open = true
 	closing = false
@@ -82,10 +115,15 @@ export function showTacticalMap() {
 	}
 	loopService.pauseAll()
 
-	const sidebarWidth = k.clamp(k.width() * 0.24, 190, 280)
+	const sidebarWidth = hubSnapshot
+		? 0
+		: k.clamp(k.width() * 0.24, 190, 280)
 	const viewportPos = k.vec2(MAP_MARGIN, MAP_HEADER_HEIGHT)
 	const viewportSize = k.vec2(
-		Math.max(220, k.width() - sidebarWidth - MAP_MARGIN * 3),
+		Math.max(
+			220,
+			k.width() - sidebarWidth - MAP_MARGIN * (hubSnapshot ? 2 : 3)
+		),
 		Math.max(180, k.height() - MAP_HEADER_HEIGHT - MAP_FOOTER_HEIGHT)
 	)
 	const sidebarX = viewportPos.x + viewportSize.x + MAP_MARGIN
@@ -101,25 +139,31 @@ export function showTacticalMap() {
 		tags.tacticalMap,
 	])
 	const root = createUiPanel({
-		pos: k.vec2(0, 0),
+		pos: k.center(),
 		size: k.vec2(k.width(), k.height()),
+		anchor: "center",
 		layer: layers.uiEffects,
 		tags: [tags.tacticalMap],
 		animated: true,
 	})
+	const contentRoot = root.add([
+		k.pos(-k.width() / 2, -k.height() / 2),
+	])
 	activeBackdrop = backdrop
 	activeRoot = root
 
-	createUiSectionHeader(root, {
+	createUiSectionHeader(contentRoot, {
 		pos: k.vec2(MAP_MARGIN, 0),
 		width: k.width() - MAP_MARGIN * 2,
 		height: MAP_HEADER_HEIGHT,
 		eyebrow: "NAVIGATION COMPUTER",
-		title: `SECTOR MAP  //  SEED ${snapshot.seed}`,
-		action: "LIVE CARTOGRAPHY",
+		title: hubSnapshot
+			? `HUB MAP  //  LEVEL ${hubSnapshot.level}`
+			: `SECTOR MAP  //  SEED ${runSnapshot!.seed}`,
+		action: hubSnapshot ? "LIVE STATION SURVEY" : "LIVE CARTOGRAPHY",
 	})
 
-	const viewport = createUiSurface(root, {
+	const viewport = createUiSurface(contentRoot, {
 		pos: viewportPos,
 		size: viewportSize,
 		tone: "raised",
@@ -127,18 +171,20 @@ export function showTacticalMap() {
 	viewport.use(uiHitRegion(viewportSize))
 	viewport.use(k.mask("intersect"))
 
-	const geometry = createMapGeometry(snapshot.cells)
-	const rasterizedMap = rasterizeMap(
-		geometry,
-		snapshot.playerPosition,
-		snapshot.playerPath
-	)
+	const rasterizedMap = hubSnapshot
+		? rasterizeHubMap(hubSnapshot)
+		: rasterizeMap(
+			createMapGeometry(runSnapshot!.cells),
+			runSnapshot!.playerPosition,
+			runSnapshot!.playerPath
+		)
 	const fitScale = Math.min(
 		(viewportSize.x - 30) / rasterizedMap.width,
 		(viewportSize.y - 30) / rasterizedMap.height
 	)
-	if (rememberedMapSeed !== snapshot.seed) {
-		rememberedMapSeed = snapshot.seed
+	const mapKey = hubSnapshot ? "hub" : `run:${runSnapshot!.seed}`
+	if (rememberedMapKey !== mapKey) {
+		rememberedMapKey = mapKey
 		rememberedZoomMultiplier = 1
 	}
 	let zoom = k.clamp(
@@ -211,15 +257,17 @@ export function showTacticalMap() {
 		}
 	})
 
-	addZoneSidebar(
-		root,
-		snapshot.cells,
-		sidebarX,
-		viewportPos.y,
-		sidebarWidth,
-		viewportSize.y
-	)
-	addThemedText(root, {
+	if (!hubSnapshot) {
+		addZoneSidebar(
+			contentRoot,
+			runSnapshot!.cells,
+			sidebarX,
+			viewportPos.y,
+			sidebarWidth,
+			viewportSize.y
+		)
+	}
+	addThemedText(contentRoot, {
 		text: "DRAG / WASD  PAN     WHEEL  ZOOM     R  RESET     TAB / ESC  CLOSE",
 		pos: k.vec2(MAP_MARGIN, k.height() - 20),
 		variant: "muted",
@@ -227,7 +275,7 @@ export function showTacticalMap() {
 	})
 
 	playUiModalOpen(backdrop, root, {
-		panelPos: k.vec2(0, 0),
+		panelPos: k.center(),
 		backdropOpacity: 0.92,
 	})
 	playShopMenuOpenSound()
@@ -248,7 +296,7 @@ export function hideTacticalMap() {
 		return
 	}
 	void playUiModalClose(backdrop, root, {
-		panelPos: k.vec2(0, 0),
+		panelPos: k.center(),
 		backdropOpacity: 0.92,
 	}).then(finishClosingTacticalMap)
 }
@@ -267,6 +315,54 @@ function finishClosingTacticalMap() {
 	loopService.resumeAll()
 	activeRoot = undefined
 	activeBackdrop = undefined
+}
+
+function createHubMapSnapshot(): HubMapSnapshot | undefined {
+	const player = k.get<GameObj>(tags.player)[0]
+	if (!player?.exists()) return undefined
+	const level = getHubLevel()
+	const landmarks: HubMapLandmark[] = [
+		{
+			id: "hub-core",
+			label: "HUB CORE",
+			position: k.vec2(0, 0),
+			kind: "core",
+			built: true,
+		},
+		...HUB_FACILITIES.map((facility) => ({
+			id: facility.id,
+			label: facility.name,
+			position: k.vec2(...HUB_FACILITY_OFFSETS[facility.id]),
+			kind: "facility" as const,
+			built: isFacilityBuilt(facility.id),
+		})),
+		{
+			id: "phase-field",
+			label: "PHASE FIELD",
+			position: k.vec2(...HUB_PHASE_FIELD_OFFSET),
+			kind: "phase",
+			built: true,
+		},
+		{
+			id: "wormhole",
+			label: "WORMHOLE",
+			position: k.vec2(...HUB_WORMHOLE_OFFSET),
+			kind: "wormhole",
+			built: true,
+		},
+		...getHubSettlementState(level).map((plot) => ({
+			id: plot.id,
+			label: plot.id.replaceAll("-", " ").toUpperCase(),
+			position: k.vec2(...plot.position),
+			kind: "settlement" as const,
+			built: plot.built,
+		})),
+	]
+	return {
+		level,
+		playerPosition: player.pos.sub(k.center()),
+		landmarks,
+	}
 }
 
 interface MapCellGeometry extends GeneratedRunMapCell {
@@ -434,6 +530,181 @@ function rasterizeMap(
 		height,
 		playerPosition: playerCenter,
 	}
+}
+
+function rasterizeHubMap(snapshot: HubMapSnapshot): RasterizedMap {
+	const mapWidth = HUB_HALF_WIDTH * 2
+	const mapHeight = HUB_HALF_HEIGHT * 2
+	const availableWidth = MAP_MAX_RASTER_SIZE - MAP_RASTER_PADDING * 2
+	const availableHeight = MAP_MAX_RASTER_SIZE - MAP_RASTER_PADDING * 2
+	const pixelsPerUnit = Math.min(
+		MAP_RASTER_PIXELS_PER_UNIT,
+		availableWidth / mapWidth,
+		availableHeight / mapHeight
+	)
+	const width = Math.ceil(mapWidth * pixelsPerUnit + MAP_RASTER_PADDING * 2)
+	const height = Math.ceil(mapHeight * pixelsPerUnit + MAP_RASTER_PADDING * 2)
+	const canvas = document.createElement("canvas")
+	canvas.width = width
+	canvas.height = height
+	const context = canvas.getContext("2d")
+	if (!context) throw new Error("Unable to create hub map canvas")
+	context.imageSmoothingEnabled = false
+	context.lineJoin = "round"
+	context.lineCap = "round"
+	const toRasterPosition = (point: Vec2) => k.vec2(
+		(point.x + HUB_HALF_WIDTH) * pixelsPerUnit + MAP_RASTER_PADDING,
+		(point.y + HUB_HALF_HEIGHT) * pixelsPerUnit + MAP_RASTER_PADDING
+	)
+
+	context.fillStyle = canvasColor(k.rgb(...UI_COLORS.background), 1)
+	context.fillRect(0, 0, width, height)
+	context.strokeStyle = canvasColor(k.rgb(...UI_COLORS.border), 0.9)
+	context.lineWidth = 3
+	context.strokeRect(
+		MAP_RASTER_PADDING,
+		MAP_RASTER_PADDING,
+		mapWidth * pixelsPerUnit,
+		mapHeight * pixelsPerUnit
+	)
+
+	const hubCore = toRasterPosition(k.vec2(0, 0))
+	for (const landmark of snapshot.landmarks) {
+		if (landmark.kind === "core") continue
+		const position = toRasterPosition(landmark.position)
+		context.beginPath()
+		context.moveTo(hubCore.x, hubCore.y)
+		context.lineTo(position.x, position.y)
+		context.strokeStyle = canvasColor(k.rgb(...UI_COLORS.border), 0.28)
+		context.lineWidth = 2
+		context.stroke()
+	}
+
+	for (const landmark of snapshot.landmarks) {
+		drawHubLandmark(context, toRasterPosition(landmark.position), landmark)
+	}
+	for (const landmark of snapshot.landmarks) {
+		drawHubLandmarkLabel(
+			context,
+			toRasterPosition(landmark.position),
+			landmark
+		)
+	}
+
+	const playerCenter = toRasterPosition(snapshot.playerPosition)
+	context.beginPath()
+	context.arc(playerCenter.x, playerCenter.y, 9, 0, Math.PI * 2)
+	context.fillStyle = canvasColor(k.WHITE)
+	context.fill()
+	context.lineWidth = 3
+	context.strokeStyle = canvasColor(k.BLACK)
+	context.stroke()
+
+	return {
+		sprite: k.loadSprite(null, canvas, { singular: true }),
+		width,
+		height,
+		playerPosition: playerCenter,
+	}
+}
+
+function drawHubLandmark(
+	context: CanvasRenderingContext2D,
+	position: Vec2,
+	landmark: HubMapLandmark
+) {
+	const color = landmark.built
+		? landmark.kind === "settlement"
+			? k.rgb(...UI_COLORS.success)
+			: k.rgb(...UI_COLORS.accent)
+		: k.rgb(...UI_COLORS.muted)
+	const radius = landmark.kind === "core"
+		? 20
+		: landmark.kind === "facility" ? 15 : 11
+	context.beginPath()
+	if (landmark.kind === "wormhole") {
+		context.arc(position.x, position.y, radius, 0, Math.PI * 2)
+		context.arc(position.x, position.y, radius * 0.45, 0, Math.PI * 2, true)
+	} else if (landmark.kind === "phase") {
+		context.moveTo(position.x, position.y - radius)
+		context.lineTo(position.x + radius, position.y)
+		context.lineTo(position.x, position.y + radius)
+		context.lineTo(position.x - radius, position.y)
+		context.closePath()
+	} else {
+		context.rect(
+			position.x - radius,
+			position.y - radius,
+			radius * 2,
+			radius * 2
+		)
+	}
+	context.fillStyle = canvasColor(color, landmark.built ? 0.9 : 0.38)
+	context.fill()
+	context.lineWidth = landmark.kind === "core" ? 4 : 2
+	context.strokeStyle = canvasColor(color, 1)
+	context.stroke()
+	if (!landmark.built) {
+		context.beginPath()
+		context.moveTo(position.x - radius, position.y - radius)
+		context.lineTo(position.x + radius, position.y + radius)
+		context.moveTo(position.x + radius, position.y - radius)
+		context.lineTo(position.x - radius, position.y + radius)
+		context.stroke()
+	}
+}
+
+function drawHubLandmarkLabel(
+	context: CanvasRenderingContext2D,
+	position: Vec2,
+	landmark: HubMapLandmark
+) {
+	const text = landmark.built
+		? landmark.label
+		: `${landmark.label} // RUIN`
+	const markerRadius = landmark.kind === "core"
+		? 20
+		: landmark.kind === "facility" ? 15 : 11
+	const isLeft = landmark.position.x < 0
+	const isAbove = landmark.position.y < 0
+	const staggerBottomCenterLabel =
+		landmark.position.y > HUB_HALF_HEIGHT * 0.65 &&
+		landmark.position.x > 0 &&
+		landmark.position.x < HUB_HALF_WIDTH * 0.45
+	const x = position.x + (isLeft ? markerRadius + 10 : -markerRadius - 10)
+	const y = position.y + (
+		isAbove
+			? markerRadius + 11
+			: -markerRadius - 11 - (staggerBottomCenterLabel ? 48 : 0)
+	)
+	const color = landmark.built
+		? landmark.kind === "settlement"
+			? k.rgb(...UI_COLORS.success)
+			: k.rgb(...UI_COLORS.accent)
+		: k.rgb(...UI_COLORS.muted)
+
+	context.font = "bold 19px unscii, monospace"
+	context.textAlign = isLeft ? "left" : "right"
+	context.textBaseline = isAbove ? "top" : "bottom"
+	const metrics = context.measureText(text)
+	const textHeight = 22
+	const paddingX = 5
+	const paddingY = 3
+	const backgroundX = isLeft
+		? x - paddingX
+		: x - metrics.width - paddingX
+	const backgroundY = isAbove
+		? y - paddingY
+		: y - textHeight - paddingY
+	context.fillStyle = canvasColor(k.rgb(...UI_COLORS.background), 0.88)
+	context.fillRect(
+		backgroundX,
+		backgroundY,
+		metrics.width + paddingX * 2,
+		textHeight + paddingY * 2
+	)
+	context.fillStyle = canvasColor(color, landmark.built ? 1 : 0.8)
+	context.fillText(text, x, y)
 }
 
 function tracePolygon(context: CanvasRenderingContext2D, points: Vec2[]) {

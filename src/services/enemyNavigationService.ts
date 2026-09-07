@@ -103,6 +103,32 @@ export function getEnemyNavigationTarget(enemy: GameObj, target: Vec2) {
 	return enemy.pos.add(direction.scale(Math.max(1, toTarget.len())))
 }
 
+export function hasEnemyLineOfSight(enemy: GameObj, target: Vec2) {
+	const grid = gridRegistry.get(ACTIVE_RUN_GRID_KEY)
+	if (!grid || !enemy.exists()) return true
+
+	const startCell = grid.screenToHex(enemy.pos)
+	const targetCell = grid.screenToHex(target)
+	if (!grid.isWalkable(startCell) || !grid.isWalkable(targetCell)) return false
+
+	const state = getEnemyNavigationState(enemy)
+	const startCellKey = hexToString(startCell)
+	const targetCellKey = hexToString(targetCell)
+	if (
+		state.lineGrid !== grid ||
+		state.lineStartCellKey !== startCellKey ||
+		state.lineTargetCellKey !== targetCellKey ||
+		k.time() >= state.nextLineCheckAt
+	) {
+		state.lineGrid = grid
+		state.lineStartCellKey = startCellKey
+		state.lineTargetCellKey = targetCellKey
+		state.lineClear = lineIsWalkable(grid, enemy.pos, target)
+		state.nextLineCheckAt = k.time() + 0.16 + (enemy.id % 5) * 0.012
+	}
+	return state.lineClear
+}
+
 function getEnemyNavigationState(enemy: GameObj) {
 	const existing = navigationByEnemy.get(enemy.id)
 	if (existing) return existing

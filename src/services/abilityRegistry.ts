@@ -19,11 +19,16 @@ import {
 	unlockWeapon,
 	WEAPONS,
 } from "./weaponService"
+import {
+	THRUSTER_OVERDRIVE_DURATION_SECONDS,
+	THRUSTER_OVERDRIVE_RECHARGE_SECONDS,
+} from "./thrusterOverdriveService"
 
 export type AbilityResource =
 	| { type: "none" }
 	| { type: "cooldown"; duration: number }
 	| { type: "charges"; count: number; recharge: number }
+	| { type: "drain"; duration: number; recharge: number }
 	| { type: "meter"; required: number }
 
 export interface AbilityDefinition {
@@ -46,12 +51,16 @@ export const MOBILITY_ABILITIES: readonly AbilityDefinition[] = [
 		id: "thrusterOverdrive" as MobilityAbilityId,
 		slot: "mobility",
 		name: "THRUSTER OVERDRIVE",
-		description: "Hold the mobility control to overclock the ship's thrusters.",
+		description: "Hold to overclock the thrusters. Fully draining the meter locks overdrive until it recharges.",
 		icon: "overclock_thrusters_upg1",
 		minimumHubLevel: 1,
 		rarity: RewardRarity.Uncommon,
 		trigger: "hold",
-		resource: { type: "none" },
+		resource: {
+			type: "drain",
+			duration: THRUSTER_OVERDRIVE_DURATION_SECONDS,
+			recharge: THRUSTER_OVERDRIVE_RECHARGE_SECONDS,
+		},
 		tags: ["movement", "speed", "thruster"],
 		weights: { crate: 90, enemy: 18, boss: 70 },
 	},

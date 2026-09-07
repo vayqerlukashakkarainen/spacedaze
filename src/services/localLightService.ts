@@ -1,5 +1,5 @@
 import type { GameObj } from "kaplay"
-import { k } from "../main"
+import { k, layers } from "../main"
 
 export interface LocalLightPulse {
 	scaleMin: number
@@ -14,7 +14,6 @@ export interface LocalLightOptions {
 	size: number
 	color: readonly [number, number, number]
 	opacity: number
-	z?: number
 	pulse?: LocalLightPulse
 }
 
@@ -66,7 +65,8 @@ export function addLocalLight(
 		k.scale(1),
 		k.color(...options.color),
 		k.opacity(options.opacity),
-		k.z(options.z ?? -1),
+		k.layer(layers.gameEffects),
+		k.z(1000),
 		k.blend(k.BlendMode.Add),
 	])
 

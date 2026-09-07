@@ -7,6 +7,7 @@ import { registerBossEncounter } from "../services/bossEncounterService"
 import { getBossDefinition, getBossHealth } from "../services/bossRegistry"
 import { applyDamage } from "../services/damageService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { hasEnemyLineOfSight } from "../services/enemyNavigationService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import { spawnEnemyBlaster } from "../services/projectileHelpers"
 import {
@@ -114,7 +115,10 @@ export function spawnImpactAce(
 			)
 			moveAce(ace, 92 + ace.phaseIndex * 12, profile.speedMultiplier)
 			faceAce(ace, ace.moveDirection, playerDirection, profile.scale)
-			if (distance < 285 || ace.stateTimer >= 1.5 - ace.phaseIndex * 0.18) {
+			if (
+				(distance < 285 || ace.stateTimer >= 1.5 - ace.phaseIndex * 0.18) &&
+				hasEnemyLineOfSight(ace, playerObj.pos)
+			) {
 				beginTelegraph(ace, true)
 			}
 		} else if (ace.state === "telegraph") {
@@ -127,7 +131,17 @@ export function spawnImpactAce(
 			)
 			ace.opacity = ace.stateTimer * (7 + ace.phaseIndex * 2) % 1 < 0.65 ? 1 : 0.3
 			chargeLine.opacity = k.wave(0.18, 0.9, k.time() * 12)
-			if (ace.stateTimer >= windup) beginCharge(ace, profile.scale)
+			if (ace.stateTimer >= windup) {
+				if (hasEnemyLineOfSight(ace, playerObj.pos)) {
+					beginCharge(ace, profile.scale)
+				} else {
+					ace.opacity = 1
+					ace.scale = k.vec2(profile.scale)
+					chargeLine.opacity = 0
+					ace.chargesRemaining = 0
+					setState(ace, "approach")
+				}
+			}
 		} else if (ace.state === "charge") {
 			ace.angle = ace.lockedDirection.angle() + 90
 			moveAce(ace, 410 + ace.phaseIndex * 55, profile.speedMultiplier)
@@ -143,7 +157,10 @@ export function spawnImpactAce(
 			moveAce(ace, k.lerp(210, 80, k.clamp(ace.stateTimer / 0.55, 0, 1)), profile.speedMultiplier)
 			faceAce(ace, ace.moveDirection, playerDirection, profile.scale)
 			if (ace.stateTimer >= 0.55) {
-				if (ace.chargesRemaining > 0) beginTelegraph(ace, false)
+				if (
+					ace.chargesRemaining > 0 &&
+					hasEnemyLineOfSight(ace, playerObj.pos)
+				) beginTelegraph(ace, false)
 				else setState(ace, "approach")
 			}
 		}

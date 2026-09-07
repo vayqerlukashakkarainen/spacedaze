@@ -3,7 +3,6 @@ import {
 	blasterDmg,
 	blasterMultiple,
 	blasterSpeed,
-	mouseAim,
 } from "./upgrades/blasters";
 import {
 	followerBlasterDmg,
@@ -105,7 +104,6 @@ export const PERMANENT_UPGRADE_KEYS = [
 	"blasterParallel",
 	"debreeDist",
 	"maxHealth",
-	"mouseAim",
 ] as const;
 export type PermanentUpgradeKey = typeof PERMANENT_UPGRADE_KEYS[number];
 
@@ -120,7 +118,6 @@ export const upgrades = {
 	blasterParallel: blasterMultiple,
 	blasterDmg: blasterDmg,
 	blasterSpeed: blasterSpeed,
-	mouseAim: mouseAim,
 
 	rockets: rocket,
 	nrOfRockets: increaseRockets,
@@ -226,7 +223,6 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	phaseRam: undefined,
 	phaseMagazine: undefined,
 	blasterParallel: undefined,
-	mouseAim: undefined,
 	armorPiercing: undefined,
 	cryoRounds: undefined,
 	corrosivePayload: undefined,
@@ -293,7 +289,6 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	phaseRam: undefined,
 	phaseMagazine: undefined,
 	blasterParallel: undefined,
-	mouseAim: undefined,
 	armorPiercing: undefined,
 	cryoRounds: undefined,
 	corrosivePayload: undefined,
@@ -594,7 +589,6 @@ export function resetLevelLoadout() {
 		phaseRam: undefined,
 		phaseMagazine: undefined,
 		blasterParallel: undefined,
-		mouseAim: undefined,
 		armorPiercing: undefined,
 		cryoRounds: undefined,
 		corrosivePayload: undefined,

@@ -1,0 +1,312 @@
+[
+  {
+    "id": "service-kiosk",
+    "name": "Service Shack",
+    "level": 1,
+    "width": 64,
+    "height": 64,
+    "model": "pro",
+    "prompt": "tiny emergency service shack made from a crooked cargo pod, slanted patchwork roof, dark open doorway, one projecting canopy and a small repair hatch. Three-quarter high top-down view matching the supplied Burt house reference exactly: camera sees the roof plus front and right walls, with an oblique chunky silhouette. This must feel like a place small characters live and work, not a floor plan, circuit diagram, spaceship, or clean station icon. Strict 1-bit pixel art with only pure white and pure black: large connected white roof and wall pixel clusters, deep solid black doorway and underside shadows, sparse single-pixel wear and cutouts. Handmade, lonely, tactile salvage settlement. No gray, color, gradients, antialiasing, glow, text, ground, stars, or cast shadow. One complete isolated building centered on transparency with breathing room.",
+    "jobId": "c06d0403-2e92-4cbb-a3bf-cd07ed545b85",
+    "selectedFrame": 0,
+    "paletteJobId": "2984bb9f-42d4-4c35-923c-d3c30d0e9eec",
+    "sourceUrl": "https://api.pixellab.ai/mcp/images/c06d0403-2e92-4cbb-a3bf-cd07ed545b85/download?index=0",
+    "styleReference": "public/sprites/companions/burt-house.png",
+    "foundation": {
+      "sprite": "ground-small-a",
+      "source": "docs/art-prototypes/hub-buildings/foundations-v2/sprites/ground-small-a.png",
+      "groundOffset": [
+        4,
+        32
+      ],
+      "buildingOffset": [
+        20,
+        4
+      ],
+      "groundTint": [
+        56,
+        73,
+        86
+      ]
+    }
+  },
+  {
+    "id": "courier-depot",
+    "name": "Courier Cabin",
+    "level": 1,
+    "width": 96,
+    "height": 64,
+    "model": "pro",
+    "prompt": "small inhabited courier cabin assembled from two joined salvage pods, pitched asymmetrical roof, deep black door, parcel awning, short landing step and antenna. Three-quarter high top-down view matching the supplied Burt house reference exactly: camera sees the roof plus front and right walls, with an oblique chunky silhouette. This must feel like a place small characters live and work, not a floor plan, circuit diagram, spaceship, or clean station icon. Strict 1-bit pixel art with only pure white and pure black: large connected white roof and wall pixel clusters, deep solid black doorway and underside shadows, sparse single-pixel wear and cutouts. Handmade, lonely, tactile salvage settlement. No gray, color, gradients, antialiasing, glow, text, ground, stars, or cast shadow. One complete isolated building centered on transparency with breathing room.",
+    "jobId": "7a25cd4b-a36d-4fd7-9b59-e4e56d86770c",
+    "selectedFrame": 1,
+    "paletteJobId": "38195d2c-3e12-49ba-822c-ffe878b7edaf",
+    "sourceUrl": "https://api.pixellab.ai/mcp/images/7a25cd4b-a36d-4fd7-9b59-e4e56d86770c/download?index=1",
+    "styleReference": "public/sprites/companions/burt-house.png",
+    "foundation": {
+      "sprite": "ground-small-b",
+      "source": "docs/art-prototypes/hub-buildings/foundations-v2/sprites/ground-small-b.png",
+      "groundOffset": [
+        4,
+        13
+      ],
+      "buildingOffset": [
+        20,
+        4
+      ],
+      "groundTint": [
+        56,
+        73,
+        86
+      ]
+    }
+  },
+  {
+    "id": "scrap-sorter",
+    "name": "Scrap Workshop",
+    "level": 1,
+    "width": 96,
+    "height": 96,
+    "model": "pro",
+    "prompt": "compact scrap mechanic workshop, chunky shed with uneven roof plates, large black workshop doorway, side lean-to full of recognizable salvage chunks, short exhaust pipe. Three-quarter high top-down view matching the supplied Burt house reference exactly: camera sees the roof plus front and right walls, with an oblique chunky silhouette. This must feel like a place small characters live and work, not a floor plan, circuit diagram, spaceship, or clean station icon. Strict 1-bit pixel art with only pure white and pure black: large connected white roof and wall pixel clusters, deep solid black doorway and underside shadows, sparse single-pixel wear and cutouts. Handmade, lonely, tactile salvage settlement. No gray, color, gradients, antialiasing, glow, text, ground, stars, or cast shadow. One complete isolated building centered on transparency with breathing room.",
+    "jobId": "4a9fe64a-19b2-477d-9bf1-a71a39daf79c",
+    "selectedFrame": 0,
+    "paletteJobId": "bb267ef2-cae9-4208-829d-6e3e66aa0f28",
+    "sourceUrl": "https://api.pixellab.ai/mcp/images/4a9fe64a-19b2-477d-9bf1-a71a39daf79c/download?index=0",
+    "styleReference": "public/sprites/companions/burt-house.png",
+    "foundation": {
+      "sprite": "ground-medium-a",
+      "source": "docs/art-prototypes/hub-buildings/foundations-v2/sprites/ground-medium-a.png",
+      "groundOffset": [
+        4,
+        32
+      ],
+      "buildingOffset": [
+        36,
+        4
+      ],
+      "groundTint": [
+        56,
+        73,
+        86
+      ]
+    }
+  },
+  {
+    "id": "smelter-annex",
+    "name": "Smelter House",
+    "level": 2,
+    "width": 128,
+    "height": 96,
+    "model": "pro",
+    "prompt": "heavy low smelter workshop built from salvaged hull panels, broad white roof, black furnace opening, two squat chimneys, attached crooked utility room and exposed pipe. Three-quarter high top-down view matching the supplied Burt house reference exactly: camera sees the roof plus front and right walls, with an oblique chunky silhouette. This must feel like a place small characters live and work, not a floor plan, circuit diagram, spaceship, or clean station icon. Strict 1-bit pixel art with only pure white and pure black: large connected white roof and wall pixel clusters, deep solid black doorway and underside shadows, sparse single-pixel wear and cutouts. Handmade, lonely, tactile salvage settlement. No gray, color, gradients, antialiasing, glow, text, ground, stars, or cast shadow. One complete isolated building centered on transparency with breathing room.",
+    "jobId": "7ff20467-3e4c-43b6-a1aa-64fb8f6ca3e3",
+    "selectedFrame": 1,
+    "paletteJobId": "a91e079e-58bd-4b4d-98ad-67904feeafaa",
+    "sourceUrl": "https://api.pixellab.ai/mcp/images/7ff20467-3e4c-43b6-a1aa-64fb8f6ca3e3/download?index=1",
+    "styleReference": "public/sprites/companions/burt-house.png",
+    "foundation": {
+      "sprite": "ground-medium-a",
+      "source": "docs/art-prototypes/hub-buildings/foundations-v2/sprites/ground-medium-a.png",
+      "groundOffset": [
+        4,
+        48
+      ],
+      "buildingOffset": [
+        20,
+        4
+      ],
+      "groundTint": [
+        56,
+        73,
+        86
+      ]
+    }
+  },
+  {
+    "id": "listening-post",
+    "name": "Signal Loft",
+    "level": 3,
+    "width": 96,
+    "height": 128,
+    "model": "pro",
+    "prompt": "narrow two-level signal keeper home, tall patched shack with visible front wall and dark doorway, small roof lookout cabin, crooked mast and one compact dish. Three-quarter high top-down view matching the supplied Burt house reference exactly: camera sees the roof plus front and right walls, with an oblique chunky silhouette. This must feel like a place small characters live and work, not a floor plan, circuit diagram, spaceship, or clean station icon. Strict 1-bit pixel art with only pure white and pure black: large connected white roof and wall pixel clusters, deep solid black doorway and underside shadows, sparse single-pixel wear and cutouts. Handmade, lonely, tactile salvage settlement. No gray, color, gradients, antialiasing, glow, text, ground, stars, or cast shadow. One complete isolated building centered on transparency with breathing room.",
+    "jobId": "80007603-618d-4a87-96ea-5646dbeb20b0",
+    "selectedFrame": 3,
+    "paletteJobId": "8e66c870-bf5a-48ae-8a3d-22a6c680726f",
+    "sourceUrl": "https://api.pixellab.ai/mcp/images/80007603-618d-4a87-96ea-5646dbeb20b0/download?index=3",
+    "styleReference": "public/sprites/companions/burt-house.png",
+    "foundation": {
+      "sprite": "ground-small-b",
+      "source": "docs/art-prototypes/hub-buildings/foundations-v2/sprites/ground-small-b.png",
+      "groundOffset": [
+        4,
+        79
+      ],
+      "buildingOffset": [
+        20,
+        4
+      ],
+      "groundTint": [
+        56,
+        73,
+        86
+      ]
+    }
+  },
+  {
+    "id": "repair-drydock",
+    "name": "Repair Barn",
+    "level": 4,
+    "width": 160,
+    "height": 128,
+    "model": "pro",
+    "prompt": "large inhabited spacecraft repair barn, chunky hangar shed with a deep black open bay, broad patched roof, two uneven side workshops, exterior crane arm and scattered tool racks. Three-quarter high top-down view matching the supplied Burt house reference exactly: camera sees the roof plus front and right walls, with an oblique chunky silhouette. This must feel like a place small characters live and work, not a floor plan, circuit diagram, spaceship, or clean station icon. Strict 1-bit pixel art with only pure white and pure black: large connected white roof and wall pixel clusters, deep solid black doorway and underside shadows, sparse single-pixel wear and cutouts. Handmade, lonely, tactile salvage settlement. No gray, color, gradients, antialiasing, glow, text, ground, stars, or cast shadow. One complete isolated building centered on transparency with breathing room.",
+    "jobId": "620c6ff6-9f27-4bd2-a695-7712b20105ae",
+    "selectedFrame": 1,
+    "paletteJobId": "70eb3572-3e37-455f-b257-b0b32e84ba1d",
+    "sourceUrl": "https://api.pixellab.ai/mcp/images/620c6ff6-9f27-4bd2-a695-7712b20105ae/download?index=1",
+    "styleReference": "public/sprites/companions/burt-house.png",
+    "foundation": {
+      "sprite": "ground-medium-b",
+      "source": "docs/art-prototypes/hub-buildings/foundations-v2/sprites/ground-medium-b.png",
+      "groundOffset": [
+        4,
+        51
+      ],
+      "buildingOffset": [
+        20,
+        4
+      ],
+      "groundTint": [
+        56,
+        73,
+        86
+      ]
+    }
+  },
+  {
+    "id": "fuel-farm",
+    "name": "Fuel Keeper",
+    "level": 5,
+    "width": 128,
+    "height": 128,
+    "model": "pro",
+    "prompt": "fuel keeper's dwelling and depot, small sturdy shack attached to two big round tanks, white curved tank tops, deep black doorway, chunky pipes and protective salvage plates. Three-quarter high top-down view matching the supplied Burt house reference exactly: camera sees the roof plus front and right walls, with an oblique chunky silhouette. This must feel like a place small characters live and work, not a floor plan, circuit diagram, spaceship, or clean station icon. Strict 1-bit pixel art with only pure white and pure black: large connected white roof and wall pixel clusters, deep solid black doorway and underside shadows, sparse single-pixel wear and cutouts. Handmade, lonely, tactile salvage settlement. No gray, color, gradients, antialiasing, glow, text, ground, stars, or cast shadow. One complete isolated building centered on transparency with breathing room.",
+    "jobId": "56c9b0dd-2834-437d-a5ff-ac280ec82bc5",
+    "selectedFrame": 1,
+    "paletteJobId": "d81c9096-fa93-4bce-9b32-facd5abd94ea",
+    "sourceUrl": "https://api.pixellab.ai/mcp/images/56c9b0dd-2834-437d-a5ff-ac280ec82bc5/download?index=1",
+    "styleReference": "public/sprites/companions/burt-house.png",
+    "foundation": {
+      "sprite": "ground-medium-b",
+      "source": "docs/art-prototypes/hub-buildings/foundations-v2/sprites/ground-medium-b.png",
+      "groundOffset": [
+        4,
+        39
+      ],
+      "buildingOffset": [
+        36,
+        4
+      ],
+      "groundTint": [
+        56,
+        73,
+        86
+      ]
+    }
+  },
+  {
+    "id": "freight-terminal",
+    "name": "Freight Lodge",
+    "level": 6,
+    "width": 192,
+    "height": 128,
+    "model": "pro",
+    "prompt": "wide inhabited freight lodge assembled from several joined cargo sheds, stepped patchwork roofs, two deep black loading doors, front overhang, stacked crates and an uneven side office. Three-quarter high top-down view matching the supplied Burt house reference exactly: camera sees the roof plus front and right walls, with an oblique chunky silhouette. This must feel like a place small characters live and work, not a floor plan, circuit diagram, spaceship, or clean station icon. Strict 1-bit pixel art with only pure white and pure black: large connected white roof and wall pixel clusters, deep solid black doorway and underside shadows, sparse single-pixel wear and cutouts. Handmade, lonely, tactile salvage settlement. No gray, color, gradients, antialiasing, glow, text, ground, stars, or cast shadow. One complete isolated building centered on transparency with breathing room.",
+    "jobId": "1cc5cdde-e7cd-43d2-9588-04c1830762ec",
+    "selectedFrame": 0,
+    "paletteJobId": "cdab00fc-3dfe-4001-a70d-c99bcd605ce7",
+    "sourceUrl": "https://api.pixellab.ai/mcp/images/1cc5cdde-e7cd-43d2-9588-04c1830762ec/download",
+    "styleReference": "public/sprites/companions/burt-house.png",
+    "foundation": {
+      "sprite": "ground-large-a",
+      "source": "docs/art-prototypes/hub-buildings/foundations-v2/sprites/ground-large-a.png",
+      "groundOffset": [
+        4,
+        45
+      ],
+      "buildingOffset": [
+        20,
+        4
+      ],
+      "groundTint": [
+        56,
+        73,
+        86
+      ]
+    }
+  },
+  {
+    "id": "habitat-cluster",
+    "name": "Habitat Row",
+    "level": 7,
+    "width": 192,
+    "height": 192,
+    "model": "pro",
+    "prompt": "cluster of four small lived-in salvage homes joined by short covered walkways, varied roof heights, deep black doors, porches, antennas, clothes line and patched walls; reads as a tiny neighborhood. Three-quarter high top-down view matching the supplied Burt house reference exactly: camera sees the roof plus front and right walls, with an oblique chunky silhouette. This must feel like a place small characters live and work, not a floor plan, circuit diagram, spaceship, or clean station icon. Strict 1-bit pixel art with only pure white and pure black: large connected white roof and wall pixel clusters, deep solid black doorway and underside shadows, sparse single-pixel wear and cutouts. Handmade, lonely, tactile salvage settlement. No gray, color, gradients, antialiasing, glow, text, ground, stars, or cast shadow. One complete isolated building centered on transparency with breathing room.",
+    "jobId": "c36abef3-0f69-485f-9a4a-b8526343caa6",
+    "selectedFrame": 0,
+    "paletteJobId": "ddca6748-c12d-44aa-bb0f-8038639ca645",
+    "sourceUrl": "https://api.pixellab.ai/mcp/images/c36abef3-0f69-485f-9a4a-b8526343caa6/download",
+    "styleReference": "public/sprites/companions/burt-house.png",
+    "foundation": {
+      "sprite": "ground-large-b",
+      "source": "docs/art-prototypes/hub-buildings/foundations-v2/sprites/ground-large-b.png",
+      "groundOffset": [
+        4,
+        72
+      ],
+      "buildingOffset": [
+        36,
+        4
+      ],
+      "groundTint": [
+        56,
+        73,
+        86
+      ]
+    }
+  },
+  {
+    "id": "observatory-crown",
+    "name": "Watchmaker Hall",
+    "level": 8,
+    "width": 256,
+    "height": 192,
+    "model": "pro",
+    "prompt": "large landmark observatory home and guild hall built from old station wreckage, broad irregular roof and visible front walls, central deep black arched entrance, rooftop telescope dome, asymmetrical workshop wings and scaffolding. Three-quarter high top-down view matching the supplied Burt house reference exactly: camera sees the roof plus front and right walls, with an oblique chunky silhouette. This must feel like a place small characters live and work, not a floor plan, circuit diagram, spaceship, or clean station icon. Strict 1-bit pixel art with only pure white and pure black: large connected white roof and wall pixel clusters, deep solid black doorway and underside shadows, sparse single-pixel wear and cutouts. Handmade, lonely, tactile salvage settlement. No gray, color, gradients, antialiasing, glow, text, ground, stars, or cast shadow. One complete isolated building centered on transparency with breathing room.",
+    "jobId": "0dea0971-f599-42f3-b37b-7f877b8daa68",
+    "selectedFrame": 0,
+    "paletteJobId": "cb286d05-4dcb-49be-8e2b-595c3eab503b",
+    "sourceUrl": "https://api.pixellab.ai/mcp/images/0dea0971-f599-42f3-b37b-7f877b8daa68/download",
+    "styleReference": "public/sprites/companions/burt-house.png",
+    "foundation": {
+      "sprite": "ground-large-b",
+      "source": "docs/art-prototypes/hub-buildings/foundations-v2/sprites/ground-large-b.png",
+      "groundOffset": [
+        4,
+        92
+      ],
+      "buildingOffset": [
+        4,
+        4
+      ],
+      "groundTint": [
+        56,
+        73,
+        86
+      ]
+    }
+  }
+]

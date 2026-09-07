@@ -16,6 +16,8 @@ export interface FinaleDefinition {
 	}
 	fallbackDurationSeconds: number
 	durationSeconds?: () => number | undefined
+	isComplete?: () => boolean
+	objective?: () => string
 	events: FinaleEvent[]
 	start?: () => void
 	reset: () => void

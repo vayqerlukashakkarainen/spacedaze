@@ -1,4 +1,5 @@
 import type { GameObj, PosComp, Vec2 } from "kaplay"
+import { addBuildingPlayerDepth } from "../comp/buildingPlayerDepth"
 import { interactable, type InteractableComp } from "../comp/interactable"
 import { k, layers, mainSoundVolume } from "../main"
 import { starsEmitter } from "../particles"
@@ -15,7 +16,15 @@ import { showDebreeDepositPanel } from "../ui/debreeDepositPanel"
 import { spawnCurrencyBurst } from "./spawnCurrencyBurst"
 import { spawnRing } from "./spawnRing"
 
-const DEPOSIT_RADIUS = 76
+const DEPOSIT_RADIUS = 88
+const FOUNDATION_SCALE = 0.56
+const HOUSE_SCALE = 0.95
+const FOUNDATION_Y = 8
+const HOUSE_Y = -24
+const RECEIVER_X = 34
+const RECEIVER_Y = -5
+const FLOAT_AMOUNT = 2
+const FLOAT_SPEED = 1.15
 
 export function spawnDebreeDeposit(pos: Vec2) {
 	const station = k.add([
@@ -33,14 +42,15 @@ export function spawnDebreeDeposit(pos: Vec2) {
 
 	function playDepositEffect(deposited: number) {
 		saveGame("slot1")
-		starsEmitter.emitter.position = station.pos.clone()
+		const effectPos = station.pos.add(RECEIVER_X, ring.pos.y)
+		starsEmitter.emitter.position = effectPos.clone()
 		starsEmitter.emit(Math.min(54, 16 + deposited))
-		spawnCurrencyBurst(station.pos.clone(), {
+		spawnCurrencyBurst(effectPos, {
 			particleCount: Math.min(72, 12 + deposited),
 			tags: [tags.runMap],
 		})
 		spawnRing({
-			pos: station.pos.clone(),
+			pos: effectPos,
 			speed: 240,
 			intensity: 0.35,
 			maxRadius: 100,
@@ -49,40 +59,46 @@ export function spawnDebreeDeposit(pos: Vec2) {
 		audioService.playSound("purchase1", { volume: mainSoundVolume })
 	}
 
-	station.add([
-		k.pos(0, 19),
-		k.rect(46, 10),
+	const foundation = station.add([
+		k.pos(0, FOUNDATION_Y),
+		k.sprite("hub_ground_scrap_sorter_rocks"),
 		k.anchor("center"),
-		k.color(...UI_COLORS.panelRaised),
-		k.outline(2, k.rgb(...UI_COLORS.accent)),
+		k.scale(FOUNDATION_SCALE),
+		k.shader("rockFoundationPalette"),
 		k.layer(layers.buildings),
+		k.z(-12),
 	])
-	for (const x of [-17, 17]) {
-		station.add([
-			k.pos(x, 0),
-			k.rect(6, 38),
-			k.anchor("center"),
-			k.color(...UI_COLORS.panelRaised),
-			k.outline(1, k.rgb(...UI_COLORS.accent)),
-			k.layer(layers.buildings),
-		])
-	}
+	const house = station.add([
+		k.pos(0, HOUSE_Y),
+		k.sprite("hub_building_service_kiosk"),
+		k.anchor("center"),
+		k.scale(HOUSE_SCALE),
+		k.color(170, 184, 192),
+		k.layer(layers.game),
+		k.z(-20),
+	])
+	addBuildingPlayerDepth(house, {
+		centerY: () => station.pos.y + house.pos.y,
+		renderedHeight: () => house.height * Math.abs(house.scale.y),
+	})
 	const ring = station.add([
-		k.circle(22, { fill: false }),
+		k.pos(RECEIVER_X, RECEIVER_Y),
+		k.circle(16, { fill: false }),
 		k.anchor("center"),
 		k.outline(2, k.rgb(...UI_COLORS.success)),
 		k.opacity(0.7),
 		k.layer(layers.gameEffects),
 	])
 	const core = station.add([
-		k.sprite("debree_part1", { width: 18, height: 18 }),
+		k.pos(RECEIVER_X, RECEIVER_Y),
+		k.sprite("debree_part1", { width: 14, height: 14 }),
 		k.anchor("center"),
 		k.color(...UI_COLORS.success),
 		k.layer(layers.gameEffects),
 	])
 	const prompt = createInteractionPrompt({
 		target: station,
-		offset: k.vec2(0, -70),
+		offset: k.vec2(0, -92),
 		content: () => ({
 			title: "DEBREE RELAY",
 			action: getCarriedDebree() > 0
@@ -95,6 +111,11 @@ export function spawnDebreeDeposit(pos: Vec2) {
 
 	registerBatchedEntityUpdate("world", station, () => {
 		prompt.update(station.isInRange && k.get(tags.player).length > 0)
+		const floatOffset = Math.sin(k.time() * FLOAT_SPEED) * FLOAT_AMOUNT
+		foundation.pos.y = FOUNDATION_Y + floatOffset
+		house.pos.y = HOUSE_Y + floatOffset
+		ring.pos.y = RECEIVER_Y + floatOffset
+		core.pos.y = RECEIVER_Y + floatOffset
 		const pulse = k.wave(0.88, 1.12, k.time() * 3.4)
 		core.scale = k.vec2(pulse)
 		ring.scale = k.vec2(k.wave(0.92, 1.08, k.time() * 2.6))

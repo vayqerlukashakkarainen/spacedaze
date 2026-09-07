@@ -1,7 +1,6 @@
 import { GameObj, PosComp, Vec2 } from "kaplay";
 import {
 	checkProjectileIntersection,
-	collectDebreeImmediately,
 	debrees,
 	playerObj,
 } from "../game";
@@ -36,6 +35,7 @@ import {
 import { updatePlayerHealthBar } from "../ui/gameUi";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import { findClosestSpatial } from "../services/runtimeSpatialIndexService";
+import { isDebreeAvailable, SalvagerCargo } from "../services/salvagerCargoService"
 
 interface Props {
 	hp: number;
@@ -57,6 +57,15 @@ const missileDroneCooldown = 2.2;
 const gunshipCooldown = 1.55;
 const medicKillsPerRepair = 8;
 const salvagerSeekRange = 320;
+const SALVAGER_DELIVERY_RANGE = 24
+const SALVAGER_CLAW_SLOTS = [[-3, -4], [0, -6], [3, -4], [-1.5, -2], [1.5, -2]] as const
+
+type CarriedDebree = GameObj<PosComp> & {
+	carriedBy?: number
+	readyForPlayer?: boolean
+	collection?: unknown
+	cargoScale?: Vec2
+}
 const swarmRadius = 54;
 const swarmSeparationRadius = 30;
 const swarmSeparationStrength = 38;
@@ -149,7 +158,7 @@ export function spawnFollower(props: Props) {
 	const deploymentFacingAngle = k.Vec2.toAngle(deploymentDirection) + 90;
 	const m = k.add([
 		k.pos(deploymentStart),
-		k.sprite(droneProfiles.combat.sprite),
+		k.sprite(droneProfiles.combat.sprite, { width: 16, height: 16 }),
 		k.rotate(deploymentFacingAngle),
 		k.anchor("center"),
 		k.scale(1.35, 0.72),
@@ -188,6 +197,9 @@ export function spawnFollower(props: Props) {
 		tags.unit,
 		tags.gameLoop,
 	]);
+
+	m.use({ salvageCargo: new SalvagerCargo<CarriedDebree>(m.id) })
+	m.onDestroy(() => releaseSalvagerCargo(m, false))
 
 	audioService.playSound("collect1", { volume: mainSoundVolume });
 	refreshFollowerTypes();
@@ -399,10 +411,11 @@ export function refreshFollowerTypes() {
 		const droneType = assignments[index] ?? "combat";
 		if (follower.droneType === droneType) return;
 		const profile = droneProfiles[droneType];
+		releaseSalvagerCargo(follower, false)
 		follower.droneType = droneType;
 		follower.movementType = profile.movementType;
 		follower.droneScale = profile.scale;
-		follower.use(k.sprite(profile.sprite));
+		follower.use(k.sprite(profile.sprite, { width: 16, height: 16 }));
 		follower.scale = k.vec2(profile.scale);
 		follower.color = k.WHITE;
 		starsEmitter.emitter.position = follower.pos;
@@ -451,7 +464,7 @@ function tryFuseFollowers() {
 	leader.hb = 18;
 	leader.maxHP = totalHealth;
 	leader.hp = totalHealth;
-	leader.use(k.sprite(profile.sprite));
+	leader.use(k.sprite(profile.sprite, { width: 16, height: 16 }));
 	leader.scale = k.vec2(leader.droneScale);
 	leader.add([
 		k.circle(12, { fill: false }),
@@ -586,20 +599,53 @@ function updateRearGuardMovement(drone: GameObj, follow: GameObj<PosComp>) {
 }
 
 function updateSalvagerMovement(drone: GameObj, follow: GameObj<PosComp>) {
-	const debris = findClosestDebree(drone.pos, salvagerSeekRange);
+	const cargo = drone.salvageCargo as SalvagerCargo<CarriedDebree>
+	const withinRange = drone.pos.dist(follow.pos) <= salvagerSeekRange
+	const debris = withinRange && !cargo.returning
+		? findClosestDebree(drone.pos, salvagerSeekRange)
+		: undefined
+	const speed = drone.speed * droneProfiles.salvager.speedMultiplier
+
+	if (cargo.shouldReturn(!!debris)) {
+		moveDroneToward(drone, follow.pos, speed)
+		updateSalvagerCargoPosition(drone)
+		if (drone.pos.dist(follow.pos) <= SALVAGER_DELIVERY_RANGE) {
+			releaseSalvagerCargo(drone, true)
+		}
+		return
+	}
 	if (!debris) {
-		updateSwarmMovement(drone, follow);
-		return;
+		updateSwarmMovement(drone, follow)
+	} else {
+		moveDroneToward(drone, debris.pos, speed)
+		if (drone.pos.dist(debris.pos) <= 13 && cargo.load(debris)) {
+			debris.cargoScale = debris.scale.clone()
+			debris.scale = k.vec2(0.35)
+		}
 	}
-	if (drone.pos.dist(debris.pos) <= 13) {
-		collectDebreeImmediately(debris, drone.pos.clone());
-		return;
+	updateSalvagerCargoPosition(drone)
+}
+
+function updateSalvagerCargoPosition(drone: GameObj) {
+	const cargo = drone.salvageCargo as SalvagerCargo<CarriedDebree>
+	cargo.items.forEach((debris, index) => {
+		const [x, y] = SALVAGER_CLAW_SLOTS[index]
+		const offset = k.vec2(x * drone.scale.x, y * drone.scale.y).rotate(drone.angle)
+		debris.pos = drone.pos.add(offset)
+		debris.angle = drone.angle
+	})
+}
+
+function releaseSalvagerCargo(drone: GameObj, delivered: boolean) {
+	const cargo = drone.salvageCargo as SalvagerCargo<CarriedDebree> | undefined
+	if (!cargo) return
+	for (const debris of cargo.release(delivered)) {
+		if (debris.cargoScale) debris.scale = debris.cargoScale
+		debris.cargoScale = undefined
+		debris.lifeSpan = 0
+		debris.speed = 12
+		debris.dir = k.Vec2.fromAngle(k.rand(360))
 	}
-	moveDroneToward(
-		drone,
-		debris.pos,
-		drone.speed * droneProfiles.salvager.speedMultiplier
-	);
 }
 
 function moveDroneToward(drone: GameObj, targetPos: Vec2, speed: number) {
@@ -692,10 +738,10 @@ function updateMedicBehavior(medic: GameObj) {
 }
 
 function findClosestDebree(pos: Vec2, range: number) {
-	let closest: GameObj | undefined;
+	let closest: CarriedDebree | undefined;
 	let closestDistance = range;
-	for (const debris of debrees as GameObj[]) {
-		if (!debris.exists() || debris.collection) continue;
+	for (const debris of debrees as CarriedDebree[]) {
+		if (!isDebreeAvailable(debris)) continue;
 		const distance = debris.pos.dist(pos);
 		if (distance >= closestDistance) continue;
 		closest = debris;

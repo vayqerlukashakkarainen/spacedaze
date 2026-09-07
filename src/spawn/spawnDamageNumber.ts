@@ -3,10 +3,10 @@ import { timescale } from "../comp/timescale"
 import { k, layers } from "../main"
 import { tags } from "../tags"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { UI_FONT_SIZES } from "../ui/common"
-
 const DAMAGE_NUMBER_LIFETIME = 0.65
 const DAMAGE_NUMBER_RISE_SPEED = 24
+const DAMAGE_NUMBER_SIZE = 7
+const CRITICAL_DAMAGE_NUMBER_SIZE = 8
 
 interface DamageNumberOptions {
 	critical?: boolean
@@ -26,13 +26,13 @@ export function spawnDamageNumber(
 	const number = k.add([
 		k.pos(pos.add(k.rand(-7, 7), k.rand(-7, -3))),
 		k.text(`${options.prefix ?? ""}${roundedDamage}${critical ? "!" : ""}`, {
-			size: critical ? UI_FONT_SIZES.small : UI_FONT_SIZES.micro,
+			size: critical ? CRITICAL_DAMAGE_NUMBER_SIZE : DAMAGE_NUMBER_SIZE,
 			font: "unscii",
 		}),
 		k.anchor("center"),
 		k.color(options.color ?? (critical ? k.RED : k.WHITE)),
 		k.opacity(1),
-		k.scale(critical ? 1.15 : 1),
+		k.scale(critical ? 1.1 : 1),
 		k.z(100),
 		k.layer(layers.gameText),
 		timescale(),

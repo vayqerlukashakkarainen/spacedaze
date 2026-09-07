@@ -199,6 +199,17 @@ test("pixelToHex - roundtrip", () => {
 	);
 });
 
+test("pixelToHex - projected roundtrip", () => {
+	const original = hexCoord(5, 3);
+	const projectionYScale = 11 / 24;
+	const pixel = hexToPixel(original, 10, projectionYScale);
+	const back = pixelToHex(pixel, 10, projectionYScale);
+	assert(
+		hexEqual(original, back),
+		`Projected roundtrip failed: ${original.q},${original.r} -> ${pixel.x},${pixel.y} -> ${back.q},${back.r}`
+	);
+});
+
 // ============================================================================
 // GRID TESTS
 // ============================================================================

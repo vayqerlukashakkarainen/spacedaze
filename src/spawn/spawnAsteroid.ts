@@ -35,7 +35,7 @@ interface Props {
 }
 
 export function spawnMeteorite(props: Props) {
-	const baseScale = k.rand(1, 2);
+	const baseScale = k.rand(0.7, 1.5);
 	const profile = createEnemySpawnProfile(
 		props.hp,
 		1,

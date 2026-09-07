@@ -4,6 +4,7 @@
 export interface UIState {
 	isOverUI: boolean;
 	modalOpen: boolean;
+	pauseMenuOpen: boolean;
 }
 
 /**
@@ -12,4 +13,9 @@ export interface UIState {
 export const uiState: UIState = {
 	isOverUI: false,
 	modalOpen: false,
+	pauseMenuOpen: false,
 };
+
+export function menuBlocksPostProcessing() {
+	return uiState.modalOpen || uiState.pauseMenuOpen;
+}

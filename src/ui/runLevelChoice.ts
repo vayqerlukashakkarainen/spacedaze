@@ -27,10 +27,20 @@ import {
 import { tags } from "../tags"
 import { addCollectedPowerup } from "./gameUi"
 import { uiState } from "./uiState"
-import { createUiPanel } from "./common/panel"
-import { uiHitRegion } from "./common/hitRegion"
-import { playUiModalOpen } from "./common/modalTransition"
-import { UI_COLORS, UI_FONT_SIZES } from "./common/theme"
+import {
+	addThemedText,
+	createAbilitySlotMarker,
+	createInputPromptRow,
+	createUiBadge,
+	createUiPanel,
+	createUiSelectableCard,
+	createUiStatList,
+	formatTieredTextValues,
+	type UiStatRow,
+	playUiModalOpen,
+	UI_COLORS,
+	UI_FONT_SIZES,
+} from "./common"
 import { playUiClickSound, playUiHoverSound } from "../services/uiSoundService"
 import { getUpgradeDefinition } from "../upgrades/upgradeRegistry"
 import {
@@ -39,6 +49,7 @@ import {
 	type AbilitySlot,
 } from "../services/abilityLoadoutService"
 import {
+	getAbilityTierValues,
 	getNextAbilityTierRarity,
 	registerAbilityTier,
 	rollAbilityTierState,
@@ -53,6 +64,7 @@ import {
 	recordTelemetryRewardSelected,
 	type RewardTelemetryDetails,
 } from "../services/runTelemetryService"
+import { getRewardStatComparisonRows } from "./rewardStatComparison"
 
 type RunLevelChoice =
 	| { kind: "generic"; bonus: RunLevelBonusDefinition; candidatePoolSize: number }
@@ -64,8 +76,20 @@ type RunLevelChoice =
 		candidatePoolSize: number
 	}
 
+interface RunLevelChoiceDetails {
+	name: string
+	description: string
+	stats: readonly UiStatRow[]
+	sprite: string
+	rarity: Reward["rarity"]
+	slot?: AbilitySlot
+}
+
 let isOpen = false
 let selectionLocked = false
+let selectionArmed = false
+
+const SELECTION_INPUT_SETTLE_DURATION = 0.3
 
 export function showRunLevelChoice() {
 	const snapshot = getRunLevelSnapshot()
@@ -85,6 +109,7 @@ export function showRunLevelChoice() {
 
 	isOpen = true
 	selectionLocked = false
+	selectionArmed = false
 	uiState.modalOpen = true
 	pauseGameObjects(true)
 	renderRunLevelChoice(choices, snapshot.level)
@@ -103,11 +128,12 @@ export function hideRunLevelChoice() {
 	pauseGameObjects(false)
 	isOpen = false
 	selectionLocked = false
+	selectionArmed = false
 }
 
 function renderRunLevelChoice(choices: RunLevelChoice[], level: number) {
-	const panelWidth = Math.min(780, k.width() - 40)
-	const panelHeight = Math.min(410, k.height() - 40)
+	const panelWidth = Math.min(900, k.width() - 40)
+	const panelHeight = Math.min(500, k.height() - 24)
 	const center = k.center()
 	const backdrop = k.add([
 		k.rect(k.width(), k.height()),
@@ -141,7 +167,7 @@ function renderRunLevelChoice(choices: RunLevelChoice[], level: number) {
 		k.anchor("center"),
 		k.color(...UI_COLORS.text),
 	])
-	panel.add([
+	const selectionInstruction = panel.add([
 		k.text(`LEVEL ${level}  //  SELECT ONE`, {
 			size: UI_FONT_SIZES.small,
 			font: "unscii",
@@ -150,86 +176,120 @@ function renderRunLevelChoice(choices: RunLevelChoice[], level: number) {
 		k.anchor("center"),
 		k.color(...UI_COLORS.accent),
 	])
+	selectionInstruction.text = `LEVEL ${level}  //  RELEASE FIRE TO SELECT`
+	let releasedDuration = 0
+	panel.onUpdate(() => {
+		if (selectionArmed) return
+		if (k.isMouseDown("left")) {
+			releasedDuration = 0
+			return
+		}
+		releasedDuration += k.dt()
+		if (releasedDuration < SELECTION_INPUT_SETTLE_DURATION) return
+		selectionArmed = true
+		selectionInstruction.text = `LEVEL ${level}  //  SELECT ONE`
+	})
 
 	const gap = 14
 	const cardWidth = Math.min(
-		224,
+		264,
 		(panelWidth - 52 - gap * (choices.length - 1)) / choices.length
 	)
-	const cardHeight = panelHeight - 112
+	const cardHeight = panelHeight - 104
 	const rowWidth = cardWidth * choices.length + gap * (choices.length - 1)
+	const selectionControllers: { cancel: () => void }[] = []
 	for (let index = 0; index < choices.length; index++) {
 		const choice = choices[index]
 		const details = getChoiceDetails(choice)
 		const color = REWARD_RARITY_COLORS[details.rarity]
 		const x = -rowWidth / 2 + cardWidth / 2 + index * (cardWidth + gap)
-		const card = panel.add([
-			k.rect(cardWidth, cardHeight),
-			k.pos(x, 37),
-			k.anchor("center"),
-			k.color(...UI_COLORS.panelRaised),
-			k.outline(1, k.rgb(...color)),
-			uiHitRegion(k.vec2(cardWidth, cardHeight), true),
-		])
+		const cardControl = createUiSelectableCard(panel, {
+			pos: k.vec2(x - cardWidth / 2, 37 - cardHeight / 2),
+			size: k.vec2(cardWidth, cardHeight),
+			onClick: () => selectRunLevelChoice(choice),
+		})
+		const card = cardControl.obj
 		card.add([
 			k.sprite(details.sprite, { width: 54, height: 54 }),
-			k.pos(0, -cardHeight / 2 + 48),
-			k.anchor("center"),
-		])
-		card.add([
-			k.text(details.category, { size: UI_FONT_SIZES.small, font: "unscii" }),
-			k.pos(0, -cardHeight / 2 + 84),
+			k.pos(cardWidth / 2, 60),
 			k.anchor("center"),
 			k.color(...color),
+			k.z(3),
 		])
-		card.add([
-			k.text(details.name, {
-				size: UI_FONT_SIZES.body,
-				font: "unscii",
-				width: cardWidth - 24,
-				align: "center",
-			}),
-			k.pos(0, -cardHeight / 2 + 112),
-			k.anchor("center"),
-			k.color(...UI_COLORS.text),
-		])
-		card.add([
-			k.text(details.description, {
-				size: UI_FONT_SIZES.small,
-				font: "unscii",
-				width: cardWidth - 28,
-				align: "center",
-			}),
-			k.pos(0, 18),
-			k.anchor("center"),
-			k.color(...UI_COLORS.muted),
-		])
-		card.add([
-			k.text(details.effect, {
-				size: UI_FONT_SIZES.label,
-				font: "unscii",
-				width: cardWidth - 24,
-				align: "center",
-			}),
-			k.pos(0, cardHeight / 2 - 38),
-			k.anchor("center"),
-			k.color(...color),
-		])
-		card.onHover(() => {
-			uiState.isOverUI = true
-			card.color = k.rgb(...UI_COLORS.panelHover)
-			playUiHoverSound()
+		const badgeWidth = Math.min(cardWidth - 24, 112)
+		createUiBadge(card, {
+			pos: k.vec2((cardWidth - badgeWidth) / 2, 10),
+			width: badgeWidth,
+			text: details.rarity,
+			color,
 		})
-		card.onHoverEnd(() => {
-			uiState.isOverUI = false
-			card.color = k.rgb(...UI_COLORS.panelRaised)
+		addThemedText(card, {
+			text: details.name,
+			pos: k.vec2(12, 102),
+			variant: "heading",
+			size: UI_FONT_SIZES.body,
+			width: cardWidth - 24,
+			align: "center",
+			lineHeight: 1.45,
+			color: k.rgb(...color),
+			z: 3,
 		})
-		card.onClick(() => selectRunLevelChoice(choice))
+		const descriptionTop = 148
+		const description = addThemedText(card, {
+			text: formatTieredTextValues(details.description),
+			pos: k.vec2(14, descriptionTop),
+			variant: "body",
+			size: UI_FONT_SIZES.small,
+			width: cardWidth - 28,
+			align: "center",
+			lineHeight: 1.4,
+			color: k.WHITE,
+			styles: {
+				value: {
+					color: k.rgb(...color),
+					override: true,
+				},
+			},
+			z: 3,
+		})
+		const statTop = Math.max(
+			Math.min(240, cardHeight - 128),
+			Math.ceil(descriptionTop + description.height + 12)
+		)
+		createUiStatList(card, {
+			pos: k.vec2(16, statTop),
+			width: cardWidth - 32,
+			rows: details.stats.slice(0, 4),
+			rowHeight: 19,
+			wrapLongRows: true,
+		})
+		if (details.slot) {
+			createAbilitySlotMarker(card, {
+				pos: k.vec2(cardWidth / 2, cardHeight),
+				slot: details.slot,
+				color,
+			})
+		}
+		createInputPromptRow(card, {
+			pos: k.vec2(cardWidth / 2, cardHeight - 40),
+			prompts: [{
+				action: `select${index + 1}` as "select1" | "select2" | "select3",
+				label: "TO SELECT",
+			}],
+			color: UI_COLORS.accent,
+		})
+		card.onHover(playUiHoverSound)
+		selectionControllers.push(
+			k.onKeyPress(`${index + 1}`, () => selectRunLevelChoice(choice))
+		)
 	}
+	panel.onDestroy(() => {
+		for (const controller of selectionControllers) controller.cancel()
+	})
 }
 
 function selectRunLevelChoice(choice: RunLevelChoice) {
-	if (selectionLocked) return
+	if (!selectionArmed || selectionLocked) return
 	selectionLocked = true
 	let applied = false
 	const runLevel = getRunLevelSnapshot().level
@@ -390,46 +450,49 @@ function getChoiceTelemetryDetails(
 	}
 }
 
-function getChoiceDetails(choice: RunLevelChoice) {
+function getChoiceDetails(choice: RunLevelChoice): RunLevelChoiceDetails {
 	if (choice.kind === "generic") {
-		const stacks = getRunLevelSnapshot().bonuses[choice.bonus.id]
+		const snapshot = getRunLevelSnapshot()
+		const stacks = snapshot.bonuses[choice.bonus.id]
 		const value = getRunLevelBonusValue(choice.bonus, choice.bonus.rarity)
-		const formattedValue = choice.bonus.percentage
-			? `+${Math.round(value * 100)}%`
-			: `+${formatNumber(value)}%`
+		const currentValue = choice.bonus.baseValue * snapshot.bonusPower[choice.bonus.id]
 		return {
 			name: choice.bonus.name,
 			description: choice.bonus.description,
-			effect: `${choice.bonus.stat}  ${formattedValue}  //  STACK ${stacks + 1}`,
+			stats: [
+				{
+					label: choice.bonus.stat,
+					value: `${formatBonusValue(choice.bonus, currentValue)} > ${formatBonusValue(choice.bonus, currentValue + value)}`,
+				},
+				{ label: "STACK", value: `${stacks + 1} > ${stacks + 2}` },
+			],
 			sprite: choice.bonus.sprite,
 			rarity: choice.bonus.rarity,
-			category: `${choice.bonus.rarity}  //  PASSIVE`,
 		}
 	}
 	if (choice.kind === "abilityTier") {
+		const currentValues = getAbilityTierValues(choice.ability.id)
 		const values = choice.tier.values
 		return {
 			name: choice.ability.name,
-			description: `Advance the equipped ${choice.ability.slot} ability to the next tier`,
-			effect: [
-				`POWER ${formatMultiplier(values.power)}`,
-				`SPEED ${formatMultiplier(values.speed)}`,
-				`RECOVERY ${formatMultiplier(values.recovery)}`,
-			].join("  //  "),
+			description: `Upgrade equipped ${choice.ability.slot} to its next tier`,
+			stats: [
+				{ label: "POWER", value: `${formatMultiplier(currentValues.power)} > ${formatMultiplier(values.power)}` },
+				{ label: "SPEED", value: `${formatMultiplier(currentValues.speed)} > ${formatMultiplier(values.speed)}` },
+				{ label: "RECOVERY", value: `${formatMultiplier(currentValues.recovery)} > ${formatMultiplier(values.recovery)}` },
+			],
 			sprite: choice.ability.icon,
 			rarity: choice.tier.rarity,
-			category: `${choice.tier.rarity}  //  ${choice.ability.slot.toUpperCase()}`,
+			slot: choice.ability.slot,
 		}
 	}
 	return {
 		name: choice.reward.name,
 		description: choice.reward.description,
-		effect: Object.entries(choice.reward.stats)
-			.map(([stat, value]) => `${formatStat(stat)} ${value}`)
-			.join("  //  "),
+		stats: getRewardStatComparisonRows(choice.reward),
 		sprite: choice.reward.sprite,
 		rarity: choice.reward.rarity,
-		category: "OWNED UPGRADE",
+		slot: choice.reward.abilitySlot,
 	}
 }
 
@@ -457,14 +520,11 @@ function shuffle<T>(values: readonly T[]) {
 	return shuffled
 }
 
-function formatStat(stat: string) {
-	return stat.replace(/([A-Z])/g, " $1").toUpperCase()
-}
-
-function formatNumber(value: number) {
-	return Number.isInteger(value) ? `${value}` : value.toFixed(1)
+function formatBonusValue(definition: RunLevelBonusDefinition, value: number) {
+	const displayValue = definition.percentage ? value * 100 : value
+	return `${Math.round(displayValue)}%`
 }
 
 function formatMultiplier(value: number) {
-	return `X${value.toFixed(2)}`
+	return `x${value.toFixed(2)}`
 }

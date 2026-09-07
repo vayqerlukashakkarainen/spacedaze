@@ -15,10 +15,12 @@ import {
 	createInteractionPrompt,
 	type InteractionPromptSource,
 } from "../ui/common";
+import { addBuildingPlayerDepth } from "../comp/buildingPlayerDepth";
 
 interface SpawnBuildingOptions {
 	pos: Vec2;
 	sprite: string;
+	spriteSize?: Vec2;
 	interactRadius?: number;
 	onInteract?: () => void;
 	z?: number;
@@ -34,6 +36,7 @@ export function spawnBuilding(
 	const {
 		pos,
 		sprite,
+		spriteSize,
 		interactRadius = 50,
 		onInteract = () => {},
 		z = 0,
@@ -48,15 +51,18 @@ export function spawnBuilding(
 
 	const building = k.add([
 		k.pos(pos),
-		k.sprite(sprite),
+		k.sprite(sprite, spriteSize
+			? { width: spriteSize.x, height: spriteSize.y }
+			: {}),
 		k.anchor(anchor),
-		k.layer(layers.buildings),
+		k.layer(layers.game),
 		k.z(z),
 		k.scale(scale),
 		interactable(interactRadius, onInteract),
 		tags.gameLoop,
 		tags.props,
 	]);
+	addBuildingPlayerDepth(building);
 
 	const prompt = interactionPrompt === false
 		? undefined

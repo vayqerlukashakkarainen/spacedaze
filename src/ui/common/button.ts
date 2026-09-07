@@ -17,7 +17,9 @@ export interface UiActionButtonProps {
 	onDisabledClick?: () => void;
 	size?: Vec2;
 	selected?: boolean;
+	primary?: boolean;
 	disabled?: boolean;
+	requirementsMet?: boolean;
 	notification?: boolean;
 	icon?: string;
 	iconSize?: number;
@@ -31,24 +33,38 @@ export function createUiActionButton(parent: ReturnType<typeof k.add>, {
 	onDisabledClick,
 	size = k.vec2(120, 32),
 	selected = false,
+	primary = false,
 	disabled = false,
+	requirementsMet,
 	notification = false,
 	icon,
 	iconSize = 14,
 	promptAction,
 }: UiActionButtonProps) {
+	const fill = primary
+		? UI_COLORS.accent
+		: selected ? UI_COLORS.panelHover : UI_COLORS.panel;
+	const foreground = primary ? UI_COLORS.background : UI_COLORS.text;
+	const requirementColor = requirementsMet === undefined
+		? undefined
+		: requirementsMet ? UI_COLORS.accent : UI_COLORS.danger;
+	const resolvedForeground = requirementColor ?? (
+		disabled ? UI_COLORS.muted : foreground
+	);
 	const button = parent.add([
 		k.pos(pos),
 		k.rect(size.x, size.y),
 		uiHitRegion(size),
-		k.color(...(selected ? UI_COLORS.panelHover : UI_COLORS.panel)),
-		k.outline(1, k.rgb(...(selected ? UI_COLORS.accent : UI_COLORS.border))),
+		k.color(...fill),
+		k.outline(1, k.rgb(...(
+			requirementColor ?? (primary || selected ? UI_COLORS.accent : UI_COLORS.border)
+		))),
 	]);
 	button.add([
 		k.text(text, { size: UI_FONT_SIZES.tiny, font: "unscii" }),
 		k.pos(size.x / 2 + (icon || promptAction ? 6 : 0), size.y / 2),
 		k.anchor("center"),
-		k.color(...(disabled ? UI_COLORS.muted : UI_COLORS.text)),
+		k.color(...resolvedForeground),
 	]);
 	if (notification) {
 		button.add([
@@ -63,7 +79,7 @@ export function createUiActionButton(parent: ReturnType<typeof k.add>, {
 			k.sprite(icon, { width: iconSize, height: iconSize }),
 			k.pos(14, size.y / 2),
 			k.anchor("center"),
-			k.color(...(disabled ? UI_COLORS.muted : UI_COLORS.text)),
+			k.color(...resolvedForeground),
 		]);
 	}
 	if (promptAction) {
@@ -71,7 +87,7 @@ export function createUiActionButton(parent: ReturnType<typeof k.add>, {
 			pos: k.vec2(14, size.y / 2),
 			prompts: [{ action: promptAction }],
 			align: "center",
-			color: disabled ? UI_COLORS.muted : UI_COLORS.text,
+			color: resolvedForeground,
 			iconHeight: 20,
 		})
 	}
@@ -84,12 +100,12 @@ export function createUiActionButton(parent: ReturnType<typeof k.add>, {
 		});
 		button.onHover(() => {
 			uiState.isOverUI = true;
-			button.color = k.rgb(...UI_COLORS.panelHover);
+			button.color = k.rgb(...(primary ? UI_COLORS.text : UI_COLORS.panelHover));
 			playUiHoverSound();
 		});
 		button.onHoverEnd(() => {
 			uiState.isOverUI = false;
-			button.color = k.rgb(...(selected ? UI_COLORS.panelHover : UI_COLORS.panel));
+			button.color = k.rgb(...fill);
 		});
 	}
 	return button;

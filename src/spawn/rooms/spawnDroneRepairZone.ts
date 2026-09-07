@@ -1,6 +1,6 @@
 import type { GameObj, PosComp, Vec2 } from "kaplay"
 import { interactable, type InteractableComp } from "../../comp/interactable"
-import { k, layers, mainSoundVolume, spendScore } from "../../main"
+import { getScore, k, layers, mainSoundVolume, spendScore } from "../../main"
 import { starsEmitter } from "../../particles"
 import { spawnRepairedCombatDrone } from "../../powerups"
 import { audioService } from "../../services/audioService"
@@ -8,7 +8,7 @@ import { tags } from "../../tags"
 import { spawnRing } from "../spawnRing"
 import { spawnRepairStation } from "./spawnRepairStation"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
-import { UI_FONT_SIZES } from "../../ui/common"
+import { UI_COLORS, UI_FONT_SIZES } from "../../ui/common"
 import {
 	purchaseBurstParticleCount,
 	spawnCurrencyBurst,
@@ -67,7 +67,7 @@ function spawnBrokenDrone(props: BrokenDroneProps) {
 	const startAngle = props.angle
 	const wreck = k.add([
 		k.pos(props.pos),
-		k.sprite("drone_combat"),
+		k.sprite("drone_combat", { width: 16, height: 16 }),
 		k.anchor("center"),
 		k.rotate(startAngle),
 		k.scale(0.9, 0.62),
@@ -85,7 +85,7 @@ function spawnBrokenDrone(props: BrokenDroneProps) {
 		k.layer(layers.gameText),
 		k.pos(0, -19),
 		k.anchor("center"),
-		k.color(90, 255, 135),
+		k.color(...(getScore() >= props.cost ? UI_COLORS.accent : UI_COLORS.danger)),
 		k.opacity(0),
 		k.z(10),
 	])
@@ -98,7 +98,9 @@ function spawnBrokenDrone(props: BrokenDroneProps) {
 				prompt.opacity = 1
 			} else {
 				prompt.text = `F  REPAIR  ${props.cost}`
-				prompt.color = k.rgb(90, 255, 135)
+				prompt.color = k.rgb(...(
+					getScore() >= props.cost ? UI_COLORS.accent : UI_COLORS.danger
+				))
 				prompt.opacity = wreck.isInRange ? 1 : 0
 			}
 			return

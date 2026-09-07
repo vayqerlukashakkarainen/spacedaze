@@ -34,19 +34,6 @@ export const blasterMultiple: Tool = {
 	],
 };
 
-export const mouseAim: Tool = {
-	toolName: "Targeting computer",
-	upgrades: [
-		{
-			name: "Level 1",
-			desc: "Aim weapons independently toward the mouse pointer",
-			price: 24,
-			sprite: "parallel_blasters_upg1",
-			value: 1,
-		},
-	],
-};
-
 export const blasterSpeed: Tool = {
 	toolName: "Blaster speed",
 	requirements: { allOf: [{ toolKey: "blaster" }] },

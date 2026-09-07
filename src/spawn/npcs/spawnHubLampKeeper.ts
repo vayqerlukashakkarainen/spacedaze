@@ -1,4 +1,4 @@
-import { interactable } from "../../comp/interactable"
+import { interactable, INTERACTION_PRIORITY } from "../../comp/interactable"
 import { k, layers, WORLD_CAMERA_SCALE } from "../../main"
 import { discoverDroid, getDroidDefinition } from "../../npcs/droidRegistry"
 import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
@@ -30,14 +30,18 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 	let talking = false
 	const keeper = k.add([
 		k.pos(startPos),
-		k.sprite("drone_salvager"),
+		k.sprite("hub_droid_lamp_keeper", { width: 16, height: 16 }),
 		k.anchor("center"),
 		k.rotate(135),
 		k.scale(0.95),
 		k.color(k.WHITE),
 		k.layer(layers.game),
 		k.z(12),
-		interactable(INTERACT_RADIUS, startConversation),
+		interactable(
+			INTERACT_RADIUS,
+			startConversation,
+			INTERACTION_PRIORITY.dialogue
+		),
 		tags.props,
 		tags.gameLoop,
 	])

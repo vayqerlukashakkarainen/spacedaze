@@ -160,11 +160,15 @@ export function updateGameLoop() {
 		}
 		const collectible = d as typeof d & {
 			collection?: DebreeCollectionState;
+			carriedBy?: number;
+			readyForPlayer?: boolean;
 			scale: Vec2;
 			angle: number;
 			salvageValue: number;
 			color: Color;
 		};
+
+		if (collectible.carriedBy !== undefined) continue
 
 		if (collectible.collection) {
 			const completed = updateDebreeCollection(
@@ -182,7 +186,7 @@ export function updateGameLoop() {
 		const dist = d.pos.dist(playerObj.pos);
 
 		if (
-			dist <
+			collectible.readyForPlayer || dist <
 			player.debreeSeekDistance * player.debreeSeekDistanceMultiplier
 		) {
 			beginDebreeCollection(collectible, playerObj.pos);
@@ -208,7 +212,7 @@ export function collectDebreeImmediately(
 	},
 	collectionPos: Vec2
 ) {
-	if (!debris.exists()) return 0;
+	if (!debris.exists() || debris.carriedBy !== undefined) return 0;
 	const salvageValue = debris.salvageValue ?? 1;
 	const color = debris.color ?? k.WHITE;
 	k.destroy(debris);
@@ -350,7 +354,6 @@ function continueAfterPlayerDeath(diedInHub: boolean) {
 	resetLevelLoadout();
 	resetSession();
 	resetPowerupRuntime();
-	resetEquippedWeapon();
 	loadPlayer();
 	transitionToLevel("hub");
 	playerObj = setupPlayer({ respawnTransition: true });
@@ -387,7 +390,7 @@ export function exitRunToHub() {
 
 export function clearGame() {
 	isPlayerDying = false;
-	hideDebreeDepositPanel();
+	hideDebreeDepositPanel(false);
 	hideDeathScreen();
 	hideDialogue();
 	cancelPrologueExperience();

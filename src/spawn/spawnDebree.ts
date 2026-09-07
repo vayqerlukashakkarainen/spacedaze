@@ -1,8 +1,9 @@
+import type { Vec2 } from "kaplay";
+import { ASTEROID_SPRITES } from "../asteroidSprites";
 import { timescale } from "../comp/timescale";
 import { debrees } from "../game";
 import { dt, k, velocityScale } from "../main";
 import { tags } from "../tags";
-import type { Vec2 } from "kaplay";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import {
 	addLocalLight,
@@ -33,11 +34,11 @@ const debreeTiers: Record<
 	DebreeValue,
 	{ color: [number, number, number]; scale: number; weight: number }
 > = {
-	1: { color: [255, 255, 255], scale: 0.7, weight: 16 },
-	2: { color: [70, 180, 255], scale: 0.825, weight: 8 },
-	3: { color: [255, 225, 70], scale: 0.95, weight: 4 },
-	4: { color: [255, 135, 35], scale: 1.075, weight: 2 },
-	5: { color: [190, 75, 255], scale: 1.2, weight: 1 },
+	1: { color: [255, 255, 255], scale: 0.2, weight: 16 },
+	2: { color: [70, 180, 255], scale: 0.235, weight: 8 },
+	3: { color: [255, 225, 70], scale: 0.27, weight: 4 },
+	4: { color: [255, 135, 35], scale: 0.305, weight: 2 },
+	5: { color: [190, 75, 255], scale: 0.34, weight: 1 },
 };
 
 export function spawnDebree(
@@ -64,6 +65,9 @@ export function spawnDebreeValues(
 	for (let index = 0; index < values.length; index++) {
 		const salvageValue = values[index];
 		const tier = debreeTiers[salvageValue];
+		const spriteName = ASTEROID_SPRITES[
+			Math.floor(k.rand(0, ASTEROID_SPRITES.length))
+		]
 		const dir = options.pattern === "radial"
 			? k.Vec2.fromAngle(
 				radialStartAngle + angleStep * index + k.rand(-angleStep * 0.18, angleStep * 0.18)
@@ -71,7 +75,7 @@ export function spawnDebreeValues(
 			: k.rand(k.vec2(-1, -1), k.vec2(1, 1));
 		const d = k.add([
 			k.pos(pos.add(dir.scale(options.pattern === "radial" ? k.rand(2, 8) : 0))),
-			k.sprite("particle2"),
+			k.sprite(spriteName),
 			k.anchor("center"),
 			k.animate({ relative: true }),
 			k.rotate(k.rand(360)),
@@ -85,6 +89,8 @@ export function spawnDebreeValues(
 				speed: k.rand(minSpeed, maxSpeed),
 				lifeSpan: 0,
 				collection: undefined as DebreeCollectionState | undefined,
+				carriedBy: undefined as number | undefined,
+				readyForPlayer: false,
 			},
 			tags.debree,
 			tags.gameLoop,
@@ -94,7 +100,6 @@ export function spawnDebreeValues(
 				size: 32,
 				color: [190, 75, 255],
 				opacity: 0.68,
-				z: -2,
 				pulse: {
 					scaleMin: 0.9,
 					scaleMax: 1.12,
@@ -109,7 +114,7 @@ export function spawnDebreeValues(
 
 		registerBatchedEntityUpdate("debris", d, () => {
 			if (rareGlow) updateLocalLight(rareGlow);
-			if (d.collection) return;
+			if (d.collection || d.carriedBy !== undefined) return;
 			if (d.lifeSpan > d.speed) {
 				return;
 			}

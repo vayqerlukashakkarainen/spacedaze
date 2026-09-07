@@ -32,12 +32,15 @@ import {
 } from "./chestChallenge";
 import {
 	addThemedText,
+	createAbilitySlotMarker,
 	createInputPromptRow,
 	createUiActionButton,
 	createUiBadge,
 	createUiPanel,
 	createUiSectionHeader,
 	createUiSelectableCard,
+	createUiStatList,
+	formatTieredTextValues,
 	UI_COLORS,
 	UI_FONT_SIZES,
 } from "./common";
@@ -63,6 +66,7 @@ import {
 } from "../services/runTelemetryService";
 import { equipAbilityWithWorldDrop } from "../services/abilitySwapService";
 import { playerObj } from "../game";
+import { getRewardStatComparisonRows } from "./rewardStatComparison";
 
 interface TimingZone {
 	start: number; // 0-1
@@ -176,11 +180,12 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		{ random: () => k.rand() }
 	);
 	const rewardType = consumeNextChestRewardType();
+	const weaponCache = rewardType === "weapon";
 	const generateRewards = (
 		successfulHits: number,
 		failedAttempts: number,
 		excludedRewardIds: readonly string[] = []
-	) => rewardType === "weapon"
+	) => weaponCache
 		? generateWeaponChestRewardChoices(
 			successfulHits,
 			failedAttempts,
@@ -275,25 +280,30 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		chestController.detailObjects = [];
 	};
 	const stopCapacitorChargeSound = () => {
-		if (!chestController.capacitorChargeSound) return;
-		audioService.stopSound(
-			chestController.capacitorChargeSound,
-			"capacitor-charge-ended"
-		);
+		if (chestController.capacitorChargeSound) {
+			audioService.stopSound(
+				chestController.capacitorChargeSound,
+				"capacitor-charge-ended"
+			);
+		}
 		chestController.capacitorChargeSound = null;
+		if (chestController.crateSprite?.shake) {
+			chestController.crateSprite.shake(0);
+		}
 	};
 	const claimDiscoveryReward = (reward: ChestReward) => {
 		if (
 			!isAbilityReward(reward) ||
 			chestController.claimedDiscoveryIds.includes(reward.id)
-		) return;
-		if (!applyReward(reward, k.center())) return;
+		) return true;
+		if (!applyReward(reward, k.center())) return false;
 		chestController.claimedDiscoveryIds.push(reward.id);
 		addCollectedPowerup(reward, {
 			source: "chest",
 			category: reward.kind,
 			rarity: reward.rarity,
 		});
+		return true;
 	};
 	const claimDiscoveryRewards = (rewards: readonly ChestReward[]) => {
 		for (const reward of rewards) claimDiscoveryReward(reward);
@@ -439,6 +449,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		}
 
 		if (!countdown.exists() || chestController.state !== "timingGame") return;
+		if (chestController.crateSprite) {
+			chestController.crateSprite.hidden = false;
+		}
 		chestController.challengeActive = true;
 		chestController.challengeActivationHandler?.();
 		k.destroy(countdown);
@@ -482,19 +495,15 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 
 		// Upscaled crate sprite
 		chestController.crateSprite = chestController.uiContainer.add([
-			k.sprite("crate1", { width: 64, height: 64 }),
+			k.sprite(
+				rewardType === "weapon" ? "chest_weapon_ui" : "chest_salvage_ui",
+				{ width: 64, height: 64 }
+			),
 			k.pos(0, 0),
 			k.anchor("center"),
 			k.scale(1),
 			shake(),
 		]);
-		if (rewardType === "weapon") {
-			chestController.crateSprite.add([
-				k.sprite("weapon_standard_blaster", { width: 26, height: 26 }),
-				k.anchor("center"),
-				k.z(2),
-			]);
-		}
 
 		// Multiplier text below crate
 		chestController.multiplierText = chestController.uiContainer.add([
@@ -644,12 +653,12 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				chestController.capacitorCharging = true;
 				stopCapacitorChargeSound();
 				chestController.capacitorChargeSound = audioService.playSound(
-					"wormhole_ambience",
+					"rail_lance_charge",
 					{
-						volume: mainSoundVolume * 0.18,
+						volume: mainSoundVolume * 0.32,
 						loop: true,
-						speed: 0.75,
-						detune: -500,
+						speed: 0.7,
+						detune: -650,
 					}
 				);
 			};
@@ -923,14 +932,24 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 						1
 					);
 					chestController.capacitorChargeSound.detune = k.lerp(
-						-500,
-						1000,
+						-650,
+						850,
 						chargeProgress
 					);
 					chestController.capacitorChargeSound.speed = k.lerp(
-						0.75,
-						1.25,
+						0.7,
+						1.3,
 						chargeProgress
+					);
+				}
+				if (chestController.crateSprite?.shake) {
+					const chargeProgress = k.clamp(
+						chestController.capacitorCharge,
+						0,
+						1
+					);
+					chestController.crateSprite.shake(
+						0.2 + chargeProgress * chargeProgress * 4.8
 					);
 				}
 				if (chestController.capacitorCharge >= 1) {
@@ -1081,17 +1100,21 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				? getAbilityRewardDefinitionIds()
 				: []
 		);
-		if (chestController.fixedDiscoveries.length === 0) {
+		if (!weaponCache && chestController.fixedDiscoveries.length === 0) {
 			chestController.fixedDiscoveries = result.discoveries.slice(0, 1);
 		}
-		const selectableSlotCount = Math.max(
-			0,
-			result.rewards.length - chestController.fixedDiscoveries.length
-		);
-		chestController.rewards = [
-			...chestController.fixedDiscoveries,
-			...result.choices.slice(0, selectableSlotCount),
-		];
+		if (weaponCache) {
+			chestController.rewards = result.rewards;
+		} else {
+			const selectableSlotCount = Math.max(
+				0,
+				result.rewards.length - chestController.fixedDiscoveries.length
+			);
+			chestController.rewards = [
+				...chestController.fixedDiscoveries,
+				...result.choices.slice(0, selectableSlotCount),
+			];
+		}
 		for (const reward of chestController.rewards) {
 			recordTelemetryRewardOffered(reward.id, {
 				source: "chest",
@@ -1245,7 +1268,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			await k.wait(
 				profile.duration * 0.35 + profile.postRevealHold
 			);
-			claimDiscoveryReward(reward);
+			if (!weaponCache) claimDiscoveryReward(reward);
 		}
 
 		await k.wait(0.15);
@@ -1273,7 +1296,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		await k.wait(0.18);
 		if (!chestController.exists()) return;
 		clearDetailInteractions();
-		const retainedDiscoveries = chestController.rewards.filter(isAbilityReward);
+		const retainedDiscoveries = weaponCache
+			? []
+			: chestController.rewards.filter(isAbilityReward);
 		const result = generateRewards(
 			chestController.normalizedHits,
 			chestController.failedAttempts,
@@ -1288,10 +1313,12 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			0,
 			chestController.rewards.length - retainedDiscoveries.length
 		);
-		const rerolledChoices = result.rewards
-			.filter((reward) => !isAbilityReward(reward))
-			.slice(0, selectableCount);
-		const newDiscoveries = retainedDiscoveries.length === 0
+		const rerolledChoices = weaponCache
+			? result.rewards.slice(0, selectableCount)
+			: result.rewards
+				.filter((reward) => !isAbilityReward(reward))
+				.slice(0, selectableCount);
+		const newDiscoveries = !weaponCache && retainedDiscoveries.length === 0
 			? result.rewards.filter(isAbilityReward).slice(0, 1)
 			: [];
 		if (newDiscoveries.length > 0) {
@@ -1331,7 +1358,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			? `${chestController.totalFailures} FAILURE${chestController.totalFailures === 1 ? "" : "S"}`
 			: undefined;
 		const panelWidth = Math.min(900, k.width() - 48);
-		const panelHeight = Math.min(560, k.height() - 48);
+		const panelHeight = Math.min(620, k.height() - 32);
 		const panel = createUiPanel({
 			pos: k.vec2(
 				(k.width() - panelWidth) / 2,
@@ -1355,7 +1382,8 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 
 		const layout = getRewardCardLayout(
 			panelWidth - 32,
-			slotCount
+			slotCount,
+			Math.min(430, panelHeight - 154)
 		);
 		const { cardWidth, cardHeight } = layout;
 		const cardTop = 82;
@@ -1380,6 +1408,14 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			accepted = true;
 
 			const isDiscovery = isAbilityReward(reward);
+			if (
+				isDiscovery &&
+				weaponCache &&
+				!claimDiscoveryReward(reward)
+			) {
+				accepted = false;
+				return;
+			}
 			const applied = isDiscovery
 				? equipDiscoveredAbility(reward)
 				: applyReward(reward, k.center());
@@ -1454,6 +1490,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				size: k.vec2(actionWidth, 32),
 				text: `REROLL  //  ${rerollTokenCount} ${tokenLabel}`,
 				disabled: rerollTokenCount === 0,
+				requirementsMet: rerollTokenCount > 0,
 				onDisabledClick: playRequirementErrorSound,
 				promptAction: "reroll",
 				onClick: rerollRewards,
@@ -1463,6 +1500,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				size: k.vec2(actionWidth, 32),
 				text: `RETRY  //  ${CHEST_RETRY_COST} SALVAGE`,
 				disabled: availableSalvage < CHEST_RETRY_COST,
+				requirementsMet: availableSalvage >= CHEST_RETRY_COST,
 				onDisabledClick: playRequirementErrorSound,
 				promptAction: "retry",
 				onClick: retryChallenge,
@@ -1511,15 +1549,15 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				k.sprite(reward.sprite, { width: 56, height: 56 }),
 				k.pos(cardWidth / 2, 60),
 				k.anchor("center"),
+				k.color(...rarityColor),
 				k.z(3),
 			]);
-			const slotBadge = getRewardSlotBadge(reward);
 			const badgeWidth = Math.min(cardWidth - 24, 112);
 			createUiBadge(card, {
 				pos: k.vec2((cardWidth - badgeWidth) / 2, 10),
 				width: badgeWidth,
-				text: slotBadge.text,
-				color: slotBadge.color,
+				text: reward.rarity,
+				color: rarityColor,
 			});
 			addThemedText(card, {
 				text: reward.name,
@@ -1529,27 +1567,53 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				width: cardWidth - 24,
 				align: "center",
 				lineHeight: 1.45,
-				color: k.WHITE,
+				color: k.rgb(...rarityColor),
 				z: 3,
 			});
-			addThemedText(card, {
-				text: formatRewardDescription(reward),
-				pos: k.vec2(14, 154),
+			const descriptionTop = 154;
+			const description = addThemedText(card, {
+				text: formatTieredTextValues(reward.description),
+				pos: k.vec2(14, descriptionTop),
 				variant: "body",
 				size: UI_FONT_SIZES.small,
 				width: cardWidth - 28,
 				align: "center",
 				lineHeight: 1.4,
-				color: k.rgb(...rarityColor),
+				color: k.WHITE,
+				styles: {
+					value: {
+						color: k.rgb(...rarityColor),
+						override: true,
+					},
+				},
 				z: 3,
 			});
+			const statTop = Math.max(
+				Math.min(240, cardHeight - 128),
+				Math.ceil(descriptionTop + description.height + 12)
+			);
+			createUiStatList(card, {
+				pos: k.vec2(16, statTop),
+				width: cardWidth - 32,
+				rows: getRewardStatComparisonRows(reward).slice(0, 4),
+				rowHeight: 19,
+				wrapLongRows: true,
+			});
+			if (reward.abilitySlot) {
+				createAbilitySlotMarker(card, {
+					pos: k.vec2(cardWidth / 2, cardHeight),
+					slot: reward.abilitySlot,
+					color: rarityColor,
+				});
+			}
 			createInputPromptRow(card, {
-				pos: k.vec2(cardWidth / 2, cardHeight - 28),
+				pos: k.vec2(cardWidth / 2, cardHeight - 40),
 				prompts: [{
 					action: `select${selectableIndex + 1}` as "select1" | "select2" | "select3",
 					label: isAbilityReward(reward) ? "TO EQUIP" : "TO SELECT",
 				}],
 				color: UI_COLORS.accent,
+				labelColor: UI_COLORS.text,
 			});
 			if (reward.rarity === Rarity.Legendary) {
 				addLegendaryCardSweep(
@@ -1583,30 +1647,6 @@ function equipDiscoveredAbility(reward: ChestReward) {
 		reward.abilityId,
 		playerObj.pos.clone()
 	);
-}
-
-function formatRewardDescription(reward: ChestReward) {
-	const stats = Object.entries(reward.stats)
-		.map(([stat, value]) => `${stat.replace(/([A-Z])/g, " $1").toUpperCase()} ${value}`)
-		.join("  //  ");
-	const data = stats ? `${reward.rarity}  //  ${stats}` : reward.rarity;
-	return `${reward.description}\n\n${data}`;
-}
-
-function getRewardSlotBadge(reward: ChestReward): {
-	text: string;
-	color: readonly [number, number, number];
-} {
-	switch (reward.abilitySlot) {
-		case "primary": return { text: "PRIMARY", color: [255, 255, 255] };
-		case "secondary": return { text: "SECONDARY", color: [255, 255, 255] };
-		case "mobility": return { text: "MOBILITY", color: [70, 150, 255] };
-		case "ultimate": return { text: "ULTIMATE", color: [255, 75, 75] };
-		default: return {
-			text: reward.rarity,
-			color: REWARD_RARITY_COLORS[reward.rarity],
-		};
-	}
 }
 
 function addLegendaryCardSweep(
@@ -1847,13 +1887,16 @@ function startRevealShakeRamp(
 	};
 }
 
-function getRewardCardLayout(boxWidth: number, choiceCount: number) {
+function getRewardCardLayout(
+	boxWidth: number,
+	choiceCount: number,
+	cardHeight: number = 360
+) {
 	const gap = 18;
 	const cardWidth = Math.min(
 		270,
 		(boxWidth - 60 - gap * (choiceCount - 1)) / choiceCount
 	);
-	const cardHeight = 360;
 	const rowWidth = cardWidth * choiceCount + gap * (choiceCount - 1);
 
 	return {
@@ -1898,12 +1941,17 @@ function showPerfectChallengeFeedback(
 	]);
 	feedback.animate("scale", [k.vec2(0.25), k.vec2(1.45), k.vec2(1)], {
 		duration: PERFECT_FEEDBACK_DURATION,
+		loops: 1,
 		timing: [0, 0.42, 1],
 		easing: k.easings.easeOutBack,
 	});
 	feedback.animate("opacity", [0, 1, 1, 0], {
 		duration: PERFECT_FEEDBACK_DURATION,
+		loops: 1,
 		timing: [0, 0.12, 0.62, 1],
+	});
+	k.wait(PERFECT_FEEDBACK_DURATION, () => {
+		if (feedback.exists()) k.destroy(feedback);
 	});
 }
 

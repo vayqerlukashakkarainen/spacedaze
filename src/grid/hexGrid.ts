@@ -37,6 +37,7 @@ export interface HexGridConfig {
 	height: number; // Number of hexes tall
 	hexSize: number; // Radius of each hex in pixels
 	offset: Vec2; // Screen offset for grid origin
+	projectionYScale?: number; // Vertical screen compression for low top-down maps
 }
 
 /**
@@ -202,7 +203,11 @@ export class HexGrid {
 	 * Convert hex coordinate to screen position
 	 */
 	hexToScreen(coord: HexCoord): Vec2 {
-		const pixel = hexToPixel(coord, this.config.hexSize);
+		const pixel = hexToPixel(
+			coord,
+			this.config.hexSize,
+			this.config.projectionYScale
+		);
 		return k.vec2(
 			pixel.x + this.config.offset.x,
 			pixel.y + this.config.offset.y
@@ -217,14 +222,22 @@ export class HexGrid {
 			screen.x - this.config.offset.x,
 			screen.y - this.config.offset.y
 		);
-		return pixelToHex(localPixel, this.config.hexSize);
+		return pixelToHex(
+			localPixel,
+			this.config.hexSize,
+			this.config.projectionYScale
+		);
 	}
 
 	/**
 	 * Get hex corners in screen space
 	 */
 	getHexScreenCorners(coord: HexCoord): Vec2[] {
-		const corners = hexCorners(coord, this.config.hexSize);
+		const corners = hexCorners(
+			coord,
+			this.config.hexSize,
+			this.config.projectionYScale
+		);
 		return corners.map((c) =>
 			k.vec2(c.x + this.config.offset.x, c.y + this.config.offset.y)
 		);

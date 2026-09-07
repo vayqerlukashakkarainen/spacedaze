@@ -47,6 +47,13 @@ export function getDepositedDebreeThisRun() {
 	return depositedThisRun
 }
 
+export function clearAvailableDebree() {
+	const cleared = getAvailableDebree()
+	if (runActive) carriedDebree = 0
+	else depositedDebree = 0
+	return cleared
+}
+
 export function addAvailableDebree(amount: number) {
 	const adjustedAmount = normalizeAmount(amount)
 	if (runActive) carriedDebree += adjustedAmount

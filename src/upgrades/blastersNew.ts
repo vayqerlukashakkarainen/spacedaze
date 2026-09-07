@@ -52,29 +52,6 @@ export const blasterMultiple: UpgradeDefinition = {
 	],
 };
 
-export const mouseAim: UpgradeDefinition = {
-	toolKey: "mouseAim",
-	toolName: "Targeting computer",
-	category: "combat",
-	type: "unlock",
-	levels: [
-		{
-			name: "Level 1",
-			desc: "Aim weapons independently toward the mouse pointer",
-			price: 24,
-			sprite: "parallel_blasters_upg1",
-			effects: {
-				unlocks: [
-					{
-						unlockId: "mouseAim",
-						description: "Mouse-directed weapon aiming unlocked",
-					},
-				],
-			},
-		},
-	],
-};
-
 export const blasterSpeed: UpgradeDefinition = {
 	toolKey: "blasterSpeed",
 	toolName: "Blaster speed",

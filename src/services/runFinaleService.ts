@@ -75,13 +75,20 @@ export function updateRunFinale() {
 		event.upd(eventElapsed)
 	}
 
-	if (elapsedMilliseconds >= getFinaleDurationSeconds() * 1000) {
+	const complete = finale.isComplete
+		? finale.isComplete()
+		: elapsedMilliseconds >= getFinaleDurationSeconds() * 1000
+	if (complete) {
 		phase = "exitReady"
 	}
 }
 
 export function getRunPhase() {
 	return phase
+}
+
+export function getRunFinaleObjective() {
+	return finale?.objective?.() ?? "SURVIVE"
 }
 
 export function getRunFinaleProgress() {

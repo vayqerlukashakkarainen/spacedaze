@@ -1,0 +1,163 @@
+[
+  {
+    "sprite": "hub_building_service_kiosk",
+    "x": 0,
+    "y": 0,
+    "width": 64,
+    "height": 64
+  },
+  {
+    "sprite": "hub_building_courier_depot",
+    "x": 256,
+    "y": 0,
+    "width": 96,
+    "height": 64
+  },
+  {
+    "sprite": "hub_building_scrap_sorter",
+    "x": 512,
+    "y": 0,
+    "width": 96,
+    "height": 96
+  },
+  {
+    "sprite": "hub_building_smelter_annex",
+    "x": 768,
+    "y": 0,
+    "width": 128,
+    "height": 96
+  },
+  {
+    "sprite": "hub_building_listening_post",
+    "x": 0,
+    "y": 192,
+    "width": 96,
+    "height": 128
+  },
+  {
+    "sprite": "hub_building_repair_drydock",
+    "x": 256,
+    "y": 192,
+    "width": 160,
+    "height": 128
+  },
+  {
+    "sprite": "hub_building_fuel_farm",
+    "x": 512,
+    "y": 192,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "sprite": "hub_building_freight_terminal",
+    "x": 768,
+    "y": 192,
+    "width": 192,
+    "height": 128
+  },
+  {
+    "sprite": "hub_building_habitat_cluster",
+    "x": 0,
+    "y": 384,
+    "width": 192,
+    "height": 192
+  },
+  {
+    "sprite": "hub_building_observatory_crown",
+    "x": 256,
+    "y": 384,
+    "width": 256,
+    "height": 192
+  },
+  {
+    "sprite": "hub_building_smelter_annex_destroyed",
+    "x": 512,
+    "y": 384,
+    "width": 128,
+    "height": 96
+  },
+  {
+    "sprite": "hub_building_listening_post_destroyed",
+    "x": 768,
+    "y": 384,
+    "width": 96,
+    "height": 128
+  },
+  {
+    "sprite": "hub_building_repair_drydock_destroyed",
+    "x": 0,
+    "y": 576,
+    "width": 160,
+    "height": 128
+  },
+  {
+    "sprite": "hub_building_fuel_farm_destroyed",
+    "x": 256,
+    "y": 576,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "sprite": "hub_building_freight_terminal_destroyed",
+    "x": 512,
+    "y": 576,
+    "width": 192,
+    "height": 128
+  },
+  {
+    "sprite": "hub_building_habitat_cluster_destroyed",
+    "x": 768,
+    "y": 576,
+    "width": 192,
+    "height": 192
+  },
+  {
+    "sprite": "hub_building_observatory_crown_destroyed",
+    "x": 0,
+    "y": 768,
+    "width": 256,
+    "height": 192
+  },
+  {
+    "sprite": "hub_ground_small_a",
+    "x": 256,
+    "y": 768,
+    "width": 96,
+    "height": 64
+  },
+  {
+    "sprite": "hub_ground_small_b",
+    "x": 512,
+    "y": 768,
+    "width": 128,
+    "height": 96
+  },
+  {
+    "sprite": "hub_ground_medium_a",
+    "x": 768,
+    "y": 768,
+    "width": 160,
+    "height": 112
+  },
+  {
+    "sprite": "hub_ground_medium_b",
+    "x": 0,
+    "y": 960,
+    "width": 192,
+    "height": 128
+  },
+  {
+    "sprite": "hub_ground_large_a",
+    "x": 256,
+    "y": 960,
+    "width": 224,
+    "height": 160
+  },
+  {
+    "sprite": "hub_ground_large_b",
+    "x": 512,
+    "y": 960,
+    "width": 256,
+    "height": 192
+  }
+]

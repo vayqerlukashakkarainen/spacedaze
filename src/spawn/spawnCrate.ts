@@ -1,4 +1,5 @@
 import { Vec2 } from "kaplay";
+import { ASTEROID_SPRITES } from "../asteroidSprites";
 import { checkProjectileIntersection, playerObj } from "../game";
 import { dtScaled, k, mainSoundVolume, velocityScale } from "../main";
 import { audioService } from "../services/audioService";
@@ -37,9 +38,12 @@ const GOLDEN_DEBREE_MAX_SPEED = 100;
 export function spawnCrate(props: Props) {
 	const tier = props.tier ?? "normal";
 	const golden = tier === "golden";
+	const spriteName = ASTEROID_SPRITES[
+		Math.floor(k.rand(0, ASTEROID_SPRITES.length))
+	];
 	const m = k.add([
 		k.pos(props.pos),
-		k.sprite(golden ? "salvage_asteroid_rich" : "salvage_asteroid_normal", {
+		k.sprite(spriteName, {
 			width: 24,
 			height: 24,
 		}),
@@ -70,7 +74,6 @@ export function spawnCrate(props: Props) {
 			size: 76,
 			color: [255, 255, 255],
 			opacity: 0.48,
-			z: -2,
 			pulse: {
 				scaleMin: 0.92,
 				scaleMax: 1.08,

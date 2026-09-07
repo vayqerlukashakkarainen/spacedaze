@@ -13,6 +13,7 @@ import {
 	createUiActionButton,
 	createUiPanel,
 	createUiProgressBar,
+	createUiScrollable,
 	createUiSectionHeader,
 	createUiTelemetryStrip,
 	UI_COLORS,
@@ -21,6 +22,8 @@ import {
 
 const KILLER_REVEAL_DELAY = 1
 const DEPOSIT_COUNT_DELAY = 0.25
+const LEVEL_CELEBRATION_INTERVAL = 0.18
+const LEVEL_CELEBRATION_PARTICLES = 48
 
 export function showDeathScreen(
 	cause: PlayerDeathCause,
@@ -99,12 +102,19 @@ export function showDeathScreen(
 }
 
 function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunEndSummary) {
-	const panelSize = k.vec2(Math.min(600, k.width() - 40), 250)
+	const showsLevelUnlocks = summary.hub.currentLevel > summary.hub.previousLevel
+	const panelSize = k.vec2(
+		Math.min(600, k.width() - 40),
+		showsLevelUnlocks ? 296 : 250
+	)
+	const panelPos = k.center().add(0, showsLevelUnlocks ? 82 : 105)
+	const levelBurst = createLevelCelebrationEmitter(panelPos)
 	const panel = createUiPanel({
-		pos: k.center().add(0, 105),
+		pos: panelPos,
 		size: panelSize,
 		anchor: "center",
 		layer: layers.ui,
+		animated: true,
 		tags: [tags.deathScreen],
 	})
 	const left = -panelSize.x / 2
@@ -152,8 +162,41 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 		variant: "body",
 		width: panelSize.x - 64,
 	})
+	const unlockScroll = showsLevelUnlocks
+		? createUiScrollable({
+			parent: panel,
+			pos: k.vec2(left + 32, top + 196),
+			width: panelSize.x - 64,
+			height: 48,
+			contentHeight: 48,
+			scrollStep: 20,
+			captureWheel: true,
+			tags: [tags.deathScreen],
+		})
+		: undefined
+	const unlockHeader = unlockScroll
+		? addThemedText(unlockScroll.content, {
+			text: "",
+			pos: k.vec2(0, 2),
+			variant: "caption",
+			width: panelSize.x - 72,
+			color: k.rgb(...UI_COLORS.success),
+		})
+		: undefined
+	const unlockList = unlockScroll
+		? addThemedText(unlockScroll.content, {
+			text: "",
+			pos: k.vec2(0, 20),
+			variant: "body",
+			size: UI_FONT_SIZES.small,
+			width: panelSize.x - 72,
+			color: k.WHITE,
+		})
+		: undefined
+	if (unlockHeader) unlockHeader.hidden = true
+	if (unlockList) unlockList.hidden = true
 	createUiTelemetryStrip(panel, {
-		pos: k.vec2(left + 32, top + 198),
+		pos: k.vec2(left + 32, top + (showsLevelUnlocks ? 248 : 198)),
 		width: panelSize.x - 64,
 		gap: 12,
 		items: [
@@ -176,7 +219,9 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 	let elapsed = 0
 	let lastCount = -1
 	let lastTickAt = 0
-	let displayedLevel = summary.hub.previousLevel
+	let celebratedLevel = summary.hub.previousLevel
+	let displayedUnlockLevel = summary.hub.previousLevel
+	let nextLevelCelebrationAt = 0
 	let finished = false
 	const countDuration = Math.min(1.8, 0.85 + summary.debree.deposited * 0.012)
 	screen.onUpdate(() => {
@@ -196,6 +241,28 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 		levelLabel.text = level > summary.hub.previousLevel
 			? `HUB LEVEL ${summary.hub.previousLevel}  >  ${level}`
 			: `HUB LEVEL ${level}`
+		if (
+			unlockHeader &&
+			unlockList &&
+			level !== displayedUnlockLevel
+		) {
+			displayedUnlockLevel = level
+			const unlocks = level > summary.hub.previousLevel
+				? getHubLevelDefinition(level).unlocks
+				: []
+			unlockHeader.hidden = unlocks.length === 0
+			unlockList.hidden = unlocks.length === 0
+			unlockHeader.text = unlocks.length > 0
+				? `NEW HUB UNLOCKS  //  LEVEL ${level}`
+				: ""
+			unlockList.text = unlocks.join("  //  ")
+			unlockScroll?.setContentHeight(
+				unlocks.length > 0
+					? unlockList.pos.y + unlockList.height + 4
+					: 48
+			)
+			unlockScroll?.scrollToStart()
+		}
 		xpLabel.text = next
 			? `${xp} / ${next.requiredDeposited} HUB XP  //  ${Math.max(0, next.requiredDeposited - xp)} NEEDED`
 			: `${xp} HUB XP  //  MAXIMUM LEVEL`
@@ -213,15 +280,16 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 			}
 		}
 		depositValue.scale = k.vec2(k.lerp(depositValue.scale.x, 1, k.dt() * 12))
-		if (level > displayedLevel) {
-			displayedLevel = level
-			k.shake(4)
-			audioService.playSound("high_rarity_reveal", {
-				volume: mainSoundVolume * 0.55,
-				detune: level * 80,
-			})
+		if (level > celebratedLevel && elapsed >= nextLevelCelebrationAt) {
+			celebratedLevel++
+			nextLevelCelebrationAt = elapsed + LEVEL_CELEBRATION_INTERVAL
+			playLevelCelebration(panel, levelBurst, celebratedLevel)
 		}
-		if (rawProgress >= 1 && !finished) {
+		if (
+			rawProgress >= 1 &&
+			celebratedLevel >= summary.hub.currentLevel &&
+			!finished
+		) {
 			finished = true
 			audioService.playSound("purchase1", {
 				volume: mainSoundVolume * 0.7,
@@ -230,6 +298,70 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 				levelLabel.color = k.rgb(...UI_COLORS.success)
 			}
 		}
+	})
+}
+
+function createLevelCelebrationEmitter(pos: ReturnType<typeof k.vec2>) {
+	const particleSprite = k.getSprite("particle4")
+	if (!particleSprite?.data) return undefined
+	return k.add([
+		k.pos(pos),
+		k.fixed(),
+		k.layer(layers.ui),
+		k.opacity(1),
+		k.particles(
+			{
+				max: LEVEL_CELEBRATION_PARTICLES * Math.max(2, HUB_LEVELS.length),
+				speed: [260, 520],
+				angle: [0, 360],
+				angularVelocity: [-240, 240],
+				lifeTime: [0.55, 0.95],
+				colors: [
+					k.WHITE,
+					k.rgb(...UI_COLORS.success),
+					k.rgb(...UI_COLORS.accent),
+				],
+				opacities: [1, 0.9, 0],
+				scales: [0.8, 1.8, 0.15],
+				damping: [1.5, 3.5],
+				texture: particleSprite.data.frames[0].tex,
+				quads: [particleSprite.data.frames[0].q],
+			},
+			{
+				rate: 0,
+				direction: 0,
+				spread: 360,
+				position: k.vec2(0),
+			}
+		),
+		tags.deathScreen,
+	])
+}
+
+function playLevelCelebration(
+	panel: ReturnType<typeof createUiPanel>,
+	burst: ReturnType<typeof createLevelCelebrationEmitter>,
+	level: number
+) {
+	if (!panel.exists()) return
+	panel.animation.seek(0)
+	panel.animate(
+		"scale",
+		[k.vec2(1), k.vec2(1.075), k.vec2(0.985), k.vec2(1)],
+		{
+			duration: 0.32,
+			loops: 1,
+			timing: [0, 0.34, 0.72, 1],
+			easing: k.easings.easeOutCubic,
+		}
+	)
+
+	burst?.emit(LEVEL_CELEBRATION_PARTICLES)
+
+	k.shake(4)
+	audioService.playSound("high_rarity_reveal", {
+		volume: mainSoundVolume * 0.55,
+		detune: level * 80,
 	})
 }
 

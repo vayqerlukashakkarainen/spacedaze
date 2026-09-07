@@ -14,6 +14,7 @@ import {
 } from "./emotionService"
 import { acquireGameplayPause } from "./gameplayPauseService"
 import { runtimeDebug } from "./runtimeDebugService"
+import { acquireInteractionPromptSuppression } from "./interactionPromptVisibilityService"
 
 export type CutsceneResult = "completed" | "skipped" | "cancelled"
 export type CutsceneEasing =
@@ -112,6 +113,7 @@ export interface CutsceneDefinition {
 	pauseGameplay?: boolean
 	pauseVisualEffects?: boolean
 	restoreCameraOnEnd?: boolean
+	restoreActorRotationsOnEnd?: boolean
 }
 
 export interface CutscenePlayOptions {
@@ -145,6 +147,10 @@ class CutsceneRuntime implements CutsceneContext {
 	private readonly speakerActors: Readonly<Record<string, string>>
 	private readonly cancelListeners = new Set<() => void>()
 	private readonly cleanups = new Set<() => void>()
+	private readonly initialActorAngles = new Map<
+		GameObj<PosComp> & { angle?: number },
+		number
+	>()
 
 	constructor(
 		id: string,
@@ -193,6 +199,21 @@ class CutsceneRuntime implements CutsceneContext {
 			this.cleanups.delete(cleanup)
 			cleanup()
 		}
+	}
+
+	rememberActorRotation(actor: GameObj<PosComp> & { angle?: number }) {
+		if (
+			typeof actor.angle !== "number" ||
+			this.initialActorAngles.has(actor)
+		) return
+		this.initialActorAngles.set(actor, actor.angle)
+	}
+
+	restoreActorRotations() {
+		for (const [actor, angle] of this.initialActorAngles) {
+			if (actor.exists()) actor.angle = angle
+		}
+		this.initialActorAngles.clear()
 	}
 
 	onCancel(listener: () => void) {
@@ -275,11 +296,16 @@ export async function playCutscene(
 		definition.speakerActors
 	)
 	activeCutscene = runtime
+	const releaseInteractionPromptSuppression =
+		acquireInteractionPromptSuppression()
 	if (definition.restoreCameraOnEnd !== false) {
 		runtime.defer(() => {
 			k.setCamPos(runtime.initialCamera.pos)
 			k.setCamScale(runtime.initialCamera.scale)
 		})
+	}
+	if (definition.restoreActorRotationsOnEnd !== false) {
+		runtime.defer(() => runtime.restoreActorRotations())
 	}
 	if (definition.pauseGameplay !== false) {
 		const resume = acquireGameplayPause(
@@ -296,6 +322,7 @@ export async function playCutscene(
 	} finally {
 		if (activeCutscene === runtime) hideDialogue()
 		runtime.cleanup()
+		releaseInteractionPromptSuppression()
 		if (activeCutscene === runtime) activeCutscene = undefined
 	}
 	if (result === "completed") options.onComplete?.()
@@ -441,6 +468,7 @@ function rotateActor(step: CutsceneRotateStep, runtime: CutsceneRuntime) {
 	}
 	const direction = target.sub(actor.pos)
 	if (direction.len() <= 0.001) return Promise.resolve()
+	runtime.rememberActorRotation(actor)
 	const startAngle = actor.angle
 	const targetAngle = direction.angle() + 90
 	const angleDelta = ((targetAngle - startAngle + 540) % 360) - 180

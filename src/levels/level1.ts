@@ -6,14 +6,16 @@ import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject"
 import { clearGeneratedRunMap, startGeneratedRunMap } from "./runMap"
 import { getCurrentRunFloor } from "../services/runDirectorService"
 import type { Level } from "./levels"
+import { RUN_ROCK_PROJECTION_Y_SCALE } from "./runRockTiles"
 
 let bgAsteroidTimer = 0
 
 export const level1: Level = {
 	mapGeneration: {
-		width: 60,
-		height: 45,
-		hexSize: 48,
+		width: 48,
+		height: 36,
+		hexSize: 96,
+		projectionYScale: RUN_ROCK_PROJECTION_Y_SCALE,
 		generator: {
 			fill: { percentage: 0.48 },
 			ca: { iterations: 5 },
@@ -73,9 +75,8 @@ export const level1: Level = {
 					Math.floor(k.rand(0, ASTEROID_SPRITES.length))
 				],
 			scale: k.rand(0.5, 1.5),
-			color: k.rgb(k.rand(80, 120), k.rand(80, 120), k.rand(80, 120)),
+			color: k.rgb(k.rand(28, 52), k.rand(34, 60), k.rand(40, 68)),
 			parallaxLevel: k.rand(4, 10),
-			opacity: k.rand(0.3, 0.7),
 			rotation: k.rand(0, 360),
 			rotationSpeed: k.rand(-0.5, 0.5),
 		})

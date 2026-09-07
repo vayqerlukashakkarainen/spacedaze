@@ -17,6 +17,7 @@ import { registerBossEncounter } from "../services/bossEncounterService"
 import { getBossDefinition } from "../services/bossRegistry"
 import { applyDamage } from "../services/damageService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { hasEnemyLineOfSight } from "../services/enemyNavigationService"
 import { spawnLineTelegraph } from "../services/enemyTelegraphService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import { spawnProjectile } from "../services/projectileService"
@@ -229,6 +230,10 @@ export function spawnBoss1(
 						!boss.exists() ||
 						boss.combatState !== "lanceTelegraph"
 					) return
+					if (!hasEnemyLineOfSight(boss, playerObj.pos)) {
+						enterRecovery(0.35)
+						return
+					}
 					boss.combatState = "lanceFire"
 					boss.stateTimer = 0
 					boss.shotTimer = 0
@@ -288,6 +293,7 @@ export function spawnBoss1(
 	}
 
 	const beginNextAttack = () => {
+		const hasSight = hasEnemyLineOfSight(boss, playerObj.pos)
 		const attacks = boss.phaseIndex === 0
 			? ["broadside", "lance"] as const
 			: boss.phaseIndex === 1
@@ -295,6 +301,7 @@ export function spawnBoss1(
 				: ["reactor", "lance", "broadside"] as const
 		for (let offset = 0; offset < attacks.length; offset++) {
 			const attack = attacks[(boss.attackCycle + offset) % attacks.length]
+			if (attack !== "reactor" && !hasSight) continue
 			if (attack === "tractor" && !crownAlive) continue
 			if (
 				attack === "broadside" &&
@@ -308,7 +315,8 @@ export function spawnBoss1(
 			else beginLance()
 			return
 		}
-		beginReactor()
+		if (boss.phaseIndex === 2) beginReactor()
+		else enterRecovery(0.25)
 	}
 
 	registerHitAnimation(boss)
@@ -393,36 +401,44 @@ export function spawnBoss1(
 			)
 			boss.shotTimer -= delta
 			if (boss.shotTimer <= 0 && boss.shotsRemaining > 0) {
-				fireBroadsideVolley(
-					boss,
-					leftMuzzle,
-					rightMuzzle,
-					leftBatteryAlive,
-					rightBatteryAlive,
-					options.tags
-				)
-				boss.shotsRemaining--
-				boss.shotTimer = [0.3, 0.26, 0.22][boss.phaseIndex]
-				if (boss.shotsRemaining === 0) enterRecovery(1.25)
+				if (!hasEnemyLineOfSight(boss, playerObj.pos)) {
+					enterRecovery(0.35)
+				} else {
+					fireBroadsideVolley(
+						boss,
+						leftMuzzle,
+						rightMuzzle,
+						leftBatteryAlive,
+						rightBatteryAlive,
+						options.tags
+					)
+					boss.shotsRemaining--
+					boss.shotTimer = [0.3, 0.26, 0.22][boss.phaseIndex]
+					if (boss.shotsRemaining === 0) enterRecovery(1.25)
+				}
 			}
 		} else if (boss.combatState === "lanceFire") {
 			boss.shotTimer -= delta
 			if (boss.shotTimer <= 0 && boss.shotsRemaining > 0) {
-				const spread = boss.shotsRemaining % 2 === 0 ? -1.25 : 1.25
-				const direction = k.Vec2.fromAngle(
-					boss.lockedDirection.angle() + spread
-				)
-				spawnClaimkeeperProjectile(
-					boss.pos.add(direction.scale(30 * scale)),
-					direction,
-					boss.damage,
-					0.92,
-					boss.shotsRemaining === 6 + boss.phaseIndex,
-					options.tags
-				)
-				boss.shotsRemaining--
-				boss.shotTimer = [0.13, 0.115, 0.1][boss.phaseIndex]
-				if (boss.shotsRemaining === 0) enterRecovery(1.35)
+				if (!hasEnemyLineOfSight(boss, playerObj.pos)) {
+					enterRecovery(0.35)
+				} else {
+					const spread = boss.shotsRemaining % 2 === 0 ? -1.25 : 1.25
+					const direction = k.Vec2.fromAngle(
+						boss.lockedDirection.angle() + spread
+					)
+					spawnClaimkeeperProjectile(
+						boss.pos.add(direction.scale(30 * scale)),
+						direction,
+						boss.damage,
+						0.92,
+						boss.shotsRemaining === 6 + boss.phaseIndex,
+						options.tags
+					)
+					boss.shotsRemaining--
+					boss.shotTimer = [0.13, 0.115, 0.1][boss.phaseIndex]
+					if (boss.shotsRemaining === 0) enterRecovery(1.35)
+				}
 			}
 		} else if (boss.combatState === "tractorCharge") {
 			const progress = k.clamp(boss.stateTimer / 0.92, 0, 1)
@@ -430,29 +446,37 @@ export function spawnBoss1(
 			attackRing.opacity = k.wave(0.35, 0.95, k.time() * 10)
 			if (!crownAlive) enterRecovery(1.35)
 			else if (progress >= 1) {
-				boss.combatState = "tractorPull"
-				boss.stateTimer = 0
-				boss.shotTimer = 0.25
-				gravity.radius = 440
-				gravity.strength = 150
+				if (!hasEnemyLineOfSight(boss, playerObj.pos)) {
+					enterRecovery(0.35)
+				} else {
+					boss.combatState = "tractorPull"
+					boss.stateTimer = 0
+					boss.shotTimer = 0.25
+					gravity.radius = 440
+					gravity.strength = 150
+				}
 			}
 		} else if (boss.combatState === "tractorPull") {
-			attackRing.scale = k.vec2(k.wave(0.92, 1.04, k.time() * 5))
-			attackRing.opacity = k.wave(0.18, 0.48, k.time() * 7)
-			boss.shotTimer -= delta
-			if (boss.shotTimer <= 0) {
-				fireBroadsideVolley(
-					boss,
-					leftMuzzle,
-					rightMuzzle,
-					leftBatteryAlive,
-					rightBatteryAlive,
-					options.tags,
-					[-11, 11]
-				)
-				boss.shotTimer = 0.44
+			if (!hasEnemyLineOfSight(boss, playerObj.pos)) {
+				enterRecovery(0.35)
+			} else {
+				attackRing.scale = k.vec2(k.wave(0.92, 1.04, k.time() * 5))
+				attackRing.opacity = k.wave(0.18, 0.48, k.time() * 7)
+				boss.shotTimer -= delta
+				if (boss.shotTimer <= 0) {
+					fireBroadsideVolley(
+						boss,
+						leftMuzzle,
+						rightMuzzle,
+						leftBatteryAlive,
+						rightBatteryAlive,
+						options.tags,
+						[-11, 11]
+					)
+					boss.shotTimer = 0.44
+				}
+				if (!crownAlive || boss.stateTimer >= 1.7) enterRecovery(1.45)
 			}
-			if (!crownAlive || boss.stateTimer >= 1.7) enterRecovery(1.45)
 		} else if (boss.combatState === "reactorCharge") {
 			const progress = k.clamp(boss.stateTimer / 0.76, 0, 1)
 			attackRing.pos = k.vec2(0, 0)

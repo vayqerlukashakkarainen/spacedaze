@@ -1,7 +1,6 @@
-import { interactable } from "../../comp/interactable"
-import { k, layers } from "../../main"
+import { interactable, INTERACTION_PRIORITY } from "../../comp/interactable"
+import { k, layers, WORLD_CAMERA_SCALE } from "../../main"
 import { discoverDroid, getDroidDefinition } from "../../npcs/droidRegistry"
-import { getEffectiveUpgradeLevel } from "../../upg"
 import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
 import type { DialogueLine } from "../../services/dialogService"
 import type { EmotionId } from "../../services/emotionService"
@@ -20,58 +19,8 @@ import { tags } from "../../tags"
 import { createNpcInteractionPrompt } from "../../ui/common"
 
 const INTERACT_RADIUS = 86
+const CONVERSATION_ZOOM_MULTIPLIER = 1.25
 const DIALOGUES: readonly NpcDialogueVariant[] = [
-	{
-		id: "targeting-computer",
-		minHubLevel: 2,
-		lines: [
-			{
-				speaker: "RANGE KEEPER",
-				text: "They call this training asteroid indestructible. An embarrassing exaggeration.",
-			},
-			{
-				speaker: "RANGE KEEPER",
-				text: [
-					{ text: "I believe I have located the " },
-					{
-						text: "TARGETING COMPUTER",
-						reference: { kind: "reward", id: "mouseAim" },
-					},
-					{ text: "." },
-				],
-			},
-			{
-				speaker: "RANGE KEEPER",
-				text: "Once that legendary system is mine, this rock will survive approximately six seconds.",
-			},
-		],
-	},
-	{
-		id: "targeting-computer-envy",
-		minHubLevel: 2,
-		isAvailable: () => getEffectiveUpgradeLevel("mouseAim") !== undefined,
-		lines: [
-			{
-				speaker: "RANGE KEEPER",
-				text: [
-					{ text: "That is the " },
-					{
-						text: "TARGETING COMPUTER",
-						reference: { kind: "reward", id: "mouseAim" },
-					},
-					{ text: ", isn't it?" },
-				],
-			},
-			{
-				speaker: "RANGE KEEPER",
-				text: "You barely aim, and it follows your cursor for you. I have spent years calibrating manually.",
-			},
-			{
-				speaker: "RANGE KEEPER",
-				text: "I am not jealous. I am documenting an obvious allocation error.",
-			},
-		],
-	},
 	{
 		id: "forge-calibration",
 		minHubLevel: 3,
@@ -124,14 +73,18 @@ export function spawnHubRingWatcher(trainingTarget: ReturnType<typeof k.vec2>) {
 	let shotTimer = k.rand(2.5, 5.5)
 	const watcher = k.add([
 		k.pos(startPos),
-		k.sprite("enemy_sniper"),
+		k.sprite("hub_ship_range_keeper", { width: 32, height: 32 }),
 		k.anchor("center"),
 		k.rotate(facingDirection.angle() + 90),
 		k.scale(0.86),
 		k.color(k.WHITE),
 		k.layer(layers.game),
 		k.z(12),
-		interactable(INTERACT_RADIUS, startConversation),
+		interactable(
+			INTERACT_RADIUS,
+			startConversation,
+			INTERACTION_PRIORITY.dialogue
+		),
 		tags.props,
 		tags.gameLoop,
 	])
@@ -185,7 +138,11 @@ export function spawnHubRingWatcher(trainingTarget: ReturnType<typeof k.vec2>) {
 			}
 		}
 		void playCutscene(createRingWatcherConversation(dialogue.id, dialogue.lines), {
-			resolveActor: (id) => id === "ringWatcher" ? watcher : undefined,
+			resolveActor: (id) => {
+				if (id === "ringWatcher") return watcher
+				if (id === "player") return k.get(tags.player)[0]
+				return undefined
+			},
 		}).then((result) => {
 			if (result === "completed") {
 				markNpcDialogueSeen("ring-watcher", dialogue.id)
@@ -208,16 +165,35 @@ function createRingWatcherConversation(
 	return {
 		id: "hub-ring-watcher-conversation",
 		speakerActors: { "RANGE KEEPER": "ringWatcher" },
-		pauseGameplay: false,
+		pauseGameplay: true,
 		pauseVisualEffects: false,
 		steps: [
+			{
+				type: "parallel",
+				steps: [
+					{
+						type: "camera",
+						target: "ringWatcher",
+						zoom: WORLD_CAMERA_SCALE * CONVERSATION_ZOOM_MULTIPLIER,
+						duration: 0.4,
+						easing: "easeOutCubic",
+					},
+					{
+						type: "rotate",
+						actor: "ringWatcher",
+						target: "player",
+						duration: 0.3,
+						easing: "easeInOutCubic",
+					},
+				],
+			},
 			{
 				type: "dialogue",
 				lines: lines.slice(0, reactionIndex),
 				options: {
-					gameplay: "live",
+					gameplay: "paused",
 					advance: "manual",
-					input: "passthrough",
+					input: "capture",
 					overlayOpacity: 0,
 				},
 			},
@@ -240,11 +216,16 @@ function createRingWatcherConversation(
 				type: "dialogue",
 				lines: lines.slice(reactionIndex),
 				options: {
-					gameplay: "live",
+					gameplay: "paused",
 					advance: "manual",
-					input: "passthrough",
+					input: "capture",
 					overlayOpacity: 0,
 				},
+			},
+			{
+				type: "restoreCamera",
+				duration: 0.28,
+				easing: "easeInOutCubic",
 			},
 		],
 	}
@@ -252,10 +233,6 @@ function createRingWatcherConversation(
 
 function ringWatcherReaction(dialogueId: string): EmotionId {
 	switch (dialogueId) {
-		case "targeting-computer":
-			return "impressed"
-		case "targeting-computer-envy":
-			return "angry"
 		case "forge-calibration":
 			return "happy"
 		case "range-expansion":

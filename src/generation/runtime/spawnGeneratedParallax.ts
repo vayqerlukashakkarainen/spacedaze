@@ -2,6 +2,7 @@ import type { Vec2 } from "kaplay"
 import { ASTEROID_SPRITES } from "../../asteroidSprites"
 import type { HexGrid } from "../../grid/hexGrid"
 import { k } from "../../main"
+import { getReddishBackgroundTint } from "../../services/backgroundPaletteService"
 import { spawnBackgroundObject } from "../../spawn/spawnBackgroundObject"
 import { SeededRNG } from "../seededRng"
 
@@ -38,8 +39,7 @@ export function spawnGeneratedParallax(
 					? "bg_destroyed_planet"
 					: "bg_destroyed_planet_sliced",
 				scale: randomRange(rng, 0.2, 0.36),
-				shade: rng.nextInt(18, 31),
-				opacity: randomRange(rng, 0.48, 0.72),
+				shade: rng.nextInt(10, 23),
 				rotation: randomRange(rng, 0, 360),
 				rotationSpeed: randomRange(rng, -0.006, 0.006),
 			})
@@ -53,28 +53,9 @@ export function spawnGeneratedParallax(
 				parallaxLevel: randomRange(rng, 7, 12),
 				sprite: rng.choice([...FOLIAGE_SPRITES]),
 				scale: randomRange(rng, 0.25, 0.55),
-				shade: rng.nextInt(24, 47),
-				opacity: randomRange(rng, 0.38, 0.64),
+				shade: rng.nextInt(10, 31),
 				rotation: randomRange(rng, 0, 360),
 				rotationSpeed: randomRange(rng, -0.012, 0.012),
-			})
-			continue
-		}
-
-		if (roll < 0.5) {
-			const moon = rng.nextBool(0.38)
-			spawnDecoration({
-				targetPosition,
-				initialCameraPos,
-				parallaxLevel: randomRange(rng, 5, 10),
-				sprite: moon ? "bg_moon1" : "bg_building1",
-				scale: moon
-					? randomRange(rng, 1.1, 2.4)
-					: randomRange(rng, 0.7, 1.6),
-				shade: rng.nextInt(28, 55),
-				opacity: randomRange(rng, 0.4, 0.7),
-				rotation: randomRange(rng, 0, 360),
-				rotationSpeed: randomRange(rng, -0.018, 0.018),
 			})
 			continue
 		}
@@ -85,8 +66,7 @@ export function spawnGeneratedParallax(
 			parallaxLevel: randomRange(rng, 3, 8),
 			sprite: rng.choice([...ASTEROID_SPRITES]),
 			scale: randomRange(rng, 0.65, 2.1),
-			shade: rng.nextInt(38, 74),
-			opacity: randomRange(rng, 0.34, 0.68),
+			shade: rng.nextInt(14, 49),
 			rotation: randomRange(rng, 0, 360),
 			rotationSpeed: randomRange(rng, -0.025, 0.025),
 		})
@@ -100,7 +80,6 @@ interface DecorationProps {
 	sprite: string
 	scale: number
 	shade: number
-	opacity: number
 	rotation: number
 	rotationSpeed: number
 }
@@ -115,9 +94,8 @@ function spawnDecoration(props: DecorationProps) {
 		pos: spawnPosition,
 		sprite: props.sprite,
 		scale: props.scale,
-		color: k.rgb(props.shade, props.shade, props.shade),
+		color: getReddishBackgroundTint(props.shade),
 		parallaxLevel: props.parallaxLevel,
-		opacity: props.opacity,
 		rotation: props.rotation,
 		rotationSpeed: props.rotationSpeed,
 	})

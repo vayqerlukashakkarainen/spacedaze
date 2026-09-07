@@ -1,4 +1,4 @@
-import type { Color, GameObj, Vec2 } from "kaplay"
+import type { Color, GameObj, TextCompOpt, Vec2 } from "kaplay"
 import { k } from "../../main"
 import { UI_COLORS, UI_FONT_SIZES, type UiFontSize } from "./theme"
 
@@ -41,6 +41,7 @@ export interface ThemedTextProps {
 	color?: Color
 	lineHeight?: number
 	lineSpacing?: number
+	styles?: TextCompOpt["styles"]
 	z?: number
 }
 
@@ -60,6 +61,7 @@ export function addThemedText(parent: GameObj, props: ThemedTextProps) {
 			width: props.width,
 			align: props.align,
 			lineSpacing,
+			styles: props.styles,
 		}),
 		k.pos(props.pos ?? k.vec2(0, 0)),
 		k.color(color),
@@ -74,4 +76,11 @@ export function getThemedTextStyle(variant: UiTextVariant) {
 
 export function getScaledLineSpacing(size: number, lineHeight: number) {
 	return Math.max(1, Math.round(size * (lineHeight - 1)))
+}
+
+export function formatTieredTextValues(text: string) {
+	return text.replace(
+		/(^|[^\w[])([+-]?(?:\d+(?:\.\d+)?(?:%|x|px|\/s|s)?|one|two|three|four|five|six|seven|eight|nine|ten))(?=$|[^\w])/gi,
+		"$1[value]$2[/value]"
+	)
 }

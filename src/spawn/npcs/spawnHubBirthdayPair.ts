@@ -1,5 +1,5 @@
 import type { AudioPlay } from "kaplay"
-import { interactable } from "../../comp/interactable"
+import { interactable, INTERACTION_PRIORITY } from "../../comp/interactable"
 import { k, layers, subSoundVolume, WORLD_CAMERA_SCALE } from "../../main"
 import {
 	discoverDroid,
@@ -63,8 +63,8 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 	let encounterStarted = false
 	let jubileeAlive = true
 	let birthdaySong: AudioPlay | null = null
-	const gloom = spawnBirthdayDroid(gloomPos, "drone_medic", 90, startEncounter)
-	const jubilee = spawnBirthdayDroid(jubileePos, "drone_combat", -90, startEncounter)
+	const gloom = spawnBirthdayDroid(gloomPos, "hub_ship_gloom", 90, startEncounter)
+	const jubilee = spawnBirthdayDroid(jubileePos, "hub_ship_jubilee", -90, startEncounter)
 	const gloomPrompt = createNpcInteractionPrompt({
 		target: gloom,
 		offset: k.vec2(0, -42),
@@ -288,7 +288,7 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 
 function spawnPostBirthdayGloom(pos: ReturnType<typeof k.vec2>) {
 	let talking = false
-	const gloom = spawnBirthdayDroid(pos, "drone_medic", 90, startConversation)
+	const gloom = spawnBirthdayDroid(pos, "hub_ship_gloom", 90, startConversation)
 	const prompt = createNpcInteractionPrompt({
 		target: gloom,
 		offset: k.vec2(0, -42),
@@ -364,14 +364,18 @@ function spawnBirthdayDroid(
 ) {
 	return k.add([
 		k.pos(pos),
-		k.sprite(sprite),
+		k.sprite(sprite, { width: 32, height: 32 }),
 		k.anchor("center"),
 		k.rotate(angle),
 		k.scale(0.9),
 		k.color(k.WHITE),
 		k.layer(layers.game),
 		k.z(12),
-		interactable(INTERACT_RADIUS, onInteract),
+		interactable(
+			INTERACT_RADIUS,
+			onInteract,
+			INTERACTION_PRIORITY.dialogue
+		),
 		tags.props,
 		tags.gameLoop,
 	])

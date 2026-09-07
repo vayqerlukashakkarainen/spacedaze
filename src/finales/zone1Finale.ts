@@ -12,17 +12,22 @@ import { spawnSpawner } from "../spawn/spawnSpawner";
 import { audioService } from "../services/audioService";
 import type { FinaleDefinition } from "./finaleTypes";
 import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject";
+import { spawnBoss1 } from "../spawn/spawnBoss1";
 import { UI_FONT_SIZES } from "../ui/common";
 import {
 	getThreatSnapshot,
 	scaleThreatSpawnCount,
 } from "../services/threatService";
 import { getRunFinaleBattleZone } from "../services/runFinaleArenaService";
+import { getBossHealth } from "../services/bossRegistry";
+import { getCurrentRunFloor } from "../services/runDirectorService";
 
 let lvlData: any = {};
 let timer = 0;
 let spawned = 0;
 let toSpawn = 0;
+let finaleBossSpawned = false;
+let finaleBossDefeated = false;
 export const zone1Finale: FinaleDefinition = {
 	id: "level1Ending",
 	song: {
@@ -34,12 +39,20 @@ export const zone1Finale: FinaleDefinition = {
 	},
 	fallbackDurationSeconds: 190,
 	durationSeconds: () => audioService.getCurrentMusic()?.duration(),
+	isComplete: () => finaleBossDefeated,
+	objective: () => finaleBossSpawned
+		? "DESTROY THE CLAIMKEEPER"
+		: "SURVIVE",
 	reset: () => {
 		lvlData = {};
+		finaleBossSpawned = false;
+		finaleBossDefeated = false;
 		audioService.stopMusic();
 		endSong();
 	},
 	start: () => {
+		finaleBossSpawned = false;
+		finaleBossDefeated = false;
 		audioService.playMusic(zone1Finale.song.music, { volume: musicVolume });
 	},
 	events: [
@@ -91,19 +104,10 @@ export const zone1Finale: FinaleDefinition = {
 					pos: getPlayerViewportPos(k.vec2(100)),
 					sprite: "bg_moon1",
 					scale: 2,
-					opacity: 0.5,
 					rotation: 2,
-					color: k.rgb(50, 50, 50),
+					color: k.rgb(25, 25, 25),
 				});
 
-				spawnBackgroundObject({
-					parallaxLevel: 2,
-					pos: getPlayerViewportPos(k.vec2(100, 400)),
-					sprite: "bg_building1",
-					scale: 3,
-					rotation: 0,
-					color: k.rgb(50, 50, 50),
-				});
 			},
 			upd: (ld) => {},
 		},
@@ -424,6 +428,27 @@ export const zone1Finale: FinaleDefinition = {
 				}
 			},
 			upd: (ld) => {},
+		},
+		{
+			timeStamp: 130000,
+			begin: () => {
+				const depth = getCurrentRunFloor()?.depth ?? 1;
+				finaleBossSpawned = true;
+				k.flash(k.WHITE, 1);
+				k.shake(10);
+				spawnBoss1(
+					getFinaleViewportCenter(),
+					10 + depth * 2,
+					getBossHealth("federation-dreadnought", depth),
+					1,
+					{
+						onDefeated: () => {
+							finaleBossDefeated = true;
+						},
+					}
+				);
+			},
+			upd: () => {},
 		},
 	],
 };

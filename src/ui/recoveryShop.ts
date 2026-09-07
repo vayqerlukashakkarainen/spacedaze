@@ -213,7 +213,11 @@ function renderRecoveryShop(animate = true) {
 			}),
 			k.pos(0, 112),
 			k.anchor("center"),
-			k.color(!lockReason && getScore() >= offer.price ? k.WHITE : k.RED),
+			k.color(...(
+				!lockReason && getScore() >= offer.price
+					? UI_COLORS.accent
+					: UI_COLORS.danger
+			)),
 		])
 
 		card.onHover(() => {

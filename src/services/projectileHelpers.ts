@@ -8,6 +8,9 @@ import { getEquippedWeapon } from "./weaponService";
 import { spawnFlash } from "../spawn/spawnFlash";
 import { getAbilityTierValues } from "./abilityTierService";
 
+const ROCKET_ACQUIRE_DELAY = 0.2;
+const ROCKET_TURN_SPEED = 0.065;
+
 // Basic Blaster
 export function spawnBasicBlaster(
 	pos: Vec2,
@@ -42,6 +45,8 @@ export interface PlayerBlasterShotOptions {
 	damageMultiplier?: number
 	speedMultiplier?: number
 	playFireSound?: boolean
+	isFullyCharged?: boolean
+	wigglePhase?: number
 }
 
 // Player Blaster with all modifiers
@@ -59,15 +64,28 @@ export function spawnPlayerBlaster(
 	const impactDamage = player.blasterDmg *
 		weapon.damageMultiplier *
 		(shotOptions.damageMultiplier ?? 1);
+	const projectileTint = weapon.projectileTint
+		? k.rgb(...weapon.projectileTint)
+		: undefined;
+	const isFullyChargedWeapon =
+		weapon.charge !== undefined && shotOptions.isFullyCharged === true;
+	const isFullyChargedRailLance =
+		weapon.id === "railLance" && isFullyChargedWeapon;
 	const config: ProjectileConfig = {
 		pos,
 		dir: k.Vec2.fromAngle(rot + spreadAngle - 90),
 		rotation: rot + spreadAngle,
-		sprite: "bullet1",
-		tint: weapon.projectileTint
-			? k.rgb(...weapon.projectileTint)
-			: undefined,
-		visualScale: weapon.projectileScale,
+		sprite: weapon.projectileSprite ?? "bullet1",
+		tint: projectileTint,
+		effectTint:
+			weapon.splash || isFullyChargedWeapon ? projectileTint : undefined,
+		flashLikeThruster: weapon.projectileFlash,
+		flashMinOpacity: weapon.projectileFlashMinOpacity,
+		visualWobble: weapon.projectileWobble,
+		visualScale: isFullyChargedWeapon
+			? (weapon.projectileScale ?? 1) * 1.5
+			: weapon.projectileScale,
+		explosionDelay: weapon.explosionDelay,
 		speed: BULLET_SPEED,
 		speedMultiplier:
 			player.blasterSpeedMultiplier *
@@ -95,9 +113,26 @@ export function spawnPlayerBlaster(
 		knockback: weapon.knockback
 			? { strength: weapon.knockback }
 			: undefined,
+		bounce: weapon.bounce ? { ...weapon.bounce } : undefined,
+		wiggle: weapon.pattern?.wiggle
+			? {
+				amplitude: weapon.pattern.wiggle.amplitude,
+				frequency: weapon.pattern.wiggle.frequency,
+				phase: shotOptions.wigglePhase ?? 0,
+			}
+			: undefined,
+		trail: isFullyChargedRailLance
+			? {
+				emitterType: "boost",
+				offset: 8,
+				particleCount: 2,
+			}
+			: undefined,
 		fireSound: shotOptions.playFireSound === false
 			? undefined
 			: weapon.fireSound ?? "shoot1",
+		fireSoundVolume: weapon.fireSoundVolume,
+		fireSoundDetune: weapon.fireSoundDetune,
 	};
 	if (weapon.piercing) {
 		config.piercing = { ...weapon.piercing };
@@ -109,7 +144,13 @@ export function spawnPlayerBlaster(
 		};
 	}
 	applyPlayerProjectileModifiers(config, true);
-	spawnFlash(pos, 3);
+	spawnFlash(
+		pos,
+		isFullyChargedWeapon ? 6 : 3,
+		weapon.projectileFlash || isFullyChargedWeapon
+			? projectileTint
+			: undefined
+	);
 
 	return spawnProjectile(config);
 }
@@ -135,9 +176,9 @@ export function spawnPrimaryLinkedRocket(pos: Vec2, dir: Vec2, rot: number) {
 		},
 		seek: {
 			enabled: true,
-			acquireDelay: 0.2,
+			acquireDelay: ROCKET_ACQUIRE_DELAY,
 			seekDistance: player.rocketSeekDistance,
-			turnSpeed: 0.04,
+			turnSpeed: ROCKET_TURN_SPEED,
 			targetTags: [tags.enemy],
 		},
 		trail: {
@@ -232,9 +273,9 @@ export function spawnHomingRocket(
 		seek: canSeek
 			? {
 					enabled: true,
-					acquireDelay: 0.5,
+					acquireDelay: ROCKET_ACQUIRE_DELAY,
 					seekDistance: 200,
-					turnSpeed: 0.04,
+					turnSpeed: ROCKET_TURN_SPEED,
 					targetTags: [tags.enemy],
 				}
 			: undefined,
@@ -283,10 +324,15 @@ function applyPlayerProjectileModifiers(
 	}
 
 	if (player.projectileBounceCount > 0) {
+		const builtInBounceCount = config.bounce?.maxBounces ?? 0;
+		const builtInDamageRetention = config.bounce?.damageRetention ?? 0.7;
 		config.bounce = {
-			maxBounces: player.projectileBounceCount,
-			speedRetention: 1,
-			damageRetention: player.projectileBounceDamageRetention,
+			maxBounces: builtInBounceCount + player.projectileBounceCount,
+			speedRetention: config.bounce?.speedRetention ?? 1,
+			damageRetention: Math.max(
+				builtInDamageRetention,
+				player.projectileBounceDamageRetention
+			),
 			stripPlayerModifiers: true,
 			inheritPlayerModifiers:
 				player.ricochetInheritsModifiers !== undefined,
@@ -514,9 +560,9 @@ export function spawnPlayerRocket(pos: Vec2, dir: Vec2, rot: number) {
 		},
 		seek: {
 			enabled: true,
-			acquireDelay: 0.5,
+			acquireDelay: ROCKET_ACQUIRE_DELAY,
 			seekDistance: player.rocketSeekDistance,
-			turnSpeed: 0.04,
+			turnSpeed: ROCKET_TURN_SPEED,
 			targetTags: [tags.enemy],
 		},
 		trail: {

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="720" viewBox="0 0 720 720">
+	<rect width="720" height="720" fill="#05080d"/>
+	<rect x="20" y="20" width="680" height="680" fill="none" stroke="#55ffff" stroke-width="2"/>
+	<g fill="#111a24" stroke="#263646" stroke-width="1">
+		<rect x="40" y="40" width="200" height="200"/><rect x="260" y="40" width="200" height="200"/><rect x="480" y="40" width="200" height="200"/>
+		<rect x="40" y="260" width="200" height="200"/><rect x="260" y="260" width="200" height="200"/><rect x="480" y="260" width="200" height="200"/>
+		<rect x="40" y="480" width="200" height="200"/><rect x="260" y="480" width="200" height="200"/><rect x="480" y="480" width="200" height="200"/>
+	</g>
+	<g font-family="monospace" font-size="18" font-weight="700" text-anchor="middle" fill="#55ffff">
+		<text x="140" y="67">NORTH-WEST</text><text x="360" y="67">NORTH</text><text x="580" y="67">NORTH-EAST</text>
+		<text x="140" y="287">WEST</text><text x="580" y="287">EAST</text>
+		<text x="140" y="507">SOUTH-WEST</text><text x="360" y="507">SOUTH</text><text x="580" y="507">SOUTH-EAST</text>
+	</g>
+	<g image-rendering="pixelated" style="image-rendering:crisp-edges">
+		<image x="68" y="78" width="144" height="144" href="player-ship-8dir/north-west.png"/>
+		<image x="288" y="78" width="144" height="144" href="player-ship-8dir/north.png"/>
+		<image x="508" y="78" width="144" height="144" href="player-ship-8dir/north-east.png"/>
+		<image x="68" y="298" width="144" height="144" href="player-ship-8dir/west.png"/>
+		<image x="508" y="298" width="144" height="144" href="player-ship-8dir/east.png"/>
+		<image x="68" y="518" width="144" height="144" href="player-ship-8dir/south-west.png"/>
+		<image x="288" y="518" width="144" height="144" href="player-ship-8dir/south.png"/>
+		<image x="508" y="518" width="144" height="144" href="player-ship-8dir/south-east.png"/>
+	</g>
+	<g font-family="monospace" text-anchor="middle">
+		<text x="360" y="338" fill="#ffffff" font-size="26" font-weight="700">PLAYER SHIP</text>
+		<text x="360" y="372" fill="#8ca0b3" font-size="17">PIXEL LAB • 24×24 • 8 DIRECTIONS</text>
+		<text x="360" y="405" fill="#8ca0b3" font-size="15">NATIVE SPRITES SHOWN AT 6×</text>
+	</g>
+</svg>

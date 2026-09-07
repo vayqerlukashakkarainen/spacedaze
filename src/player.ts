@@ -32,7 +32,6 @@ interface Ship {
 
 	blasterLvl: number | undefined;
 	blasterParallel: number | undefined;
-	mouseAim: number | undefined;
 	rocketsLvl: number | undefined;
 
 	rocketImpactDmg: number;
@@ -132,7 +131,7 @@ interface Session {
 	rerollTokens: number;
 }
 
-export const PLAYER_SCALE = 1.2;
+export const PLAYER_SCALE = 1;
 
 export function getPlayerMaxHealth() {
 	return player.glassReactor !== undefined
@@ -198,7 +197,6 @@ export const player: Ship = {
 	blasterDmgMultiplier: 1,
 	blasterLvl: undefined,
 	blasterParallel: undefined,
-	mouseAim: undefined,
 	rocketsLvl: undefined,
 	nrOfRockets: 3,
 	rocketShards: 0,
@@ -292,7 +290,6 @@ export const player: Ship = {
 export function loadPlayer() {
 	player.blasterLvl = getToolUpgradeLvlValue("blaster");
 	player.blasterParallel = getToolUpgradeLvlValue("blasterParallel");
-	player.mouseAim = getToolUpgradeLvlValue("mouseAim");
 	player.blasterDmgMultiplier = getToolUpgradeLvlValue("blasterDmg") ?? 1;
 	player.blasterSpeedMultiplier = getToolUpgradeLvlValue("blasterSpeed") ?? 1;
 

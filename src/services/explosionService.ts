@@ -14,6 +14,7 @@ export interface ExplosionOptions {
 	pos: Vec2
 	radius: number
 	damage: number
+	visualColor?: Color
 	visualScale?: number
 	visualIntensity?: number
 	visualParticleCount?: number
@@ -66,6 +67,7 @@ export function createExplosion(options: ExplosionOptions) {
 		{
 			ringIntensity: context.visualIntensity,
 			particleCount: context.visualParticleCount,
+			color: context.visualColor,
 		}
 	)
 	applyPlayerExplosionPulse(context)

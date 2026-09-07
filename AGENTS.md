@@ -9,6 +9,12 @@ SpaceDaze is a 1-bit space shooter where the player controls a ship with their m
 - `npm run preview` - Preview production build
 - No test suite configured
 
+## Generated Sprite Orientation
+
+- All generated ship, enemy, and droid sprites must face north (up): nose, cockpit forward direction, weapons, or working claws toward the top; engines and exhaust toward the bottom.
+- Specify north-facing orientation in every generation prompt and visually verify the result. Apply this convention to generated source files, atlas entries, and previews, not only runtime rotation.
+- Preserve this default orientation for future generated directional assets unless the user explicitly requests another direction or a directional animation set.
+
 ## Code Style
 
 ### Language & Types

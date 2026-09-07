@@ -458,7 +458,7 @@ export function rollCrateRewardChoices(
 	const missedZones = Math.max(0, 3 - Math.floor(successfulHits))
 	const failures = Math.max(0, Math.floor(failedAttempts)) + missedZones
 	const quality = k.clamp(3 - failures, 0, 3)
-	const choiceCount = failures === 0 ? 3 : failures <= 2 ? 2 : 1
+	const choiceCount = getChestRewardChoiceCount(failures)
 	const rewards: Reward[] = []
 
 	for (let index = 0; index < choiceCount; index++) {
@@ -498,12 +498,13 @@ export function rollWeaponChestRewardChoices(
 	const missedZones = Math.max(0, 3 - Math.floor(successfulHits))
 	const failures = Math.max(0, Math.floor(failedAttempts)) + missedZones
 	const quality = k.clamp(3 - failures, 0, 3)
+	const choiceCount = getChestRewardChoiceCount(failures)
 	const rewards: Reward[] = []
 	const available = getRewardDefinitions("crate").filter(
 		(definition) => definition.abilityId !== undefined
 	)
 
-	for (let index = 0; index < 1; index++) {
+	for (let index = 0; index < choiceCount; index++) {
 		let candidates = available.filter(
 			(definition) =>
 				!excludedRewardIds.includes(definition.id) &&
@@ -534,6 +535,10 @@ export function rollWeaponChestRewardChoices(
 	}
 
 	return createCrateRewardResult(rewards, failures, quality)
+}
+
+function getChestRewardChoiceCount(failures: number) {
+	return failures === 0 ? 3 : failures <= 2 ? 2 : 1
 }
 
 function createCrateRewardResult(

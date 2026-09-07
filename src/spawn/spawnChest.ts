@@ -21,6 +21,8 @@ import { spawnCurrencyBurst } from "./spawnCurrencyBurst";
 import { playRequirementErrorSound } from "../services/uiSoundService";
 
 const CHEST_SCALE = 0.75;
+const CHEST_AURA_RADIUS = 20;
+const CHEST_RING_RADIUS = 25;
 
 interface ChestOptions {
 	rewardType?: ChestRewardType;
@@ -39,6 +41,10 @@ export function spawnChest(
 	let opened = false;
 	const rewardType = options.rewardType ?? "salvage";
 	const weaponChest = rewardType === "weapon";
+	const chestSprite = weaponChest ? "chest_weapon_world" : "chest_salvage_world";
+	const openedChestSprite = weaponChest
+		? "chest_weapon_open_world"
+		: "chest_salvage_open_world";
 	const ghost = options.ghostCost !== undefined;
 	const requiresPurchase = ghost || options.purchaseCost !== undefined;
 	let purchased = !requiresPurchase;
@@ -54,7 +60,7 @@ export function spawnChest(
 		: weaponChest ? "WEAPON CACHE" : "SALVAGE CHEST";
 	const chest = spawnBuilding({
 		pos,
-		sprite: "crate1",
+		sprite: chestSprite,
 		interactRadius: 60,
 		scale: CHEST_SCALE,
 		interactPromptOffset: k.vec2(0, -78),
@@ -69,6 +75,7 @@ export function spawnChest(
 					action: weaponChest ? "BUY CACHE" : "BUY CHEST",
 					detailLeft: `COST ${getPurchaseCost()} SCRAP`,
 					detailRight: `${getScore()} AVAILABLE`,
+					requirementsMet: getScore() >= getPurchaseCost(),
 				}
 			: weaponChest
 				? {
@@ -114,20 +121,19 @@ export function spawnChest(
 		setNextChestRewardType(rewardType);
 		starsEmitter.emitter.position = chest.pos.clone();
 		starsEmitter.emit(32);
-		k.destroy(chest);
+		chest.use(k.sprite(openedChestSprite));
+		chest.opacity = 0.72;
+		chest.isInRange = false;
+		chest.setInteractRadius(0);
+		chest.setOnInteract(() => {});
+		if (aura.exists()) k.destroy(aura);
+		if (auraRing.exists()) k.destroy(auraRing);
+		if (sparkles.exists()) k.destroy(sparkles);
 		options.onOpened?.();
 		changeGameState(GameState.ChestOpening);
 	}
-	if (weaponChest) {
-		chest.add([
-			k.sprite("weapon_standard_blaster", { width: 18, height: 18 }),
-			k.pos(0, 0),
-			k.anchor("center"),
-			k.z(2),
-		]);
-	}
 	const aura = chest.add([
-		k.circle(14),
+		k.circle(CHEST_AURA_RADIUS),
 		k.anchor("center"),
 		k.color(k.WHITE),
 		k.opacity(0.08),
@@ -135,7 +141,7 @@ export function spawnChest(
 		k.layer(layers.gameEffects),
 	]);
 	const auraRing = chest.add([
-		k.circle(17, { fill: false }),
+		k.circle(CHEST_RING_RADIUS, { fill: false }),
 		k.anchor("center"),
 		k.opacity(0.3),
 		k.outline(1, k.WHITE),
@@ -143,7 +149,7 @@ export function spawnChest(
 		k.z(-1),
 	]);
 
-	chest.add([
+	const sparkles = chest.add([
 		k.pos(),
 		k.z(-1),
 		k.particles(
@@ -169,6 +175,7 @@ export function spawnChest(
 	]);
 
 	registerBatchedEntityUpdate("world", chest, () => {
+		if (opened) return;
 		const pulse = k.wave(0.92, 1.08, k.time() * 2.5);
 		aura.scale = k.vec2(pulse);
 		auraRing.scale = k.vec2(k.wave(0.96, 1.12, k.time() * 2));

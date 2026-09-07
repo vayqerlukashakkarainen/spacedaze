@@ -7,13 +7,16 @@ import {
 	createUiPanel,
 	createUiSectionHeader,
 	createUiSurface,
+	showUiConfirmationDialog,
 	UI_COLORS,
 } from "./common"
+import type { UiConfirmationDialogController } from "./common"
 import { createUiVolumeControls } from "./volumeControls"
 import {
 	playShopMenuCloseSound,
 	playShopMenuOpenSound,
 } from "../services/shopMenuSoundService"
+import { uiState } from "./uiState"
 
 interface PauseMenuActions {
 	onResume: () => void
@@ -29,6 +32,7 @@ const COMMAND_LEFT = 16
 const COMMAND_WIDTH = 248
 const AUDIO_LEFT = 276
 const AUDIO_WIDTH = 328
+let confirmationDialog: UiConfirmationDialogController | undefined
 
 export function showPauseMenu({
 	onResume,
@@ -36,6 +40,7 @@ export function showPauseMenu({
 	onQuit,
 }: PauseMenuActions) {
 	if (k.get(tags.pauseMenu).length > 0) return
+	uiState.pauseMenuOpen = true
 	playShopMenuOpenSound()
 	const scale = Math.min(
 		1,
@@ -119,6 +124,28 @@ function addSessionCommands(
 	parent: GameObj,
 	actions: PauseMenuActions
 ) {
+	const showConfirmation = (
+		title: string,
+		message: string,
+		confirmText: string,
+		cancelText: string,
+		onConfirm: () => void
+	) => {
+		if (confirmationDialog?.isOpen()) return
+		confirmationDialog = showUiConfirmationDialog({
+			title,
+			message,
+			confirmText,
+			cancelText,
+			onConfirm: () => {
+				confirmationDialog = undefined
+				onConfirm()
+			},
+			onCancel: () => {
+				confirmationDialog = undefined
+			},
+		})
+	}
 	const buttonLeft = COMMAND_LEFT + 12
 	const buttonWidth = COMMAND_WIDTH - 24
 	const buttonHeight = 42
@@ -146,14 +173,26 @@ function addSessionCommands(
 
 	addCommand("RESUME", ">", actions.onResume, true)
 	if (actions.onExitRun) {
-		addCommand("EXIT RUN", "RETURN TO HUB", actions.onExitRun)
+		addCommand("QUIT RUN", "", () => showConfirmation(
+			"QUIT CURRENT RUN?",
+			"ALL CARRIED DEBRIS AND CURRENT EXPEDITION PROGRESS WILL BE LOST. RETURN TO THE HUB?",
+			"QUIT RUN",
+			"KEEP FLYING",
+			actions.onExitRun!
+		))
 	}
-	addCommand("QUIT", "MAIN MENU", actions.onQuit)
+	addCommand("QUIT", "", () => showConfirmation(
+		"QUIT TO MAIN MENU?",
+		"LEAVE THE CURRENT SESSION AND RETURN TO THE MAIN MENU? SAVED PROGRESS WILL BE KEPT.",
+		"QUIT",
+		"STAY",
+		actions.onQuit
+	))
 
 	addThemedText(parent, {
 		pos: k.vec2(COMMAND_LEFT + 12, CONTENT_TOP + 249),
 		text: actions.onExitRun
-			? "EXIT RUN ABANDONS CURRENT EXPEDITION"
+			? "QUIT RUN ABANDONS CURRENT EXPEDITION"
 			: "HUB SESSION ACTIVE",
 		variant: actions.onExitRun ? "muted" : "caption",
 		width: COMMAND_WIDTH - 24,
@@ -161,6 +200,9 @@ function addSessionCommands(
 }
 
 export function hidePauseMenu() {
+	uiState.pauseMenuOpen = false
+	confirmationDialog?.close()
+	confirmationDialog = undefined
 	if (k.get(tags.pauseMenu).length === 0) return
 	playShopMenuCloseSound()
 	k.destroyAll(tags.pauseMenu)

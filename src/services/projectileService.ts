@@ -11,9 +11,13 @@ import { timescale } from "../comp/timescale";
 import { pickUnitInDistance, projectiles } from "../game";
 import { tags } from "../tags";
 import { applyPlayerStatusEffect } from "./playerStatusEffectService";
-import { spawnFlash } from "../spawn/spawnFlash";
+import {
+	spawnDelayedExplosionPulse,
+	spawnFlash,
+} from "../spawn/spawnFlash";
 import { spawnChainProjectile } from "../spawn/spawnLink";
 import {
+	boostTrailEmitter,
 	debreeRocketEmitter,
 	dustTrailEmitter,
 	sparkEmitter,
@@ -80,10 +84,19 @@ import {
 	findSpatialNearby,
 	querySpatialNearby,
 } from "./runtimeSpatialIndexService";
+import { getShipThrusterFlash } from "../comp/shipThruster";
 
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
 const PLAYER_PROJECTILE_SCALE = 0.7;
+const KNOCKBACK_PUSH_DURATION = 0.16;
+const KNOCKBACK_FULL_STEER_STRENGTH = 60;
 let projectileUpdateController: GameObj | undefined;
+
+interface KnockbackImpulse {
+	direction: Vec2;
+	distance: number;
+	elapsed: number;
+}
 
 interface ChainLightningRuntime extends ChainModifier {
 	chainedTargets: Set<number>;
@@ -111,6 +124,15 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 			config.tint ??
 				(config.tags.includes(tags.enemy) ? k.rgb(255, 150, 150) : k.WHITE)
 		),
+		...(config.visualWobble !== undefined
+			? [
+				k.shader("ringDistortion", () => ({
+					u_time: k.time(),
+					u_intensity: config.visualWobble,
+				})),
+			]
+			: []),
+		...(config.flashLikeThruster ? [k.opacity(1)] : []),
 		k.scale(projectileScale),
 		{
 			speed: finalSpeed,
@@ -161,7 +183,8 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	// Play fire sound
 	if (config.fireSound) {
 		audioService.playPositionalSound(config.fireSound, proj.pos, {
-			volume: mainSoundVolume,
+			volume: mainSoundVolume * (config.fireSoundVolume ?? 1),
+			detune: config.fireSoundDetune,
 		});
 	}
 
@@ -185,7 +208,11 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 
 		// Flash effect
 		if (!proj.suppressDestroyFlash) {
-			spawnFlash(proj.pos, 5, proj.didCrit ? k.RED : k.WHITE);
+			spawnFlash(
+				proj.pos,
+				5,
+				proj.didCrit ? k.RED : config.effectTint ?? k.WHITE
+			);
 		}
 
 		// OnDestroy effects
@@ -237,6 +264,11 @@ function updateProjectile(proj: GameObj) {
 	const config = proj.projectileConfig as ProjectileConfig;
 	const previousPos = proj.pos.clone();
 	proj.lifetime += k.dt() * proj.getTimescale();
+	if (config.flashLikeThruster) {
+		proj.opacity = getShipThrusterFlash(k.time())
+			? 1
+			: config.flashMinOpacity ?? 0;
+	}
 	if (
 		proj.isDeployedMine &&
 		!proj.mineArmed &&
@@ -679,6 +711,9 @@ function updateTrail(proj: GameObj) {
 	switch (proj.trail.type) {
 		case "trail":
 			emitter = trailEmitter;
+			break;
+		case "boost":
+			emitter = boostTrailEmitter;
 			break;
 		case "spark":
 			emitter = sparkEmitter;
@@ -1447,16 +1482,23 @@ export function applyProjectileDamage(
 		projectile.splashDamage !== undefined &&
 		projectile.splashRadius !== undefined
 	) {
-		const explosion = createProjectileExplosion(projectile, {
+		const explosionOptions = {
 			pos: projectile.pos,
 			radius: projectile.splashRadius,
 			damage: projectile.splashDamage,
 			damageFalloff: projectile.splashFalloff ?? 0,
 			falloffDistance: projectile.splashFalloffDist ?? 0,
-		});
-		directTargetChainedByExplosion = explosion.hits.some(
-			(hit) => hit.target.id === target.id
-		);
+		};
+		const explosionDelay = projectile.projectileConfig?.explosionDelay ?? 0;
+		if (explosionDelay > 0) {
+			scheduleProjectileExplosion(projectile, explosionOptions, explosionDelay);
+			directTargetChainedByExplosion = target.exists();
+		} else {
+			const explosion = createProjectileExplosion(projectile, explosionOptions);
+			directTargetChainedByExplosion = explosion.hits.some(
+				(hit) => hit.target.id === target.id
+			);
+		}
 	}
 
 	// Handle bounce (takes priority over piercing)
@@ -1472,6 +1514,13 @@ export function applyProjectileDamage(
 		projectile.piercesRemaining !== undefined &&
 		projectile.piercesRemaining > 0
 	) {
+		spawnFlash(
+			projectile.pos,
+			5,
+			projectile.didCrit
+				? k.RED
+				: projectile.projectileConfig?.effectTint ?? k.WHITE
+		);
 		projectile.hitTargets.add(target.id);
 		projectile.piercesRemaining--;
 		projectile.impactDamage *= projectile.pierceReduction;
@@ -1492,10 +1541,15 @@ export function applyProjectileDamage(
 		);
 	}
 
-	// Apply knockback
-	if (projectile.knockbackStrength !== undefined && target.vel) {
-		const dir = projectile.pos.sub(target.pos).unit();
-		target.vel = target.vel.add(dir.scale(projectile.knockbackStrength));
+	if (
+		projectile.knockbackStrength !== undefined &&
+		(target.is(tags.enemy) || target.is(tags.player))
+	) {
+		const impactOffset = target.pos.sub(projectile.pos);
+		const direction = projectile.dir.len() > 0.001
+			? projectile.dir.unit()
+			: impactOffset.unit();
+		applyKnockbackImpulse(target, direction, projectile.knockbackStrength);
 	}
 
 	stripPlayerModifiersAfterBounce(projectile);
@@ -1503,14 +1557,141 @@ export function applyProjectileDamage(
 	return shouldDestroy;
 }
 
+function applyKnockbackImpulse(
+	target: GameObj,
+	direction: Vec2,
+	strength: number
+) {
+	if (!target.exists() || strength <= 0 || direction.len() <= 0.001) return;
+	const pushDirection = direction.unit();
+	const steerAmount = k.clamp(
+		strength / KNOCKBACK_FULL_STEER_STRENGTH,
+		0,
+		1
+	);
+	steerObjectDirection(target, pushDirection, steerAmount);
+
+	const impulse: KnockbackImpulse = {
+		direction: pushDirection,
+		distance: strength,
+		elapsed: 0,
+	};
+	const impulses = target.knockbackImpulses as KnockbackImpulse[] | undefined;
+	if (impulses) {
+		impulses.push(impulse);
+		return;
+	}
+
+	target.knockbackImpulses = [impulse];
+	const controller = target.onUpdate(() => {
+		if (!target.exists()) return;
+		const activeImpulses = target.knockbackImpulses as
+			| KnockbackImpulse[]
+			| undefined;
+		if (!activeImpulses || activeImpulses.length === 0) {
+			controller.cancel();
+			delete target.knockbackImpulses;
+			return;
+		}
+
+		const frameDuration = k.dt();
+		if (frameDuration <= 0) return;
+		const timescaleMultiplier = typeof target.getTimescale === "function"
+			? target.getTimescale()
+			: 1;
+		const impulseDelta = k.vec2(0, 0);
+		for (let index = activeImpulses.length - 1; index >= 0; index--) {
+			const activeImpulse = activeImpulses[index];
+			const previousProgress = k.clamp(
+				activeImpulse.elapsed / KNOCKBACK_PUSH_DURATION,
+				0,
+				1
+			);
+			activeImpulse.elapsed += frameDuration * timescaleMultiplier;
+			const progress = k.clamp(
+				activeImpulse.elapsed / KNOCKBACK_PUSH_DURATION,
+				0,
+				1
+			);
+			const previousEase = 1 - Math.pow(1 - previousProgress, 3);
+			const ease = 1 - Math.pow(1 - progress, 3);
+			impulseDelta.x += activeImpulse.direction.x *
+				activeImpulse.distance * (ease - previousEase);
+			impulseDelta.y += activeImpulse.direction.y *
+				activeImpulse.distance * (ease - previousEase);
+			if (progress >= 1) activeImpulses.splice(index, 1);
+		}
+
+		if (impulseDelta.len() > 0.001) {
+			target.move(impulseDelta.scale(1 / frameDuration));
+		}
+	});
+}
+
+function steerObjectDirection(
+	target: GameObj,
+	pushDirection: Vec2,
+	steerAmount: number
+) {
+	if (target.vel && typeof target.vel.len === "function") {
+		target.vel = blendDirection(target.vel, pushDirection, steerAmount);
+	}
+	if (
+		target.moveDirection &&
+		typeof target.moveDirection.len === "function"
+	) {
+		target.moveDirection = blendDirection(
+			target.moveDirection,
+			pushDirection,
+			steerAmount
+		);
+	}
+}
+
+function blendDirection(current: Vec2, target: Vec2, amount: number) {
+	const currentDirection = current.len() > 0.001 ? current.unit() : target;
+	const currentAngle = currentDirection.angle();
+	const targetAngle = target.angle();
+	const angleDelta = ((targetAngle - currentAngle + 540) % 360) - 180;
+	return k.Vec2.fromAngle(currentAngle + angleDelta * amount);
+}
+
 function createProjectileExplosion(
 	projectile: GameObj,
 	options: Omit<ExplosionOptions, "onResolved">
 ) {
+	const config = projectile.projectileConfig as ProjectileConfig;
 	return createExplosion({
 		...options,
+		visualColor: options.visualColor ?? config.effectTint,
 		onResolved: (explosion) => {
 			startExplosionChainLightning(explosion, projectile);
+		},
+	});
+}
+
+function scheduleProjectileExplosion(
+	projectile: GameObj,
+	options: Omit<ExplosionOptions, "onResolved">,
+	delay: number
+) {
+	const config = projectile.projectileConfig as ProjectileConfig;
+	const explosionPos = options.pos.clone();
+	const visualColor = options.visualColor ?? config.effectTint ?? k.WHITE;
+	spawnDelayedExplosionPulse({
+		pos: explosionPos,
+		size: options.radius,
+		duration: delay,
+		color: visualColor,
+		onComplete: () => {
+			createExplosion({
+				...options,
+				pos: explosionPos,
+				visualColor,
+				onResolved: (explosion) => {
+					startExplosionChainLightning(explosion, projectile);
+				},
+			});
 		},
 	});
 }
