@@ -1,9 +1,45 @@
 import type { GameObj, Vec2 } from "kaplay";
 import { k } from "../main";
+import { spawnSwarmEnemy } from "../spawn/spawnSwarm";
 import { tags } from "../tags";
 import { spawnProjectile } from "./projectileService";
 
-const STRESS_PROJECTILE_LIFETIME = 12;
+const STRESS_PROJECTILE_LIFETIME = 60;
+
+export function spawnEnemyStressTest(
+	count: number,
+	origin: Vec2,
+	paused: boolean
+) {
+	const removed = clearEnemyStressTest();
+	for (let index = 0; index < count; index++) {
+		const angle = index * 137.5;
+		const radius = 150 + (index % 20) * 18;
+		const enemy = spawnSwarmEnemy(
+			origin.add(k.Vec2.fromAngle(angle).scale(radius)),
+			2,
+			{
+				disableThreatScaling: true,
+				persistOffscreen: true,
+				tags: [tags.stressEnemy],
+			}
+		);
+		enemy.paused = paused;
+	}
+	return { spawned: count, removed };
+}
+
+export function clearEnemyStressTest() {
+	const enemies = k.get(tags.stressEnemy) as GameObj[];
+	for (const enemy of enemies) {
+		if (enemy.exists()) k.destroy(enemy);
+	}
+	return enemies.length;
+}
+
+export function countStressEnemies() {
+	return k.get(tags.stressEnemy).length;
+}
 
 export function spawnProjectileStressTest(
 	count: number,
@@ -22,7 +58,7 @@ export function spawnProjectileStressTest(
 			rotation: angle + (clockwise ? 180 : 0),
 			sprite: "bullet1",
 			speed: k.rand(25, 55),
-			tags: [tags.blaster, tags.stressProjectile],
+			tags: [tags.blaster, tags.friendly, tags.stressProjectile],
 			impact: { damage: 0 },
 			lifespan: { duration: STRESS_PROJECTILE_LIFETIME },
 			curve: {

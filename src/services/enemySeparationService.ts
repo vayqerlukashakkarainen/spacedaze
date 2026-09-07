@@ -3,7 +3,10 @@ import { k } from "../main"
 import { tags } from "../tags"
 import { setPerformanceCounter } from "./frameProfilerService"
 import type { RunFrameContext } from "./runLoopService"
-import { forEachSpatialNearby } from "./runtimeSpatialIndexService"
+import {
+	forEachSpatialNearby,
+	getRuntimeEnemyUnits,
+} from "./runtimeSpatialIndexService"
 
 const SEPARATION_SEARCH_RADIUS = 72
 const MAX_CANDIDATES_PER_ENEMY = 16
@@ -23,14 +26,28 @@ const overlapCounts: number[] = []
 let visitedPairs = new Uint32Array(0)
 let visitedPairGeneration = 0
 const separationQuery = { allTags: [tags.enemy, tags.unit] }
+const SEPARATION_INTERVAL = 1 / 30
+const CROWDED_SEPARATION_INTERVAL = 1 / 10
+const CROWDED_ENEMY_THRESHOLD = 250
+let separationElapsed = 0
 
 export function updateEnemySeparation(context: RunFrameContext) {
-	if (!context.gameplayActive || context.paused || context.dt <= 0) return
-	const enemies = k.get(tags.unit) as GameObj[]
+	if (!context.gameplayActive || context.paused || context.dt <= 0) {
+		separationElapsed = 0
+		return
+	}
+	const enemies = getRuntimeEnemyUnits() as GameObj[]
+	const interval = enemies.length >= CROWDED_ENEMY_THRESHOLD
+		? CROWDED_SEPARATION_INTERVAL
+		: SEPARATION_INTERVAL
+	separationElapsed += context.dt
+	if (separationElapsed < interval) return
+	const separationDelta = Math.min(separationElapsed, interval * 2)
+	separationElapsed = 0
 	prepareAccumulators(enemies)
 	let correctedEnemies = 0
 	let neighborChecks = 0
-	const blend = 1 - Math.exp(-SEPARATION_RESPONSE * context.dt)
+	const blend = 1 - Math.exp(-SEPARATION_RESPONSE * separationDelta)
 
 	for (let firstIndex = 0; firstIndex < enemies.length; firstIndex++) {
 		const first = enemies[firstIndex]

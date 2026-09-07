@@ -7,7 +7,11 @@ import { SpatialHash } from "./spatialHash"
 const SPATIAL_CELL_SIZE = 96
 const LEGACY_POSITION_PADDING = 48
 const spatialHash = new SpatialHash<GameObj & { pos: Vec2 }>(SPATIAL_CELL_SIZE)
+const projectileSpatialHash = new SpatialHash<GameObj & { pos: Vec2 }>(SPATIAL_CELL_SIZE)
+const enemyUnitSpatialHash = new SpatialHash<GameObj & { pos: Vec2 }>(SPATIAL_CELL_SIZE)
 const spatialObjects: Array<GameObj & { pos: Vec2 }> = []
+const projectileObjects: Array<GameObj & { pos: Vec2 }> = []
+const enemyUnitObjects: Array<GameObj & { pos: Vec2 }> = []
 const spatialObjectIndices = new Map<number, number>()
 let registryInitialized = false
 
@@ -19,9 +23,24 @@ export interface SpatialQueryOptions {
 
 export function rebuildRuntimeSpatialIndex() {
 	ensureSpatialObjectRegistry()
+	projectileObjects.length = 0
+	enemyUnitObjects.length = 0
+	for (let index = 0; index < spatialObjects.length; index++) {
+		const obj = spatialObjects[index]
+		if (obj.is(tags.projectile)) projectileObjects.push(obj)
+		if (obj.is(tags.enemy) && obj.is(tags.unit)) enemyUnitObjects.push(obj)
+	}
 	spatialHash.rebuild(spatialObjects)
+	projectileSpatialHash.rebuild(projectileObjects)
+	enemyUnitSpatialHash.rebuild(enemyUnitObjects)
 	setPerformanceCounter("spatialObjects", spatialHash.size)
 	setPerformanceCounter("spatialCells", spatialHash.activeCellCount)
+	setPerformanceCounter("spatialProjectiles", projectileSpatialHash.size)
+	setPerformanceCounter("spatialEnemyUnits", enemyUnitSpatialHash.size)
+}
+
+export function getRuntimeEnemyUnits(): readonly GameObj[] {
+	return enemyUnitObjects
 }
 
 export function forEachSpatialNearby(
@@ -31,7 +50,7 @@ export function forEachSpatialNearby(
 	visitor: (obj: GameObj) => boolean | void
 ) {
 	const radiusSquared = radius * radius
-	return spatialHash.forEachNearby(
+	return selectSpatialHash(options).forEachNearby(
 		pos,
 		radius,
 		(obj) => {
@@ -44,6 +63,15 @@ export function forEachSpatialNearby(
 		},
 		LEGACY_POSITION_PADDING
 	)
+}
+
+function selectSpatialHash(options: SpatialQueryOptions) {
+	if (options.allTags?.includes(tags.projectile)) return projectileSpatialHash
+	if (
+		options.allTags?.includes(tags.enemy) &&
+		options.allTags.includes(tags.unit)
+	) return enemyUnitSpatialHash
+	return spatialHash
 }
 
 export function findSpatialNearby(

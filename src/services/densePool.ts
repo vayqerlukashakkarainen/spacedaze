@@ -93,6 +93,10 @@ export class DensePool<T> {
 		const index = this.indices.get(id)
 		if (index === undefined) return
 		const lastIndex = this.denseItems.length - 1
+		if (index < 0 || index > lastIndex) {
+			this.indices.delete(id)
+			return
+		}
 		const lastItem = this.denseItems[lastIndex]
 		if (index !== lastIndex) {
 			this.denseItems[index] = lastItem

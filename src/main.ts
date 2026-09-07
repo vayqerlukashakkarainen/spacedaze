@@ -145,8 +145,11 @@ import {
 	setFrameProfilerEnabled,
 } from "./services/frameProfilerService";
 import {
+	clearEnemyStressTest,
 	clearProjectileStressTest,
+	countStressEnemies,
 	countStressProjectiles,
+	spawnEnemyStressTest,
 	spawnProjectileStressTest,
 } from "./services/performanceStressService";
 import {
@@ -1043,42 +1046,63 @@ function registerDebugCommands() {
 
 	commandService.register(
 		"stress",
-		"stress projectiles [1-5000] | stress clear - Run a projectile load test",
+		"stress projectiles|enemies|combined [count] - Run deterministic load tests",
 		(args) => {
 			const mode = args[0]?.toLowerCase() ?? "projectiles";
 			if (mode === "clear") {
-				const removed = clearProjectileStressTest();
-				return `Removed ${removed} stress projectiles`;
+				const projectiles = clearProjectileStressTest();
+				const enemies = clearEnemyStressTest();
+				return `Removed ${projectiles} stress projectiles and ${enemies} stress enemies`;
 			}
 			if (mode === "status") {
-				return `${countStressProjectiles()} stress projectiles active`;
+				return `${countStressProjectiles()} stress projectiles and ${countStressEnemies()} stress enemies active`;
 			}
-			if (mode !== "projectiles") {
-				return "Usage: stress projectiles [1-5000] | stress clear";
+			if (!["projectiles", "enemies", "combined"].includes(mode)) {
+				return "Usage: stress projectiles|enemies|combined [count] [projectile-count] | stress clear";
 			}
 			if (!playerObj || !playerObj.exists()) return "No active player";
 
-			const count = Number(args[1] ?? 1000);
-			if (!Number.isInteger(count) || count < 1 || count > 5000) {
-				return "Projectile count must be an integer between 1 and 5000";
+			const count = Number(args[1] ?? (mode === "enemies" ? 500 : 1000));
+			const projectileCount = Number(args[2] ?? count);
+			if (
+				!Number.isInteger(count) || count < 1 || count > 5000 ||
+				!Number.isInteger(projectileCount) ||
+				projectileCount < 1 || projectileCount > 5000
+			) {
+				return "Stress counts must be integers between 1 and 5000";
 			}
 
 			resetFrameProfiler();
 			setDebugVisible(true);
-			const result = spawnProjectileStressTest(
-				count,
-				playerObj.pos.clone(),
-				commandConsoleOpen()
-			);
+			const paused = commandConsoleOpen();
+			const origin = playerObj.pos.clone();
+			const enemyResult = mode === "enemies" || mode === "combined"
+				? spawnEnemyStressTest(count, origin, paused)
+				: undefined;
+			const projectileResult = mode === "projectiles" || mode === "combined"
+				? spawnProjectileStressTest(
+					mode === "combined" ? projectileCount : count,
+					origin,
+					paused
+				)
+				: undefined;
 			if (commandConsoleOpen()) {
 				for (const obj of k.get<GameObj>(tags.gameLoop)) {
 					obj.paused = true;
 				}
 			}
-			const replacement = result.removed > 0
-				? ` Replaced ${result.removed} from the previous test.`
+			const descriptions = [
+				enemyResult ? `${enemyResult.spawned} enemies` : undefined,
+				projectileResult
+					? `${projectileResult.spawned} projectiles for ${projectileResult.lifetime}s`
+					: undefined,
+			].filter(Boolean);
+			const replaced = (enemyResult?.removed ?? 0) +
+				(projectileResult?.removed ?? 0);
+			const replacement = replaced > 0
+				? ` Replaced ${replaced} prior stress objects.`
 				: "";
-			return `Spawned ${result.spawned} stress projectiles for ${result.lifetime}s.${replacement}\nClose the console to begin; use stress clear to stop early.`;
+			return `Spawned ${descriptions.join(" and ")}.${replacement}\nClose the console to begin; use stress clear to stop early.`;
 		}
 	);
 

@@ -39,6 +39,7 @@ export const tags = {
 	rocket: "rocket",
 	projectile: "projectile",
 	stressProjectile: "stressProjectile",
+	stressEnemy: "stressEnemy",
 	debree: "debree",
 	debreeDeposit: "debreeDeposit",
 	debreeDepositUi: "debreeDepositUi",

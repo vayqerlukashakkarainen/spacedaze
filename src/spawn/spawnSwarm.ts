@@ -1,8 +1,8 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { timescale } from "../comp/timescale"
-import { addShipThruster, getShipThrusterFlash } from "../comp/shipThruster"
+import { getShipThrusterFlash } from "../comp/shipThruster"
 import { checkProjectileIntersection, playerObj } from "../game"
-import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
+import { k, layers, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
 import { audioService } from "../services/audioService"
 import { applyDamage } from "../services/damageService"
 import { createCadencedSystem } from "../services/cadencedSystemService"
@@ -23,6 +23,7 @@ import {
 import { tags } from "../tags"
 import { randomExplosion } from "../util"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
+import { DensePool } from "../services/densePool"
 
 type SwarmPhase = "gather" | "stage" | "charge" | "regroup"
 
@@ -40,6 +41,8 @@ const SWARM_HIVEMIND_BASE_SCALE = 0.72
 const SWARM_TURN_RESPONSE = 4.5
 const SWARM_CHARGE_TURN_RESPONSE = 9
 const HIVEMIND_TURN_RESPONSE = 3.5
+const SWARM_THRUSTER_REFERENCE_SPEED = 130
+const CROWDED_SWARM_THRESHOLD = 250
 
 interface SwarmDecisionEntry {
 	owner: GameObj
@@ -61,8 +64,21 @@ const swarmDecisionSystem = createCadencedSystem<SwarmDecisionEntry>({
 
 interface SwarmContinuousEntry {
 	owner: GameObj
-	thruster: ReturnType<typeof addShipThruster>
+	visual: SwarmVisualEntry
 }
+
+interface SwarmCollisionEntry {
+	owner: GameObj
+}
+
+interface SwarmVisualEntry {
+	owner: GameObj
+	thrusterLength: number
+}
+
+const swarmVisuals = new DensePool<SwarmVisualEntry>((entry) => entry.owner.id)
+let swarmVisualController: GameObj | undefined
+let crowdedCollisionCycle = 0
 
 const swarmContinuousSystem = createContinuousSystem<SwarmContinuousEntry>({
 	id: "swarm",
@@ -75,12 +91,8 @@ const swarmContinuousSystem = createContinuousSystem<SwarmContinuousEntry>({
 			if (!enemy.exists() || enemy.paused) continue
 			const command = enemy.swarmCommand as SwarmCommand | undefined
 			if (enemy.desiredDirection) {
-				const navigationTarget = command?.target ?? playerObj.pos
-				const navigationDirection = getEnemyNavigationDirection(
-					enemy,
-					enemy.desiredDirection,
-					navigationTarget
-				)
+				const navigationDirection = enemy.navigationDirection ??
+					enemy.desiredDirection
 				const turnResponse = command?.charging
 					? SWARM_CHARGE_TURN_RESPONSE
 					: SWARM_TURN_RESPONSE
@@ -104,17 +116,40 @@ const swarmContinuousSystem = createContinuousSystem<SwarmContinuousEntry>({
 				)
 			}
 
-			entry.thruster.updateShared(
-				enemy.desiredDirection ? enemy.desiredSpeed * enemy.getTimescale() : 0,
-				flashVisible
-			)
+			const speed = enemy.desiredDirection
+				? enemy.desiredSpeed * enemy.getTimescale()
+				: 0
+			const speedRatio = k.clamp(speed / SWARM_THRUSTER_REFERENCE_SPEED, 0, 3)
+			entry.visual.thrusterLength = speed > 4 && flashVisible
+				? Math.round(k.clamp(2 + 5 * speedRatio, 2, 18))
+				: 0
+		}
+	},
+})
+
+const swarmCollisionSystem = createCadencedSystem<SwarmCollisionEntry>({
+	id: "swarm-collisions",
+	rate: 30,
+	updateBucket(entries) {
+		const crowded = swarmVisuals.size >= CROWDED_SWARM_THRESHOLD
+		const crowdedPhase = Math.floor(crowdedCollisionCycle++ / 2) % 2
+		for (let index = 0; index < entries.length; index++) {
+			const entry = entries[index]
+			if (!entry) continue
+			const enemy = entry.owner
+			if (!enemy.exists() || enemy.paused) continue
+			if (crowded && Math.floor(enemy.id / 2) % 2 !== crowdedPhase) continue
 			checkProjectileIntersection(
 				enemy.pos,
-				enemy.hb,
+				enemy.hb + 6,
 				tags.friendly,
-				(projectile) => onEnemyHit(enemy, projectile)
+				(projectile) => {
+					if (projectile.is(tags.stressProjectile)) return
+					onEnemyHit(enemy, projectile)
+				}
 			)
 			if (
+				!enemy.is(tags.stressEnemy) &&
 				!isPlayerDamageInvulnerable() &&
 				enemy.pos.dist(playerObj.pos) < enemy.hb + 8
 			) {
@@ -171,6 +206,7 @@ export function spawnSwarmEnemy(
 			threatRank: ENEMY_THREAT_RANK.swarmDrone,
 			moveDirection: initialDirection,
 			desiredDirection: initialDirection,
+			navigationDirection: initialDirection,
 			desiredSpeed: 48 * profile.speedMultiplier,
 			baseScale: spriteScale,
 			hiveMind,
@@ -185,13 +221,15 @@ export function spawnSwarmEnemy(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
+	const visual = registerSwarmVisual(enemy)
 
 	registerHitAnimation(enemy)
 	swarmDecisionSystem.add({ owner: enemy, speedMultiplier: profile.speedMultiplier })
 	swarmContinuousSystem.add({
 		owner: enemy,
-		thruster: addShipThruster(enemy, enemy.height / 2 - 2),
+		visual,
 	})
+	swarmCollisionSystem.add({ owner: enemy })
 
 	enemy.onDeath(() => {
 		enemyOnDeath(
@@ -213,6 +251,100 @@ export function spawnSwarmEnemy(
 	return enemy
 }
 
+function registerSwarmVisual(enemy: GameObj) {
+	ensureSwarmVisualController()
+	const visual: SwarmVisualEntry = {
+		owner: enemy,
+		thrusterLength: 0,
+	}
+	swarmVisuals.add(visual)
+	enemy.hidden = true
+	enemy.onDestroy(() => swarmVisuals.remove(enemy.id))
+	return visual
+}
+
+function ensureSwarmVisualController() {
+	if (swarmVisualController?.exists()) return
+	const controller = k.add([
+		k.pos(0, 0),
+		k.layer(layers.game),
+		{
+			draw() {
+				const camera = k.getCamPos()
+				const cameraScale = k.getCamScale()
+				const horizontalPadding = 32 / cameraScale.x
+				const verticalPadding = 32 / cameraScale.y
+				const halfWidth = k.width() / (2 * cameraScale.x) + horizontalPadding
+				const halfHeight = k.height() / (2 * cameraScale.y) + verticalPadding
+				const minX = camera.x - halfWidth
+				const maxX = camera.x + halfWidth
+				const minY = camera.y - halfHeight
+				const maxY = camera.y + halfHeight
+				swarmVisuals.withItems((visuals) => {
+					for (let index = 0; index < visuals.length; index++) {
+						drawSwarmVisual(visuals[index], minX, maxX, minY, maxY)
+					}
+				})
+			},
+		},
+	])
+	swarmVisualController = controller
+	controller.onDestroy(() => {
+		if (swarmVisualController?.id === controller.id) {
+			swarmVisualController = undefined
+		}
+		swarmVisuals.clear()
+	})
+}
+
+function drawSwarmVisual(
+	visual: SwarmVisualEntry,
+	minX: number,
+	maxX: number,
+	minY: number,
+	maxY: number
+) {
+	const enemy = visual.owner
+	if (!enemy.exists()) return
+	if (
+		enemy.pos.x < minX ||
+		enemy.pos.x > maxX ||
+		enemy.pos.y < minY ||
+		enemy.pos.y > maxY
+	) return
+	k.pushTransform()
+	k.pushTranslate(enemy.pos)
+	k.pushRotate(enemy.angle)
+	k.pushScale(enemy.scale)
+	k.drawSprite({
+		sprite: "enemy_swarm_drone",
+		anchor: "center",
+		color: enemy.color,
+		opacity: enemy.opacity ?? 1,
+	})
+	k.drawRect({
+		pos: k.vec2(0, -3 / enemy.scale.y),
+		width: 2 / enemy.scale.x,
+		height: 2 / enemy.scale.y,
+		anchor: "center",
+		color: k.WHITE,
+		opacity: enemy.opacity ?? 1,
+	})
+	if (visual.thrusterLength > 0) {
+		drawSwarmThruster(enemy.height / 2 - 2, visual.thrusterLength)
+	}
+	k.popTransform()
+}
+
+function drawSwarmThruster(nozzleY: number, length: number) {
+	k.drawRect({
+		pos: k.vec2(-1, nozzleY),
+		width: 2,
+		height: length,
+		color: k.WHITE,
+	})
+}
+
 function updateSwarmDecision(enemy: GameObj, speedMultiplier: number) {
 	const hive = enemy.hiveMind as GameObj | undefined
 	const hasHive = hive?.exists() && hive.tags.includes(tags.hiveMind)
@@ -224,8 +356,17 @@ function updateSwarmDecision(enemy: GameObj, speedMultiplier: number) {
 	const command = enemy.swarmCommand as SwarmCommand | undefined
 	const target = hasHive && command ? command.target : playerObj.pos
 	const toTarget = target.sub(enemy.pos)
-	if (toTarget.len() <= 1) return
+	if (toTarget.len() <= 1) {
+		enemy.desiredDirection = k.vec2(0)
+		enemy.navigationDirection = k.vec2(0)
+		return
+	}
 	enemy.desiredDirection = toTarget.unit()
+	enemy.navigationDirection = getEnemyNavigationDirection(
+		enemy,
+		enemy.desiredDirection,
+		target
+	)
 	enemy.desiredSpeed = hasHive && command
 		? command.speed
 		: 48 * speedMultiplier
