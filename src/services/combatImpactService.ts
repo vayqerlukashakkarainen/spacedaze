@@ -160,12 +160,18 @@ function spawnImpactSpark(
 function applyEnemyHitTint(target: GameObj, tint: Color) {
 	if (!target.color) return
 	const token = (target.combatHitTintToken ?? 0) + 1
-	const original = k.rgb(target.color.r, target.color.g, target.color.b)
+	const original = target.combatHitBaseColor ?? k.rgb(
+		target.color.r,
+		target.color.g,
+		target.color.b
+	)
+	target.combatHitBaseColor = original
 	target.combatHitTintToken = token
 	target.color = tint
 	k.wait(HIT_TINT_DURATION, () => {
 		if (!target.exists() || target.combatHitTintToken !== token) return
 		target.color = original
+		delete target.combatHitBaseColor
 	})
 }
 
