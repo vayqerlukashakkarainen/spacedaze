@@ -817,6 +817,14 @@ export async function init(k: KAPLAYCtx) {
 		"impact_driver_arc_projectile",
 		"sprites/projectiles/impact-driver-arc.png"
 	)
+	await k.loadSprite(
+		"shrine_capture",
+		"sprites/shrines/capture-shrine.png"
+	)
+	await k.loadSprite(
+		"shrine_damage",
+		"sprites/shrines/damage-shrine.png"
+	)
 
 	await k.loadSprite("boss1_body", "sprites/boss/boss1/boss1_body.png");
 	await k.loadSprite(

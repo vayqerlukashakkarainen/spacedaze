@@ -24,7 +24,7 @@ export function spawnDamageShrine(props: DamageShrineProps) {
 	let activated = false;
 	const shrine = k.add([
 		k.pos(props.pos),
-		k.sprite("crate1"), // Using crate as placeholder sprite
+		k.sprite("shrine_damage"),
 		k.anchor("center"),
 		k.scale(1.5),
 		k.opacity(1),

@@ -26,7 +26,7 @@ interface ShrineProps {
 export function spawnShrine(props: ShrineProps) {
 	const shrine = k.add([
 		k.pos(props.pos),
-		k.sprite("crate1"), // Using crate as placeholder sprite
+		k.sprite("shrine_capture"),
 		k.anchor("center"),
 		k.layer(layers.buildings),
 		k.scale(SHRINE_VISUAL_SCALE),
