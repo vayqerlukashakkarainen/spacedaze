@@ -500,7 +500,10 @@ function drawRoomMapNode(
 	center: Vec2,
 	room: RoomFloorRoom
 ) {
-	const color = getRoomFloorKindColor(room.kind)
+	const typeHidden = room.state === "discovered"
+	const color = typeHidden
+		? k.rgb(...UI_COLORS.muted)
+		: getRoomFloorKindColor(room.kind)
 	const corners = Array.from({ length: 6 }, (_, index) => {
 		const angle = Math.PI / 3 * index - Math.PI / 2
 		return k.vec2(
@@ -528,7 +531,11 @@ function drawRoomMapNode(
 		room.state === "active" ? k.WHITE : color,
 		room.state === "discovered" ? 0.8 : 1
 	)
-	context.fillText(getRoomFloorKindCode(room.kind), center.x, center.y + 1)
+	context.fillText(
+		typeHidden ? "?" : getRoomFloorKindCode(room.kind),
+		center.x,
+		center.y + 1
+	)
 }
 
 function drawRoomMapPlayerMarker(
@@ -1028,9 +1035,12 @@ function addRoomFloorSidebar(
 
 	rooms.forEach((room, index) => {
 		const yPos = 8 + index * rowHeight
+		const typeHidden = room.state === "discovered"
 		const color = room.state === "active"
 			? k.rgb(...UI_COLORS.accent)
-			: getRoomFloorKindColor(room.kind)
+			: typeHidden
+				? k.rgb(...UI_COLORS.muted)
+				: getRoomFloorKindColor(room.kind)
 		zoneScroll!.content.add([
 			k.rect(6, 32),
 			k.pos(7, yPos),
@@ -1039,7 +1049,9 @@ function addRoomFloorSidebar(
 		])
 		zoneScroll!.content.add([
 			k.text(
-				`${getRoomFloorKindCode(room.kind)}  ${getRoomFloorKindLabel(room.kind)}`,
+				typeHidden
+					? "?  UNKNOWN ROOM"
+					: `${getRoomFloorKindCode(room.kind)}  ${getRoomFloorKindLabel(room.kind)}`,
 				{
 					size: UI_FONT_SIZES.small,
 					font: "unscii",
