@@ -275,22 +275,6 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 				speed: 0.78,
 			},
 		})
-		void showDialogue([{
-			speaker: "RANGE KEEPER",
-			text: "STOP MOVING THE TARGET. YOU HAVE BECOME THE TARGET.",
-		}], {
-			channel: "comms",
-			gameplay: "live",
-			advance: "auto",
-			input: "passthrough",
-			autoAdvanceDelay: 1.15,
-			overlayOpacity: 0,
-			resolveSpeaker: () => watcher.exists()
-				? watcher
-				: hostileReplacement?.exists()
-					? hostileReplacement
-					: undefined,
-		})
 		k.wait(0.65, () => {
 			if (!watcher.exists()) return
 			const hostilePos = watcher.pos.clone()
@@ -300,6 +284,20 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 			showEmotion(hostileReplacement, "angry", {
 				duration: 1.95,
 				priority: "narrative",
+			})
+			void showDialogue([{
+				speaker: "RANGE KEEPER",
+				text: "STOP MOVING THE TARGET. YOU HAVE BECOME THE TARGET.",
+			}], {
+				channel: "comms",
+				gameplay: "live",
+				advance: "auto",
+				input: "passthrough",
+				autoAdvanceDelay: 1.15,
+				overlayOpacity: 0,
+				resolveSpeaker: () => hostileReplacement?.exists()
+					? hostileReplacement
+					: undefined,
 			})
 		})
 	}
