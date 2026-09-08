@@ -4,7 +4,10 @@ import { playerObj } from "../../game"
 import { k, layers, velocityScale, WORLD_CAMERA_SCALE } from "../../main"
 import { discoverDroid, getDroidDefinition } from "../../npcs/droidRegistry"
 import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
-import type { DialogueLine } from "../../services/dialogService"
+import {
+	showDialogue,
+	type DialogueLine,
+} from "../../services/dialogService"
 import type { EmotionId } from "../../services/emotionService"
 import { showEmotion } from "../../services/emotionService"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
@@ -119,6 +122,7 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 	let trackedTargetId: number | undefined
 	let previousTargetPos = trainingTarget.clone()
 	let turningHostile = false
+	let hostileReplacement: ReturnType<typeof spawnHostileRangeKeeper> | undefined
 	const watcher = k.add([
 		k.pos(startPos),
 		k.sprite("hub_ship_range_keeper", { width: 32, height: 32 }),
@@ -263,7 +267,7 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 		watcher.setInteractRadius(0)
 		prompt.update(false)
 		showEmotion(watcher, "angry", {
-			duration: 0.7,
+			duration: 2.6,
 			priority: "narrative",
 			sound: {
 				id: "ui_hover",
@@ -271,12 +275,32 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 				speed: 0.78,
 			},
 		})
+		void showDialogue([{
+			speaker: "RANGE KEEPER",
+			text: "STOP MOVING THE TARGET. YOU HAVE BECOME THE TARGET.",
+		}], {
+			channel: "comms",
+			gameplay: "live",
+			advance: "auto",
+			input: "passthrough",
+			autoAdvanceDelay: 1.15,
+			overlayOpacity: 0,
+			resolveSpeaker: () => watcher.exists()
+				? watcher
+				: hostileReplacement?.exists()
+					? hostileReplacement
+					: undefined,
+		})
 		k.wait(0.65, () => {
 			if (!watcher.exists()) return
 			const hostilePos = watcher.pos.clone()
 			const hostileAngle = watcher.angle
 			k.destroy(watcher)
-			spawnHostileRangeKeeper(hostilePos, hostileAngle)
+			hostileReplacement = spawnHostileRangeKeeper(hostilePos, hostileAngle)
+			showEmotion(hostileReplacement, "angry", {
+				duration: 1.95,
+				priority: "narrative",
+			})
 		})
 	}
 
