@@ -225,38 +225,44 @@ function renderRoom(
 	const tileScale = grid.config.hexSize / RUN_ROCK_TILE_SOURCE_RADIUS
 	const tileCenterOffsetY =
 		(RUN_ROCK_TILE_SOURCE_RADIUS - RUN_ROCK_TILE_ANCHOR_Y) * tileScale
-	k.add([
+	let staticRoomPicture: ReturnType<typeof k.endPicture> | undefined
+	const roomRenderer = k.add([
 		k.pos(0, 0),
 		k.layer(layers.game2),
 		{
 			draw() {
-				for (const corners of floorCells) {
-					k.drawPolygon({
-						pts: corners,
-						color: k.rgb(8, 20, 28),
-						outline: {
-							width: 1,
-							color: k.rgb(20, 52, 66),
-						},
-					})
+				if (!staticRoomPicture) {
+					k.beginPicture()
+					for (const corners of floorCells) {
+						k.drawPolygon({
+							pts: corners,
+							color: k.rgb(8, 20, 28),
+							outline: {
+								width: 1,
+								color: k.rgb(20, 52, 66),
+							},
+						})
+					}
+					for (const wall of walls) {
+						k.drawPolygon({
+							pts: wall.corners,
+							color: k.rgb(18, 34, 44),
+							outline: {
+								width: 1,
+								color: k.rgb(88, 108, 120),
+							},
+						})
+						k.drawSprite({
+							sprite: RUN_ROCK_TILE_SPRITE,
+							frame: wall.frame,
+							pos: wall.center.add(0, tileCenterOffsetY),
+							anchor: "center",
+							scale: k.vec2(tileScale),
+						})
+					}
+					staticRoomPicture = k.endPicture()
 				}
-				for (const wall of walls) {
-					k.drawPolygon({
-						pts: wall.corners,
-						color: k.rgb(18, 34, 44),
-						outline: {
-							width: 1,
-							color: k.rgb(88, 108, 120),
-						},
-					})
-					k.drawSprite({
-						sprite: RUN_ROCK_TILE_SPRITE,
-						frame: wall.frame,
-						pos: wall.center.add(0, tileCenterOffsetY),
-						anchor: "center",
-						scale: k.vec2(tileScale),
-					})
-				}
+				k.drawPicture(staticRoomPicture, {})
 				for (const door of template.doors) {
 					const center = grid.hexToScreen(door.coord)
 					const direction = grid.hexToScreen(door.insideCoord).sub(center).unit()
@@ -275,6 +281,7 @@ function renderRoom(
 		tags.runMap,
 		tags.gameLoop,
 	])
+	roomRenderer.onDestroy(() => staticRoomPicture?.free())
 }
 
 function spawnCombatRoomController(
