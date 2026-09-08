@@ -40,18 +40,19 @@ export function setupStatsWindow() {
 	// Use a different key to avoid conflict with pause
 	k.onKeyPress("i", () => {
 		if (commandService.isCapturingInput()) return;
-		if (uiState.modalOpen) return;
 		if (isStatsWindowOpen) {
 			closeStatsWindow();
-		} else {
-			openStatsWindow();
+			return;
 		}
+		if (uiState.modalOpen || uiState.pauseMenuOpen) return;
+		openStatsWindow();
 	});
 }
 
 function openStatsWindow() {
 	if (isStatsWindowOpen) return;
 	isStatsWindowOpen = true;
+	uiState.modalOpen = true;
 
 	const center = k.center();
 	const windowWidth = Math.min(820, k.width() - 40);
@@ -195,5 +196,6 @@ function formatNumber(value: number): string {
 function closeStatsWindow() {
 	if (!isStatsWindowOpen) return;
 	isStatsWindowOpen = false;
+	uiState.modalOpen = false;
 	k.destroyAll("statsWindow");
 }

@@ -75,6 +75,8 @@ import {
 	constrainToRunFinaleBattleZone,
 } from "./services/runFinaleArenaService";
 import { dialogCapturesInput } from "./services/dialogService";
+import { cutsceneActive } from "./services/cutsceneService";
+import { uiState } from "./ui/uiState";
 import {
 	beginActiveModuleActivation,
 	getActiveModuleCooldownRemaining,
@@ -914,12 +916,16 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		updatePlayerHealthBar(playerObj.hp);
 	});
 
-	const canFirePrimaryWeapon = () => {
-		if (dialogCapturesInput()) return;
-		if (isPointerOverUi()) return;
-		if (levelTransitionActive() || respawnTransitionActive) return;
-		return true;
-	};
+	const combatInputBlocked = () =>
+		dialogCapturesInput() ||
+		isPointerOverUi() ||
+		uiState.modalOpen ||
+		uiState.pauseMenuOpen ||
+		cutsceneActive() ||
+		k.get("chestUI").length > 0 ||
+		levelTransitionActive() ||
+		respawnTransitionActive;
+	const canFirePrimaryWeapon = () => !combatInputBlocked();
 
 	const fireWeaponVolley = (
 		weapon: WeaponDefinition,
@@ -928,11 +934,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		burstDamageMultiplier: number = 1
 	) => {
 		if (!playerObj.exists() || getEquippedWeapon().id !== weapon.id) return;
-		if (
-			dialogCapturesInput() ||
-			levelTransitionActive() ||
-			respawnTransitionActive
-		) return;
+		if (combatInputBlocked()) return;
 		const charge = weapon.charge;
 		const chargeDamageMultiplier = charge
 			? k.lerp(
@@ -1114,8 +1116,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	}));
 
 	inputControllers.push(k.onMousePress("right", () => {
-		if (dialogCapturesInput()) return;
-		if (levelTransitionActive() || respawnTransitionActive) return;
+		if (combatInputBlocked()) return;
 		if (!getEquippedActiveModule()) {
 			recordTelemetryAbilityFailure("secondary");
 			flashEmptySecondarySocket();
