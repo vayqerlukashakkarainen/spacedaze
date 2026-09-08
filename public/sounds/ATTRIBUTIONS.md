@@ -59,6 +59,16 @@
 - License: Creative Commons Zero 1.0
 - In-game asset: `hyperspeed-travel.mp3`
 
+## Phase Jump
+
+"Whoosh Pointer" by SoundReality
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-whoosh-pointer-243108/
+- License: Pixabay Content License
+- Original filename: `soundreality-whoosh-pointer-243108.mp3`
+- In-game asset: `phase-jump.wav`
+- Trimmed from the source recording and converted to mono WAV for responsive playback.
+
 ## Intro System Error
 
 "sounds a bit like 'error'" by Timbre

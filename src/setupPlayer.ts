@@ -2161,9 +2161,8 @@ function spawnPhaseJumpEffect(start: Vec2, end: Vec2, angle: number) {
 	}
 
 	k.shake(2);
-	audioService.playSound("swap_level", {
-		volume: 0.25,
-		detune: 500,
+	audioService.playSound("mobility_phase_jump", {
+		volume: mainSoundVolume * 0.65,
 	});
 }
 

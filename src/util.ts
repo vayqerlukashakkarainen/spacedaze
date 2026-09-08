@@ -596,6 +596,7 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound("crit1", "sounds/crit1.wav");
 	await k.loadSound("slowdown", "sounds/slowdown.wav");
 	await k.loadSound("going_fast", "sounds/going-fast.wav")
+	await k.loadSound("mobility_phase_jump", "sounds/phase-jump.wav")
 	await k.loadSound("swap_level", "sounds/swap_level.wav");
 	await k.loadSound(
 		"menu_spacejump_warp",
