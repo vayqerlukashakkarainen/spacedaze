@@ -13,6 +13,7 @@ interface ActiveModuleCarrierProps {
 	pos: Vec2
 	launchDirection: Vec2
 	targetPos: Vec2
+	target?: GameObj<PosComp>
 	payloadSprite: string
 	color: Color
 	onArrive: (pos: Vec2) => void
@@ -40,9 +41,13 @@ export function spawnActiveModuleCarrier(props: ActiveModuleCarrierProps) {
 	const launchDirection = props.launchDirection.len() > 0
 		? props.launchDirection.unit()
 		: k.vec2(0, -1)
-	const targetPos = props.targetPos.clone()
+	let targetPos = props.target?.exists()
+		? props.target.pos.clone()
+		: props.targetPos.clone()
 	const launchAngle = k.rad2deg(k.Vec2.toAngle(launchDirection)) + 90
-	const targetMarker = spawnCarrierTargetMarker(targetPos)
+	const targetMarker = props.target
+		? undefined
+		: spawnCarrierTargetMarker(targetPos)
 	const carrier = k.add([
 		k.pos(props.pos.clone()),
 		k.sprite("rocket1"),
@@ -62,7 +67,7 @@ export function spawnActiveModuleCarrier(props: ActiveModuleCarrierProps) {
 		tags.gameLoop,
 	])
 	carrier.onDestroy(() => {
-		if (targetMarker.exists()) k.destroy(targetMarker)
+		if (targetMarker?.exists()) k.destroy(targetMarker)
 	})
 
 	carrier.add([
@@ -82,6 +87,8 @@ export function spawnActiveModuleCarrier(props: ActiveModuleCarrierProps) {
 		const deltaTime = dt()
 		carrier.elapsed += deltaTime
 		carrier.trailElapsed += deltaTime
+		if (props.target?.exists()) targetPos = props.target.pos.clone()
+		if (targetMarker?.exists()) targetMarker.pos = targetPos.clone()
 
 		const toTarget = targetPos.sub(carrier.pos)
 		const targetDistance = toTarget.len()

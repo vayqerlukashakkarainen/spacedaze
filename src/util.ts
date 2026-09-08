@@ -582,6 +582,7 @@ export async function init(k: KAPLAYCtx) {
 		"active_module_carrier_launch",
 		"sounds/active-module-carrier-launch.ogg"
 	)
+	await k.loadSound("target_lock", "sounds/target-lock.wav")
 	await k.loadSound("fire_rocket1", "sounds/rocket_fire1.wav");
 
 	await k.loadSound("explosion1", "sounds/explosion1.wav");

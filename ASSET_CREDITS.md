@@ -26,6 +26,8 @@
 
 - **Socket wrench.wav** — Loinnats. Sourced from [Freesound](https://freesound.org/people/Loinnats/sounds/616628/) for Burt's repair sequence. Licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
 
+- **beep.mp3** — athenspublic. Published through [Pixabay](https://pixabay.com/sound-effects/technology-beep-104060/) and sourced from the original [Freesound upload](https://freesound.org/people/athenspublic/sounds/266753/) for target-lock feedback. Trimmed and licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
+
 - **Happy Birthday to You Upbeat** — SergeQuadrado. Preview sourced from [Freesound](https://freesound.org/people/SergeQuadrado/sounds/541178/) for the Gloom and Jubilee hub encounter. Licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/); replace or separately license before commercial distribution.
 
 - **Happy Birthday to You Upbeat** — SergeQuadrado. Preview sourced from [Freesound](https://freesound.org/people/SergeQuadrado/sounds/541178/) for the Gloom and Jubilee hub encounter. Licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/); replace or separately license before commercial distribution.

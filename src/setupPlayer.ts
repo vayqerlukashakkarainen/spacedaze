@@ -167,6 +167,9 @@ const playerDeceleration = 560;
 const cameraZoomLerpSpeed = 5;
 const strafeCameraZoomMultiplier = 1.1;
 const strafeCameraPointerWeight = 0.2;
+const strafeTargetQueryRadius = 72;
+const strafeTargetMinimumRadius = 14;
+const strafeTargetPadding = 5;
 const multiBlasterMountSpacing = 6;
 const weaponRecoilReturnSpeed = 20;
 const maxWeaponRecoilDistance = 8;
@@ -575,6 +578,19 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	let weaponRecoilOffset = 0;
 
 	const targetObj = k.add([k.pos(k.center()), k.z(1000), tags.gameLoop]);
+	let strafeTarget: GameObj<PosComp> | undefined
+	let strafeTargetMarker: GameObj | undefined
+	const setStrafeTarget = (nextTarget?: GameObj<PosComp>) => {
+		if (nextTarget?.id === strafeTarget?.id) return
+		if (strafeTargetMarker?.exists()) k.destroy(strafeTargetMarker)
+		strafeTarget = nextTarget
+		strafeTargetMarker = undefined
+		if (!nextTarget) return
+		strafeTargetMarker = spawnStrafeTargetMarker(nextTarget.pos)
+		audioService.playSound("target_lock", {
+			volume: mainSoundVolume * 0.7,
+		})
+	}
 	currentCameraPos = respawnTarget.clone();
 	currentCameraScale = WORLD_CAMERA_SCALE;
 	k.setCamPos(respawnTarget);
@@ -651,6 +667,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		stopOverclockSound()
 		stopLowHealthWarning()
 		stopPrimaryChargeSound();
+		setStrafeTarget()
 		if (weaponSwitchLabel.exists()) k.destroy(weaponSwitchLabel)
 		for (const controller of inputControllers) controller.cancel();
 	});
@@ -659,6 +676,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		syncLowHealthWarning()
 		// Clear before transition early returns so jumps never leave a stale flame.
 		if (levelTransitionActive() || arrivalTransitionActive || respawnTransitionActive) {
+			setStrafeTarget()
 			thruster.update(0, 0)
 			thruster.setColor(k.WHITE)
 			overclockWasActive = false
@@ -931,6 +949,19 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			isPhaseJumping || isRetroBursting || isGravitySlinging;
 		const driftModeActive =
 			!isMobilityMoving && k.isKeyDown("shift")
+		const pointerWorldPos = k.toWorld(k.mousePos())
+		setStrafeTarget(
+			driftModeActive && !combatInputBlocked()
+				? findHoveredStrafeTarget(pointerWorldPos, strafeTarget)
+				: undefined
+		)
+		if (strafeTarget?.exists() && strafeTargetMarker?.exists()) {
+			strafeTargetMarker.pos = strafeTarget.pos.clone()
+			strafeTargetMarker.angle += 90 * dt()
+			strafeTargetMarker.scale = k.vec2(
+				k.wave(0.9, 1.08, k.time() * 7)
+			)
+		}
 		const isInvulnerable =
 			isPhaseJumping || isGravitySlinging ||
 			k.time() < phaseJumpInvulnerableUntil;
@@ -941,7 +972,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			: normalCameraFollowSpeed;
 		const cameraTarget = driftModeActive
 			? playerObj.pos.lerp(
-				k.toWorld(k.mousePos()),
+				pointerWorldPos,
 				strafeCameraPointerWeight
 			)
 			: playerObj.pos
@@ -1306,7 +1337,8 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			spawnPrimaryLinkedRocket(
 				playerObj.pos.clone(),
 				k.Vec2.fromAngle(turretWorldAngle - 90),
-				turretWorldAngle
+				turretWorldAngle,
+				strafeTarget?.exists() ? strafeTarget : undefined
 			);
 		}
 
@@ -1473,7 +1505,12 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			return;
 		}
 		recordTelemetryAbilityUse("secondary", activeModule.id);
-		activateModule(activeModule.id, playerObj, turretWorldAngle);
+		activateModule(
+			activeModule.id,
+			playerObj,
+			turretWorldAngle,
+			strafeTarget?.exists() ? strafeTarget : undefined
+		);
 	}));
 
 	playerObj.onKeyPress("space", () => {
@@ -1903,14 +1940,65 @@ function consumeMobilityCharge() {
 	}
 }
 
+function findHoveredStrafeTarget(
+	pointerWorldPos: Vec2,
+	currentTarget?: GameObj<PosComp>
+) {
+	if (
+		currentTarget?.exists() &&
+		pointerIsOverTarget(pointerWorldPos, currentTarget)
+	) return currentTarget
+
+	let closestTarget: GameObj<PosComp> | undefined
+	let closestDistance = Number.POSITIVE_INFINITY
+	for (const candidate of querySpatialNearby(
+		pointerWorldPos,
+		strafeTargetQueryRadius,
+		{ allTags: [tags.enemy, tags.unit] }
+	)) {
+		if (!pointerIsOverTarget(pointerWorldPos, candidate)) continue
+		const distance = candidate.pos.dist(pointerWorldPos)
+		if (distance >= closestDistance) continue
+		closestTarget = candidate as GameObj<PosComp>
+		closestDistance = distance
+	}
+	return closestTarget
+}
+
+function pointerIsOverTarget(pointerWorldPos: Vec2, target: GameObj) {
+	const hitRadius = typeof target.hb === "number"
+		? target.hb
+		: 0
+	return target.pos.dist(pointerWorldPos) <=
+		Math.max(strafeTargetMinimumRadius, hitRadius) + strafeTargetPadding
+}
+
+function spawnStrafeTargetMarker(pos: Vec2) {
+	return k.add([
+		k.pos(pos.clone()),
+		k.sprite("crosshair_precision"),
+		k.anchor("center"),
+		k.rotate(0),
+		k.scale(1),
+		k.color(255, 70, 70),
+		k.opacity(0.95),
+		k.layer(layers.gameEffects),
+		k.z(24),
+		tags.props,
+		tags.gameLoop,
+	])
+}
+
 function activateModule(
 	moduleId: string,
 	playerObj: GameObj<PosComp>,
-	turretWorldAngle: number
+	turretWorldAngle: number,
+	preferredTarget?: GameObj<PosComp>
 ) {
 	const tier = getAbilityTierValues(moduleId as AbilityId);
 	const direction = k.Vec2.fromAngle(turretWorldAngle - 90);
-	const targetPos = k.toWorld(k.mousePos());
+	const lockedTarget = preferredTarget?.exists() ? preferredTarget : undefined
+	const targetPos = lockedTarget?.pos.clone() ?? k.toWorld(k.mousePos());
 	const playerFacing = k.Vec2.fromAngle(playerObj.angle - 90)
 	const launchTargetedPayload = (
 		payloadSprite: string,
@@ -1920,6 +2008,7 @@ function activateModule(
 		pos: playerObj.pos.add(playerFacing.scale(12)),
 		launchDirection: playerFacing,
 		targetPos,
+		target: lockedTarget,
 		payloadSprite,
 		color,
 		onArrive,
@@ -1934,7 +2023,8 @@ function activateModule(
 					spawnPlayerRocket(
 						playerObj.pos,
 						direction,
-						turretWorldAngle
+						turretWorldAngle,
+						lockedTarget
 					);
 				},
 				player.nrOfRockets + session.extraRockets

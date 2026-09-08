@@ -1,4 +1,4 @@
-import { Vec2 } from "kaplay";
+import type { GameObj, Vec2 } from "kaplay";
 import { BULLET_SPEED, k, ROCKET_SPEED } from "../main";
 import { tags } from "../tags";
 import { ProjectileConfig } from "../projectiles/projectileConfig";
@@ -214,7 +214,12 @@ function scaleRailLanceKnockback(maxStrength: number, chargeRatio: number) {
 	return maxStrength * multiplier;
 }
 
-export function spawnPrimaryLinkedRocket(pos: Vec2, dir: Vec2, rot: number) {
+export function spawnPrimaryLinkedRocket(
+	pos: Vec2,
+	dir: Vec2,
+	rot: number,
+	preferredTarget?: GameObj
+) {
 	const inheritedDamage = getPrimaryWeaponDamage();
 	const config: ProjectileConfig = {
 		pos,
@@ -254,7 +259,25 @@ export function spawnPrimaryLinkedRocket(pos: Vec2, dir: Vec2, rot: number) {
 	};
 	applyPlayerProjectileModifiers(config, false);
 
-	return spawnProjectile(config);
+	return applyPreferredRocketTarget(
+		spawnProjectile(config),
+		preferredTarget
+	);
+}
+
+function applyPreferredRocketTarget(
+	rocket: GameObj,
+	preferredTarget?: GameObj
+) {
+	if (!preferredTarget?.exists()) return rocket;
+	rocket.targetUnit = preferredTarget;
+	preferredTarget.onDestroy(() => {
+		if (
+			rocket.exists() &&
+			rocket.targetUnit?.id === preferredTarget.id
+		) rocket.targetUnit = null;
+	});
+	return rocket;
 }
 
 export function getPrimaryWeaponDamage() {
@@ -611,7 +634,12 @@ function getConfiguredProjectileDamage(config: ProjectileConfig) {
 }
 
 // Player Rocket with all player modifiers
-export function spawnPlayerRocket(pos: Vec2, dir: Vec2, rot: number) {
+export function spawnPlayerRocket(
+	pos: Vec2,
+	dir: Vec2,
+	rot: number,
+	preferredTarget?: GameObj
+) {
 	const tier = getAbilityTierValues("rocketPod");
 	const config: ProjectileConfig = {
 		pos,
@@ -673,7 +701,10 @@ export function spawnPlayerRocket(pos: Vec2, dir: Vec2, rot: number) {
 	};
 	applyPlayerProjectileModifiers(config, false);
 
-	return spawnProjectile(config);
+	return applyPreferredRocketTarget(
+		spawnProjectile(config),
+		preferredTarget
+	);
 }
 
 // Enemy Blaster
