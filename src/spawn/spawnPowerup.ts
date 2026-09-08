@@ -25,7 +25,10 @@ import {
 	type RewardTelemetrySource,
 } from "../services/runTelemetryService";
 import { interactable } from "../comp/interactable";
-import { createInteractionPrompt } from "../ui/common";
+import {
+	createInteractionPrompt,
+	createNpcInteractionPrompt,
+} from "../ui/common";
 import {
 	addLocalLight,
 	updateLocalLight,
@@ -110,6 +113,10 @@ interface RewardPickupOptions {
 	label?: string;
 	armWhenPlayerLeaves?: boolean;
 	interactionOnly?: boolean;
+	interactionRadius?: number;
+	interactionPromptStyle?: "detail" | "key";
+	compactAura?: boolean;
+	persistent?: boolean;
 	suppressAcquisition?: boolean;
 	applyEffect?: (reward: Reward, pos: Vec2) => boolean;
 	onCollected?: (reward: Reward) => void;
@@ -144,6 +151,7 @@ export function spawnRewardPickup(
 	let armed = !options.armWhenPlayerLeaves;
 	const feedback = RARITY_FEEDBACK[reward.rarity];
 	const rarityColor = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
+	const auraRadius = options.compactAura ? 18 : feedback.auraRadius;
 	const components: any[] = [
 		k.pos(pos),
 		k.sprite(reward.sprite, { width: 24, height: 24 }),
@@ -163,23 +171,28 @@ export function spawnRewardPickup(
 		tags.gameLoop,
 	];
 	if (options.interactionOnly) {
-		components.push(interactable(48, () => collectPowerup()));
+		components.push(interactable(
+			options.interactionRadius ?? 48,
+			() => collectPowerup()
+		));
 	}
 	const m = k.add(components);
 	const pickupBackdrop = m.add([
-		k.circle(feedback.auraRadius - 3),
+		k.circle(options.compactAura ? auraRadius : auraRadius - 3),
 		k.anchor("center"),
 		k.scale(1),
 		k.color(rarityColor),
-		k.opacity(feedback.auraOpacity * 0.65),
-		k.outline(2, rarityColor),
+		k.opacity(options.compactAura ? 0.16 : feedback.auraOpacity * 0.65),
+		k.outline(options.compactAura ? 1 : 2, rarityColor),
 		k.z(-1),
 		k.layer(layers.gameEffects),
 	]);
 
-	const auraRings = Array.from({ length: feedback.tier }, (_, index) =>
+	const auraRings = Array.from({
+		length: options.compactAura ? 0 : feedback.tier,
+	}, (_, index) =>
 		m.add([
-			k.circle(feedback.auraRadius + index * 5, { fill: false }),
+			k.circle(auraRadius + index * 5, { fill: false }),
 			k.scale(1),
 			k.anchor("center"),
 			k.opacity(feedback.auraOpacity / (index + 1)),
@@ -187,7 +200,7 @@ export function spawnRewardPickup(
 			k.layer(layers.gameEffects),
 		])
 	);
-	const interactionGlow = options.interactionOnly
+	const interactionGlow = options.interactionOnly && !options.compactAura
 		? addLocalLight(m, {
 			size: feedback.auraRadius * 2.2,
 			color: REWARD_RARITY_COLORS[reward.rarity],
@@ -202,7 +215,7 @@ export function spawnRewardPickup(
 			},
 		})
 		: undefined;
-	if (options.interactionOnly) {
+	if (options.interactionOnly && !options.compactAura) {
 		m.add([
 			k.pos(),
 			k.z(-1),
@@ -228,18 +241,23 @@ export function spawnRewardPickup(
 			),
 		]);
 	}
-	const interactionPrompt = options.interactionOnly
-		? createInteractionPrompt({
-			target: m,
-			offset: k.vec2(0, -48),
-			content: {
-				title: reward.name,
-				action: "EQUIP",
-				detailLeft: reward.abilitySlot ?? "EQUIPMENT",
-				detailRight: reward.rarity,
-			},
-		})
-		: undefined;
+	const interactionPrompt = !options.interactionOnly
+		? undefined
+		: options.interactionPromptStyle === "key"
+			? createNpcInteractionPrompt({
+				target: m,
+				offset: k.vec2(0, -34),
+			})
+			: createInteractionPrompt({
+				target: m,
+				offset: k.vec2(0, -48),
+				content: {
+					title: reward.name,
+					action: "EQUIP",
+					detailLeft: reward.abilitySlot ?? "EQUIPMENT",
+					detailRight: reward.rarity,
+				},
+			});
 
 	if (options.label) {
 		m.add([
@@ -268,11 +286,14 @@ export function spawnRewardPickup(
 			detune: feedback.soundDetune,
 		});
 		if (feedback.pickupShake > 0) k.shake(feedback.pickupShake);
-		k.destroy(m);
+		if (!options.persistent) k.destroy(m);
 		const applied = options.applyEffect
 			? options.applyEffect(reward, powerupPos)
 			: applyReward(reward, powerupPos);
-		if (!applied) return;
+		if (!applied) {
+			if (options.persistent) collected = false;
+			return;
+		}
 		if (options.suppressAcquisition) {
 			// Equipment swaps move an existing ability rather than granting it again.
 		} else if (reward.kind === "item" && reward.id === "rerollToken") {
@@ -289,6 +310,7 @@ export function spawnRewardPickup(
 			});
 		}
 		options.onCollected?.(reward);
+		if (options.persistent) collected = false;
 	};
 
 	registerBatchedEntityUpdate("world", m, () => {
@@ -297,13 +319,16 @@ export function spawnRewardPickup(
 		if (interactionGlow) updateLocalLight(interactionGlow);
 		if (!armed && dist > 40) armed = true;
 
+		const pulseAmount = options.compactAura ? 0.015 : feedback.pulseAmount;
 		const pulse = k.wave(
-			REWARD_PICKUP_SCALE * (1 - feedback.pulseAmount),
-			REWARD_PICKUP_SCALE * (1 + feedback.pulseAmount),
+			REWARD_PICKUP_SCALE * (1 - pulseAmount),
+			REWARD_PICKUP_SCALE * (1 + pulseAmount),
 			k.time() * feedback.pulseSpeed
 		);
 		m.scale = k.vec2(pulse);
-		pickupBackdrop.scale = k.vec2(k.wave(0.96, 1.04, k.time() * 2));
+		pickupBackdrop.scale = k.vec2(options.compactAura
+			? k.wave(0.98, 1.02, k.time() * 2)
+			: k.wave(0.96, 1.04, k.time() * 2));
 		for (let index = 0; index < auraRings.length; index++) {
 			const ringPulse = k.wave(
 				0.94,
@@ -339,4 +364,5 @@ export function spawnRewardPickup(
 			collectPowerup();
 		}
 	});
+	return m;
 }

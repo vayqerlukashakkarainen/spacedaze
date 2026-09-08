@@ -543,6 +543,10 @@ export async function init(k: KAPLAYCtx) {
 		"chest_weapon_ui",
 		"sprites/chests/weapon-chest-ui.png"
 	)
+	await k.loadSprite(
+		"hub_firing_range_control",
+		"sprites/hub/firing-range-control.png"
+	)
 	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
 
 	await k.loadSound("shoot1", "sounds/shoot1.wav");

@@ -45,7 +45,6 @@ import { starsEmitter } from "../particles";
 import { beginRunSession } from "../services/runDirectorService";
 import { getUnlockedWarpZones } from "../services/warpZoneService";
 import { ASTEROID_SPRITES } from "../asteroidSprites";
-import { spawnMeteorite } from "../spawn/spawnAsteroid";
 import { spawnDebreeValues } from "../spawn/spawnDebree";
 import { phaseJumpActive } from "../setupPlayer";
 import { tryBounceProjectile } from "../services/projectileService";
@@ -71,9 +70,11 @@ import { spawnHubBirthdayPair } from "../spawn/npcs/spawnHubBirthdayPair";
 import { spawnHubLampKeeper } from "../spawn/npcs/spawnHubLampKeeper";
 import { spawnHubBurt } from "../spawn/npcs/spawnHubBurt";
 import { spawnHubSettlement } from "../spawn/spawnHubSettlement";
+import { spawnHubFiringRange } from "../spawn/spawnHubFiringRange";
 import { addBuildingPlayerDepth } from "../comp/buildingPlayerDepth";
 import {
 	HUB_FACILITY_OFFSETS,
+	HUB_FIRING_RANGE_OFFSET,
 	HUB_HALF_HEIGHT,
 	HUB_HALF_WIDTH,
 	HUB_PHASE_FIELD_OFFSET,
@@ -91,8 +92,6 @@ const phaseFieldOffsetX = HUB_PHASE_FIELD_OFFSET[0];
 const phaseFieldOffsetY = HUB_PHASE_FIELD_OFFSET[1];
 const phaseFieldInnerRadius = 162;
 const phaseFieldOuterRadius = 220;
-const trainingDummyRespawnDelay = 1.5;
-const trainingDummyOffsetY = 190;
 const hubFacilityBuiltScales: Record<HubFacilityId, number> = {
 	contractTerminal: 1.78,
 	trainingRange: 1.59,
@@ -217,6 +216,11 @@ export const hub: Level = {
 		const hubFacilityPositions = getHubFacilityPositions();
 		const repairCrew = spawnHubRepairCrew(hubFacilityPositions.trainingRange);
 		spawnHubFacilities(hubFacilityPositions, repairCrew);
+		const hubSession = lvlData;
+		const firingRange = spawnHubFiringRange({
+			pos: k.center().add(...HUB_FIRING_RANGE_OFFSET),
+			isHubSessionActive: () => lvlData === hubSession,
+		});
 		createHubGuidance({
 			facilityPositions: hubFacilityPositions,
 		});
@@ -231,9 +235,7 @@ export const hub: Level = {
 		spawnHubBackgroundDepth();
 		spawnPhaseShiftAsteroidField();
 		spawnHubAsteroidRunner(getPhaseFieldCenter());
-		spawnHubRingWatcher(
-			hubFacilityPositions.trainingRange.add(0, trainingDummyOffsetY)
-		);
+		spawnHubRingWatcher(firingRange.targetPos);
 		spawnHubBirthdayPair(k.center().add(-150, 245));
 		saveGame("slot1");
 		k.wait(0.45, showPendingRunEndSummary);
@@ -603,9 +605,6 @@ function spawnHubFacility(
 	if (newInfoMarker) {
 		newInfoMarker.hidden = !built || !hasUnseenBlueprints();
 	}
-	if (built && facility.id === "trainingRange") {
-		spawnTrainingDummies(pos);
-	}
 	if (getFacilityConstruction()?.facilityId === facility.id) {
 		repairCrew.setRepairTarget(pos);
 	}
@@ -619,9 +618,6 @@ function spawnHubFacility(
 		repairCrew.setRepairTarget(undefined);
 		starsEmitter.emitter.position = building.pos;
 		starsEmitter.emit(28);
-		if (facility.id === "trainingRange") {
-			spawnTrainingDummies(building.pos);
-		}
 		saveGame("slot1");
 	};
 	const prompt = createInteractionPrompt({
@@ -699,38 +695,6 @@ function openHubFacility(id: HubFacilityId) {
 	if (id === "salvageForge") showRunTerminal("forge");
 	if (id === "debriefTerminal") showRunTerminal("debrief");
 	if (id === "trainingRange") showPhaseStation();
-}
-
-function spawnTrainingDummies(facilityPos: ReturnType<typeof k.vec2>) {
-	const hubSession = lvlData;
-	const offsets = getHubLevel() >= 5 ? [-60, 0, 60] : [0];
-	for (const offsetX of offsets) {
-		spawnTrainingDummy(facilityPos, offsetX, hubSession);
-	}
-}
-
-function spawnTrainingDummy(
-	facilityPos: ReturnType<typeof k.vec2>,
-	offsetX: number,
-	hubSession: typeof lvlData
-) {
-	spawnMeteorite({
-		pos: facilityPos.add(offsetX, trainingDummyOffsetY),
-		dir: k.vec2(0, 0),
-		scoreOnKill: 0,
-		hp: 10000,
-		speed: 0,
-		splitOnDeath: 0,
-		destroyOffscreen: false,
-		powerupMultiplier: 0,
-		tags: [tags.trainingTarget],
-		onDeath: () => {
-			k.wait(trainingDummyRespawnDelay, () => {
-				if (lvlData !== hubSession) return;
-				spawnTrainingDummy(facilityPos, offsetX, hubSession);
-			});
-		},
-	});
 }
 
 function spawnHubBoundaries() {

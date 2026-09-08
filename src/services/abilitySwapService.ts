@@ -1,4 +1,5 @@
 import type { Vec2 } from "kaplay"
+import { k } from "../main"
 import { saveGame } from "../util"
 import { spawnRewardPickup } from "../spawn/spawnPowerup"
 import {
@@ -9,10 +10,12 @@ import {
 } from "./abilityLoadoutService"
 import {
 	createReward,
+	REWARD_RARITY_COLORS,
 	type Reward,
 } from "./rewardService"
 import { getAbilityDefinition } from "./abilityRegistry"
 import { getAbilityTierRarity } from "./abilityTierService"
+import { showPopover } from "./popoverService"
 import { equipWeapon } from "./weaponService"
 
 export function equipAbilityWithWorldDrop(
@@ -29,6 +32,29 @@ export function equipAbilityWithWorldDrop(
 	}
 	saveGame("slot1")
 	return true
+}
+
+export function spawnAbilityLoadoutPickup(
+	slot: AbilitySlot,
+	abilityId: AbilityId,
+	position: Vec2
+) {
+	const definition = getAbilityDefinition(abilityId)
+	if (!definition) return
+	const rarity = getAbilityTierRarity(abilityId, definition.rarity)
+	const reward = createReward(getRewardId(slot, abilityId), rarity)
+	if (!reward) return
+
+	return spawnRewardPickup(position, reward, {
+		compactAura: true,
+		interactionOnly: true,
+		interactionRadius: 30,
+		interactionPromptStyle: "key",
+		persistent: true,
+		stationary: true,
+		suppressAcquisition: true,
+		applyEffect: () => equipAbilityFromRange(slot, abilityId),
+	})
 }
 
 function spawnDroppedAbility(
@@ -62,6 +88,23 @@ function equipDroppedReward(reward: Reward, position: Vec2) {
 function equipDirectly(slot: AbilitySlot, abilityId: AbilityId) {
 	if (slot === "primary") return equipWeapon(abilityId as Parameters<typeof equipWeapon>[0])
 	equipAbilityInSlot(slot, abilityId)
+	return true
+}
+
+function equipAbilityFromRange(slot: AbilitySlot, abilityId: AbilityId) {
+	if (!equipDirectly(slot, abilityId)) return false
+	saveGame("slot1")
+	const definition = getAbilityDefinition(abilityId)
+	if (definition) {
+		const rarity = getAbilityTierRarity(abilityId, definition.rarity)
+		showPopover({
+			title: `${slot.toUpperCase()} EQUIPPED`,
+			message: definition.name,
+			sprite: definition.icon,
+			color: k.rgb(...REWARD_RARITY_COLORS[rarity]),
+			duration: 2.4,
+		})
+	}
 	return true
 }
 
