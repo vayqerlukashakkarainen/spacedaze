@@ -66,7 +66,7 @@ export function buildRoomTemplate(room: RoomFloorRoom): BuiltRoomTemplate {
 
 	const protectedCells = createProtectedCells(center, doors)
 	placeRoomObstacles(map, room, protectedCells, rng)
-	const spawnSlots = selectSlots(map, center, protectedCells, room.seed ^ 0x51f15e, 8, 2)
+	const spawnSlots = selectSlots(map, center, protectedCells, room.seed ^ 0x51f15e, 8, 2, false, 1)
 	const contentSlots = selectSlots(map, center, protectedCells, room.seed ^ 0xc012e, 5, 1)
 	map.getCell(center)?.tags.add("player_spawn")
 	for (const coord of spawnSlots) map.getCell(coord)?.tags.add("enemy_spawn")
@@ -159,19 +159,21 @@ function selectSlots(
 	protectedCells: Set<string>,
 	seed: number,
 	count: number,
-	minimumDistance: number
+	minimumDistance: number,
+	excludeProtected: boolean = true,
+	slotSpacing: number = 2
 ) {
 	const rng = new SeededRNG(seed)
 	const candidates = map.getAllCells().filter((cell) =>
 		!cell.solid &&
 		hexDistance(cell.coord, center) >= minimumDistance &&
 		hexDistance(cell.coord, center) <= ROOM_CELL_RADIUS - 2 &&
-		!protectedCells.has(hexKey(cell.coord))
+		(!excludeProtected || !protectedCells.has(hexKey(cell.coord)))
 	)
 	rng.shuffle(candidates)
 	const selected: HexCoord[] = []
 	for (const candidate of candidates) {
-		if (selected.some((coord) => hexDistance(coord, candidate.coord) < 2)) continue
+		if (selected.some((coord) => hexDistance(coord, candidate.coord) < slotSpacing)) continue
 		selected.push({ ...candidate.coord })
 		if (selected.length >= count) break
 	}

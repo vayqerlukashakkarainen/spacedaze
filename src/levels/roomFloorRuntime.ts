@@ -11,14 +11,17 @@ import type { RoomFloorRoom } from "../generation/rooms/roomFloorTypes"
 import { playerObj } from "../game"
 import { ACTIVE_RUN_GRID_KEY } from "../grid/gridKeys"
 import { gridRegistry } from "../grid/gridRegistry"
-import type { HexGrid } from "../grid/hexGrid"
+import { CellType, type HexGrid } from "../grid/hexGrid"
 import { k, layers } from "../main"
 import {
 	beginRoomFloor,
 	clearRoomFloor,
 	enterFloorRoom,
 	getCurrentFloorRoom,
+	markCurrentFloorRoomCleared,
+	markFloorEnemyDefeated,
 } from "../services/roomFloorService"
+import { spawnPlannedEnemy } from "../services/enemyEncounterService"
 import { getHubLevel } from "../services/hubProgressService"
 import { resetPlayerPath } from "../services/playerPathService"
 import { startThreatLevel, stopThreatLevel, updateThreatLevel } from "../services/threatService"
@@ -33,6 +36,7 @@ import {
 
 const ROOM_TRANSITION_COOLDOWN = 0.45
 const ROOM_ENTRY_INSET = 2
+const ROOM_HEX_SIZE = 56
 
 let active = false
 let activeConfig: GeneratedMapConfig | undefined
@@ -92,7 +96,7 @@ function loadCurrentRoom(previousRoomId?: string) {
 	const template = buildRoomTemplate(room)
 	const grid = generationMapToHexGrid(
 		template.map,
-		config.hexSize,
+		Math.min(config.hexSize, ROOM_HEX_SIZE),
 		0,
 		0,
 		config.projectionYScale
@@ -105,8 +109,17 @@ function loadCurrentRoom(previousRoomId?: string) {
 	playerObj.use(gridCollision(ACTIVE_RUN_GRID_KEY))
 	playerObj.pos = getEntryPosition(grid, template, previousRoomId)
 	resetPlayerPath(playerObj.pos)
-	renderRoom(grid, template, room)
-	spawnDoorController(grid, template)
+	const roomLocked = room.kind === "combat" && room.state !== "cleared"
+	let doorsLocked = roomLocked
+	setDoorsLocked(grid, template, doorsLocked)
+	renderRoom(grid, template, room, () => doorsLocked)
+	spawnDoorController(grid, template, () => doorsLocked)
+	if (roomLocked) {
+		spawnCombatRoomController(grid, template, room, () => {
+			doorsLocked = false
+			setDoorsLocked(grid, template, false)
+		})
+	}
 }
 
 function getEntryPosition(
@@ -138,11 +151,15 @@ function spawnFloorController() {
 	])
 }
 
-function spawnDoorController(grid: HexGrid, template: BuiltRoomTemplate) {
+function spawnDoorController(
+	grid: HexGrid,
+	template: BuiltRoomTemplate,
+	doorsLocked: () => boolean
+) {
 	const controller = k.add([
 		{
 			update() {
-				if (transitionCooldown > 0) return
+				if (transitionCooldown > 0 || doorsLocked()) return
 				const playerCoord = grid.screenToHex(playerObj.pos)
 				const door = template.doors.find((candidate) =>
 					candidate.coord.q === playerCoord.q && candidate.coord.r === playerCoord.r
@@ -160,7 +177,8 @@ function spawnDoorController(grid: HexGrid, template: BuiltRoomTemplate) {
 function renderRoom(
 	grid: HexGrid,
 	template: BuiltRoomTemplate,
-	room: RoomFloorRoom
+	room: RoomFloorRoom,
+	doorsLocked: () => boolean
 ) {
 	const walls = template.map.getAllCells()
 		.filter((cell) => cell.solid)
@@ -171,12 +189,16 @@ function renderRoom(
 			}, 0)
 			return {
 				center: grid.hexToScreen(cell.coord),
+				corners: grid.getHexScreenCorners(cell.coord),
 				frame: getRunRockTileFrame(
 					~connectionMask & 0b111111,
 					room.seed + cell.coord.q * 73 + cell.coord.r * 151
 				),
 			}
 		})
+	const floorCells = template.map.getAllCells()
+		.filter((cell) => !cell.solid)
+		.map((cell) => grid.getHexScreenCorners(cell.coord))
 	const tileScale = grid.config.hexSize / RUN_ROCK_TILE_SOURCE_RADIUS
 	const tileCenterOffsetY =
 		(RUN_ROCK_TILE_SOURCE_RADIUS - RUN_ROCK_TILE_ANCHOR_Y) * tileScale
@@ -185,7 +207,25 @@ function renderRoom(
 		k.layer(layers.game2),
 		{
 			draw() {
+				for (const corners of floorCells) {
+					k.drawPolygon({
+						pts: corners,
+						color: k.rgb(8, 20, 28),
+						outline: {
+							width: 1,
+							color: k.rgb(20, 52, 66),
+						},
+					})
+				}
 				for (const wall of walls) {
+					k.drawPolygon({
+						pts: wall.corners,
+						color: k.rgb(18, 34, 44),
+						outline: {
+							width: 1,
+							color: k.rgb(88, 108, 120),
+						},
+					})
 					k.drawSprite({
 						sprite: RUN_ROCK_TILE_SPRITE,
 						frame: wall.frame,
@@ -202,8 +242,8 @@ function renderRoom(
 						p1: center.add(tangent.scale(grid.config.hexSize * 0.36)),
 						p2: center.sub(tangent.scale(grid.config.hexSize * 0.36)),
 						width: 3,
-						color: k.rgb(0, 215, 255),
-						opacity: 0.7,
+						color: doorsLocked() ? k.rgb(255, 55, 55) : k.rgb(0, 215, 255),
+						opacity: doorsLocked() ? 1 : 0.7,
 					})
 				}
 			},
@@ -212,6 +252,95 @@ function renderRoom(
 		tags.runMap,
 		tags.gameLoop,
 	])
+}
+
+function spawnCombatRoomController(
+	grid: HexGrid,
+	template: BuiltRoomTemplate,
+	room: RoomFloorRoom,
+	onCleared: () => void
+) {
+	const encounter = room.encounter
+	if (!encounter) {
+		markCurrentFloorRoomCleared()
+		onCleared()
+		return
+	}
+	let wave = nextUndeafeatedWave(room)
+	let waveDelay = 0.65
+	let waveSpawned = false
+	const controller = k.add([
+		{
+			update() {
+				if (wave === undefined) {
+					markCurrentFloorRoomCleared()
+					onCleared()
+					k.destroy(controller)
+					return
+				}
+				if (!waveSpawned) {
+					waveDelay -= k.dt()
+					if (waveDelay > 0) return
+					spawnRoomWave(grid, template, room, wave)
+					waveSpawned = true
+					return
+				}
+				if (k.get(tags.runRoomEnemy).some((enemy) => enemy.exists())) return
+				wave = nextUndeafeatedWave(room)
+				waveSpawned = false
+				waveDelay = 0.75
+			},
+		},
+		tags.runRoom,
+		tags.runMap,
+		tags.gameLoop,
+	])
+}
+
+function spawnRoomWave(
+	grid: HexGrid,
+	template: BuiltRoomTemplate,
+	room: RoomFloorRoom,
+	wave: number
+) {
+	const entries = room.encounter?.enemies.filter((enemy) =>
+		enemy.wave === wave && !enemy.defeated
+	) ?? []
+	for (let index = 0; index < entries.length; index++) {
+		const entry = entries[index]
+		const slot = template.spawnSlots[entry.spawnSlot % template.spawnSlots.length]
+		if (!slot) {
+			markFloorEnemyDefeated(entry.id)
+			continue
+		}
+		const enemy = spawnPlannedEnemy(entry.enemyId, grid.hexToScreen(slot), {
+			persistOffscreen: true,
+			elite: entry.elite,
+			tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
+		})
+		if (!enemy) {
+			markFloorEnemyDefeated(entry.id)
+			continue
+		}
+		enemy.onDestroy(() => markFloorEnemyDefeated(entry.id))
+	}
+}
+
+function nextUndeafeatedWave(room: RoomFloorRoom) {
+	const waves = room.encounter?.enemies
+		.filter((enemy) => !enemy.defeated)
+		.map((enemy) => enemy.wave) ?? []
+	return waves.length > 0 ? Math.min(...waves) : undefined
+}
+
+function setDoorsLocked(
+	grid: HexGrid,
+	template: BuiltRoomTemplate,
+	locked: boolean
+) {
+	for (const door of template.doors) {
+		grid.setCell(door.coord, locked ? CellType.Wall : CellType.Empty)
+	}
 }
 
 function destroyTaggedObjects(tag: string) {

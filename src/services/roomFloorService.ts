@@ -54,9 +54,6 @@ export function markFloorEnemyDefeated(enemyPlanId: string) {
 	const enemy = room?.encounter?.enemies.find((candidate) => candidate.id === enemyPlanId)
 	if (!enemy || enemy.defeated) return false
 	enemy.defeated = true
-	if (room.encounter!.enemies.every((candidate) => candidate.defeated)) {
-		markCurrentFloorRoomCleared()
-	}
 	return true
 }
 

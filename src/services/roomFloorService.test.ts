@@ -31,7 +31,10 @@ for (const roomId of route.slice(1)) enterFloorRoom(roomId)
 for (const enemy of combat.encounter!.enemies) {
 	assert(markFloorEnemyDefeated(enemy.id), `Enemy ${enemy.id} should be defeated once`)
 }
-assert(getCurrentFloorRoom()?.state === "cleared", "Defeating a manifest should clear its room")
+assert(
+	getCurrentFloorRoom()?.encounter?.enemies.every((enemy) => enemy.defeated) === true,
+	"Defeating a manifest should persist every defeated enemy"
+)
 const snapshot = getRoomFloorSnapshot()!
 snapshot.rooms[0].connections.length = 0
 assert(combatFloor.rooms[0].connections.length > 0, "Snapshots must not mutate runtime state")

@@ -21,6 +21,7 @@ export const tags = {
 	trainingTarget: "trainingTarget",
 	runMap: "runMap",
 	runRoom: "runRoom",
+	runRoomEnemy: "runRoomEnemy",
 	damageNumber: "damageNumber",
 	tacticalMap: "tacticalMap",
 	hubBoundary: "hubBoundary",

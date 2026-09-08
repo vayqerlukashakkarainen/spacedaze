@@ -142,6 +142,7 @@ import { updateQuestObjective } from "../services/questService";
 import { spawnDebreeDeposit } from "../spawn/spawnDebreeDeposit";
 import { planRunVillageZones } from "../services/runVillageService";
 import { spawnRunVillages } from "../spawn/spawnRunVillage";
+import { getRoomFloorSnapshot } from "../services/roomFloorService";
 
 export const RUN_GRID_KEY = ACTIVE_RUN_GRID_KEY;
 const RUN_RENDER_CHUNK_SIZE = 6;
@@ -336,6 +337,16 @@ export function teleportPlayerToNearestDebreeDeposit() {
 }
 
 export function getGeneratedRunSummary(): string {
+	const roomFloor = getRoomFloorSnapshot();
+	if (roomFloor) {
+		const current = roomFloor.rooms.find(
+			(room) => room.id === roomFloor.currentRoomId
+		);
+		const discovered = roomFloor.rooms.filter(
+			(room) => room.state !== "unseen"
+		).length;
+		return `Room floor ${roomFloor.seed} | Depth ${roomFloor.depth} | ${current?.kind ?? "unknown"} ${current?.id ?? ""} | ${discovered}/${roomFloor.rooms.length} discovered`;
+	}
 	if (!currentGeneratedMap || currentRunSeed === undefined) {
 		return "No generated run is active";
 	}
