@@ -1,0 +1,42 @@
+export const PLAYER_TURRET_LIMIT_DEGREES = 45
+export const DRIFT_SPEED_MULTIPLIER = 0.6
+export const NORMAL_AIM_HULL_RESPONSE = 5
+export const DRIFT_HULL_RESPONSE = 2.5
+export const TURRET_AIM_RESPONSE = 9
+
+export function getSignedAngleDelta(fromAngle: number, toAngle: number) {
+	return ((toAngle - fromAngle + 540) % 360) - 180
+}
+
+export function clampTurretWorldAngle(
+	hullAngle: number,
+	desiredTurretAngle: number,
+	limitDegrees: number = PLAYER_TURRET_LIMIT_DEGREES
+) {
+	const offset = getSignedAngleDelta(hullAngle, desiredTurretAngle)
+	return hullAngle + clamp(offset, -limitDegrees, limitDegrees)
+}
+
+export function getHullAimFollowTarget(
+	hullAngle: number,
+	desiredTurretAngle: number,
+	limitDegrees: number = PLAYER_TURRET_LIMIT_DEGREES
+) {
+	const offset = getSignedAngleDelta(hullAngle, desiredTurretAngle)
+	if (Math.abs(offset) <= limitDegrees) return hullAngle
+	return hullAngle + offset - Math.sign(offset) * limitDegrees
+}
+
+export function easeAngle(
+	currentAngle: number,
+	targetAngle: number,
+	response: number,
+	deltaSeconds: number
+) {
+	const blend = 1 - Math.exp(-Math.max(0, response) * Math.max(0, deltaSeconds))
+	return currentAngle + getSignedAngleDelta(currentAngle, targetAngle) * blend
+}
+
+function clamp(value: number, minimum: number, maximum: number) {
+	return Math.min(maximum, Math.max(minimum, value))
+}

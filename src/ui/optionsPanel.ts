@@ -166,7 +166,7 @@ function addControlReference(parent: GameObj, y: number, width: number) {
 	addThemedText(parent, {
 		pos: k.vec2(0, y + 61),
 		text: [
-			"MOVE  W A S D    BOOST  SHIFT",
+			"MOVE  W A S D    DRIFT  SHIFT",
 			"FIRE  LEFT MOUSE    ARSENAL  Q / E",
 			"SECONDARY  RIGHT MOUSE    MOBILITY  SPACE",
 			"ULTIMATE  R",

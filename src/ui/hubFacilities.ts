@@ -136,7 +136,7 @@ const LOADOUT_SLOT_DETAILS: ReadonlyArray<{
 }> = [
 	{ slot: "primary", label: "PRIMARY ARSENAL", control: "Q / E" },
 	{ slot: "secondary", label: "SECONDARY", control: "RIGHT MOUSE" },
-	{ slot: "mobility", label: "MOBILITY", control: "SPACE / SHIFT" },
+	{ slot: "mobility", label: "MOBILITY", control: "SPACE" },
 	{ slot: "ultimate", label: "ULTIMATE", control: "R" },
 ]
 
@@ -1252,7 +1252,7 @@ function renderMobilityAndUltimateAbilities(
 	newBlueprintKeys: ReadonlySet<string>
 ) {
 	const groups = [
-		{ slot: "mobility" as const, label: "MOBILITY  //  SPACE OR SHIFT" },
+		{ slot: "mobility" as const, label: "MOBILITY  //  SPACE" },
 		{ slot: "ultimate" as const, label: "ULTIMATE  //  R" },
 	]
 	const entries = groups.flatMap((group) =>

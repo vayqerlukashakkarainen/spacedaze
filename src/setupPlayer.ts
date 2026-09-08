@@ -40,6 +40,7 @@ import {
 	spawnPrimaryLinkedRocket,
 } from "./services/projectileHelpers";
 import {
+	applySteeringLean,
 	lerpAngleBetweenPos,
 	steerMoveRotateAndLean,
 	registerHitAnimation,
@@ -148,6 +149,16 @@ import {
 	createThrusterOverdriveState,
 	updateThrusterOverdrive,
 } from "./services/thrusterOverdriveService";
+import {
+	clampTurretWorldAngle,
+	DRIFT_HULL_RESPONSE,
+	DRIFT_SPEED_MULTIPLIER,
+	easeAngle,
+	getHullAimFollowTarget,
+	getSignedAngleDelta,
+	NORMAL_AIM_HULL_RESPONSE,
+	TURRET_AIM_RESPONSE,
+} from "./services/playerSteeringModeService"
 import { addPlayerDamageEffects } from "./services/playerDamageEffectService"
 
 let blasters = 0;
@@ -560,6 +571,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		k.z(-1),
 	]);
 	let turretWorldAngle = playerObj.angle;
+	let driftMoveDirection = k.Vec2.fromAngle(playerObj.angle - 90)
 	let weaponRecoilOffset = 0;
 
 	const targetObj = k.add([k.pos(k.center()), k.z(1000), tags.gameLoop]);
@@ -589,6 +601,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		clearGravitySlingState()
 		gravitySlingReleaseVelocity = k.vec2(0)
 		currentMoveSpeed = 0
+		driftMoveDirection = k.Vec2.fromAngle(respawnAngle - 90)
 		playerObj.pos = respawnStart.clone()
 		playerObj.gravityVelocity = k.vec2(0)
 		playerObj.angle = respawnAngle
@@ -942,12 +955,15 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			(k.isKeyDown("d") ? 1 : 0) - (k.isKeyDown("a") ? 1 : 0),
 			(k.isKeyDown("s") ? 1 : 0) - (k.isKeyDown("w") ? 1 : 0)
 		);
+		const driftModeActive =
+			!isMobilityMoving && k.isKeyDown("shift")
 		const overdriveTier = getAbilityTierValues("thrusterOverdrive");
 		const overdriveUpdate = updateThrusterOverdrive(
 			thrusterOverdriveState,
 			!isMobilityMoving &&
+				!driftModeActive &&
 				mobilityId === "thrusterOverdrive" &&
-				k.isKeyDown("shift") &&
+				k.isKeyDown("space") &&
 				wasdDir.len() > 0,
 			dt(),
 			overdriveTier.recovery
@@ -963,6 +979,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			player.speed *
 			player.speedMultiplier *
 			player.speedPwrUpMultiplier *
+			(driftModeActive ? DRIFT_SPEED_MULTIPLIER : 1) *
 			getEnemyMovementMultiplier();
 		const controlVelocity = wasdDir.len() > 0
 			? wasdDir.unit().scale(maxSpeed)
@@ -973,43 +990,95 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		const headingInertia = currentHeading.scale(
 			Math.max(currentMoveSpeed, maxSpeed * 0.5)
 		);
-		const steeringVelocity = (
-			wasdDir.len() > 0 ? controlVelocity : headingInertia
-		).add(gravityVelocity).add(gravitySlingReleaseVelocity);
+		const worldMovementVelocity = controlVelocity.add(gravityVelocity)
+		if (worldMovementVelocity.len() > 0.001) {
+			driftMoveDirection = worldMovementVelocity.unit()
+		}
+		const steeringVelocity = driftModeActive
+			? worldMovementVelocity.len() > 0.001
+				? worldMovementVelocity
+				: driftMoveDirection.scale(currentMoveSpeed)
+			: (wasdDir.len() > 0 ? controlVelocity : headingInertia)
+				.add(gravityVelocity)
+				.add(gravitySlingReleaseVelocity);
 
 		let moveDirection = k.Vec2.fromAngle(playerObj.angle + 90);
 		let nextPlayerAngle = playerObj.angle;
 		let desiredPlayerAngle = playerObj.angle;
-		if (steeringVelocity.len() > 0 && !isMobilityMoving) {
+		if (steeringVelocity.len() > 0.001 && !isMobilityMoving) {
 			moveDirection = steeringVelocity.unit();
 			targetObj.pos = playerObj.pos.add(moveDirection.scale(targetOffset));
-			const movementRotation = lerpAngleBetweenPos(
-				playerObj.angle,
-				playerObj.pos,
-				targetObj.pos,
-				0.05 * timeScale * playerObj.getTimescale(),
-				-90
-			);
-			nextPlayerAngle = movementRotation.lerp;
-			desiredPlayerAngle = movementRotation.correctedDesiredRot;
+			if (!driftModeActive) {
+				const movementRotation = lerpAngleBetweenPos(
+					playerObj.angle,
+					playerObj.pos,
+					targetObj.pos,
+					0.05 * timeScale * playerObj.getTimescale(),
+					-90
+				);
+				nextPlayerAngle = movementRotation.lerp;
+				desiredPlayerAngle = movementRotation.correctedDesiredRot;
+			}
 		} else {
 			targetObj.pos = playerObj.pos;
 		}
 
-		playerObj.angle = nextPlayerAngle;
-
 		// The turret angle is local to the rotating player, while aiming uses a
 		// world angle. Keep both coordinate spaces separate.
 		const mouseWorldPos = k.toWorld(k.mousePos());
-		const turretLerp = lerpAngleBetweenPos(
+		const desiredTurretWorldAngle = lerpAngleBetweenPos(
 			turretWorldAngle,
 			playerObj.pos,
 			mouseWorldPos,
-			0.1 * timeScale * playerObj.getTimescale(),
+			1,
 			-90
-		);
-		turretWorldAngle = turretLerp.lerp;
-		turretObj.angle = turretWorldAngle - playerObj.angle;
+		).correctedDesiredRot;
+		const steeringDelta = dt() * timeScale * playerObj.getTimescale()
+		if (driftModeActive) {
+			turretWorldAngle = easeAngle(
+				turretWorldAngle,
+				desiredTurretWorldAngle,
+				TURRET_AIM_RESPONSE,
+				steeringDelta
+			)
+			nextPlayerAngle = easeAngle(
+				playerObj.angle,
+				turretWorldAngle,
+				DRIFT_HULL_RESPONSE,
+				steeringDelta
+			)
+			desiredPlayerAngle = turretWorldAngle
+		} else {
+			const hullAimTarget = getHullAimFollowTarget(
+				nextPlayerAngle,
+				desiredTurretWorldAngle
+			)
+			if (Math.abs(getSignedAngleDelta(nextPlayerAngle, hullAimTarget)) > 0.001) {
+				nextPlayerAngle = easeAngle(
+					nextPlayerAngle,
+					hullAimTarget,
+					NORMAL_AIM_HULL_RESPONSE,
+					steeringDelta
+				)
+				desiredPlayerAngle = hullAimTarget
+			}
+			const constrainedTurretAngle = clampTurretWorldAngle(
+				nextPlayerAngle,
+				desiredTurretWorldAngle
+			)
+			turretWorldAngle = easeAngle(
+				turretWorldAngle,
+				constrainedTurretAngle,
+				TURRET_AIM_RESPONSE,
+				steeringDelta
+			)
+			turretWorldAngle = clampTurretWorldAngle(
+				nextPlayerAngle,
+				turretWorldAngle
+			)
+		}
+		playerObj.angle = nextPlayerAngle;
+		turretObj.angle = getSignedAngleDelta(playerObj.angle, turretWorldAngle);
 
 		if (isBoosting !== overclockWasActive) {
 			thruster.setColor(isBoosting ? k.rgb(80, 180, 255) : k.WHITE)
@@ -1090,13 +1159,26 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		)
 
 		if (!isMobilityMoving) {
-			steerMoveRotateAndLean(
-				playerObj,
-				nextPlayerAngle,
-				speed,
-				desiredPlayerAngle,
-				PLAYER_SCALE
-			);
+			if (driftModeActive) {
+				playerObj.move(
+					moveDirection.scale(speed * velocityScale())
+				)
+				playerObj.angle = nextPlayerAngle
+				applySteeringLean(
+					playerObj,
+					nextPlayerAngle,
+					desiredPlayerAngle,
+					PLAYER_SCALE
+				)
+			} else {
+				steerMoveRotateAndLean(
+					playerObj,
+					nextPlayerAngle,
+					speed,
+					desiredPlayerAngle,
+					PLAYER_SCALE
+				);
+			}
 			if (gravitySlingReleaseVelocity.len() > 0) {
 				playerObj.move(
 					gravitySlingReleaseVelocity.scale(
@@ -1399,25 +1481,6 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		activateModule(activeModule.id, playerObj, turretWorldAngle);
 	}));
 
-	playerObj.onKeyPress("shift", () => {
-		if (dialogCapturesInput()) return;
-		if (levelTransitionActive() || respawnTransitionActive) return;
-		const mobilityId = getEquippedMobilityAbilityId();
-		if (!mobilityId) {
-			recordTelemetryAbilityFailure("mobility");
-			flashEmptyMobilitySocket();
-			playRequirementErrorSound();
-			return;
-		}
-		if (mobilityId !== "thrusterOverdrive") return;
-		if (thrusterOverdriveState.overused) {
-			recordTelemetryAbilityFailure("mobility", "thrusterOverdrive");
-			playRequirementErrorSound();
-			return;
-		}
-		recordTelemetryAbilityUse("mobility", "thrusterOverdrive");
-	});
-
 	playerObj.onKeyPress("space", () => {
 		if (dialogCapturesInput()) return;
 		if (levelTransitionActive() || respawnTransitionActive) return;
@@ -1428,6 +1491,15 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			return;
 		}
 		const mobilityId = getEquippedMobilityAbilityId();
+		if (mobilityId === "thrusterOverdrive") {
+			if (thrusterOverdriveState.overused) {
+				recordTelemetryAbilityFailure("mobility", "thrusterOverdrive");
+				playRequirementErrorSound();
+				return;
+			}
+			recordTelemetryAbilityUse("mobility", "thrusterOverdrive");
+			return;
+		}
 		const config = getMobilityChargeConfig();
 		if (
 			!config ||
