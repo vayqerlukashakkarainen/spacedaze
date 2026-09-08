@@ -4,6 +4,7 @@ import {
 	enterFloorRoom,
 	getCurrentFloorRoom,
 	getRoomFloorSnapshot,
+	markCurrentFloorRoomCleared,
 	markFloorEnemyDefeated,
 } from "./roomFloorService"
 
@@ -15,6 +16,8 @@ const floor = beginRoomFloor(38191, 2, { roomCount: 12 })
 const start = getCurrentFloorRoom()!
 assert(start.kind === "start", "A room floor must begin in its start room")
 const neighbor = floor.rooms.find((room) => start.connections.includes(room.id))!
+assert(enterFloorRoom(neighbor.id) === undefined, "An active room should block its exits")
+markCurrentFloorRoomCleared()
 assert(enterFloorRoom(neighbor.id)?.id === neighbor.id, "A connected room should be enterable")
 assert(getCurrentFloorRoom()?.id === neighbor.id, "The current room should change")
 assert(enterFloorRoom(floor.exitRoomId) === undefined, "Disconnected rooms should not be enterable")
@@ -27,13 +30,26 @@ assert(
 const combatFloor = beginRoomFloor(9341, 1, { roomCount: 10 })
 const combat = combatFloor.rooms.find((room) => room.kind === "combat")!
 const route = routeBetween(combatFloor.startRoomId, combat.id, combatFloor.rooms)
-for (const roomId of route.slice(1)) enterFloorRoom(roomId)
+for (const roomId of route.slice(1)) {
+	markCurrentFloorRoomCleared()
+	enterFloorRoom(roomId)
+}
+const previousRoom = combat.connections[0]
+assert(
+	enterFloorRoom(previousRoom) === undefined,
+	"An uncleared combat room should block backtracking"
+)
 for (const enemy of combat.encounter!.enemies) {
 	assert(markFloorEnemyDefeated(enemy.id), `Enemy ${enemy.id} should be defeated once`)
 }
 assert(
 	getCurrentFloorRoom()?.encounter?.enemies.every((enemy) => enemy.defeated) === true,
 	"Defeating a manifest should persist every defeated enemy"
+)
+markCurrentFloorRoomCleared()
+assert(
+	enterFloorRoom(previousRoom)?.id === previousRoom,
+	"Clearing a combat room should unlock its exits"
 )
 const snapshot = getRoomFloorSnapshot()!
 snapshot.rooms[0].connections.length = 0

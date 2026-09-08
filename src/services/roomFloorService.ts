@@ -34,7 +34,7 @@ export function enterFloorRoom(roomId: string) {
 	const current = getCurrentFloorRoom()
 	const destination = findRoom(roomId)
 	if (!current || !destination || !current.connections.includes(roomId)) return undefined
-	if (current.state === "active" && current.kind !== "combat") current.state = "cleared"
+	if (current.state !== "cleared") return undefined
 	destination.state = destination.state === "cleared" ? "cleared" : "active"
 	activeFloor.currentRoomId = destination.id
 	revealConnectedRooms(destination)
@@ -46,9 +46,7 @@ export function teleportToFloorRoom(roomId: string) {
 	const current = getCurrentFloorRoom()
 	const destination = findRoom(roomId)
 	if (!current || !destination || current.id === destination.id) return undefined
-	if (current.state === "active" && current.kind !== "combat" && current.kind !== "boss") {
-		current.state = "cleared"
-	}
+	if (current.state !== "cleared") return undefined
 	destination.state = destination.state === "cleared" ? "cleared" : "active"
 	activeFloor.currentRoomId = destination.id
 	revealConnectedRooms(destination)

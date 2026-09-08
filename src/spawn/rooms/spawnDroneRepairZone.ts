@@ -21,6 +21,7 @@ interface DroneRepairZoneProps {
 	hexSize: number
 	tags?: string[]
 	spawnDefenders?: boolean
+	stationCost?: number
 	onComplete?: () => void
 }
 
@@ -31,7 +32,7 @@ export function spawnDroneRepairZone(props: DroneRepairZoneProps) {
 	const objectTags = props.tags ?? []
 	const station = spawnRepairStation({
 		pos: props.pos,
-		cost: 8 + props.depth * 3,
+		cost: props.stationCost ?? 8 + props.depth * 3,
 		repairTime: 3 + props.depth * 0.35,
 		defendRadius: props.hexSize * 2.3,
 		enemySpacing: props.hexSize,

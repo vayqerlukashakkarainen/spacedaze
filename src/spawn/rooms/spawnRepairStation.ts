@@ -99,7 +99,13 @@ export function spawnRepairStation(props: RepairStationProps) {
 		if (repairing || repaired) return
 		if (playerObj.hp >= playerObj.maxHP) {
 			status.text = "HULL FULL"
-			playRequirementErrorSound()
+			if (props.onComplete) {
+				repaired = true
+				station.setInteractRadius(0)
+				props.onComplete()
+			} else {
+				playRequirementErrorSound()
+			}
 			return
 		}
 		if (!spendScore(props.cost)) {

@@ -124,25 +124,33 @@ function loadCurrentRoom(previousRoomId?: string, teleportArrival = false) {
 		? grid.hexToScreen(template.center).add(0, ROOM_HEX_SIZE * 1.35)
 		: getEntryPosition(grid, template, previousRoomId)
 	resetPlayerPath(playerObj.pos)
-	const roomLocked = (room.kind === "combat" || room.kind === "boss") &&
-		room.state !== "cleared"
-	let doorsLocked = roomLocked
+	if (
+		room.state !== "cleared" &&
+		(room.contentCompleted || roomClearsOnEntry(room))
+	) {
+		markCurrentFloorRoomCleared()
+	}
+	let doorsLocked = room.state !== "cleared"
+	const unlockRoom = () => {
+		markCurrentFloorRoomCleared()
+		if (!doorsLocked) return
+		doorsLocked = false
+		setDoorsLocked(grid, template, false)
+	}
 	setDoorsLocked(grid, template, doorsLocked)
 	renderRoom(grid, template, room, () => doorsLocked)
 	spawnDoorController(grid, template, () => doorsLocked)
-	if (room.kind === "combat" && roomLocked) {
-		spawnCombatRoomController(grid, template, room, () => {
-			doorsLocked = false
-			setDoorsLocked(grid, template, false)
-		})
-	} else if (room.kind === "boss" && roomLocked) {
-		spawnBossRoom(grid, template, room, () => {
-			doorsLocked = false
-			setDoorsLocked(grid, template, false)
-		})
+	if (room.kind === "combat" && doorsLocked) {
+		spawnCombatRoomController(grid, template, room, unlockRoom)
+	} else if (room.kind === "boss" && doorsLocked) {
+		spawnBossRoom(grid, template, room, unlockRoom)
 	} else {
-		spawnRoomContent(grid, template, room)
+		spawnRoomContent(grid, template, room, unlockRoom)
 	}
+}
+
+function roomClearsOnEntry(room: RoomFloorRoom) {
+	return room.kind === "start" || room.kind === "exit" || room.kind === "gravity"
 }
 
 function getEntryPosition(
@@ -376,10 +384,15 @@ function setDoorsLocked(
 function spawnRoomContent(
 	grid: HexGrid,
 	template: BuiltRoomTemplate,
-	room: RoomFloorRoom
+	room: RoomFloorRoom,
+	onCleared: () => void
 ) {
 	const center = grid.hexToScreen(template.center)
 	const objectTags = [tags.runMap, tags.runRoom]
+	const completeContent = () => {
+		markCurrentRoomContentCompleted()
+		onCleared()
+	}
 	if (room.kind === "start" || room.kind === "combat") return
 	if (room.kind === "gravity") {
 		spawnRoomGravityShrine(center, room)
@@ -394,14 +407,14 @@ function spawnRoomContent(
 	switch (room.kind) {
 		case "reward":
 			spawnChest(center, getActiveRoomFloor()?.depth ?? 1, {
-				onOpened: markCurrentRoomContentCompleted,
+				onOpened: completeContent,
 				tags: objectTags,
 			})
 			return
 		case "event":
 			spawnChest(center, getActiveRoomFloor()?.depth ?? 1, {
 				rewardType: "weapon",
-				onOpened: markCurrentRoomContentCompleted,
+				onOpened: completeContent,
 				tags: objectTags,
 			})
 			return
@@ -409,7 +422,7 @@ function spawnRoomContent(
 			spawnHealthShrine({
 				pos: center,
 				tags: objectTags,
-				onDepleted: markCurrentRoomContentCompleted,
+				onDepleted: completeContent,
 			})
 			return
 		case "repair":
@@ -419,7 +432,8 @@ function spawnRoomContent(
 				hexSize: grid.config.hexSize,
 				tags: objectTags,
 				spawnDefenders: false,
-				onComplete: markCurrentRoomContentCompleted,
+				stationCost: 0,
+				onComplete: completeContent,
 			})
 			return
 		case "shrine":
@@ -428,7 +442,7 @@ function spawnRoomContent(
 				radius: grid.config.hexSize * 1.8,
 				captureTime: 4.5,
 				level: getActiveRoomFloor()?.depth ?? 1,
-				onComplete: markCurrentRoomContentCompleted,
+				onComplete: completeContent,
 				tags: objectTags,
 			})
 			return
@@ -453,7 +467,7 @@ function spawnBossRoom(
 			onDefeated: () => {
 				markCurrentFloorRoomCleared()
 				onCleared()
-				spawnRoomContent(grid, template, room)
+				spawnRoomContent(grid, template, room, onCleared)
 			},
 		}
 	)
