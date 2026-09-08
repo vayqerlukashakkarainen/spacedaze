@@ -1001,6 +1001,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 						playFireSound: shouldPlayFireSound,
 						fireSoundDetune,
 						isFullyCharged: chargeRatio >= 1,
+						chargeRatio,
 						wigglePhase: hasPatternWiggle
 							? index * Math.PI
 							: undefined,

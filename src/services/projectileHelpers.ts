@@ -10,6 +10,7 @@ import { getAbilityTierValues } from "./abilityTierService";
 
 const ROCKET_ACQUIRE_DELAY = 0.2;
 const ROCKET_TURN_SPEED = 0.065;
+const RAIL_LANCE_MIN_KNOCKBACK_MULTIPLIER = 0.04;
 
 // Basic Blaster
 export function spawnBasicBlaster(
@@ -47,6 +48,7 @@ export interface PlayerBlasterShotOptions {
 	playFireSound?: boolean
 	fireSoundDetune?: number
 	isFullyCharged?: boolean
+	chargeRatio?: number
 	wigglePhase?: number
 }
 
@@ -72,6 +74,14 @@ export function spawnPlayerBlaster(
 		weapon.charge !== undefined && shotOptions.isFullyCharged === true;
 	const isFullyChargedRailLance =
 		weapon.id === "railLance" && isFullyChargedWeapon;
+	const knockbackStrength = weapon.knockback === undefined
+		? undefined
+		: weapon.id === "railLance"
+			? scaleRailLanceKnockback(
+				weapon.knockback,
+				shotOptions.chargeRatio ?? (isFullyChargedWeapon ? 1 : 0)
+			)
+			: weapon.knockback;
 	const config: ProjectileConfig = {
 		pos,
 		dir: k.Vec2.fromAngle(rot + spreadAngle - 90),
@@ -111,8 +121,8 @@ export function spawnPlayerBlaster(
 				damageMultiplier: player.blasterDmgMultiplier,
 			}
 			: undefined,
-		knockback: weapon.knockback
-			? { strength: weapon.knockback }
+		knockback: knockbackStrength !== undefined
+			? { strength: knockbackStrength }
 			: undefined,
 		bounce: weapon.bounce ? { ...weapon.bounce } : undefined,
 		wiggle: weapon.pattern?.wiggle
@@ -154,6 +164,16 @@ export function spawnPlayerBlaster(
 	);
 
 	return spawnProjectile(config);
+}
+
+function scaleRailLanceKnockback(maxStrength: number, chargeRatio: number) {
+	const charge = k.clamp(chargeRatio, 0, 1);
+	const multiplier = k.lerp(
+		RAIL_LANCE_MIN_KNOCKBACK_MULTIPLIER,
+		1,
+		charge * charge
+	);
+	return maxStrength * multiplier;
 }
 
 export function spawnPrimaryLinkedRocket(pos: Vec2, dir: Vec2, rot: number) {
