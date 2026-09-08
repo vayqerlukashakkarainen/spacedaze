@@ -70,6 +70,7 @@ import { damageDestructibleWall } from "./destructibleWallService";
 import { spawnRing } from "../spawn/spawnRing";
 import { randomExplosion } from "../util";
 import { player } from "../player";
+import { getEffectiveUpgradeLevel } from "../upg";
 import { applyDamage } from "./damageService";
 import { applyEnemyProjectileImpact } from "./combatImpactService";
 import {
@@ -87,6 +88,8 @@ import {
 } from "./runtimeSpatialIndexService";
 import { getShipThrusterFlash } from "../comp/shipThruster";
 import { registerRuntimeSpriteVisual } from "./enemyVisualBatchService";
+import { triggerTacticalUplinkFeedback } from "./passiveUpgradeRuntimeService";
+import { getTacticalUplinkHullThreshold } from "./tacticalUplinkService";
 
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
 const PLAYER_PROJECTILE_SCALE = 0.7;
@@ -1428,6 +1431,21 @@ export function applyProjectileDamage(
 	// Apply impact damage with crit
 	if (projectile.impactDamage !== undefined) {
 		let damage = projectile.impactDamage;
+		const friendlyProjectile = projectile.tags.includes(tags.friendly);
+		const tacticalUplinkLevel = getEffectiveUpgradeLevel("tacticalUplink");
+		const tacticalUplinkProc =
+			friendlyProjectile &&
+			tacticalUplinkLevel !== undefined &&
+			target.tags.includes(tags.enemy) &&
+			typeof target.maxHP === "number" &&
+			target.maxHP > 0 &&
+			target.hp / target.maxHP >=
+				getTacticalUplinkHullThreshold(tacticalUplinkLevel) &&
+			player.tacticalUplinkMultiplier > 1;
+		if (tacticalUplinkProc) {
+			damage *= player.tacticalUplinkMultiplier;
+			triggerTacticalUplinkFeedback(projectile.pos);
+		}
 		if (
 			player.glassReactor !== undefined &&
 			projectile.tags.includes(tags.friendly)

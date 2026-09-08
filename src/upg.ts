@@ -327,7 +327,9 @@ export function getToolUpgradeLvlValue(key: ToolKey) {
 	}
 
 	const definition = getUpgradeDefinition(key);
-	const upgrade = definition?.levels[level];
+	const upgrade = key === "tacticalUplink"
+		? definition?.levels[0]
+		: definition?.levels[level];
 	if (!upgrade) return undefined;
 	const rarity = getEffectiveUpgradeRarity(key) ?? definition.reward?.rarity;
 	const effects = rarity && definition.reward

@@ -11,6 +11,7 @@ import type { Reward } from "../services/rewardService"
 import type { StatModifier } from "../types/upgradeTypes"
 import { getUpgradeDefinition } from "../upgrades/upgradeRegistry"
 import type { UiStatRow } from "./common"
+import { getTacticalUplinkHullThreshold } from "../services/tacticalUplinkService"
 
 const BASE_STAT_VALUES: Readonly<Record<string, number>> = {
 	blasterCount: 1,
@@ -86,6 +87,26 @@ function getUpgradeComparisonRows(reward: Reward): UiStatRow[] {
 	if (!definition || !nextLevel) return []
 
 	const currentLevelIndex = getEffectiveUpgradeLevel(reward.upgradeKey) ?? -1
+	if (reward.upgradeKey === "tacticalUplink") {
+		const currentThreshold = currentLevelIndex < 0
+			? "--"
+			: formatPercentage(
+				getTacticalUplinkHullThreshold(currentLevelIndex) * 100
+			)
+		const nextThreshold = formatPercentage(
+			getTacticalUplinkHullThreshold(reward.levelIndex) * 100
+		)
+		return [
+			{
+				label: "HULL THRESHOLD",
+				value: `${currentThreshold} > ${nextThreshold}`,
+			},
+			{
+				label: "STACK",
+				value: `${currentLevelIndex + 1} > ${reward.levelIndex + 1}`,
+			},
+		]
+	}
 	const baseRarity = definition.reward?.rarity
 	const currentRarity = getEffectiveUpgradeRarity(reward.upgradeKey) ?? baseRarity
 	const nextRarity = getHigherRarity(currentRarity, reward.rarity)

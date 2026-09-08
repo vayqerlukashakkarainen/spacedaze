@@ -47,6 +47,7 @@ import {
 	REWARD_RARITY_ORDER,
 	scaleUpgradeEffects,
 } from "./rewardQualityService"
+import { describeTacticalUplinkLevel } from "./tacticalUplinkService"
 import {
 	getHubChestLuck,
 	getHubLevel,
@@ -813,6 +814,9 @@ function buildUpgradeReward(
 	const permanent = isPermanentUpgradeKey(toolKey)
 	const repeatability = definition.levels.length > 1 ? "stack" : "once"
 	const rarity = permanent ? RewardRarity.Legendary : policy.rarity
+	const levelDescription = toolKey === "tacticalUplink"
+		? describeTacticalUplinkLevel(levelIndex, definition.levels.length)
+		: level.desc
 
 	return {
 		id: `upgrade:${toolKey}:${levelIndex + 1}`,
@@ -823,8 +827,8 @@ function buildUpgradeReward(
 			? definition.toolName.toUpperCase()
 			: `${definition.toolName.toUpperCase()} ${level.name.toUpperCase()}`,
 		description: requirementText
-			? `${level.desc}\nREQUIRES: ${requirementText}`
-			: level.desc,
+			? `${levelDescription}\nREQUIRES: ${requirementText}`
+			: levelDescription,
 		stats: formatUpgradeStats(level.effects),
 		sprite: level.sprite,
 		rarity,
