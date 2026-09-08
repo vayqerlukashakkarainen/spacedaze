@@ -89,7 +89,6 @@ export function spawnHealthShrine(props: HealthShrineProps) {
 		spawnHealthOrb(orbPos, {
 			stationary: true,
 			persistOffscreen: true,
-			collectAtFullHealth: props.onDepleted !== undefined,
 			tags: props.tags,
 			onCollected: () => {
 				if (!props.respawnOrbs) {

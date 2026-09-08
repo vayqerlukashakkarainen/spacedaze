@@ -29,7 +29,6 @@ interface HealthOrbCollectionState {
 interface HealthOrbOptions {
 	stationary?: boolean
 	persistOffscreen?: boolean
-	collectAtFullHealth?: boolean
 	onCollected?: () => void
 	tags?: string[]
 }
@@ -87,6 +86,10 @@ export function spawnHealthOrb(pos: Vec2, options: HealthOrbOptions = {}) {
 		if (!playerObj || !playerObj.exists() || typeof playerObj.hp !== "number") {
 			return
 		}
+		const canReceiveHealth = playerCanReceiveHealth()
+		if (!canReceiveHealth && orb.collection) {
+			orb.collection = undefined
+		}
 		if (orb.collection) {
 			const completed = updateHealthOrbCollection(
 				orb,
@@ -115,7 +118,7 @@ export function spawnHealthOrb(pos: Vec2, options: HealthOrbOptions = {}) {
 			orb.lifeSpan += dt() * 45
 		}
 
-		if (playerObj.hp >= playerObj.maxHP && !options.collectAtFullHealth) return
+		if (!canReceiveHealth) return
 		const pickupDistance =
 			player.debreeSeekDistance * player.debreeSeekDistanceMultiplier
 		if (orb.pos.dist(playerObj.pos) >= pickupDistance) return
