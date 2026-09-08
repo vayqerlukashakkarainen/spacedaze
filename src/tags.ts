@@ -20,6 +20,7 @@ export const tags = {
 	hubFacilityUi: "hubFacilityUi",
 	trainingTarget: "trainingTarget",
 	runMap: "runMap",
+	runRoom: "runRoom",
 	damageNumber: "damageNumber",
 	tacticalMap: "tacticalMap",
 	hubBoundary: "hubBoundary",
