@@ -72,6 +72,7 @@ import { spawnHubRangeKeeper } from "../spawn/npcs/spawnHubRangeKeeper";
 import { spawnHubBirthdayPair } from "../spawn/npcs/spawnHubBirthdayPair";
 import { spawnHubLampKeeper } from "../spawn/npcs/spawnHubLampKeeper";
 import { spawnHubBurt } from "../spawn/npcs/spawnHubBurt";
+import { getHubBurtLocation } from "../services/narrativeService";
 import { spawnHubSettlement } from "../spawn/spawnHubSettlement";
 import { spawnHubFiringRange } from "../spawn/spawnHubFiringRange";
 import { addBuildingPlayerDepth } from "../comp/buildingPlayerDepth";
@@ -208,7 +209,14 @@ export const hub: Level = {
 			isHubSessionActive: () => lvlData === hubSession,
 		});
 		spawnHubSettlement();
-		spawnHubBurt(hubFacilityPositions.trainingRange.add(-260, 40));
+		const burtHomePosition = hubFacilityPositions.trainingRange.add(-260, 40);
+		const burtLocation = getHubBurtLocation();
+		const burtInitialPosition = burtLocation === "center"
+			? k.center().add(-104, 56)
+			: burtLocation === "phaseStation"
+				? hubFacilityPositions.trainingRange.add(-44, -150)
+				: undefined;
+		spawnHubBurt(burtHomePosition, { initialPosition: burtInitialPosition });
 		restoreStrafeTrainingSequence();
 		const pendingHubLevelReveal = consumePendingHubLevelReveal();
 		const hubRestoration = spawnHubRestoration(

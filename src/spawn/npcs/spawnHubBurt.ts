@@ -6,13 +6,20 @@ import { tags } from "../../tags"
 
 export const BURT_TAG = "burt"
 
+interface HubBurtOptions {
+	initialPosition?: ReturnType<typeof k.vec2>
+}
+
 const PLAYER_ACKNOWLEDGE_DISTANCE = 110
 const BURT_HOME_OFFSET_X = 42
 const BURT_HOME_OFFSET_Y = 8
 const HOUSE_BOB_AMOUNT = 3
 const HOUSE_BOB_SPEED = 1.25
 
-export function spawnHubBurt(homePosition: ReturnType<typeof k.vec2>) {
+export function spawnHubBurt(
+	homePosition: ReturnType<typeof k.vec2>,
+	options: HubBurtOptions = {}
+) {
 	const house = k.add([
 		k.pos(homePosition),
 		k.sprite("companion_burt_house"),
@@ -24,7 +31,10 @@ export function spawnHubBurt(homePosition: ReturnType<typeof k.vec2>) {
 		tags.gameLoop,
 	])
 	const burt = k.add([
-		k.pos(homePosition.add(BURT_HOME_OFFSET_X, BURT_HOME_OFFSET_Y)),
+		k.pos(
+			options.initialPosition ??
+				homePosition.add(BURT_HOME_OFFSET_X, BURT_HOME_OFFSET_Y)
+		),
 		k.sprite("companion_burt"),
 		k.anchor("center"),
 		k.rotate(0),

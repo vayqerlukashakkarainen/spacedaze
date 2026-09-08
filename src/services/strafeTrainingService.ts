@@ -21,8 +21,9 @@ import {
 	type CutsceneDefinition,
 } from "./cutsceneService"
 import {
-	beginStrafeTrainingOffer,
+	completeStrafeTrainingOffer,
 	completeStrafeTutorial,
+	getHubBurtLocation,
 	shouldOfferStrafeTraining,
 	shouldShowStrafeTutorial,
 	shouldSpawnStrafeTrainingModule,
@@ -63,11 +64,12 @@ export async function showStrafeTrainingOfferIfNeeded() {
 	if (!burt || !player) return false
 
 	offerStarting = true
-	beginStrafeTrainingOffer()
 	try {
-		await playCutscene(createOfferCutscene(burt, player), {
+		const result = await playCutscene(createOfferCutscene(burt, player), {
 			resolveActor: resolveTrainingActor,
 		})
+		if (result === "cancelled") return false
+		completeStrafeTrainingOffer()
 		if (shouldSpawnStrafeTrainingModule()) ensureStrafeTrainingModule(burt)
 		return true
 	} finally {
@@ -76,12 +78,14 @@ export async function showStrafeTrainingOfferIfNeeded() {
 }
 
 export function restoreStrafeTrainingSequence() {
+	const burt = getBurt()
+	if (burt && getHubBurtLocation() === "center") {
+		burt.pos = k.center().add(...HUB_RING_BURT_OFFSET)
+	}
 	if (shouldOfferStrafeTraining()) {
-		const burt = getBurt()
 		if (burt) prepareStrafeTrainingOffer(burt)
 	}
 	if (shouldSpawnStrafeTrainingModule()) {
-		const burt = getBurt()
 		if (burt) ensureStrafeTrainingModule(burt)
 	}
 	if (shouldShowStrafeTutorial()) {

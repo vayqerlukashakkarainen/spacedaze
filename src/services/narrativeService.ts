@@ -1,25 +1,33 @@
 import { resetNpcDialogueHistory } from "./npcDialogueService"
+import {
+	readProfileSection,
+	writeProfileSection,
+} from "./profileSaveService"
 
-const NARRATIVE_PROGRESS_KEY = "spacedaze_narrative_progress_v1"
+const LEGACY_NARRATIVE_PROGRESS_KEY = "spacedaze_narrative_progress_v1"
 
 interface NarrativeProgress {
 	prologueComplete: boolean
 	hubIntroductionComplete: boolean
 	asteroidRunnerComplete: boolean
 	birthdayEncounterComplete: boolean
+	burtHubLocation: HubBurtLocation
 	strafeTrainingAvailable: boolean
-	strafeTrainingOffered: boolean
+	strafeTrainingOfferComplete: boolean
 	strafeTrainingUnlocked: boolean
 	strafeTutorialComplete: boolean
 }
+
+export type HubBurtLocation = "home" | "phaseStation" | "center"
 
 const defaultProgress: NarrativeProgress = {
 	prologueComplete: false,
 	hubIntroductionComplete: false,
 	asteroidRunnerComplete: false,
 	birthdayEncounterComplete: false,
+	burtHubLocation: "home",
 	strafeTrainingAvailable: false,
-	strafeTrainingOffered: false,
+	strafeTrainingOfferComplete: false,
 	strafeTrainingUnlocked: false,
 	strafeTutorialComplete: false,
 }
@@ -60,7 +68,14 @@ export function shouldShowHubIntroduction() {
 
 export function completeHubIntroduction() {
 	progress.hubIntroductionComplete = true
+	if (progress.burtHubLocation === "home") {
+		progress.burtHubLocation = "phaseStation"
+	}
 	saveProgress()
+}
+
+export function getHubBurtLocation() {
+	return progress.burtHubLocation
 }
 
 export function shouldShowAsteroidRunnerEncounter() {
@@ -91,7 +106,7 @@ export function completeBirthdayEncounter() {
 
 export function shouldOfferStrafeTraining() {
 	return progress.strafeTrainingAvailable &&
-		!progress.strafeTrainingOffered &&
+		!progress.strafeTrainingOfferComplete &&
 		!progress.strafeTrainingUnlocked
 }
 
@@ -99,22 +114,24 @@ export function makeStrafeTrainingAvailable() {
 	if (
 		!progress.prologueComplete ||
 		progress.strafeTrainingAvailable ||
-		progress.strafeTrainingOffered ||
+		progress.strafeTrainingOfferComplete ||
 		progress.strafeTrainingUnlocked
 	) return false
 	progress.strafeTrainingAvailable = true
+	progress.burtHubLocation = "center"
 	saveProgress()
 	return true
 }
 
-export function beginStrafeTrainingOffer() {
+export function completeStrafeTrainingOffer() {
 	progress.strafeTrainingAvailable = false
-	progress.strafeTrainingOffered = true
+	progress.strafeTrainingOfferComplete = true
+	progress.burtHubLocation = "center"
 	saveProgress()
 }
 
 export function shouldSpawnStrafeTrainingModule() {
-	return progress.strafeTrainingOffered && !progress.strafeTrainingUnlocked
+	return progress.strafeTrainingOfferComplete && !progress.strafeTrainingUnlocked
 }
 
 export function isStrafeTrainingUnlocked() {
@@ -123,8 +140,9 @@ export function isStrafeTrainingUnlocked() {
 
 export function unlockStrafeTraining() {
 	progress.strafeTrainingAvailable = false
-	progress.strafeTrainingOffered = true
+	progress.strafeTrainingOfferComplete = true
 	progress.strafeTrainingUnlocked = true
+	progress.burtHubLocation = "center"
 	saveProgress()
 }
 
@@ -141,6 +159,9 @@ export function skipNarrativeIntroduction() {
 	prologueActive = false
 	progress.prologueComplete = true
 	progress.hubIntroductionComplete = true
+	if (progress.burtHubLocation === "home") {
+		progress.burtHubLocation = "phaseStation"
+	}
 	saveProgress()
 }
 
@@ -152,23 +173,67 @@ export function resetNarrativeProgress() {
 }
 
 function loadProgress(): NarrativeProgress {
-	if (typeof localStorage === "undefined") return { ...defaultProgress }
-	const saved = localStorage.getItem(NARRATIVE_PROGRESS_KEY)
-	if (!saved) return { ...defaultProgress }
-	const parsed = JSON.parse(saved) as Partial<NarrativeProgress>
-	return {
+	const profileProgress = readProfileSection<Partial<NarrativeProgress> & {
+		strafeTrainingOffered?: boolean
+	}>("narrative")
+	const legacyProgress = profileProgress ? undefined : readLegacyProgress()
+	const parsed = profileProgress ?? legacyProgress
+	if (!parsed) return { ...defaultProgress }
+	const strafeTrainingUnlocked = parsed.strafeTrainingUnlocked === true
+	const strafeTrainingOfferComplete =
+		parsed.strafeTrainingOfferComplete === true || strafeTrainingUnlocked
+	const strafeTrainingAvailable = parsed.strafeTrainingAvailable === true ||
+		(parsed.strafeTrainingOffered === true && !strafeTrainingOfferComplete)
+	const hubIntroductionComplete = parsed.hubIntroductionComplete === true
+	const savedBurtLocation = parsed.burtHubLocation
+	const burtHubLocation: HubBurtLocation =
+		savedBurtLocation === "home" ||
+		savedBurtLocation === "phaseStation" ||
+		savedBurtLocation === "center"
+			? savedBurtLocation
+			: strafeTrainingAvailable ||
+				strafeTrainingOfferComplete ||
+				strafeTrainingUnlocked
+					? "center"
+					: hubIntroductionComplete
+						? "phaseStation"
+						: "home"
+	const normalizedProgress = {
 		prologueComplete: parsed.prologueComplete === true,
-		hubIntroductionComplete: parsed.hubIntroductionComplete === true,
+		hubIntroductionComplete,
 		asteroidRunnerComplete: parsed.asteroidRunnerComplete === true,
 		birthdayEncounterComplete: parsed.birthdayEncounterComplete === true,
-		strafeTrainingAvailable: parsed.strafeTrainingAvailable === true,
-		strafeTrainingOffered: parsed.strafeTrainingOffered === true,
-		strafeTrainingUnlocked: parsed.strafeTrainingUnlocked === true,
+		burtHubLocation,
+		strafeTrainingAvailable,
+		strafeTrainingOfferComplete,
+		strafeTrainingUnlocked,
 		strafeTutorialComplete: parsed.strafeTutorialComplete === true,
 	}
+	if (legacyProgress) {
+		writeProfileSection("narrative", normalizedProgress)
+		if (typeof localStorage !== "undefined") {
+			localStorage.removeItem(LEGACY_NARRATIVE_PROGRESS_KEY)
+		}
+	}
+	return normalizedProgress
 }
 
 function saveProgress() {
-	if (typeof localStorage === "undefined") return
-	localStorage.setItem(NARRATIVE_PROGRESS_KEY, JSON.stringify(progress))
+	writeProfileSection("narrative", progress)
+	if (typeof localStorage !== "undefined") {
+		localStorage.removeItem(LEGACY_NARRATIVE_PROGRESS_KEY)
+	}
+}
+
+function readLegacyProgress() {
+	if (typeof localStorage === "undefined") return undefined
+	const saved = localStorage.getItem(LEGACY_NARRATIVE_PROGRESS_KEY)
+	if (!saved) return undefined
+	try {
+		return JSON.parse(saved) as Partial<NarrativeProgress> & {
+			strafeTrainingOffered?: boolean
+		}
+	} catch {
+		return undefined
+	}
 }
