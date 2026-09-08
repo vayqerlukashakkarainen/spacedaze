@@ -12,6 +12,7 @@ interface DamageNumberOptions {
 	critical?: boolean
 	color?: Color
 	prefix?: string
+	decimalPlaces?: number
 }
 
 const PLAYER_DAMAGE_COLOR = [255, 70, 70] as const
@@ -24,7 +25,9 @@ export function spawnDamageNumber(
 ) {
 	if (!Number.isFinite(damage) || damage <= 0) return
 
-	const roundedDamage = Math.round(damage * 10) / 10
+	const decimalPlaces = options.decimalPlaces ?? 1
+	const precision = 10 ** decimalPlaces
+	const roundedDamage = Math.round(damage * precision) / precision
 	const critical = options.critical === true
 	const number = k.add([
 		k.pos(pos.add(k.rand(-7, 7), k.rand(-7, -3))),
@@ -70,5 +73,6 @@ export function spawnHealingNumber(pos: Vec2, recovered: number) {
 	spawnDamageNumber(pos, recovered, {
 		color: k.rgb(...PLAYER_HEALING_COLOR),
 		prefix: "+",
+		decimalPlaces: 2,
 	})
 }

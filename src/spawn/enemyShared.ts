@@ -30,6 +30,7 @@ interface EnemyDeathVisualOptions {
 	intensity?: number;
 	starCount?: number;
 	tier?: EnemyDeathTier;
+	particleScale?: number;
 }
 
 export function onEnemyHit(m: GameObj, p: GameObj) {
@@ -60,7 +61,8 @@ export function enemyOnDeath(
 	spawnEnemyDeathEffect(
 		pos,
 		visuals.intensity ?? Math.sqrt(Math.max(1, powerupMultiplier)),
-		rewardSource === "boss" ? "boss" : visuals.tier ?? "normal"
+		rewardSource === "boss" ? "boss" : visuals.tier ?? "normal",
+		{ particleScale: visuals.particleScale }
 	);
 	for (const follower of k.get(tags.follower) as GameObj[]) {
 		if (!follower.exists() || follower.droneType !== "medic") continue;

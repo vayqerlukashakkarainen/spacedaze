@@ -120,13 +120,13 @@ export const corrosivePayload: UpgradeDefinition = {
 	toolName: "Corrosive payload",
 	category: "combat",
 	type: "passive",
-	levels: [0.5, 1, 1.5, 2, 2.5].map((damage, index) =>
+	levels: [0.25, 0.5, 0.75, 1, 1.25].map((damageRatio, index) =>
 		statLevel(
 			index,
-			`Projectile hits deal ${damage} damage every 0.5 seconds for ${2 + index * 0.25} seconds`,
+			`Projectile hits deal ${Math.round(damageRatio * 100)}% projectile damage every 0.5 seconds for ${2 + index * 0.25} seconds`,
 			"corrosive_payload_upg1",
 			"projectileDotDamage",
-			damage,
+			damageRatio,
 			20 + index * 5
 		)
 	),
@@ -140,11 +140,28 @@ export const arcCapacitor: UpgradeDefinition = {
 	levels: [2, 3, 4, 5, 6].map((targets, index) =>
 		statLevel(
 			index,
-			`Projectile hits arc across ${targets} total targets with improving damage retention`,
+			`Projectile hits arc across ${targets} total targets at ${55 + index * 5}% projectile damage`,
 			"arc_capacitor_upg1",
 			"projectileChainCount",
 			targets,
 			24 + index * 6
+		)
+	),
+}
+
+export const lifesteal: UpgradeDefinition = {
+	toolKey: "lifesteal",
+	toolName: "Lifesteal",
+	category: "combat",
+	type: "passive",
+	levels: [0.05, 0.075, 0.1, 0.125, 0.15].map((healthRatio, index) =>
+		statLevel(
+			index,
+			`Projectile hits return ${healthRatio * 100}% of damage dealt as hull when the siphon reaches you`,
+			"hull_upg1",
+			"projectileLifesteal",
+			healthRatio,
+			24 + index * 7
 		)
 	),
 }
@@ -157,7 +174,7 @@ export const splitChamber: UpgradeDefinition = {
 	levels: [2, 3, 4, 5, 6].map((count, index) =>
 		statLevel(
 			index,
-			`Blaster shots split into ${count} projectiles with diminishing per-shot damage`,
+			`Blaster shots split into ${count} projectiles dealing ${Math.round((1.2 + index * 0.1) / count * 100)}% projectile damage each`,
 			"split_chamber_upg1",
 			"projectileSplitCount",
 			count,

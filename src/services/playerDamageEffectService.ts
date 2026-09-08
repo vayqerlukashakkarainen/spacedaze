@@ -2,7 +2,7 @@ import type { GameObj } from "kaplay"
 import { k, layers } from "../main"
 import { tags } from "../tags"
 
-const PLAYER_DAMAGE_EFFECT_THRESHOLD = 0.3
+const PLAYER_DAMAGE_EFFECT_THRESHOLD = 0.7
 const SMOKE_INTERVAL = [0.5, 0.07] as const
 const SPARK_INTERVAL = [1.1, 0.14] as const
 const SHAKE_INTERVAL_AT_THRESHOLD = [2.4, 4.8] as const

@@ -24,13 +24,19 @@ interface EnemyDeathProfile {
 	shake: number
 }
 
+interface EnemyDeathEffectOptions {
+	particleScale?: number
+}
+
 export function spawnEnemyDeathEffect(
 	pos: Vec2,
 	intensity: number = 1,
-	tier: EnemyDeathTier = "normal"
+	tier: EnemyDeathTier = "normal",
+	options: EnemyDeathEffectOptions = {}
 ) {
 	const profile = getDeathProfile(tier)
 	const effectIntensity = k.clamp(intensity, 0.35, 1.45)
+	const particleScale = k.clamp(options.particleScale ?? 1, 0, 2)
 	const normalizedIntensity = (effectIntensity - 0.35) / 1.1
 	const fragmentCount = Math.round(
 		k.lerp(4, 14, normalizedIntensity) * profile.fragmentMultiplier
@@ -38,7 +44,7 @@ export function spawnEnemyDeathEffect(
 	spawnExplosionEffect(pos, 13 * effectIntensity, {
 		ringIntensity: tier === "boss" ? 0.62 : tier === "elite" ? 0.4 : 0.24,
 		particleCount: Math.round(
-			18 * effectIntensity * profile.particleMultiplier
+			18 * effectIntensity * profile.particleMultiplier * particleScale
 		),
 		color: profile.color,
 	})
@@ -62,7 +68,7 @@ export function spawnEnemyDeathEffect(
 			const burstPos = pos.add(direction.scale(burstDistance * effectIntensity))
 			explosionEmitter.emitter.position = burstPos
 			explosionEmitter.emit(Math.round(
-				7 * effectIntensity * profile.particleMultiplier
+				7 * effectIntensity * profile.particleMultiplier * particleScale
 			))
 			spawnFlash(burstPos, 3.5 * effectIntensity, profile.color)
 		})

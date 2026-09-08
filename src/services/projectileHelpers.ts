@@ -118,6 +118,9 @@ export function spawnPlayerBlaster(
 			chance: player.critChance,
 			multiplier: player.critMultiplier,
 		},
+		lifesteal: weapon.lifesteal
+			? { healthRatio: weapon.lifesteal }
+			: undefined,
 		lifespan: weapon.lifespan
 			? { duration: weapon.lifespan }
 			: undefined,
@@ -352,6 +355,7 @@ function applyPlayerProjectileModifiers(
 	config: ProjectileConfig,
 	allowSplit: boolean
 ) {
+	const projectileDamage = getConfiguredProjectileDamage(config)
 	const modifierFallbacks = {
 		piercing: config.piercing ? { ...config.piercing } : undefined,
 		chain: config.chain
@@ -366,6 +370,7 @@ function applyPlayerProjectileModifiers(
 						: undefined,
 				}
 			: undefined,
+		lifesteal: config.lifesteal ? { ...config.lifesteal } : undefined,
 	};
 
 	if (player.projectilePierces > 0) {
@@ -410,10 +415,10 @@ function applyPlayerProjectileModifiers(
 
 	if (player.projectileDotDamage > 0) {
 		config.damageTick = {
-			damagePerTick: player.projectileDotDamage,
+			damagePerTick: projectileDamage * player.projectileDotDamage,
 			tickInterval: 0.5,
 			duration:
-				2 + Math.max(0, (player.projectileDotDamage - 0.5) / 0.5) * 0.25,
+				2 + Math.max(0, (player.projectileDotDamage - 0.25) / 0.25) * 0.25,
 			effectType: "spark",
 		};
 	}
@@ -429,6 +434,14 @@ function applyPlayerProjectileModifiers(
 			),
 			targetTags: [tags.enemy, tags.unit],
 		};
+	}
+
+	if (player.projectileLifesteal > 0) {
+		config.lifesteal = {
+			healthRatio:
+				(config.lifesteal?.healthRatio ?? 0) +
+				player.projectileLifesteal,
+		}
 	}
 
 	if (allowSplit && player.projectileSplitCount > 0) {
@@ -533,7 +546,7 @@ function applyPlayerProjectileModifiers(
 	if (player.projectileVolatileRadius > 0 && config.damageTick) {
 		config.volatile = {
 			radius: player.projectileVolatileRadius,
-			damage: player.projectileVolatileDamage,
+			damage: projectileDamage * player.projectileVolatileDamage,
 			spreadDuration: config.damageTick.duration * 0.75,
 			spreadDamagePerTick: config.damageTick.damagePerTick * 0.7,
 		};
@@ -585,6 +598,16 @@ function applyPlayerProjectileModifiers(
 			),
 		};
 	}
+}
+
+function getConfiguredProjectileDamage(config: ProjectileConfig) {
+	if (config.impact) {
+		return config.impact.damage * (config.impact.damageMultiplier ?? 1)
+	}
+	if (config.splash) {
+		return config.splash.damage * (config.splash.damageMultiplier ?? 1)
+	}
+	return 0
 }
 
 // Player Rocket with all player modifiers

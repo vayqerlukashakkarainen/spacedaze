@@ -1425,8 +1425,11 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 
 			finishSequence();
 			await playWorldChestOpenAnimation();
+			const abilityReward = isAbilityReward(reward);
 			spawnRewardPickup(chestWorldPosition, reward, {
 				stationary: true,
+				interactionOnly: abilityReward,
+				interactionPromptStyle: abilityReward ? "key" : undefined,
 				telemetrySource: "chest",
 				recordOffer: false,
 				launch: {
@@ -1434,7 +1437,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 					height: 34,
 					duration: 0.52,
 				},
-				applyEffect: isAbilityReward(reward)
+				applyEffect: abilityReward
 					? applyChestAbilityReward
 					: undefined,
 			});

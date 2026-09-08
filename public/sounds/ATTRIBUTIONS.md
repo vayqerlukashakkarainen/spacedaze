@@ -242,3 +242,12 @@ User-provided audio asset.
 - License: Pixabay Content License
 - Original filename: `freesound_community-blaster-2-81267.mp3`
 - In-game asset: `burst-driver.mp3`
+
+## Active Module Carrier Launch
+
+"Futuristic Grenade Launcher" by PedroGuyman (Freesound), distributed through Pixabay.
+
+- Pixabay source: https://pixabay.com/sound-effects/film-special-effects-futuristic-grenade-launcher-98474/
+- Original source: https://freesound.org/people/PedroGuyman/sounds/470709/
+- License: Creative Commons Zero 1.0
+- In-game asset: `active-module-carrier-launch.ogg`

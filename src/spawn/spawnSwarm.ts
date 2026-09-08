@@ -253,7 +253,9 @@ export function spawnSwarmEnemy(
 
 	enemy.onDeath(() => {
 		if (behavior.suppressRewards) {
-			spawnEnemyDeathEffect(enemy.pos, 0.42)
+			spawnEnemyDeathEffect(enemy.pos, 0.42, "normal", {
+				particleScale: 0.35,
+			})
 		} else enemyOnDeath(
 			enemy.pos,
 			2 * profile.rewardMultiplier,
@@ -264,6 +266,7 @@ export function spawnSwarmEnemy(
 				intensity: 0.42,
 				starCount: 5,
 				tier: profile.elite ? "elite" : "normal",
+				particleScale: 0.35,
 			}
 		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume * 0.25 })

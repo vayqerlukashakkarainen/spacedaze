@@ -92,6 +92,7 @@ interface Ship {
 	projectileSlowPercentage: number;
 	projectileDotDamage: number;
 	projectileChainCount: number;
+	projectileLifesteal: number;
 	projectileSplitCount: number;
 	projectileGravityStrength: number;
 	projectileBounceCount: number;
@@ -266,6 +267,7 @@ export const player: Ship = {
 	projectileSlowPercentage: 0,
 	projectileDotDamage: 0,
 	projectileChainCount: 0,
+	projectileLifesteal: 0,
 	projectileSplitCount: 0,
 	projectileGravityStrength: 0,
 	projectileBounceCount: 0,
@@ -391,6 +393,7 @@ export function loadPlayer() {
 		"cryoRounds",
 		"corrosivePayload",
 		"arcCapacitor",
+		"lifesteal",
 		"splitChamber",
 		"ricochetRounds",
 	]);
@@ -414,6 +417,7 @@ export function loadPlayer() {
 	player.projectileSlowPercentage = getToolUpgradeLvlValue("cryoRounds") ?? 0;
 	player.projectileDotDamage = getToolUpgradeLvlValue("corrosivePayload") ?? 0;
 	player.projectileChainCount = getToolUpgradeLvlValue("arcCapacitor") ?? 0;
+	player.projectileLifesteal = getToolUpgradeLvlValue("lifesteal") ?? 0;
 	player.projectileSplitCount = getToolUpgradeLvlValue("splitChamber") ?? 0;
 	player.projectileGravityStrength =
 		getToolUpgradeLvlValue("singularityPayload") ?? 0;

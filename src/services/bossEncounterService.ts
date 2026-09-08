@@ -38,7 +38,9 @@ export function registerBossEncounter(
 	const definition = getBossDefinition(id)
 	let phaseIndex = 0
 	let finished = false
-	const hud = spawnBossHud(definition.name, definition.subtitle, definition.kind)
+	const hud = definition.kind === "miniBoss"
+		? spawnMiniBossHud(boss, definition.name)
+		: spawnBossHud(definition.name, definition.subtitle)
 
 	const controller: BossEncounterController = {
 		id,
@@ -104,7 +106,7 @@ export function getActiveBossEncounter() {
 	return activeEncounter
 }
 
-function spawnBossHud(name: string, subtitle: string, kind: "miniBoss" | "boss") {
+function spawnBossHud(name: string, subtitle: string) {
 	const width = Math.min(420, k.width() - 32)
 	const root = k.add([
 		k.pos(k.width() / 2, 18),
@@ -114,9 +116,8 @@ function spawnBossHud(name: string, subtitle: string, kind: "miniBoss" | "boss")
 		tags.bossEncounterUi,
 		tags.gameLoopUi,
 	])
-	const kindLabel = kind === "boss" ? "BOSS" : "MINI-BOSS"
 	root.add([
-		k.text(`${kindLabel}  //  ${subtitle}`, {
+		k.text(`BOSS  //  ${subtitle}`, {
 			size: UI_FONT_SIZES.tiny,
 			font: "unscii",
 		}),
@@ -143,6 +144,48 @@ function spawnBossHud(name: string, subtitle: string, kind: "miniBoss" | "boss")
 	return {
 		root,
 		setHealth(value: number) {
+			fill.width = width * k.clamp(value, 0, 1)
+		},
+	}
+}
+
+function spawnMiniBossHud(
+	miniBoss: GameObj<HealthComp | PosComp>,
+	name: string
+) {
+	const width = 58
+	const height = 4
+	const offset = k.vec2(0, -42)
+	const root = k.add([
+		k.pos(miniBoss.pos.add(offset)),
+		k.layer(layers.gameText),
+		k.z(100),
+		tags.bossEncounterUi,
+		tags.gameLoopUi,
+	])
+	root.add([
+		k.text(name, {
+			size: UI_FONT_SIZES.tiny,
+			font: "unscii",
+		}),
+		k.pos(0, -5),
+		k.anchor("bot"),
+		k.color(...UI_COLORS.text),
+	])
+	root.add([
+		k.rect(width, height),
+		k.pos(-width / 2, 0),
+		k.color(...UI_COLORS.border),
+	])
+	const fill = root.add([
+		k.rect(width, height),
+		k.pos(-width / 2, 0),
+		k.color(...UI_COLORS.danger),
+	])
+	return {
+		root,
+		setHealth(value: number) {
+			root.pos = miniBoss.pos.add(offset)
 			fill.width = width * k.clamp(value, 0, 1)
 		},
 	}

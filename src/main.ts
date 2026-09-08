@@ -248,6 +248,8 @@ import {
 } from "./services/abilityRegistry";
 import { getAllUpgradeDefinitions } from "./upgrades/upgradeRegistry";
 import { spawnRewardPickup } from "./spawn/spawnPowerup";
+import { spawnDebreeValues } from "./spawn/spawnDebree";
+import { splitSalvageValue } from "./services/salvagePickupService";
 import {
 	addAvailableDebree,
 	clearAvailableDebree,
@@ -1214,6 +1216,23 @@ function registerDebugCommands() {
 			spawnHealthOrb(playerObj.pos.add(42, 0));
 			hideCommandConsole();
 			return "Spawned health globe";
+		}
+	);
+
+	commandService.register(
+		"debris",
+		"debris [amount] - Spawn collectible debris near the player",
+		(args) => {
+			if (!playerObj || !playerObj.exists()) return "No active player";
+			const amount = Number(args[0] ?? 10);
+			if (!Number.isInteger(amount) || amount < 1 || amount > 1000) {
+				return "Debris amount must be an integer from 1-1000";
+			}
+			spawnDebreeValues(playerObj.pos.add(42, 0), splitSalvageValue(amount), {
+				pattern: "radial",
+			});
+			hideCommandConsole();
+			return `Spawned ${amount} debris`;
 		}
 	);
 

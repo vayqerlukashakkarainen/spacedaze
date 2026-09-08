@@ -60,6 +60,7 @@ export interface BounceModifierFallbacks {
 	chain?: ChainModifier;
 	split?: SplitModifier;
 	gravity?: GravityModifier;
+	lifesteal?: LifestealModifier;
 }
 
 export interface ChainModifier {
@@ -67,6 +68,10 @@ export interface ChainModifier {
 	chainDistance: number;
 	damageReduction?: number;
 	targetTags: string[];
+}
+
+export interface LifestealModifier {
+	healthRatio: number;
 }
 
 export interface LifespanModifier {
@@ -271,6 +276,7 @@ export interface ProjectileConfig {
 	piercing?: PiercingModifier;
 	bounce?: BounceModifier;
 	chain?: ChainModifier;
+	lifesteal?: LifestealModifier;
 	lifespan?: LifespanModifier;
 	onDestroy?: OnDestroyModifier;
 	split?: SplitModifier;

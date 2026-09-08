@@ -8,7 +8,7 @@ import {
 } from "../main";
 import { audioService } from "./audioService";
 import { timescale } from "../comp/timescale";
-import { pickUnitInDistance, projectiles } from "../game";
+import { pickUnitInDistance, playerObj, projectiles } from "../game";
 import { tags } from "../tags";
 import { applyPlayerStatusEffect } from "./playerStatusEffectService";
 import {
@@ -45,6 +45,7 @@ import type {
 	GrowthModifier,
 	ImpactModifier,
 	KnockbackModifier,
+	LifestealModifier,
 	LifespanModifier,
 	MineModifier,
 	OnDestroyModifier,
@@ -96,6 +97,7 @@ import {
 	triggerResonanceCoil,
 } from "./passiveUpgradeRuntimeService";
 import { getTacticalUplinkHullThreshold } from "./tacticalUplinkService";
+import { recoverPlayerHealth } from "./playerHealthService";
 
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
 const PLAYER_PROJECTILE_SCALE = 0.7;
@@ -165,6 +167,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	applyPiercingModifier(proj, config.piercing);
 	applyBounceModifier(proj, config.bounce);
 	applyChainModifier(proj, config.chain);
+	applyLifestealModifier(proj, config.lifesteal);
 	applyLifespanModifier(proj, config.lifespan);
 	applyOnDestroyModifier(proj, config.onDestroy);
 	applySplitModifier(proj, config.split);
@@ -495,6 +498,11 @@ function applyChainModifier(proj: GameObj, config?: ChainModifier) {
 	};
 }
 
+function applyLifestealModifier(proj: GameObj, config?: LifestealModifier) {
+	if (!config || config.healthRatio <= 0) return;
+	proj.lifestealHealthRatio = config.healthRatio;
+}
+
 function applyLifespanModifier(proj: GameObj, config?: LifespanModifier) {
 	if (!config) return;
 	proj.lifespanDuration = config.duration;
@@ -656,15 +664,6 @@ function applyProximityModifier(proj: GameObj, config?: ProximityModifier) {
 	proj.proximityConfig = {
 		...config,
 		targetTags: [...config.targetTags],
-	};
-	proj.splashDamage = (proj.impactDamage ?? proj.splashDamage ?? 1) *
-		config.damageMultiplier;
-	proj.splashRadius = config.explosionRadius;
-	proj.splashFalloff = 0.35;
-	proj.splashFalloffDist = 0.5;
-	proj.onDestroyConfig = {
-		...(proj.onDestroyConfig ?? {}),
-		explode: true,
 	};
 }
 
@@ -991,9 +990,24 @@ function updateProximityFuse(proj: GameObj) {
 		return true;
 	}
 
-	proj.destroyCause = "proximity";
-	k.destroy(proj);
-	return true;
+	const damage = (proj.impactDamage ?? proj.splashDamage ?? 1) *
+		config.damageMultiplier;
+	const useCompactVisual = config.fullExplosionVisual !== true;
+	delete proj.proximityConfig;
+	createProjectileExplosion(proj, {
+		pos: proj.pos,
+		radius: config.explosionRadius,
+		damage,
+		visualScale: useCompactVisual ? 0.55 : 1,
+		visualIntensity: useCompactVisual ? 0.16 : undefined,
+		visualParticleCount: useCompactVisual ? 5 : undefined,
+		damageFalloff: 0.35,
+		falloffDistance: 0.5,
+	});
+	debreeRocketEmitter.emitter.position = proj.pos;
+	debreeRocketEmitter.emitter.direction = proj.angle - 90;
+	debreeRocketEmitter.emit(useCompactVisual ? 2 : 6);
+	return false;
 }
 
 function detonateMine(proj: GameObj) {
@@ -1124,8 +1138,6 @@ function deployMine(proj: GameObj, config: ProjectileConfig) {
 
 	const mine = proj.mineConfig;
 	const damage = proj.impactDamage ?? proj.splashDamage ?? 1;
-	proj.suppressOnDestroyEffects = true;
-	proj.suppressDestroySound = true;
 	const mineConfig: ProjectileConfig = {
 		...config,
 		pos: proj.pos.clone(),
@@ -1160,7 +1172,6 @@ function deployMine(proj: GameObj, config: ProjectileConfig) {
 	mineObj.mineArmDelay = mine.armDelay;
 	mineObj.scale = mineObj.scale.scale(1.35);
 	mineObj.color = k.rgb(105, 105, 105);
-	k.destroy(proj);
 	return true;
 }
 
@@ -1376,6 +1387,12 @@ function stripPlayerModifiersAfterBounce(projectile: GameObj) {
 		delete projectile.gravityConfig;
 	}
 
+	if (fallback.lifesteal) {
+		projectile.lifestealHealthRatio = fallback.lifesteal.healthRatio;
+	} else {
+		delete projectile.lifestealHealthRatio;
+	}
+
 	delete projectile.critChance;
 	delete projectile.critMultiplier;
 	delete projectile.critFlashSize;
@@ -1452,6 +1469,42 @@ function handleOnDestroy(proj: GameObj, config: ProjectileConfig) {
 		debreeRocketEmitter.emitter.direction = proj.angle - 90;
 		debreeRocketEmitter.emit(useCompactProximityVisual ? 2 : 6);
 	}
+}
+
+function triggerProjectileLifesteal(
+	target: GameObj,
+	projectile: GameObj,
+	damage: number
+) {
+	const healthRatio = projectile.lifestealHealthRatio;
+	if (!Number.isFinite(healthRatio) || healthRatio <= 0) return;
+	if (!projectile.tags.includes(tags.friendly)) return;
+	if (
+		!playerObj?.exists() ||
+		typeof playerObj.hp !== "number" ||
+		typeof playerObj.maxHP !== "number" ||
+		playerObj.hp >= playerObj.maxHP
+	) return;
+
+	const recovery = damage * healthRatio;
+	if (!Number.isFinite(recovery) || recovery <= 0) return;
+	const lifestealColor = k.rgb(255, 48, 72);
+	spawnChainProjectile({
+		pos1: target.pos.clone(),
+		pos2: playerObj.pos.clone(),
+		target: playerObj,
+		decayTime: 0.2 * (2 - timeScale),
+		color: lifestealColor,
+		opacity: 0.95,
+		size: 2.5,
+		onArrive: () => {
+			if (!playerObj?.exists()) return;
+			const recovered = recoverPlayerHealth(playerObj, recovery);
+			if (recovered > 0) {
+				spawnFlash(playerObj.pos.clone(), 4, lifestealColor);
+			}
+		},
+	});
 }
 
 // Damage Application Helper (called from collision detection)
@@ -1560,6 +1613,7 @@ export function applyProjectileDamage(
 			source: projectile.projectileConfig?.damageSource,
 		});
 		if (damageApplied && target.tags.includes(tags.enemy)) {
+			triggerProjectileLifesteal(target, projectile, damage);
 			triggerResonanceCoil(target, projectile, damage);
 			if (!projectile.suppressImpactEffects) {
 				const piercing = projectile.piercesRemaining !== undefined &&

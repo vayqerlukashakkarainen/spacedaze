@@ -33,12 +33,18 @@ const STAT_LABELS: Readonly<Record<string, string>> = {
 	followerBlasterDmg: "DRONE DAMAGE",
 	maxHealth: "MAX HULL",
 	projectileBounceDamageRetention: "BOUNCE DAMAGE",
+	projectileCriticalShardDamage: "SHARD DAMAGE",
+	projectileDotDamage: "DAMAGE PER TICK",
 	projectileEchoDamage: "ECHO DAMAGE",
 	projectileExecutionDamage: "EXECUTION DAMAGE",
 	projectileFragmentDamage: "FRAGMENT DAMAGE",
+	projectileGrowthDamage: "MAX DAMAGE",
+	projectileLifesteal: "HEALTH RETURN",
+	projectileMineDamage: "MINE DAMAGE",
 	projectilePaintDamage: "BONUS DAMAGE",
 	projectilePaintStacks: "MAX MARK STACKS",
 	projectileProximityDamage: "BLAST DAMAGE",
+	projectileVolatileDamage: "BURST DAMAGE",
 	rocketCount: "ROCKETS",
 	rocketShards: "SHRAPNEL",
 	speedMultiplier: "MOVE SPEED",
@@ -47,17 +53,22 @@ const STAT_LABELS: Readonly<Record<string, string>> = {
 
 const PERCENTAGE_STATS = new Set([
 	"projectileBounceDamageRetention",
+	"projectileCriticalShardDamage",
+	"projectileDotDamage",
 	"projectileEchoDamage",
 	"projectileExecutionDamage",
 	"projectileFragmentDamage",
+	"projectileGrowthDamage",
+	"projectileLifesteal",
+	"projectileMineDamage",
 	"projectilePaintDamage",
 	"projectileProximityDamage",
 	"projectileSlowPercentage",
+	"projectileVolatileDamage",
 ])
 
 const MULTIPLIER_STATS = new Set([
 	"critMultiplier",
-	"projectileGrowthDamage",
 	"projectileGrowthScale",
 ])
 

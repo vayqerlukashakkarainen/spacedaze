@@ -31,7 +31,7 @@ export const fragmentationCore: UpgradeDefinition = {
 	type: "passive",
 	levels: [3, 4, 5].map((count, index) => level(
 		index,
-		`Destroyed projectiles burst into ${count} short-lived fragments`,
+		`Destroyed projectiles burst into ${count} short-lived fragments dealing ${28 + index * 6}% projectile damage each`,
 		"fragmentation_core_upg1",
 		28 + index * 8,
 		{
@@ -69,7 +69,7 @@ export const proximityFuse: UpgradeDefinition = {
 	type: "passive",
 	levels: [20, 25, 30].map((radius, index) => level(
 		index,
-		`Near misses detonate within ${radius}px and damage clustered enemies`,
+		`Near misses detonate within ${radius}px for ${55 + index * 10}% projectile damage`,
 		"proximity_fuse_upg1",
 		30 + index * 8,
 		{
@@ -86,7 +86,7 @@ export const afterimageRounds: UpgradeDefinition = {
 	type: "passive",
 	levels: [1, 2, 3].map((count, index) => level(
 		index,
-		`Shots repeat ${count} ${count === 1 ? "time" : "times"} from their firing point`,
+		`Shots repeat ${count} ${count === 1 ? "time" : "times"} from their firing point at ${40 + index * 5}% projectile damage`,
 		"afterimage_rounds_upg1",
 		32 + index * 10,
 		{
@@ -118,13 +118,13 @@ export const growingCharge: UpgradeDefinition = {
 	toolName: "Growing charge",
 	category: "combat",
 	type: "passive",
-	levels: [1.45, 1.7, 2].map((damage, index) => level(
+	levels: [1.45, 1.7, 2].map((damageRatio, index) => level(
 		index,
-		`Shots grow with distance, reaching ${damage}x damage`,
+		`Shots grow with distance, reaching ${Math.round(damageRatio * 100)}% projectile damage`,
 		"growing_charge_upg1",
 		24 + index * 8,
 		{
-			projectileGrowthDamage: damage,
+			projectileGrowthDamage: damageRatio,
 			projectileGrowthScale: 1.35 + index * 0.2,
 		}
 	)),
@@ -153,12 +153,12 @@ export const volatileCorrosion: UpgradeDefinition = {
 	requirements: { allOf: [{ toolKey: "corrosivePayload" }] },
 	levels: [55, 75, 100].map((radius, index) => level(
 		index,
-		`Corroded enemies explode in a ${radius}px cloud and spread corrosion`,
+		`Corroded enemies explode in a ${radius}px cloud for ${[100, 175, 250][index]}% projectile damage and spread corrosion`,
 		"volatile_corrosion_upg1",
 		36 + index * 10,
 		{
 			projectileVolatileRadius: radius,
-			projectileVolatileDamage: 2 + index * 1.5,
+			projectileVolatileDamage: [1, 1.75, 2.5][index],
 		}
 	)),
 }
@@ -171,7 +171,7 @@ export const criticalShatter: UpgradeDefinition = {
 	requirements: { allOf: [{ toolKey: "targetingMatrix" }] },
 	levels: [2, 3, 4].map((count, index) => level(
 		index,
-		`Critical hits release ${count} penetrating shards`,
+		`Critical hits release ${count} penetrating shards dealing ${35 + index * 5}% projectile damage each`,
 		"critical_shatter_upg1",
 		34 + index * 9,
 		{
@@ -186,13 +186,13 @@ export const executionRounds: UpgradeDefinition = {
 	toolName: "Execution rounds",
 	category: "combat",
 	type: "passive",
-	levels: [1.4, 1.65, 1.9].map((damage, index) => level(
+	levels: [1.4, 1.65, 1.9].map((damageRatio, index) => level(
 		index,
-		`Deal ${damage}x damage to enemies below ${[25, 30, 35][index]}% health`,
+		`Deal ${Math.round(damageRatio * 100)}% projectile damage to enemies below ${[25, 30, 35][index]}% health`,
 		"execution_rounds_upg1",
 		24 + index * 7,
 		{
-			projectileExecutionDamage: damage,
+			projectileExecutionDamage: damageRatio,
 			projectileExecutionThreshold: [0.25, 0.3, 0.35][index],
 		}
 	)),
@@ -223,15 +223,15 @@ export const mineLayer: UpgradeDefinition = {
 	levels: [2.5, 3.5, 4.5].map((duration, index) => {
 		const chance = [0.12, 0.18, 0.24][index]
 		return level(
-		index,
-		`${Math.round(chance * 100)}% chance after 100px to place a mine that arms after 2 seconds`,
-		"mine_layer_upg1",
-		30 + index * 9,
-		{
-			projectileMineDuration: duration,
-			projectileMineChance: chance,
-			projectileMineDamage: 0.7 + index * 0.1,
-		}
+			index,
+			`${Math.round(chance * 100)}% chance after 100px to place a mine dealing ${70 + index * 10}% projectile damage`,
+			"mine_layer_upg1",
+			30 + index * 9,
+			{
+				projectileMineDuration: duration,
+				projectileMineChance: chance,
+				projectileMineDamage: 0.7 + index * 0.1,
+			}
 		)
 	}),
 }

@@ -52,4 +52,13 @@ const hunterGuidanceDistances = getUpgradeDefinition("hunterGuidance")?.levels.m
 )
 assert.deepEqual(hunterGuidanceDistances, [140, 220, 320])
 
+const lifesteal = getUpgradeDefinition("lifesteal")
+assert.ok(lifesteal, "lifesteal should be registered")
+assert.equal(lifesteal.levels.length, 5)
+assert.deepEqual(
+	lifesteal.levels.map((level) => level.effects.modifiers?.[0]?.value),
+	[0.05, 0.075, 0.1, 0.125, 0.15]
+)
+assert.equal(lifesteal.reward?.minimumHubLevel, 2)
+
 console.log("Projectile behavior reward tests passed")

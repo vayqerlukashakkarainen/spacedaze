@@ -111,6 +111,7 @@ export interface WeaponDefinition {
 		chainDistance: number
 		damageReduction: number
 	}
+	lifesteal?: number
 }
 
 export const WEAPONS: readonly WeaponDefinition[] = [
@@ -268,7 +269,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		id: "scatterArray",
 		minimumHubLevel: 3,
 		name: "SCATTER ARRAY",
-		description: "Five short-range pellets turn every modifier into a close-range barrage.",
+		description: "Five short-range pellets siphon 5% of damage dealt back into hull.",
 		icon: "weapon_scatter_array",
 		fireSound: "weapon_scatter_array",
 		fireSoundVolume: 0.7,
@@ -285,6 +286,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		},
 		lifespan: 0.72,
 		knockback: 18,
+		lifesteal: 0.05,
 	},
 	{
 		id: "burstDriver",

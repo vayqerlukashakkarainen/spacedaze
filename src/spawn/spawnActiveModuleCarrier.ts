@@ -74,9 +74,8 @@ export function spawnActiveModuleCarrier(props: ActiveModuleCarrierProps) {
 		k.z(1),
 	])
 
-	audioService.playPositionalSound("fire_rocket1", carrier.pos, {
+	audioService.playPositionalSound("active_module_carrier_launch", carrier.pos, {
 		volume: mainSoundVolume * 0.55,
-		detune: 180,
 	})
 
 	registerBatchedEntityUpdate("effects", carrier, () => {

@@ -259,16 +259,8 @@ export async function init(k: KAPLAYCtx) {
 		"sprites/enemies/swarm-hivemind.png"
 	)
 	await k.loadSprite(
-		"enemy_impact_ace_intercept",
-		"sprites/enemies/impact-ace-intercept.png"
-	)
-	await k.loadSprite(
-		"enemy_impact_ace_relentless",
-		"sprites/enemies/impact-ace-relentless.png"
-	)
-	await k.loadSprite(
-		"enemy_impact_ace_terminal",
-		"sprites/enemies/impact-ace-terminal.png"
+		"enemy_impact_ace",
+		"sprites/enemies/impact-ace-pixellab.png"
 	)
 	await k.loadSprite(
 		"hub_salvage_hauler",
@@ -586,6 +578,10 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound("weapon_burst_driver", "sounds/burst-driver.mp3");
 	await k.loadSound("rammer_launch", "sounds/rammer-launch.wav");
 	await k.loadSound("lay_mine", "sounds/lay-mine.wav");
+	await k.loadSound(
+		"active_module_carrier_launch",
+		"sounds/active-module-carrier-launch.ogg"
+	)
 	await k.loadSound("fire_rocket1", "sounds/rocket_fire1.wav");
 
 	await k.loadSound("explosion1", "sounds/explosion1.wav");

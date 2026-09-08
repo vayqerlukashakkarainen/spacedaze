@@ -74,6 +74,7 @@ const defaultStats: Record<string, number> = {
 	projectileBounceCount: 0,
 	projectileBounceDamageRetention: 0,
 	projectileGuidanceDistance: 0,
+	projectileLifesteal: 0,
 };
 
 function initializeStats() {

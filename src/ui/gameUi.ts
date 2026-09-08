@@ -493,7 +493,11 @@ export function updatePlayerHealthBar(currentHealth: number) {
 		? healthColor
 		: k.rgb(...REWARD_RARITY_COLORS[RewardRarity.Rare]);
 	healthBarLabel.color = healthColor;
-	healthBarLabel.text = `HULL ${Math.ceil(displayedHealth)} / ${Math.ceil(healthCapacity)}`;
+	healthBarLabel.text = `HULL ${formatHullValue(displayedHealth)} / ${formatHullValue(healthCapacity)}`;
+}
+
+function formatHullValue(value: number) {
+	return `${Math.round(value * 100) / 100}`;
 }
 
 export function syncPlayerHealthBarCapacity(maxHealth: number) {
@@ -969,6 +973,7 @@ function hideRewardTooltip() {
 }
 
 function formatRewardStat(stat: string) {
+	if (stat === "projectileDotDamage") return "Projectile DOT Damage"
 	return stat
 		.replace(/([A-Z])/g, " $1")
 		.replace(/^./, (character) => character.toUpperCase());

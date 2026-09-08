@@ -820,15 +820,20 @@ function buildUpgradeReward(
 	const levelDescription = toolKey === "tacticalUplink"
 		? describeTacticalUplinkLevel(levelIndex, definition.levels.length)
 		: level.desc
+	const toolName = definition.toolName.trim().toUpperCase()
+	const levelName = level.name.trim().toUpperCase()
+	const usesBaseName = (permanent && repeatability === "once") ||
+		toolName === levelName
+	const rewardName = usesBaseName
+		? toolName
+		: `${toolName} ${levelName}`
 
 	return {
 		id: `upgrade:${toolKey}:${levelIndex + 1}`,
 		kind: "upgrade",
 		upgradeKey: toolKey,
 		levelIndex,
-		name: permanent && repeatability === "once"
-			? definition.toolName.toUpperCase()
-			: `${definition.toolName.toUpperCase()} ${level.name.toUpperCase()}`,
+		name: rewardName,
 		description: requirementText
 			? `${levelDescription}\nREQUIRES: ${requirementText}`
 			: levelDescription,
@@ -882,6 +887,10 @@ function formatUpgradeStats(
 			stats[modifier.stat] = `${modifier.value}x`
 			continue
 		}
+		if (PROJECTILE_DAMAGE_PERCENTAGE_STATS.has(modifier.stat)) {
+			stats[modifier.stat] = `${Math.round(modifier.value * 100)}%`
+			continue
+		}
 		const prefix = modifier.type === "multiply" ? "x" : modifier.type === "additive" ? "+" : "="
 		stats[modifier.stat] = `${prefix}${modifier.value}`
 	}
@@ -893,6 +902,21 @@ function formatUpgradeStats(
 	}
 	return stats
 }
+
+const PROJECTILE_DAMAGE_PERCENTAGE_STATS = new Set([
+	"projectileBounceDamageRetention",
+	"projectileCriticalShardDamage",
+	"projectileDotDamage",
+	"projectileEchoDamage",
+	"projectileExecutionDamage",
+	"projectileFragmentDamage",
+	"projectileGrowthDamage",
+	"projectileLifesteal",
+	"projectileMineDamage",
+	"projectilePaintDamage",
+	"projectileProximityDamage",
+	"projectileVolatileDamage",
+])
 
 function formatMultiplier(value: number) {
 	return `${value.toFixed(value % 1 === 0 ? 0 : 2)}x`

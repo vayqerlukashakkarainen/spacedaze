@@ -161,7 +161,7 @@ const weaponRecoilReturnSpeed = 20;
 const maxWeaponRecoilDistance = 8;
 const overclockShakeInterval = 0.12;
 const overclockShakeIntensity = 0.25;
-const lowHealthWarningThreshold = 0.1;
+const lowHealthWarningThreshold = 0.3;
 const lowHealthFlashInterval = 1;
 const lowHealthFlashDuration = 0.16;
 const afterburnerWakeInterval = 0.14;
@@ -1788,7 +1788,7 @@ function activateModule(
 ) {
 	const tier = getAbilityTierValues(moduleId as AbilityId);
 	const direction = k.Vec2.fromAngle(turretWorldAngle - 90);
-	const targetPos = getActiveModuleTarget(playerObj.pos, 220 * tier.speed);
+	const targetPos = k.toWorld(k.mousePos());
 	const playerFacing = k.Vec2.fromAngle(playerObj.angle - 90)
 	const launchTargetedPayload = (
 		payloadSprite: string,
@@ -2308,13 +2308,6 @@ function spawnPhaseEcho(pos: Vec2, angle: number) {
 			volume: mainSoundVolume * 0.55,
 		});
 	});
-}
-
-function getActiveModuleTarget(origin: Vec2, maxDistance: number) {
-	const mouseWorldPos = k.toWorld(k.mousePos());
-	const offset = mouseWorldPos.sub(origin);
-	if (offset.len() <= maxDistance) return mouseWorldPos;
-	return origin.add(offset.unit().scale(maxDistance));
 }
 
 function activatePhaseNova(playerObj: GameObj<PosComp>) {

@@ -21,4 +21,7 @@ const plasmaMortar = getWeaponDefinition("plasmaMortar")
 assert.equal(plasmaMortar.proximityRadius, 22)
 assert.equal(plasmaMortar.splash?.radius, 66)
 
+const scatterArray = getWeaponDefinition("scatterArray")
+assert.equal(scatterArray.lifesteal, 0.05)
+
 console.log("Weapon service tests passed")

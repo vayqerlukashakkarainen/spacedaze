@@ -97,7 +97,7 @@ export function spawnChest(
 		offset: k.vec2(0, -48),
 		label: () => requiresPurchase && !purchased
 			? {
-				text: `${getPurchaseCost()} SALVAGE`,
+				text: `${getPurchaseCost()}`,
 				color: getScore() >= getPurchaseCost()
 					? k.rgb(...UI_COLORS.text)
 					: k.rgb(...UI_COLORS.danger),

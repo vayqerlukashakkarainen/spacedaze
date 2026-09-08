@@ -71,11 +71,14 @@ export function applySteeringLean(
 	currentAngle: number,
 	desiredAngle: number,
 	baseScale = 1,
-	rounded = false
+	rounded = false,
+	angleForFullLean = 100,
+	responsiveness = 12
 ) {
 	const correctedDesiredAngle = adjustedTarget(currentAngle, desiredAngle);
 	const steeringAmount = k.clamp(
-		Math.abs(currentAngle - correctedDesiredAngle) / 100,
+		Math.abs(currentAngle - correctedDesiredAngle) /
+			Math.max(1, angleForFullLean),
 		0,
 		1
 	);
@@ -83,7 +86,7 @@ export function applySteeringLean(
 	const targetScaleY = rounded
 		? (1 + steeringAmount * ROUNDED_STEERING_STRETCH) * baseScale
 		: (1 - steeringAmount / 40) * baseScale;
-	const bankLerp = k.clamp(12 * k.dt(), 0, 1);
+	const bankLerp = k.clamp(responsiveness * k.dt(), 0, 1);
 	m.scale.x = k.lerp(m.scale.x, targetScaleX, bankLerp);
 	m.scale.y = k.lerp(m.scale.y, targetScaleY, bankLerp);
 }
@@ -93,10 +96,20 @@ export function applyDirectionalSteeringLean(
 	currentDirection: Vec2,
 	desiredDirection: Vec2,
 	baseScale = 1,
-	rounded = false
+	rounded = false,
+	angleForFullLean = 100,
+	responsiveness = 12
 ) {
 	if (currentDirection.len() <= 0 || desiredDirection.len() <= 0) {
-		applySteeringLean(m, 0, 0, baseScale, rounded);
+		applySteeringLean(
+			m,
+			0,
+			0,
+			baseScale,
+			rounded,
+			angleForFullLean,
+			responsiveness
+		);
 		return;
 	}
 	applySteeringLean(
@@ -104,7 +117,9 @@ export function applyDirectionalSteeringLean(
 		currentDirection.angle(),
 		desiredDirection.angle(),
 		baseScale,
-		rounded
+		rounded,
+		angleForFullLean,
+		responsiveness
 	);
 }
 
