@@ -65,6 +65,8 @@ const HOSTILE_ARRIVAL_GHOST_DURATION = 0.48
 const HOSTILE_ARRIVAL_JUMP_DURATION = 0.42
 const HOSTILE_ARRIVAL_JUMP_DISTANCE = 180
 const HOSTILE_ARRIVAL_STAGGER = 0.07
+const HOSTILE_LANDING_WOBBLE_DURATION = 0.28
+const HOSTILE_LANDING_WOBBLE_STRENGTH = 0.065
 const HOSTILE_ARRIVAL_COLOR = [255, 75, 90] as const
 const GRAVITY_ROOM_COLOR = [174, 112, 255] as const
 const GRAVITY_ROOM_WORMHOLE_OFFSET_Y = -18
@@ -665,6 +667,7 @@ function spawnHostileArrival(
 			elapsed: -Math.max(0, delay),
 			completed: false,
 			jumpStarted: false,
+			landingStarted: false,
 			update() {
 				arrival.elapsed += k.dt()
 				if (arrival.elapsed < 0 || arrival.completed) return
@@ -714,18 +717,41 @@ function spawnHostileArrival(
 					)
 				}
 				if (progress < 1) return
+				if (!arrival.landingStarted) {
+					arrival.landingStarted = true
+					spawnFlash(pos, 10, color)
+					spawnRing({
+						pos,
+						speed: 420,
+						intensity: 0.3,
+						maxRadius: 74,
+						color,
+						shader: "arrivalShockwave",
+					})
+					if (ghost.exists()) k.destroy(ghost)
+				}
+				const landingProgress = k.clamp(
+					(
+						arrival.elapsed -
+						HOSTILE_ARRIVAL_GHOST_DURATION -
+						HOSTILE_ARRIVAL_JUMP_DURATION
+					) / HOSTILE_LANDING_WOBBLE_DURATION,
+					0,
+					1
+				)
+				if (traveler && traveler.exists()) {
+					const envelope = 1 - landingProgress
+					const wobble = Math.cos(landingProgress * Math.PI * 4) *
+						envelope * HOSTILE_LANDING_WOBBLE_STRENGTH
+					traveler.pos = pos
+					traveler.scale = k.vec2(
+						visual.scale * (1 + wobble),
+						visual.scale * (1 - wobble)
+					)
+				}
+				if (landingProgress < 1) return
 				arrival.completed = true
 				spawn(angle)
-				spawnFlash(pos, 10, color)
-				spawnRing({
-					pos,
-					speed: 420,
-					intensity: 0.3,
-					maxRadius: 74,
-					color,
-					shader: "arrivalShockwave",
-				})
-				if (ghost.exists()) k.destroy(ghost)
 				if (traveler && traveler.exists()) k.destroy(traveler)
 				k.destroy(arrival)
 			},
