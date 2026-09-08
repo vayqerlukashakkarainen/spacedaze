@@ -165,6 +165,8 @@ const targetOffset = 64;
 const playerAcceleration = 420;
 const playerDeceleration = 560;
 const cameraZoomLerpSpeed = 5;
+const strafeCameraZoomMultiplier = 1.1;
+const strafeCameraPointerWeight = 0.5;
 const multiBlasterMountSpacing = 6;
 const weaponRecoilReturnSpeed = 20;
 const maxWeaponRecoilDistance = 8;
@@ -927,6 +929,8 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		const isGravitySlinging = updateGravitySling(playerObj);
 		const isMobilityMoving =
 			isPhaseJumping || isRetroBursting || isGravitySlinging;
+		const driftModeActive =
+			!isMobilityMoving && k.isKeyDown("shift")
 		const isInvulnerable =
 			isPhaseJumping || isGravitySlinging ||
 			k.time() < phaseJumpInvulnerableUntil;
@@ -935,9 +939,15 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		const cameraFollowSpeed = isMobilityMoving
 			? phaseCameraFollowSpeed
 			: normalCameraFollowSpeed;
+		const cameraTarget = driftModeActive
+			? playerObj.pos.lerp(
+				k.toWorld(k.mousePos()),
+				strafeCameraPointerWeight
+			)
+			: playerObj.pos
 		if (!currentCameraPos) currentCameraPos = playerObj.pos.clone();
 		currentCameraPos = currentCameraPos.lerp(
-			playerObj.pos,
+			cameraTarget,
 			1 - Math.exp(-cameraFollowSpeed * dt())
 		);
 		k.setCamPos(currentCameraPos);
@@ -953,8 +963,6 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			(k.isKeyDown("d") ? 1 : 0) - (k.isKeyDown("a") ? 1 : 0),
 			(k.isKeyDown("s") ? 1 : 0) - (k.isKeyDown("w") ? 1 : 0)
 		);
-		const driftModeActive =
-			!isMobilityMoving && k.isKeyDown("shift")
 		const overdriveTier = getAbilityTierValues("thrusterOverdrive");
 		const overdriveUpdate = updateThrusterOverdrive(
 			thrusterOverdriveState,
@@ -1101,9 +1109,11 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		} else {
 			afterburnerWakeTimer = 0;
 		}
-		const targetCameraScale = isBoosting
-			? WORLD_CAMERA_SCALE * 0.9
-			: WORLD_CAMERA_SCALE;
+		const targetCameraScale = driftModeActive
+			? WORLD_CAMERA_SCALE * strafeCameraZoomMultiplier
+			: isBoosting
+				? WORLD_CAMERA_SCALE * 0.9
+				: WORLD_CAMERA_SCALE;
 		currentCameraScale = k.lerp(
 			currentCameraScale,
 			targetCameraScale,
