@@ -470,6 +470,7 @@ function spawnRoomWave(
 	const entries = room.encounter?.enemies.filter((enemy) =>
 		enemy.wave === wave && !enemy.defeated
 	) ?? []
+	const fleetJumpDirection = getFleetJumpDirection(room.seed)
 	for (let index = 0; index < entries.length; index++) {
 		const entry = entries[index]
 		const slot = template.spawnSlots[entry.spawnSlot % template.spawnSlots.length]
@@ -483,23 +484,36 @@ function spawnRoomWave(
 			...baseVisual,
 			scale: baseVisual.scale * (entry.elite ? 1.12 : 1),
 		}
-		spawnHostileArrival(spawnPos, index * HOSTILE_ARRIVAL_STAGGER, visual, () => {
-			const enemy = spawnPlannedEnemy(entry.enemyId, spawnPos, {
-				persistOffscreen: true,
-				elite: entry.elite,
-				tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
-			})
-			if (!enemy) {
-				markFloorEnemyDefeated(entry.id)
-				return
-			}
-			enemy.onDestroy(() => {
-				if (getCurrentFloorRoom()?.id === room.id) {
+		spawnHostileArrival(
+			spawnPos,
+			index * HOSTILE_ARRIVAL_STAGGER,
+			visual,
+			(arrivalAngle) => {
+				const enemy = spawnPlannedEnemy(entry.enemyId, spawnPos, {
+					persistOffscreen: true,
+					elite: entry.elite,
+					tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
+				})
+				if (!enemy) {
 					markFloorEnemyDefeated(entry.id)
+					return
 				}
-			})
-		})
+				enemy.angle = arrivalAngle
+				enemy.onDestroy(() => {
+					if (getCurrentFloorRoom()?.id === room.id) {
+						markFloorEnemyDefeated(entry.id)
+					}
+				})
+			},
+			fleetJumpDirection
+		)
 	}
+}
+
+function getFleetJumpDirection(roomSeed: number) {
+	const fleetDirections = [0, 45, 90, 135, 180, 225, 270, 315]
+	const index = Math.abs(Math.round(roomSeed)) % fleetDirections.length
+	return k.Vec2.fromAngle(fleetDirections[index])
 }
 
 function nextUndefeatedWave(room: RoomFloorRoom) {
@@ -586,8 +600,8 @@ function spawnMiniBossRoom(
 ) {
 	const center = grid.hexToScreen(template.center)
 	const depth = getActiveRoomFloor()?.depth ?? 1
-	spawnHostileArrival(center, 0, IMPACT_ACE_ARRIVAL_VISUAL, () => {
-		spawnImpactAce(center, depth, {
+	spawnHostileArrival(center, 0, IMPACT_ACE_ARRIVAL_VISUAL, (arrivalAngle) => {
+		const ace = spawnImpactAce(center, depth, {
 			persistOffscreen: true,
 			tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
 			onDefeated: () => {
@@ -595,6 +609,7 @@ function spawnMiniBossRoom(
 				onCleared()
 			},
 		})
+		ace.angle = arrivalAngle
 	})
 }
 
@@ -606,8 +621,8 @@ function spawnBossRoom(
 ) {
 	const center = grid.hexToScreen(template.center)
 	const depth = getActiveRoomFloor()?.depth ?? 1
-	spawnHostileArrival(center, 0, DREADNOUGHT_ARRIVAL_VISUAL, () => {
-		spawnBoss1(
+	spawnHostileArrival(center, 0, DREADNOUGHT_ARRIVAL_VISUAL, (arrivalAngle) => {
+		const boss = spawnBoss1(
 			center,
 			10 + depth * 2,
 			getBossHealth("federation-dreadnought", depth),
@@ -622,6 +637,7 @@ function spawnBossRoom(
 				},
 			}
 		)
+		boss.angle = arrivalAngle
 	})
 }
 
@@ -629,15 +645,18 @@ function spawnHostileArrival(
 	pos: Vec2,
 	delay: number,
 	visual: HostileArrivalVisual,
-	spawn: () => void
+	spawn: (arrivalAngle: number) => void,
+	fleetJumpDirection?: Vec2
 ) {
 	const color = k.rgb(...HOSTILE_ARRIVAL_COLOR)
-	const outward = pos.sub(playerObj.pos)
-	const arrivalDirection = outward.len() > 0.001
-		? outward.unit()
+	const towardPlayer = playerObj.pos.sub(pos)
+	const jumpDirection = fleetJumpDirection && fleetJumpDirection.len() > 0.001
+		? fleetJumpDirection.unit()
+		: towardPlayer.len() > 0.001
+			? towardPlayer.unit()
 		: k.vec2(0, -1)
-	const start = pos.add(arrivalDirection.scale(HOSTILE_ARRIVAL_JUMP_DISTANCE))
-	const angle = k.Vec2.toAngle(pos.sub(start)) + 90
+	const start = pos.sub(jumpDirection.scale(HOSTILE_ARRIVAL_JUMP_DISTANCE))
+	const angle = k.Vec2.toAngle(jumpDirection) + 90
 	const ghost = spawnHostileArrivalSilhouette(pos, angle, visual, 0)
 	let traveler: ReturnType<typeof spawnHostileArrivalSilhouette> | undefined
 	const arrival = k.add([
@@ -696,7 +715,7 @@ function spawnHostileArrival(
 				}
 				if (progress < 1) return
 				arrival.completed = true
-				spawn()
+				spawn(angle)
 				spawnFlash(pos, 10, color)
 				spawnRing({
 					pos,

@@ -1,4 +1,5 @@
-import type { Vec2 } from "kaplay"
+import type { GameObj, PosComp, Vec2 } from "kaplay"
+import { interactable, INTERACTION_PRIORITY } from "../../comp/interactable"
 import type { RoomFloorRoom } from "../../generation/rooms/roomFloorTypes"
 import {
 	getScore,
@@ -18,18 +19,41 @@ import {
 import { addAvailableDebree } from "../../services/debreeEconomyService"
 import { getActiveRoomFloor } from "../../services/roomFloorService"
 import { selectRunUpgradeShopOffers } from "../../services/runUpgradeShopService"
-import {
-	getThreatRomanNumeral,
-	getThreatSnapshot,
-} from "../../services/threatService"
+import { getThreatSnapshot } from "../../services/threatService"
 import { audioService } from "../../services/audioService"
+import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
+import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import {
+	markNpcDialogueSeen,
+	registerNpcDialogueTrigger,
+} from "../../services/npcDialogueService"
+import { registerNpcDialogueIndicator } from "../../services/npcDialogueIndicatorService"
 import { playRequirementErrorSound } from "../../services/uiSoundService"
 import {
 	purchaseBurstParticleCount,
 	spawnCurrencyBurst,
 } from "../spawnCurrencyBurst"
 import { addCollectedPowerup } from "../../ui/gameUi"
+import { createNpcInteractionPrompt, UI_COLORS } from "../../ui/common"
+import { tags } from "../../tags"
 import { spawnBuilding } from "../spawnBuilding"
+
+const SHOPKEEPER_DIALOGUE_ID = "void-profit"
+const SHOPKEEPER_INTERACT_RADIUS = 86
+const SHOPKEEPER_LINES = [
+	{
+		speaker: "MARGIN",
+		text: "Lost souls leave the finest stock. I merely rescue it from becoming waste.",
+	},
+	{
+		speaker: "MARGIN",
+		text: "Even Federation crews stop by sometimes. Credits make everyone less curious.",
+	},
+	{
+		speaker: "MARGIN",
+		text: "In the phase void, tragedy is temporary. Profit compounds.",
+	},
+] as const
 
 export function spawnRunUpgradeShop(
 	pos: Vec2,
@@ -37,15 +61,7 @@ export function spawnRunUpgradeShop(
 	objectTags: string[]
 ) {
 	ensureShopOffers(room)
-	const shop = spawnBuilding({
-		pos: pos.add(0, -70),
-		sprite: "recovery_shop_1bit",
-		scale: 1,
-		interactRadius: 0,
-		interactionPrompt: false,
-		tags: objectTags,
-	})
-	shop.use(k.color(105, 205, 235))
+	const shopkeeper = spawnRunShopkeeper(pos.add(0, -70), objectTags)
 	const offsets = [
 		k.vec2(-145, 100),
 		k.vec2(0, 135),
@@ -54,9 +70,110 @@ export function spawnRunUpgradeShop(
 	for (let index = 0; index < (room.shopOffers?.length ?? 0); index++) {
 		const offer = room.shopOffers![index]
 		if (offer.purchased) continue
-		spawnShopOffer(pos.add(offsets[index]), room, offer, objectTags)
+		spawnShopOffer(pos.add(offsets[index]), offer, objectTags)
 	}
-	return shop
+	return shopkeeper
+}
+
+function spawnRunShopkeeper(pos: Vec2, objectTags: string[]) {
+	let talking = false
+	const shopkeeper = k.add([
+		k.pos(pos),
+		k.sprite("drone_salvager", { width: 24, height: 24 }),
+		k.anchor("center"),
+		k.rotate(0),
+		k.color(k.WHITE),
+		k.layer(layers.game),
+		k.z(12),
+		interactable(
+			SHOPKEEPER_INTERACT_RADIUS,
+			startConversation,
+			INTERACTION_PRIORITY.dialogue
+		),
+		tags.props,
+		tags.gameLoop,
+		tags.runtimeCullable,
+		...objectTags,
+	])
+	const prompt = createNpcInteractionPrompt({
+		target: shopkeeper,
+		offset: k.vec2(0, -44),
+	})
+	const unregisterDialogueTrigger = registerNpcDialogueTrigger(
+		"margin",
+		startConversation
+	)
+	shopkeeper.onDestroy(unregisterDialogueTrigger)
+	registerNpcDialogueIndicator({
+		actor: shopkeeper,
+		npcId: "margin",
+		getDialogueId: () => SHOPKEEPER_DIALOGUE_ID,
+		isVisible: () => !talking && !shopkeeper.isInRange,
+		offset: k.vec2(0, -44),
+	})
+
+	registerBatchedEntityUpdate("world", shopkeeper, () => {
+		prompt.update(!talking && shopkeeper.isInRange)
+		const player = k.get<GameObj<PosComp>>(tags.player)[0]
+		if (!player?.exists()) return
+		const toPlayer = player.pos.sub(shopkeeper.pos)
+		if (toPlayer.len() > 0.01) shopkeeper.angle = toPlayer.angle() + 90
+	})
+
+	function startConversation() {
+		if (talking || !shopkeeper.exists()) return false
+		talking = true
+		shopkeeper.isInRange = false
+		prompt.update(false)
+		void playCutscene(createShopkeeperCutscene(), {
+			resolveActor: (id) => id === "shopkeeper"
+				? shopkeeper
+				: undefined,
+		}).then((result) => {
+			if (result === "completed") {
+				markNpcDialogueSeen("margin", SHOPKEEPER_DIALOGUE_ID)
+			}
+		}).finally(() => {
+			if (shopkeeper.exists()) talking = false
+		})
+		return true
+	}
+
+	return shopkeeper
+}
+
+function createShopkeeperCutscene(): CutsceneDefinition {
+	const dialogueOptions = {
+		gameplay: "live" as const,
+		advance: "manual" as const,
+		input: "passthrough" as const,
+		overlayOpacity: 0,
+	}
+	return {
+		id: "run-upgrade-shopkeeper-dialogue",
+		speakerActors: { MARGIN: "shopkeeper" },
+		pauseGameplay: false,
+		pauseVisualEffects: false,
+		steps: [
+			{
+				type: "dialogue",
+				lines: SHOPKEEPER_LINES.slice(0, 2),
+				options: dialogueOptions,
+			},
+			{
+				type: "emotion",
+				actor: "shopkeeper",
+				emotion: "laugh",
+				options: { duration: 1.8, priority: "interaction" },
+			},
+			{ type: "wait", duration: 0.38 },
+			{
+				type: "dialogue",
+				lines: SHOPKEEPER_LINES.slice(2),
+				options: dialogueOptions,
+			},
+		],
+	}
 }
 
 function ensureShopOffers(room: RoomFloorRoom) {
@@ -81,7 +198,6 @@ function ensureShopOffers(room: RoomFloorRoom) {
 
 function spawnShopOffer(
 	pos: Vec2,
-	room: RoomFloorRoom,
 	offer: NonNullable<RoomFloorRoom["shopOffers"]>[number],
 	objectTags: string[]
 ) {
@@ -94,19 +210,19 @@ function spawnShopOffer(
 		sprite: definition.sprite,
 		spriteSize: k.vec2(28, 28),
 		interactRadius: 72,
-		interactPromptOffset: k.vec2(0, -80),
-		interactionPrompt: () => {
-			const status = getOfferStatus(offer)
-			return {
-				title: definition.name,
-				action: status ?? `BUY  ${offer.price} DEBRIS`,
-				detailLeft: `DEPTH ${room.shopPricing?.depth ?? 1}  //  THREAT ${getThreatRomanNumeral(room.shopPricing?.difficulty ?? 1)}`,
-				detailRight: offer.rarity,
-				requirementsMet: status === undefined,
-			}
-		},
+		interactionPrompt: false,
 		tags: objectTags,
 		onInteract: () => purchaseOffer(pickup, offer),
+	})
+	const interactionPrompt = createNpcInteractionPrompt({
+		target: pickup,
+		offset: k.vec2(0, -48),
+		label: () => ({
+			text: `${offer.price}`,
+			color: getOfferStatus(offer) === undefined
+				? k.rgb(...UI_COLORS.text)
+				: k.rgb(...UI_COLORS.danger),
+		}),
 	})
 	pickup.use(k.color(...rarityColor))
 	pickup.add([
@@ -116,24 +232,10 @@ function spawnShopOffer(
 		k.outline(2, k.rgb(...rarityColor)),
 		k.z(-1),
 	])
-	const price = pickup.add([
-		k.text(`${offer.price} DEBRIS`, {
-			font: "unscii",
-			size: 9,
-		}),
-		k.pos(0, -46),
-		k.anchor("center"),
-		k.color(...UI_PRICE_COLOR),
-		k.layer(layers.gameText),
-	])
-	price.onUpdate(() => {
-		price.color = getScore() >= offer.price
-			? k.rgb(...UI_PRICE_COLOR)
-			: k.rgb(255, 80, 80)
+	registerBatchedEntityUpdate("world", pickup, () => {
+		interactionPrompt.update(pickup.isInRange)
 	})
 }
-
-const UI_PRICE_COLOR: [number, number, number] = [255, 255, 255]
 
 function getOfferStatus(
 	offer: NonNullable<RoomFloorRoom["shopOffers"]>[number]
