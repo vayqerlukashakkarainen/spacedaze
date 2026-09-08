@@ -4,6 +4,7 @@ import { explosionEmitter } from "../particles"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { tags } from "../tags"
 import { spawnExplosionEffect, spawnFlash } from "./spawnFlash"
+import { spawnRing } from "./spawnRing"
 
 const FRAGMENT_SPRITES = [
 	"debree_part1",
