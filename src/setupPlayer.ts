@@ -318,7 +318,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		k.rand(-36, 36)
 	);
 	let respawnDirection = respawnTarget.sub(respawnStart);
-	let respawnAngle = k.Vec2.toAngle(respawnDirection) + 90;
+	let respawnAngle = respawnDirection.angle() + 90;
 	const arrivalDirection = k.Vec2.fromAngle(-90);
 	const arrivalStart = respawnTarget.sub(arrivalDirection.scale(72));
 	const arrivalEnd = respawnTarget.add(arrivalDirection.scale(28));
@@ -620,7 +620,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			k.rand(-36, 36)
 		)
 		respawnDirection = respawnTarget.sub(respawnStart)
-		respawnAngle = k.Vec2.toAngle(respawnDirection) + 90
+		respawnAngle = respawnDirection.angle() + 90
 		respawnTransitionElapsed = 0
 		respawnTransitionActive = true
 		phaseJumpStart = undefined
