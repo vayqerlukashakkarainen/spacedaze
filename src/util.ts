@@ -551,6 +551,7 @@ export async function init(k: KAPLAYCtx) {
 		"sounds/standard-blaster.wav"
 	);
 	await k.loadSound("weapon_twin_needle_fire", "sounds/twin-needle.wav")
+	await k.loadSound("weapon_plasma_mortar_fire", "sounds/plasma-mortar-fire.wav")
 	await k.loadSound("weapon_scatter_array", "sounds/laser-shoot-2.wav");
 	await k.loadSound("weapon_burst_driver", "sounds/burst.wav");
 	await k.loadSound("rammer_launch", "sounds/rammer-launch.wav");

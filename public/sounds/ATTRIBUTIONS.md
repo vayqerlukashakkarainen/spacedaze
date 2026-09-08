@@ -36,6 +36,15 @@
 - In-game asset: `primary-weapon-charge.wav`
 - Converted to mono WAV with short edge fades for clean playback.
 
+## Plasma Mortar Fire
+
+"sci-fi blaster" by SingularitysMarauder
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-sci-fi-blaster-199373/
+- License: Pixabay Content License
+- In-game asset: `plasma-mortar-fire.wav`
+- Trimmed from the source recording and converted to mono WAV for responsive playback.
+
 ## Hyperspeed Jump
 
 "Fast Warp In" by GammaGool
