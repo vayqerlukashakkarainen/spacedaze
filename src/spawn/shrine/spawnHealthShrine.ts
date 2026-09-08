@@ -1,6 +1,10 @@
 import type { Vec2 } from "kaplay"
 import { k, layers } from "../../main"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import {
+	addLocalLight,
+	updateLocalLight,
+} from "../../services/localLightService"
 import { tags } from "../../tags"
 import { spawnHealthOrb } from "../spawnHealthOrb"
 
@@ -33,6 +37,19 @@ export function spawnHealthShrine(props: HealthShrineProps) {
 		tags.runtimeCullable,
 		...(props.tags ?? []),
 	])
+	const light = addLocalLight(shrine, {
+		size: 132 / HEALTH_SHRINE_SCALE,
+		color: HEALTH_COLOR,
+		opacity: 0.82,
+		pulse: {
+			scaleMin: 0.92,
+			scaleMax: 1.18,
+			scaleSpeed: 3.4,
+			opacityMin: 0.72,
+			opacityMax: 1,
+			opacitySpeed: 2.8,
+		},
+	})
 	const core = shrine.add([
 		k.circle(4),
 		k.anchor("center"),
@@ -54,6 +71,7 @@ export function spawnHealthShrine(props: HealthShrineProps) {
 	for (let index = 0; index < HEALTH_ORB_COUNT; index++) spawnOrb(index)
 
 	registerBatchedEntityUpdate("world", shrine, () => {
+		updateLocalLight(light)
 		core.opacity = k.wave(0.66, 1, k.time() * 4)
 		coreRing.scale = k.vec2(k.wave(0.88, 1.16, k.time() * 3))
 		coreRing.opacity = k.wave(0.3, 0.62, k.time() * 3)

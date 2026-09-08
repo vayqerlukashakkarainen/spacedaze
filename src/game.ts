@@ -95,7 +95,6 @@ import {
 } from "./services/debreeEconomyService";
 import { chargeSalvageBattery } from "./services/shipUpgradeService";
 import { tracePrologue } from "./services/prologueTraceService";
-import { resetEquippedWeapon } from "./services/weaponService";
 import { spawnFlash } from "./spawn/spawnFlash";
 
 export let playerObj: GameObj<
@@ -394,7 +393,6 @@ export function exitRunToHub() {
 	clearRunInventory();
 	clearRecoveryOffers();
 	resetPowerupRuntime();
-	resetEquippedWeapon();
 	loadPlayer();
 	debrees = [];
 	transitionToLevel("hub");
@@ -416,7 +414,6 @@ export function clearGame() {
 	clearRunInventory();
 	clearRecoveryOffers();
 	resetPowerupRuntime();
-	resetEquippedWeapon();
 	loadPlayer();
 	timeSinceLastLevel = 0;
 	debrees = [];
@@ -467,7 +464,6 @@ async function recoverFromPrologueDeath() {
 	clearRunInventory();
 	clearRecoveryOffers();
 	resetPowerupRuntime();
-	resetEquippedWeapon();
 	loadPlayer();
 	audioService.stopMusic();
 	tracePrologue("game:hub-transition-start", { target: "hub" });

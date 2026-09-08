@@ -26,6 +26,10 @@ export function equipAbilityWithWorldDrop(
 	const previousAbilityId = getEquippedAbilityId(slot)
 	if (previousAbilityId === abilityId) return true
 	if (!equipDirectly(slot, abilityId)) return false
+	if (slot === "primary") {
+		saveGame("slot1")
+		return true
+	}
 
 	if (previousAbilityId) {
 		spawnDroppedAbility(slot, previousAbilityId, position)

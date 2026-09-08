@@ -1430,21 +1430,27 @@ function handleOnDestroy(proj: GameObj, config: ProjectileConfig) {
 	}
 
 	// Explode effect
-	if (proj.onDestroyConfig.explode && proj.splashRadius) {
+	if (
+		proj.onDestroyConfig.explode &&
+		proj.splashRadius &&
+		!proj.splashResolvedOnImpact
+	) {
 		const isProximityDetonation = proj.destroyCause === "proximity";
+		const useCompactProximityVisual = isProximityDetonation &&
+			proj.proximityConfig?.fullExplosionVisual !== true;
 		createProjectileExplosion(proj, {
 			pos: proj.pos,
 			radius: proj.splashRadius,
 			damage: proj.splashDamage,
-			visualScale: isProximityDetonation ? 0.55 : 1,
-			visualIntensity: isProximityDetonation ? 0.16 : undefined,
-			visualParticleCount: isProximityDetonation ? 5 : undefined,
+			visualScale: useCompactProximityVisual ? 0.55 : 1,
+			visualIntensity: useCompactProximityVisual ? 0.16 : undefined,
+			visualParticleCount: useCompactProximityVisual ? 5 : undefined,
 			damageFalloff: proj.splashFalloff,
 			falloffDistance: proj.splashFalloffDist,
 		});
 		debreeRocketEmitter.emitter.position = proj.pos;
 		debreeRocketEmitter.emitter.direction = proj.angle - 90;
-		debreeRocketEmitter.emit(isProximityDetonation ? 2 : 6);
+		debreeRocketEmitter.emit(useCompactProximityVisual ? 2 : 6);
 	}
 }
 
@@ -1566,6 +1572,8 @@ export function applyProjectileDamage(
 					piercing,
 					splash: projectile.splashRadius !== undefined,
 					knockback: projectile.knockbackStrength ?? 0,
+					suppressHitRecoil:
+						projectile.projectileConfig?.suppressHitRecoil,
 				});
 			}
 			projectile.suppressDestroyFlash = true;
@@ -1592,6 +1600,7 @@ export function applyProjectileDamage(
 		projectile.splashDamage !== undefined &&
 		projectile.splashRadius !== undefined
 	) {
+		projectile.splashResolvedOnImpact = true;
 		const explosionOptions = {
 			pos: projectile.pos,
 			radius: projectile.splashRadius,

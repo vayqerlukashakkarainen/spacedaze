@@ -451,7 +451,9 @@ function collectSyntheticReward(
 	if (reward.abilityId && reward.abilitySlot) {
 		state.discoveredAbilityIds.add(reward.abilityId)
 		state.abilityRarities[reward.abilityId] = reward.rarity
-		state.loadout = { ...state.loadout, [reward.abilitySlot]: reward.abilityId }
+		if (reward.abilitySlot !== "primary") {
+			state.loadout = { ...state.loadout, [reward.abilitySlot]: reward.abilityId }
+		}
 		if (reward.abilitySlot === "secondary") {
 			state.equippedActiveModuleId = reward.abilityId as MutableSyntheticState["equippedActiveModuleId"]
 		}
@@ -544,7 +546,7 @@ function getSyntheticSpecialPool(state: MutableSyntheticState): SyntheticChoice[
 		})
 	}
 
-	for (const slot of ["primary", "secondary", "mobility", "ultimate"] as AbilitySlot[]) {
+	for (const slot of ["secondary", "mobility", "ultimate"] as AbilitySlot[]) {
 		const abilityId = state.loadout[slot] as AbilityId | undefined
 		if (!abilityId) continue
 		const ability = getAbilityDefinition(abilityId)

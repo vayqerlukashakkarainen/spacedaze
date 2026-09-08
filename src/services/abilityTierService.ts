@@ -61,6 +61,7 @@ export function rollAbilityTierState(
 }
 
 export function registerAbilityTier(state: AbilityTierState) {
+	if (state.slot === "primary") return false
 	const current = abilityTiers.get(state.abilityId)
 	if (current && getRarityRank(current.rarity) > getRarityRank(state.rarity)) {
 		return false
@@ -101,6 +102,7 @@ export function upgradeAbilityTier(
 	fallback: RewardRarity = RewardRarity.Common,
 	random: () => number = Math.random
 ) {
+	if (slot === "primary") return undefined
 	const rarity = getNextAbilityTierRarity(abilityId, fallback)
 	if (!rarity) return undefined
 	const state = rollAbilityTierState(abilityId, slot, rarity, random)

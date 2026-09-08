@@ -2,7 +2,6 @@ import {
 	equipAbility,
 	getEquippedPrimaryAbilityId,
 } from "./abilityLoadoutService"
-import { getAbilityTierValues } from "./abilityTierService"
 import type { ExplosionSoundPoolId } from "./explosionSoundPoolService"
 
 export type WeaponId =
@@ -94,6 +93,7 @@ export interface WeaponDefinition {
 		radius: number
 		damageMultiplier: number
 	}
+	proximityRadius?: number
 	knockback?: number
 	piercing?: {
 		maxPierces: number
@@ -310,12 +310,15 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 			burstInterval: 0.075,
 			burstDamageStep: 0.25,
 		},
+		bounce: {
+			maxBounces: 1,
+		},
 	},
 	{
 		id: "plasmaMortar",
 		minimumHubLevel: 4,
 		name: "PLASMA MORTAR",
-		description: "Hold and release to launch a charged plasma shell with built-in splash damage.",
+		description: "Hold and release to launch a charged plasma shell that detonates near enemies.",
 		icon: "weapon_plasma_mortar",
 		fireSound: "weapon_plasma_mortar_fire",
 		fireSoundVolume: 0.85,
@@ -355,6 +358,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 			radius: 66,
 			damageMultiplier: 0.7,
 		},
+		proximityRadius: 22,
 		knockback: 34,
 	},
 	{
@@ -407,37 +411,7 @@ export function getWeaponDefinition(id: WeaponId) {
 }
 
 export function getEquippedWeapon() {
-	const weapon = getWeaponDefinition(getEquippedPrimaryAbilityId())
-	const tier = getAbilityTierValues(weapon.id)
-	return {
-		...weapon,
-		damageMultiplier: weapon.damageMultiplier * tier.power,
-		projectileSpeedMultiplier: weapon.projectileSpeedMultiplier * tier.speed,
-		fireCooldown: weapon.fireCooldown / tier.recovery,
-		charge: weapon.charge
-			? {
-				...weapon.charge,
-				maxDuration: weapon.id === "railLance"
-					? weapon.charge.maxDuration / tier.recovery
-					: weapon.charge.maxDuration,
-			}
-			: undefined,
-		triggerModifier: weapon.triggerModifier
-			? {
-				...weapon.triggerModifier,
-				holdCooldown: weapon.triggerModifier.holdCooldown === undefined
-					? undefined
-					: weapon.triggerModifier.holdCooldown / tier.recovery,
-			}
-			: undefined,
-		splash: weapon.splash
-			? {
-				...weapon.splash,
-				radius: weapon.splash.radius * tier.speed,
-				damageMultiplier: weapon.splash.damageMultiplier * tier.power,
-			}
-			: undefined,
-	}
+	return getWeaponDefinition(getEquippedPrimaryAbilityId())
 }
 
 export function getWeaponTriggerModifier(
@@ -465,6 +439,18 @@ export function equipWeapon(id: WeaponId) {
 	if (!isWeaponOwned(id)) return false
 	equipAbility("primary", id)
 	return true
+}
+
+export function cycleEquippedWeapon(direction: -1 | 1) {
+	const arsenal = ALL_WEAPON_IDS.filter(isWeaponOwned)
+	if (arsenal.length === 0) return getEquippedWeapon()
+	const currentIndex = arsenal.indexOf(getEquippedPrimaryAbilityId())
+	const normalizedIndex = currentIndex >= 0 ? currentIndex : 0
+	const nextIndex = (
+		normalizedIndex + direction + arsenal.length
+	) % arsenal.length
+	equipAbility("primary", arsenal[nextIndex])
+	return getEquippedWeapon()
 }
 
 export function unlockWeapon(id: WeaponId, equip = true) {

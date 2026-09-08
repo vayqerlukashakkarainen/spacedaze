@@ -20,6 +20,7 @@ import {
 	k,
 	layers,
 	mainSoundVolume,
+	setTimescale,
 	subSoundVolume,
 	velocityScale,
 } from "../main";
@@ -89,7 +90,7 @@ import {
 	starsEmitter,
 } from "../particles";
 import { audioService } from "../services/audioService";
-import { randomExplosion } from "../util";
+import { randomExplosion, saveGame } from "../util";
 import { spawnThreatEncounter } from "../services/enemyEncounterService";
 import { spawnGravityPull } from "../spawn/spawnGravityPull";
 import { spawnGravityShrineNetwork } from "../spawn/rooms/spawnGravityShrineNetwork";
@@ -104,7 +105,21 @@ import {
 	getContractChallengeMultiplier,
 	getContractChallengeRewardCount,
 } from "../services/contractService";
-import { deliverVolatileCargoPackage } from "../services/shipUpgradeService";
+import {
+	deliverVolatileCargoPackage,
+	extractVolatileCargo,
+} from "../services/shipUpgradeService";
+import {
+	depositCarriedDebree,
+	extractDebreeRun,
+	getDepositedDebreeThisRun,
+} from "../services/debreeEconomyService";
+import {
+	clearPendingRunEndSummary,
+	completeRun,
+	checkpointRun,
+} from "../services/runCompletionService";
+import { showRunClearScreen } from "../ui/deathScreen";
 import {
 	addThreatTime,
 	getThreatRomanNumeral,
@@ -1720,8 +1735,39 @@ function spawnFloorExit(pos: Vec2) {
 				cancel();
 				return;
 			}
+			const clearedDepth = getCurrentRunFloor()?.depth ?? 1;
 			const nextFloor = advanceRunSession();
-			selectLevel(nextFloor?.levelKey ?? "hub");
+			if (nextFloor) {
+				depositCarriedDebree();
+				const summary = checkpointRun(getDepositedDebreeThisRun());
+				saveGame("slot1");
+				audioService.fadeOutMusic(0.6);
+				setTimescale(0.1, 0.35, false);
+				showRunClearScreen(summary, () => {
+					setTimescale(1, 0.25, false);
+					selectLevel(nextFloor.levelKey);
+				}, {
+					title: `LEVEL ${clearedDepth} CLEARED`,
+					subtitle: "SALVAGE SECURED  //  ROUTE CONTINUES",
+					continueText: "CONTINUE RUN",
+				});
+				return;
+			}
+			const cargoReward = extractVolatileCargo();
+			if (cargoReward > 0) {
+				console.log(
+					`Volatile cargo delivered for ${cargoReward} salvage`
+				);
+			}
+			const summary = completeRun("EXTRACTED", extractDebreeRun());
+			clearPendingRunEndSummary();
+			saveGame("slot1");
+			audioService.fadeOutMusic(0.6);
+			setTimescale(0.1, 0.35, false);
+			showRunClearScreen(summary, () => {
+				setTimescale(1, 0.25, false);
+				selectLevel("hub");
+			});
 		},
 	});
 

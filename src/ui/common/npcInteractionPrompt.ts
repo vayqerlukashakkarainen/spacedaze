@@ -1,10 +1,20 @@
-import type { GameObj, Vec2 } from "kaplay"
+import type { Color, GameObj, Vec2 } from "kaplay"
 import { k, layers } from "../../main"
 import type { InteractableComp } from "../../comp/interactable"
+
+interface InteractionBubbleLabel {
+	text: string
+	color?: Color
+}
+
+type InteractionBubbleLabelSource =
+	| InteractionBubbleLabel
+	| (() => InteractionBubbleLabel | undefined)
 
 interface NpcInteractionPromptOptions {
 	target: GameObj
 	offset: Vec2
+	label?: InteractionBubbleLabelSource
 }
 
 const PROMPT_SCREEN_SIZE = 32
@@ -16,6 +26,7 @@ const ENTER_SLIDE = 6
 export function createNpcInteractionPrompt({
 	target,
 	offset,
+	label,
 }: NpcInteractionPromptOptions) {
 	let reveal = 0
 	let requestedVisible = false
@@ -41,6 +52,14 @@ export function createNpcInteractionPrompt({
 		k.color(k.BLACK),
 		k.opacity(0),
 	])
+	const labelText = root.add([
+		k.text("", { font: "unscii", size: 9 }),
+		k.pos(0, -24),
+		k.anchor("center"),
+		k.color(k.WHITE),
+		k.opacity(0),
+	])
+	labelText.hidden = true
 
 	target.onDestroy(() => {
 		if (root.exists()) k.destroy(root)
@@ -65,6 +84,7 @@ export function createNpcInteractionPrompt({
 		if (!requestedVisible && reveal === 0) {
 			bubble.opacity = 0
 			key.opacity = 0
+			labelText.opacity = 0
 			root.hidden = true
 			return
 		}
@@ -79,6 +99,7 @@ export function createNpcInteractionPrompt({
 		if (reveal === 0) {
 			bubble.opacity = 0
 			key.opacity = 0
+			labelText.opacity = 0
 			root.hidden = true
 			return
 		}
@@ -91,5 +112,14 @@ export function createNpcInteractionPrompt({
 		root.scale = k.vec2(1 / cameraScale)
 		bubble.opacity = eased
 		key.opacity = eased
+		const nextLabel = typeof label === "function" ? label() : label
+		labelText.hidden = !nextLabel
+		if (nextLabel) {
+			labelText.text = nextLabel.text.toUpperCase()
+			labelText.color = nextLabel.color ?? k.WHITE
+			labelText.opacity = eased
+		} else {
+			labelText.opacity = 0
+		}
 	}
 }

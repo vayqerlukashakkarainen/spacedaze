@@ -18,6 +18,7 @@ import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
+import { drawLightning } from "../services/lightningVisualService"
 
 const TETHER_RANGE = 230
 
@@ -45,12 +46,20 @@ export function spawnTetherDrone(
 			tetherActive: false,
 			draw() {
 				if (!this.tetherActive || !playerObj.exists()) return
-				k.drawLine({
-					p1: k.vec2(),
-					p2: playerObj.pos.sub(this.pos),
+				drawLightning({
+					start: k.vec2(),
+					end: playerObj.pos.sub(this.pos),
 					width: 1,
 					color: k.WHITE,
 					opacity: k.wave(0.28, 0.8, k.time() * 7),
+					segmentLength: 13,
+					amplitude: 4,
+					waveCount: 1.25,
+					smoothness: 0.82,
+					flickerRate: 10,
+					seed: this.id,
+					branchChance: 0.03,
+					branchLength: 7,
 				})
 			},
 		},

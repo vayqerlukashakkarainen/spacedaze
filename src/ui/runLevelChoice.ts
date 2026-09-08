@@ -374,7 +374,7 @@ function createRunLevelChoices(): RunLevelChoice[] {
 
 function getAbilityTierChoices(): RunLevelChoice[] {
 	const loadout = getAbilityLoadout()
-	const slots: AbilitySlot[] = ["primary", "secondary", "mobility", "ultimate"]
+	const slots: AbilitySlot[] = ["secondary", "mobility", "ultimate"]
 	return slots.flatMap((slot) => {
 		const abilityId = loadout[slot] as AbilityId | undefined
 		if (!abilityId) return []

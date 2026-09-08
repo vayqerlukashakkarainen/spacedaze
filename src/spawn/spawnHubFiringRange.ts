@@ -169,14 +169,6 @@ function spawnTrainingSwarmEnemy(
 
 function spawnRangeFrame(root: GameObj) {
 	root.add([
-		k.sprite("hub_firing_range_control", { width: 92, height: 92 }),
-		k.pos(-RANGE_WIDTH / 2 + 34, -205),
-		k.anchor("center"),
-		k.color(90, 108, 118),
-		k.opacity(0.72),
-		k.z(-2),
-	])
-	root.add([
 		k.text("LIVE FIRE  //  KEEP LANE CLEAR", {
 			size: 8,
 			font: "unscii",

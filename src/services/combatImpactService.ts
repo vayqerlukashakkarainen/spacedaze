@@ -13,6 +13,7 @@ interface EnemyProjectileImpactOptions {
 	piercing: boolean
 	splash: boolean
 	knockback: number
+	suppressHitRecoil?: boolean
 }
 
 const HIT_TINT_DURATION = 0.065
@@ -180,7 +181,12 @@ function applyEnemyHitRecoil(
 	direction: Vec2,
 	options: EnemyProjectileImpactOptions
 ) {
-	if (!target.pos || direction.len() <= 0.001 || options.knockback > 0) return
+	if (
+		!target.pos ||
+		direction.len() <= 0.001 ||
+		options.knockback > 0 ||
+		options.suppressHitRecoil
+	) return
 	const resistance = target.tags.includes(tags.boss)
 		? 0.12
 		: target.tags.includes(tags.elite)

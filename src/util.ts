@@ -558,8 +558,8 @@ export async function init(k: KAPLAYCtx) {
 		"sprites/enemies/stationary-cannon-platform-destroyed.png"
 	)
 	await k.loadSprite(
-		"hub_firing_range_control",
-		"sprites/hub/firing-range-control.png"
+		"crosshair_precision",
+		"sprites/crosshairs/crosshair-precision-16.png"
 	)
 	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
 

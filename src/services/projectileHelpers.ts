@@ -12,6 +12,10 @@ const ROCKET_ACQUIRE_DELAY = 0.2;
 const ROCKET_TURN_SPEED = 0.065;
 const RAIL_LANCE_MIN_KNOCKBACK_MULTIPLIER = 0.04;
 
+export interface BasicBlasterOptions {
+	suppressHitRecoil?: boolean
+}
+
 // Basic Blaster
 export function spawnBasicBlaster(
 	pos: Vec2,
@@ -20,7 +24,8 @@ export function spawnBasicBlaster(
 	damage: number,
 	speedMultiplier: number,
 	projectileTags: string[],
-	inheritPlayerModifiers: boolean = false
+	inheritPlayerModifiers: boolean = false,
+	options: BasicBlasterOptions = {}
 ) {
 	const config: ProjectileConfig = {
 		pos,
@@ -30,6 +35,7 @@ export function spawnBasicBlaster(
 		speed: BULLET_SPEED,
 		speedMultiplier,
 		tags: projectileTags,
+		suppressHitRecoil: options.suppressHitRecoil,
 		impact: {
 			damage,
 			damageMultiplier: 1,
@@ -120,6 +126,15 @@ export function spawnPlayerBlaster(
 				damage: impactDamage * weapon.splash.damageMultiplier,
 				radius: weapon.splash.radius,
 				damageMultiplier: player.blasterDmgMultiplier,
+			}
+			: undefined,
+		proximity: weapon.proximityRadius && weapon.splash
+			? {
+				radius: weapon.proximityRadius,
+				explosionRadius: weapon.splash.radius,
+				damageMultiplier: weapon.splash.damageMultiplier,
+				targetTags: [tags.enemy, tags.unit],
+				fullExplosionVisual: true,
 			}
 			: undefined,
 		knockback: knockbackStrength !== undefined
@@ -232,7 +247,7 @@ export function spawnPrimaryLinkedRocket(pos: Vec2, dir: Vec2, rot: number) {
 			multiplier: player.critMultiplier,
 		},
 		fireSound: "fire_rocket1",
-		destroySound: "explosion1",
+		explosionSoundPool: "general",
 	};
 	applyPlayerProjectileModifiers(config, false);
 
@@ -326,7 +341,7 @@ export function spawnHomingRocket(
 			particleCount: 1,
 		},
 		fireSound: "fire_rocket1",
-		destroySound: "explosion1",
+		explosionSoundPool: "general",
 	};
 	if (inheritPlayerModifiers) applyPlayerProjectileModifiers(config, false);
 
@@ -463,12 +478,23 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileProximityRadius > 0) {
+	if (player.projectileProximityRadius > 0 || config.proximity) {
+		const weaponProximity = config.proximity
 		config.proximity = {
-			radius: player.projectileProximityRadius,
-			explosionRadius: player.projectileProximityRadius * 1.15,
-			damageMultiplier: player.projectileProximityDamage,
-			targetTags: [tags.enemy, tags.unit],
+			radius: Math.max(
+				player.projectileProximityRadius,
+				weaponProximity?.radius ?? 0
+			),
+			explosionRadius: Math.max(
+				player.projectileProximityRadius * 1.15,
+				weaponProximity?.explosionRadius ?? 0
+			),
+			damageMultiplier: Math.max(
+				player.projectileProximityDamage,
+				weaponProximity?.damageMultiplier ?? 0
+			),
+			targetTags: weaponProximity?.targetTags ?? [tags.enemy, tags.unit],
+			fullExplosionVisual: weaponProximity?.fullExplosionVisual,
 		};
 	}
 

@@ -59,6 +59,7 @@ const SWARM_CHARGE_TURN_RESPONSE = 9
 const HIVEMIND_TURN_RESPONSE = 3.5
 const SWARM_THRUSTER_REFERENCE_SPEED = 130
 const CROWDED_SWARM_THRESHOLD = 250
+let swarmOutlineOffsets: Vec2[] | undefined
 
 interface SwarmDecisionEntry {
 	owner: GameObj
@@ -342,11 +343,21 @@ function drawSwarmVisual(
 	k.pushTranslate(enemy.pos)
 	k.pushRotate(enemy.angle)
 	k.pushScale(enemy.scale)
+	const opacity = enemy.opacity ?? 1
+	for (const offset of getSwarmOutlineOffsets()) {
+		k.drawSprite({
+			sprite: "enemy_swarm_drone",
+			pos: offset,
+			anchor: "center",
+			color: k.BLACK,
+			opacity,
+		})
+	}
 	k.drawSprite({
 		sprite: "enemy_swarm_drone",
 		anchor: "center",
 		color: enemy.color,
-		opacity: enemy.opacity ?? 1,
+		opacity,
 	})
 	k.drawRect({
 		pos: k.vec2(0, -3 / enemy.scale.y),
@@ -360,6 +371,21 @@ function drawSwarmVisual(
 		drawSwarmThruster(enemy.height / 2 - 2, visual.thrusterLength)
 	}
 	k.popTransform()
+}
+
+function getSwarmOutlineOffsets() {
+	if (swarmOutlineOffsets) return swarmOutlineOffsets
+	swarmOutlineOffsets = [
+		k.vec2(-1, -1),
+		k.vec2(0, -1),
+		k.vec2(1, -1),
+		k.vec2(-1, 0),
+		k.vec2(1, 0),
+		k.vec2(-1, 1),
+		k.vec2(0, 1),
+		k.vec2(1, 1),
+	]
+	return swarmOutlineOffsets
 }
 
 function drawSwarmThruster(nozzleY: number, length: number) {

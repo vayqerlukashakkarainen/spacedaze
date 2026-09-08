@@ -178,6 +178,7 @@ export interface ProximityModifier {
 	damageMultiplier: number;
 	targetTags: string[];
 	armDelay?: number;
+	fullExplosionVisual?: boolean;
 }
 
 export interface EchoModifier {
@@ -250,6 +251,7 @@ export interface ProjectileConfig {
 	explosionDelay?: number;
 	persistOffscreen?: boolean;
 	ignoreWorldCollision?: boolean;
+	suppressHitRecoil?: boolean;
 	speed: number;
 	tags: string[];
 	speedMultiplier?: number;

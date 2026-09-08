@@ -1,6 +1,5 @@
 import type { GameObj } from "kaplay"
 import { k, layers } from "../main"
-import { sparkEmitter } from "../particles"
 import { tags } from "../tags"
 
 const PLAYER_DAMAGE_EFFECT_THRESHOLD = 0.3
@@ -37,6 +36,35 @@ export function addPlayerDamageEffects(playerObj: GameObj) {
 		),
 		k.layer(layers.gameEffects),
 		k.z(4),
+		tags.gameLoop,
+	])
+	const damageSparkEmitter = k.add([
+		k.pos(),
+		k.particles(
+			{
+				max: 96,
+				speed: [70, 130],
+				lifeTime: [0.35, 0.75],
+				angle: [0, 360],
+				colors: [
+					k.rgb(255, 190, 70),
+					k.rgb(255, 105, 35),
+				],
+				opacities: [1, 0.72, 0],
+				scales: [1, 0.7, 0.2],
+				damping: [0.5, 1.5],
+				texture: k.getSprite("particle4")!.data!.frames[0].tex,
+				quads: [k.getSprite("particle4")!.data!.frames[0].q],
+			},
+			{
+				rate: 0,
+				direction: 90,
+				spread: 70,
+				position: k.vec2(),
+			}
+		),
+		k.layer(layers.gameEffects),
+		k.z(5),
 		tags.gameLoop,
 	])
 	let smokeTimer = 0
@@ -86,15 +114,16 @@ export function addPlayerDamageEffects(playerObj: GameObj) {
 
 		sparkTimer -= k.dt()
 		if (sparkTimer <= 0) {
-			sparkEmitter.emitter.position = damagePos
-			sparkEmitter.emitter.direction = playerObj.angle + 90
-			sparkEmitter.emit(1 + Math.floor(intensity * 3))
+			damageSparkEmitter.emitter.position = damagePos
+			damageSparkEmitter.emitter.direction = playerObj.angle + 90
+			damageSparkEmitter.emit(1 + Math.floor(intensity * 3))
 			sparkTimer = k.lerp(SPARK_INTERVAL[0], SPARK_INTERVAL[1], intensity)
 		}
 	})
 
 	playerObj.onDestroy(() => {
 		if (smokeEmitter.exists()) k.destroy(smokeEmitter)
+		if (damageSparkEmitter.exists()) k.destroy(damageSparkEmitter)
 	})
 
 	function updateDamageShake(intensity: number) {

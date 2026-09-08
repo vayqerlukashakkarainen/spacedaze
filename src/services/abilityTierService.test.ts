@@ -10,21 +10,21 @@ import {
 } from "./abilityTierService"
 
 beginAbilityTierRun()
-assert.deepEqual(getAbilityTierValues("standardBlaster"), {
+assert.deepEqual(getAbilityTierValues("rocketPod"), {
 	power: 1,
 	speed: 1,
 	recovery: 1,
 })
 
 const uncommon = rollAbilityTierState(
-	"standardBlaster",
-	"primary",
+	"rocketPod",
+	"secondary",
 	RewardRarity.Uncommon,
 	() => 0
 )
 const rare = rollAbilityTierState(
-	"standardBlaster",
-	"primary",
+	"rocketPod",
+	"secondary",
 	RewardRarity.Rare,
 	() => 0
 )
@@ -33,15 +33,23 @@ assert.ok(rare.values.speed > uncommon.values.speed)
 assert.ok(rare.values.recovery > uncommon.values.recovery)
 
 assert.equal(registerAbilityTier(rare), true)
-assert.equal(getAbilityTierState("standardBlaster")?.rarity, RewardRarity.Rare)
+assert.equal(getAbilityTierState("rocketPod")?.rarity, RewardRarity.Rare)
 assert.equal(registerAbilityTier(uncommon), false)
-assert.equal(getAbilityTierState("standardBlaster")?.rarity, RewardRarity.Rare)
+assert.equal(getAbilityTierState("rocketPod")?.rarity, RewardRarity.Rare)
 assert.equal(
-	getNextAbilityTierRarity("standardBlaster"),
+	getNextAbilityTierRarity("rocketPod"),
 	RewardRarity.Epic
 )
 
-beginAbilityTierRun()
+assert.equal(registerAbilityTier({
+	abilityId: "standardBlaster",
+	slot: "primary",
+	rarity: RewardRarity.Legendary,
+	values: { power: 2, speed: 2, recovery: 2 },
+}), false)
 assert.equal(getAbilityTierState("standardBlaster"), undefined)
+
+beginAbilityTierRun()
+assert.equal(getAbilityTierState("rocketPod"), undefined)
 
 console.log("Ability tier service tests passed")

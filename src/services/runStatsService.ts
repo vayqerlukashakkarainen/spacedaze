@@ -141,6 +141,24 @@ export function finishRunStats(
 	return lastRun
 }
 
+export function getActiveRunStatsSnapshot(salvageDeposited = 0) {
+	if (!activeRun) return undefined
+	return {
+		contractName: activeRun.contractName,
+		outcome: "EXTRACTED" as const,
+		durationSeconds: Math.max(
+			0,
+			Math.round((performance.now() - activeRun.startedAt) / 1000)
+		),
+		kills: activeRun.kills,
+		salvageEarned: activeRun.salvageEarned,
+		salvageDeposited,
+		salvageLost: 0,
+		rewardsCollected: activeRun.rewardsCollected,
+		highestRarity: activeRun.highestRarity,
+	}
+}
+
 export function getLastRunStats() {
 	return lastRun
 }

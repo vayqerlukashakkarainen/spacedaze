@@ -21,6 +21,7 @@ import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import { audioService } from "../services/audioService";
 import { spawnCurrencyBurst } from "./spawnCurrencyBurst";
 import { playRequirementErrorSound } from "../services/uiSoundService";
+import { createNpcInteractionPrompt, UI_COLORS } from "../ui/common";
 
 const CHEST_SCALE = 0.75;
 const CHEST_AURA_RADIUS = 20;
@@ -59,38 +60,12 @@ export function spawnChest(
 			: configuredCost;
 		return Math.max(0, Math.round(cost));
 	};
-	const chestTitle = ghost
-		? weaponChest ? "GHOST WEAPON CACHE" : "GHOST CHEST"
-		: weaponChest ? "WEAPON CACHE" : "SALVAGE CHEST";
 	const chest = spawnBuilding({
 		pos,
 		sprite: chestSprite,
 		interactRadius: 60,
 		scale: CHEST_SCALE,
-		interactPromptOffset: k.vec2(0, -78),
-		interactionPrompt: requiresPurchase
-			? () => purchased
-				? {
-					title: chestTitle,
-					action: weaponChest ? "OPEN CACHE" : "OPEN CHEST",
-				}
-				: {
-					title: chestTitle,
-					action: weaponChest ? "BUY CACHE" : "BUY CHEST",
-					detailLeft: `COST ${getPurchaseCost()} SALVAGE`,
-					detailRight: `${getScore()} AVAILABLE`,
-					requirementsMet: getScore() >= getPurchaseCost(),
-				}
-			: weaponChest
-				? {
-					title: "WEAPON CACHE",
-					action: "OPEN CACHE",
-					detailLeft: "PRIMARY / SECONDARY",
-				}
-				: {
-					title: "SALVAGE CHEST",
-					action: "OPEN CHEST",
-				},
+		interactionPrompt: false,
 			onInteract: () => {
 			if (opened) return;
 			if (!purchased && requiresPurchase) {
@@ -116,6 +91,18 @@ export function spawnChest(
 			opened = true;
 			startChestSequence();
 		},
+	});
+	const interactionPrompt = createNpcInteractionPrompt({
+		target: chest,
+		offset: k.vec2(0, -48),
+		label: () => requiresPurchase && !purchased
+			? {
+				text: `${getPurchaseCost()} SALVAGE`,
+				color: getScore() >= getPurchaseCost()
+					? k.rgb(...UI_COLORS.text)
+					: k.rgb(...UI_COLORS.danger),
+			}
+			: undefined,
 	});
 	chest.use(k.opacity(ghost ? 0.38 : 1));
 
@@ -225,6 +212,7 @@ export function spawnChest(
 	]);
 
 	registerBatchedEntityUpdate("world", chest, () => {
+		interactionPrompt.update(chest.isInRange);
 		if (opened) return;
 		const pulse = k.wave(0.92, 1.08, k.time() * 2.5);
 		aura.scale = k.vec2(pulse);

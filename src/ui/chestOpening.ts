@@ -1613,7 +1613,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				pos: k.vec2(cardWidth / 2, cardHeight - 40),
 				prompts: [{
 					action: `select${selectableIndex + 1}` as "select1" | "select2" | "select3",
-					label: isAbilityReward(reward) ? "TO EQUIP" : "TO SELECT",
+					label: reward.abilitySlot === "primary"
+						? "TO ADD TO ARSENAL"
+						: isAbilityReward(reward) ? "TO EQUIP" : "TO SELECT",
 				}],
 				color: UI_COLORS.accent,
 				labelColor: UI_COLORS.text,
@@ -1646,6 +1648,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 function applyChestAbilityReward(reward: ChestReward, position: Vec2) {
 	if (!reward.abilityId || !reward.abilitySlot) return false;
 	if (!applyReward(reward, position)) return false;
+	if (reward.abilitySlot === "primary") return true;
 	return equipAbilityWithWorldDrop(
 		reward.abilitySlot,
 		reward.abilityId,

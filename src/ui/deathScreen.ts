@@ -8,6 +8,7 @@ import {
 import type { RunEndSummary } from "../services/runCompletionService"
 import { audioService } from "../services/audioService"
 import { tags } from "../tags"
+import { uiState } from "./uiState"
 import {
 	addThemedText,
 	createUiActionButton,
@@ -101,6 +102,79 @@ export function showDeathScreen(
 	screen.onDestroy(() => enterController.cancel())
 }
 
+export function showRunClearScreen(
+	summary: RunEndSummary,
+	onContinue: () => void,
+	options: {
+		title?: string
+		subtitle?: string
+		continueText?: string
+	} = {}
+) {
+	hideDeathScreen()
+	uiState.modalOpen = true
+	const screen = k.add([
+		k.rect(k.width(), k.height()),
+		k.pos(0, 0),
+		k.color(0, 0, 0),
+		k.opacity(0.82),
+		k.fixed(),
+		k.layer(layers.ui),
+		tags.deathScreen,
+	])
+
+	k.add([
+		k.text(options.title ?? "RUN CLEARED", {
+			font: "",
+			size: UI_FONT_SIZES.death,
+		}),
+		k.pos(k.center().add(0, -210)),
+		k.anchor("center"),
+		k.color(k.WHITE),
+		k.fixed(),
+		k.layer(layers.ui),
+		tags.deathScreen,
+	])
+	k.add([
+		k.text(options.subtitle ?? "WORMHOLE EXIT SECURED", {
+			font: "unscii",
+			size: UI_FONT_SIZES.subheading,
+		}),
+		k.pos(k.center().add(0, -162)),
+		k.anchor("center"),
+		k.color(...UI_COLORS.accent),
+		k.fixed(),
+		k.layer(layers.ui),
+		tags.deathScreen,
+	])
+
+	addAnimatedDepositPanel(screen, summary)
+
+	let continued = false
+	const continueToHub = () => {
+		if (continued) return
+		continued = true
+		hideDeathScreen()
+		onContinue()
+	}
+	const buttonWidth = 260
+	createUiActionButton(screen, {
+		pos: k.vec2(
+			k.width() / 2 - buttonWidth / 2,
+			Math.min(k.height() - 52, k.height() / 2 + 286)
+		),
+		size: k.vec2(buttonWidth, 36),
+		text: options.continueText ?? "RETURN TO HUB",
+		promptAction: "confirm",
+		onClick: continueToHub,
+	})
+	const enterController = k.onKeyPress("enter", continueToHub)
+	screen.onDestroy(() => {
+		enterController.cancel()
+		uiState.modalOpen = false
+	})
+}
+
 function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunEndSummary) {
 	const showsLevelUnlocks = summary.hub.currentLevel > summary.hub.previousLevel
 	const panelSize = k.vec2(
@@ -123,7 +197,7 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 		pos: k.vec2(left + 1, top + 1),
 		width: panelSize.x - 2,
 		height: 52,
-		eyebrow: "DESTROYED EXPEDITION",
+		eyebrow: `${summary.outcome} EXPEDITION`,
 		title: "SALVAGE DEPOSIT",
 	})
 	const depositValue = addThemedText(panel, {
@@ -208,11 +282,17 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 			},
 			{ label: "KILLS", value: `${summary.run?.kills ?? 0}` },
 			{ label: "REWARDS", value: `${summary.run?.rewardsCollected ?? 0}` },
-			{
-				label: "SALVAGE LOST",
-				value: `${summary.debree.lost}`,
-				valueColor: k.rgb(...UI_COLORS.danger),
-			},
+			summary.outcome === "EXTRACTED"
+				? {
+					label: "HIGHEST RARITY",
+					value: summary.run?.highestRarity ?? "NONE",
+					valueColor: k.rgb(...UI_COLORS.accent),
+				}
+				: {
+					label: "SALVAGE LOST",
+					value: `${summary.debree.lost}`,
+					valueColor: k.rgb(...UI_COLORS.danger),
+				},
 		],
 	})
 

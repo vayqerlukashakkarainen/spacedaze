@@ -134,10 +134,10 @@ const LOADOUT_SLOT_DETAILS: ReadonlyArray<{
 	label: string
 	control: string
 }> = [
-	{ slot: "primary", label: "PRIMARY", control: "LEFT MOUSE" },
+	{ slot: "primary", label: "PRIMARY ARSENAL", control: "Q / E" },
 	{ slot: "secondary", label: "SECONDARY", control: "RIGHT MOUSE" },
 	{ slot: "mobility", label: "MOBILITY", control: "SPACE / SHIFT" },
-	{ slot: "ultimate", label: "ULTIMATE", control: "Q" },
+	{ slot: "ultimate", label: "ULTIMATE", control: "R" },
 ]
 
 export function showRunPreparation(props: RunPreparationProps) {
@@ -1253,7 +1253,7 @@ function renderMobilityAndUltimateAbilities(
 ) {
 	const groups = [
 		{ slot: "mobility" as const, label: "MOBILITY  //  SPACE OR SHIFT" },
-		{ slot: "ultimate" as const, label: "ULTIMATE  //  Q" },
+		{ slot: "ultimate" as const, label: "ULTIMATE  //  R" },
 	]
 	const entries = groups.flatMap((group) =>
 		getAbilitiesForSlot(group.slot).map((ability) => ({ group, ability }))

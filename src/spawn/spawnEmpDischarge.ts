@@ -1,6 +1,7 @@
 import type { Vec2 } from "kaplay"
 import { k, layers } from "../main"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { drawLightning } from "../services/lightningVisualService"
 import { tags } from "../tags"
 
 interface EmpDischargeProps {
@@ -12,7 +13,7 @@ interface EmpDischargeProps {
 interface EmpBolt {
 	angle: number
 	reach: number
-	bends: number[]
+	seed: number
 }
 
 const EMP_DURATION = 0.62
@@ -21,7 +22,7 @@ export function spawnEmpDischarge(props: EmpDischargeProps) {
 	const bolts: EmpBolt[] = Array.from({ length: 9 }, (_unused, index) => ({
 		angle: index * 40 + k.rand(-12, 12),
 		reach: k.rand(0.45, 1),
-		bends: [k.rand(-8, 8), k.rand(-13, 13), k.rand(-8, 8)],
+		seed: k.rand(0, 1000),
 	}))
 	const targetOffsets = props.targets.map((target) => target.sub(props.pos))
 	const effect = k.add([
@@ -54,21 +55,22 @@ export function spawnEmpDischarge(props: EmpDischargeProps) {
 
 				for (const bolt of bolts) {
 					const reach = props.radius * bolt.reach * Math.min(1, progress * 5)
-					let previous = k.vec2(0)
-					for (let step = 1; step <= 4; step++) {
-						const distance = reach * step / 4
-						const side = k.Vec2.fromAngle(bolt.angle + 90)
-						const next = k.Vec2.fromAngle(bolt.angle).scale(distance)
-							.add(side.scale(step < 4 ? bolt.bends[step - 1] : 0))
-						k.drawLine({
-							p1: previous,
-							p2: next,
-							width: step === 1 ? 2 : 1,
-							color: step % 2 === 0 ? cyan : k.WHITE,
-							opacity: opacity * 0.9,
-						})
-						previous = next
-					}
+					drawLightning({
+						start: k.vec2(),
+						end: k.Vec2.fromAngle(bolt.angle).scale(reach),
+						color: cyan,
+						branchColor: k.WHITE,
+						opacity: opacity * 0.92,
+						width: 1.5,
+						segmentLength: 9,
+						amplitude: 13,
+						waveCount: 3.4,
+						smoothness: 0.14,
+						flickerRate: 24,
+						seed: bolt.seed,
+						branchChance: 0.2,
+						branchLength: 13,
+					})
 				}
 
 				for (let index = 0; index < targetOffsets.length; index++) {
@@ -76,19 +78,20 @@ export function spawnEmpDischarge(props: EmpDischargeProps) {
 					const flicker = Math.floor(this.elapsed * 35 + index) % 2 === 0
 					if (!flicker) continue
 					const size = 7 + index % 3 * 2
-					k.drawLine({
-						p1: target.add(-size, 0),
-						p2: target.add(0, -size / 2),
-						width: 2,
-						color: k.WHITE,
-						opacity,
-					})
-					k.drawLine({
-						p1: target.add(0, -size / 2),
-						p2: target.add(size, 1),
-						width: 1,
+					drawLightning({
+						start: target.add(-size, 1),
+						end: target.add(size, -1),
 						color: cyan,
 						opacity,
+						width: 1.5,
+						segmentLength: 3,
+						amplitude: 5,
+						waveCount: 2.5,
+						smoothness: 0.08,
+						flickerRate: 30,
+						seed: index * 17.3,
+						branchChance: 0.18,
+						branchLength: 5,
 					})
 				}
 

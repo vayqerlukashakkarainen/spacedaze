@@ -167,8 +167,9 @@ function addControlReference(parent: GameObj, y: number, width: number) {
 		pos: k.vec2(0, y + 61),
 		text: [
 			"MOVE  W A S D    BOOST  SHIFT",
-			"FIRE  LEFT MOUSE    SECONDARY  RIGHT MOUSE",
-			"MOBILITY  SPACE    ULTIMATE  Q",
+			"FIRE  LEFT MOUSE    ARSENAL  Q / E",
+			"SECONDARY  RIGHT MOUSE    MOBILITY  SPACE",
+			"ULTIMATE  R",
 			"INTERACT  F    TACTICAL MAP  TAB",
 		].join("\n"),
 		variant: "body",

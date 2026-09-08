@@ -736,8 +736,10 @@ function buildWeaponReward(weapon: WeaponDefinition): RewardDefinition {
 		rarity: weapon.id === "standardBlaster"
 			? RewardRarity.Common
 			: RewardRarity.Rare,
-		progression: scalingProgression(
-			RewardRarity.Common,
+		progression: fixedProgression(
+			weapon.id === "standardBlaster"
+				? RewardRarity.Common
+				: RewardRarity.Rare,
 			"once",
 			"permanent"
 		),
@@ -1048,7 +1050,9 @@ function toReward(
 	const scaledEffects = level
 		? scaleUpgradeEffects(level.effects, definition.rarity, rarity)
 		: undefined
-	const abilityTier = definition.abilityId && definition.abilitySlot
+	const abilityTier = definition.abilityId &&
+		definition.abilitySlot &&
+		definition.abilitySlot !== "primary"
 		? rollAbilityTierState(
 			definition.abilityId,
 			definition.abilitySlot,
@@ -1091,26 +1095,6 @@ function formatAbilityTierStats(
 	tier: AbilityTierState
 ): Readonly<Record<string, number | string>> {
 	const values = tier.values
-	if (definition.abilitySlot === "primary" && definition.weaponId) {
-		const weapon = WEAPONS.find((candidate) => candidate.id === definition.weaponId)
-		if (weapon) {
-			const trigger = getWeaponTriggerModifier(weapon)
-			const stats: Record<string, number | string> = {
-				DAMAGE: formatMultiplier(weapon.damageMultiplier * values.power),
-				"PROJECTILE SPEED": formatMultiplier(
-					weapon.projectileSpeedMultiplier * values.speed
-				),
-				"FIRE RATE": trigger.usesCooldown
-					? `${(values.recovery / weapon.fireCooldown).toFixed(1)}/S`
-					: "PER CLICK",
-			}
-			if (weapon.id === "railLance" && weapon.charge) {
-				stats["CHARGE TIME"] =
-					`${(weapon.charge.maxDuration / values.recovery).toFixed(2)}S`
-			}
-			return stats
-		}
-	}
 	if (definition.abilitySlot === "secondary" && definition.activeModuleId) {
 		const module = ACTIVE_MODULES.find(
 			(candidate) => candidate.id === definition.activeModuleId

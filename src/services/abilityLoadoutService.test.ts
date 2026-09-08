@@ -62,14 +62,14 @@ assert.deepEqual(getAbilityLoadout(), {
 
 beginAbilityTierRun()
 registerAbilityTier({
-	abilityId: "pulseRepeater",
-	slot: "primary",
+	abilityId: "rocketPod",
+	slot: "secondary",
 	rarity: RewardRarity.Epic,
 	values: { power: 1.5, speed: 1.45, recovery: 1.4 },
 })
 endAbilityTierRun()
 assert.equal(getAbilityLoadout().primary, "pulseRepeater")
-assert.deepEqual(getAbilityTierValues("pulseRepeater"), {
+assert.deepEqual(getAbilityTierValues("rocketPod"), {
 	power: 1,
 	speed: 1,
 	recovery: 1,

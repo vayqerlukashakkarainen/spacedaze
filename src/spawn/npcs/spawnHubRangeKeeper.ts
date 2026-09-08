@@ -486,6 +486,7 @@ function fireCalibrationShot(
 		2,
 		0.55,
 		[tags.friendly, tags.blaster],
-		false
+		false,
+		{ suppressHitRecoil: true }
 	)
 }

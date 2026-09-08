@@ -1,39 +1,24 @@
 import assert from "node:assert/strict"
 import {
-	beginAbilityTierRun,
-	registerAbilityTier,
-} from "./abilityTierService"
-import {
+	cycleEquippedWeapon,
 	getEquippedWeapon,
+	getWeaponDefinition,
 	resetWeaponInventory,
 	unlockWeapon,
 } from "./weaponService"
 
-beginAbilityTierRun()
 resetWeaponInventory()
-unlockWeapon("railLance")
+unlockWeapon("railLance", false)
 
 const baseRailLance = getEquippedWeapon()
-assert.equal(baseRailLance.id, "railLance")
-assert.equal(baseRailLance.charge?.maxDuration, 1.15)
+assert.equal(baseRailLance.id, "standardBlaster")
+assert.equal(cycleEquippedWeapon(1).id, "railLance")
+assert.equal(getEquippedWeapon().charge?.maxDuration, 1.15)
+assert.equal(cycleEquippedWeapon(1).id, "standardBlaster")
+assert.equal(cycleEquippedWeapon(-1).id, "railLance")
 
-registerAbilityTier({
-	abilityId: "railLance",
-	slot: "primary",
-	rarity: "epic",
-	values: {
-		power: 1.5,
-		speed: 1.5,
-		recovery: 1.5,
-	},
-})
-
-const upgradedRailLance = getEquippedWeapon()
-assert.ok(upgradedRailLance.charge)
-assert.ok(upgradedRailLance.charge.maxDuration < baseRailLance.charge!.maxDuration)
-assert.equal(
-	Number(upgradedRailLance.charge.maxDuration.toFixed(3)),
-	Number((1.15 / 1.5).toFixed(3))
-)
+const plasmaMortar = getWeaponDefinition("plasmaMortar")
+assert.equal(plasmaMortar.proximityRadius, 22)
+assert.equal(plasmaMortar.splash?.radius, 66)
 
 console.log("Weapon service tests passed")

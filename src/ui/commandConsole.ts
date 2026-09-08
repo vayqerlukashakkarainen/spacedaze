@@ -23,9 +23,11 @@ let outputSpriteObjs: GameObj[] = [];
 let outputScroll: UiScrollableControl | null = null;
 let outputViewportWidth = 0;
 let consoleWheelHandler: ((event: WheelEvent) => void) | null = null;
+let gameLoopPauseHookRegistered = false;
 
 export function showCommandConsole() {
 	if (isOpen) return;
+	registerGameLoopPauseHook();
 	isOpen = true;
 	commandService.setCapturingInput(true);
 	uiState.modalOpen = true;
@@ -235,4 +237,12 @@ function pauseGameObjects(paused: boolean) {
 	for (const obj of k.get<GameObj>(tags.gameLoop)) {
 		obj.paused = paused;
 	}
+}
+
+function registerGameLoopPauseHook() {
+	if (gameLoopPauseHookRegistered) return;
+	gameLoopPauseHookRegistered = true;
+	k.onAdd(tags.gameLoop, (obj) => {
+		if (isOpen) obj.paused = true;
+	});
 }
