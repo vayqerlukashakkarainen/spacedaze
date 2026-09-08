@@ -80,35 +80,12 @@ export const debreeDist: UpgradeDefinition = {
 	],
 };
 
-export const sprint: UpgradeDefinition = {
-	toolKey: "sprint",
-	toolName: "Thrusters overclock",
-	category: "movement",
-	type: "unlock",
-	levels: [
-		{
-			name: "Level 1",
-			desc: "Hold SHIFT to overclock thrusters. Fully draining them causes overuse until the meter recharges",
-			sprite: "overclock_thrusters_upg1",
-			price: 32,
-			effects: {
-				unlocks: [
-					{ unlockId: "sprint", description: "Sprint ability unlocked" },
-				],
-				modifiers: [
-					{ stat: "sprintSpeedMultiplier", value: 1.2, type: "multiply" },
-				],
-			},
-		},
-	],
-};
-
 export const sprintSpeed: UpgradeDefinition = {
 	toolKey: "sprintSpeed",
 	toolName: "Thrusters cooling",
 	category: "movement",
 	type: "stat",
-	requirements: { allOf: [{ toolKey: "sprint" }] },
+	requirements: { allOf: [{ toolKey: "thrusterOverdrive" }] },
 	levels: [
 		{
 			name: "Level 1",

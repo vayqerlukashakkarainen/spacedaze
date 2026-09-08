@@ -41,29 +41,9 @@ export const debreeDist: Tool = {
 	],
 };
 
-export const sprint: Tool = {
-	toolName: "Thrusters overclock",
-	upgrades: [
-		{
-			name: "Level 1",
-			desc: "Hold SHIFT to overclock thrusters. Fully draining them causes overuse until the meter recharges",
-			sprite: "overclock_thrusters_upg1",
-			price: 32,
-			value: 1.2,
-		},
-		{
-			name: "Level 2",
-			desc: "Increase speed when overclocking thrusters",
-			sprite: "overclock_thrusters_upg1",
-			price: 32,
-			value: 1.4,
-		},
-	],
-};
-
 export const sprintSpeed: Tool = {
 	toolName: "Thrusters cooling",
-	requirements: { allOf: [{ toolKey: "sprint" }] },
+	requirements: { allOf: [{ toolKey: "thrusterOverdrive" }] },
 	upgrades: [
 		{
 			name: "Level 1",

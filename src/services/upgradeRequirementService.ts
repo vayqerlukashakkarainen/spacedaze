@@ -51,16 +51,21 @@ export function describeRequirements(
 }
 
 export function validateRequirementGraph(
-	definitions: readonly UpgradeDefinition[]
+	definitions: readonly UpgradeDefinition[],
+	externalRequirementKeys: readonly string[] = []
 ) {
 	const definitionsByKey = new Map(
 		definitions.map((definition) => [definition.toolKey, definition])
 	)
+	const externalKeys = new Set(externalRequirementKeys)
 	const errors: string[] = []
 
 	for (const definition of definitions) {
 		for (const requirement of getRequirements(definition)) {
-			if (!definitionsByKey.has(requirement.toolKey)) {
+			if (
+				!definitionsByKey.has(requirement.toolKey) &&
+				!externalKeys.has(requirement.toolKey)
+			) {
 				errors.push(
 					`${definition.toolKey} requires unknown upgrade ${requirement.toolKey}`
 				)

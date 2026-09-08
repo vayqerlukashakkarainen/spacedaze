@@ -26,7 +26,7 @@ export const afterburnerWake: UpgradeDefinition = {
 	toolName: "Afterburner wake",
 	category: "movement",
 	type: "passive",
-	requirements: { allOf: [{ toolKey: "sprint" }] },
+	requirements: { allOf: [{ toolKey: "thrusterOverdrive" }] },
 	levels: [
 		{
 			name: "Plasma Trail",
@@ -211,7 +211,7 @@ export const kineticRam: UpgradeDefinition = {
 	category: "movement",
 	type: "passive",
 	requirements: {
-		anyOf: [{ toolKey: "sprint" }, { toolKey: "spaceJump" }],
+		anyOf: [{ toolKey: "thrusterOverdrive" }, { toolKey: "spaceJump" }],
 	},
 	levels: [{
 		name: "Kinetic Ram",

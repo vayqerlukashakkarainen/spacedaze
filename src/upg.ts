@@ -19,7 +19,6 @@ import {
 	debreeValue,
 	maxHealth,
 	movespeed,
-	sprint,
 	sprintSpeed,
 	spaceJump,
 	spaceJumpUpgrades,
@@ -132,7 +131,6 @@ export const upgrades = {
 	debreeDist: debreeDist,
 	debreeValue: debreeValue,
 
-	sprint: sprint,
 	sprintSpeed: sprintSpeed,
 	spaceJump: spaceJump,
 	spaceJumpUpgrades: spaceJumpUpgrades,
@@ -202,7 +200,6 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	rockets: undefined,
 	debreeDist: undefined,
 	nrOfRockets: undefined,
-	sprint: undefined,
 	movespeed: undefined,
 	debreeValue: undefined,
 	maxHealth: undefined,
@@ -272,7 +269,6 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	rockets: undefined,
 	debreeDist: undefined,
 	nrOfRockets: undefined,
-	sprint: undefined,
 	movespeed: undefined,
 	debreeValue: undefined,
 	maxHealth: undefined,
@@ -404,7 +400,6 @@ const playerStatByTool: Partial<Record<ToolKey, string>> = {
 	rocketShards: "rocketShards",
 	debreeDist: "debreeSeekDistanceMultiplier",
 	debreeValue: "debreeValueMultiplier",
-	sprint: "sprintSpeedMultiplier",
 	sprintSpeed: "sprintSpeedMultiplier",
 	movespeed: "speedMultiplier",
 	phaseRam: "spaceJumpDamage",
@@ -481,7 +476,10 @@ export function evaluateUpgradeRequirements(
 
 function resolveUpgradeOrAbilityLevel(toolKey: string) {
 	const mobilityAbilityId = getEquippedMobilityAbilityId();
-	if (toolKey === "sprint" && mobilityAbilityId === "thrusterOverdrive") return 0;
+	if (
+		toolKey === "thrusterOverdrive" &&
+		mobilityAbilityId === "thrusterOverdrive"
+	) return 0
 	if (toolKey === "spaceJump" && mobilityAbilityId === "phaseJump") return 0;
 	return isToolKey(toolKey) ? getEffectiveUpgradeLevel(toolKey) : undefined;
 }
@@ -500,6 +498,7 @@ export function describeUpgradeRequirements(
 }
 
 function getUpgradeName(toolKey: string) {
+	if (toolKey === "thrusterOverdrive") return "THRUSTER OVERDRIVE"
 	return getUpgradeDefinition(toolKey)?.toolName ?? toolKey;
 }
 
@@ -582,7 +581,6 @@ export function resetLevelLoadout() {
 		rockets: undefined,
 		debreeDist: undefined,
 		nrOfRockets: undefined,
-		sprint: undefined,
 		movespeed: undefined,
 		debreeValue: undefined,
 		maxHealth: undefined,

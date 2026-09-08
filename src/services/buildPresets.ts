@@ -29,7 +29,6 @@ export const PLAYTEST_BUILDS: readonly PlaytestBuild[] = [
 			sawSatellite: 0,
 			kineticRam: 0,
 			nearMissCapacitor: 0,
-			sprint: 0,
 			spaceJump: 0,
 			phaseEcho: 0,
 			debreeDist: 2,
@@ -67,7 +66,6 @@ export const PLAYTEST_BUILDS: readonly PlaytestBuild[] = [
 		extraHealth: 1,
 		upgrades: {
 			blaster: 1,
-			sprint: 0,
 			sprintSpeed: 1,
 			movespeed: 1,
 			spaceJump: 0,

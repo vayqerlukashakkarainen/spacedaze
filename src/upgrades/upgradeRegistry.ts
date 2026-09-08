@@ -8,7 +8,6 @@ import {
 import { rocket, increaseRockets, rocketShards } from "./rocketsNew";
 import {
 	debreeDist,
-	sprint,
 	sprintSpeed,
 	spaceJump,
 	spaceJumpUpgrades,
@@ -93,7 +92,6 @@ const definitions: Record<string, UpgradeDefinition> = {
 	rocketShards,
 
 	// Ship - Movement
-	sprint,
 	sprintSpeed,
 	spaceJump,
 	spaceJumpUpgrades,

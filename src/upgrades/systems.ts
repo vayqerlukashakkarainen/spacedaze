@@ -15,7 +15,7 @@ export const afterburnerWake: Tool = singleLevelTool(
 	"Overclocked thrusters leave a burning wake that damages enemies",
 	"overclock_thrusters_upg1",
 	28,
-	{ allOf: [{ toolKey: "sprint" }] }
+	{ allOf: [{ toolKey: "thrusterOverdrive" }] }
 )
 
 export const sacrificialProtocol: Tool = singleLevelTool(
@@ -96,7 +96,7 @@ export const kineticRam: Tool = singleLevelTool(
 	"Kinetic ram", "Kinetic Ram",
 	"Boosting collisions and Phase Jump paths deal heavy impact damage",
 	"kinetic_ram_upg1", 38,
-	{ anyOf: [{ toolKey: "sprint" }, { toolKey: "spaceJump" }] }
+	{ anyOf: [{ toolKey: "thrusterOverdrive" }, { toolKey: "spaceJump" }] }
 )
 
 export const nearMissCapacitor: Tool = singleLevelTool(

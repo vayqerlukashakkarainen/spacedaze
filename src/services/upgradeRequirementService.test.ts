@@ -6,6 +6,7 @@ import {
 } from "./upgradeRequirementService"
 import { getAllUpgradeDefinitions } from "../upgrades/upgradeRegistry"
 import { PLAYTEST_BUILDS } from "./buildPresets"
+import { ABILITIES } from "./abilityRegistry"
 
 function assert(condition: boolean, message: string) {
 	if (!condition) throw new Error(message)
@@ -32,7 +33,10 @@ assert(
 	"descriptions should include minimum stack counts"
 )
 
-const graphErrors = validateRequirementGraph(getAllUpgradeDefinitions())
+const graphErrors = validateRequirementGraph(
+	getAllUpgradeDefinitions(),
+	ABILITIES.map((ability) => ability.id)
+)
 assert(graphErrors.length === 0, graphErrors.join("\n"))
 
 for (const build of PLAYTEST_BUILDS) {
@@ -86,14 +90,14 @@ const afterburnerWake = getAllUpgradeDefinitions().find(
 assert(!!afterburnerWake, "afterburner wake should be registered")
 assert(
 	!evaluateRequirements(afterburnerWake!, () => undefined).met,
-	"afterburner wake should require sprint"
+	"afterburner wake should require Thruster Overdrive"
 )
 assert(
 	evaluateRequirements(
 		afterburnerWake!,
-		(toolKey) => toolKey === "sprint" ? 0 : undefined
+		(toolKey) => toolKey === "thrusterOverdrive" ? 0 : undefined
 	).met,
-	"sprint should unlock afterburner wake"
+	"Thruster Overdrive should unlock afterburner wake"
 )
 
 const phaseRam = getAllUpgradeDefinitions().find(

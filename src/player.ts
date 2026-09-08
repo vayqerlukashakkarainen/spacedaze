@@ -18,7 +18,6 @@ interface Ship {
 	speedMultiplier: number;
 	speedPwrUpMultiplier: number;
 
-	canSprint: number | undefined;
 	sprintSpeedMultiplier: number;
 	spaceJumpLvl: number | undefined;
 	spaceJumpUpgradeLvl: number | undefined;
@@ -222,7 +221,6 @@ export const player: Ship = {
 	rocketSplashDmgFallDistanceValue: 0.6,
 	rocketSeekDistance: 200,
 	speed: 130,
-	canSprint: undefined,
 	sprintSpeedMultiplier: 1,
 	spaceJumpLvl: undefined,
 	spaceJumpUpgradeLvl: undefined,
@@ -314,11 +312,8 @@ export function loadPlayer() {
 		getToolUpgradeLvlValue("debreeDist") ?? 1;
 	player.debreeValueMultiplier = getToolUpgradeLvlValue("debreeValue") ?? 1;
 
-	const overclockSpeedMultiplier = getToolUpgradeLvlValue("sprint");
 	const coolingSpeedMultiplier = getToolUpgradeLvlValue("sprintSpeed") ?? 1;
-	player.canSprint = overclockSpeedMultiplier === undefined ? undefined : 1;
-	player.sprintSpeedMultiplier =
-		(overclockSpeedMultiplier ?? 1) * coolingSpeedMultiplier;
+	player.sprintSpeedMultiplier = coolingSpeedMultiplier;
 	player.spaceJumpLvl = getToolUpgradeLvlValue("spaceJump");
 	player.spaceJumpUpgradeLvl = getToolUpgradeLvlValue("spaceJumpUpgrades");
 	player.spaceJumpDamage = getToolUpgradeLvlValue("phaseRam") ?? 0;
@@ -376,7 +371,6 @@ export function loadPlayer() {
 		"packIntelligence",
 	]);
 	player.mobilitySetBonus = hasTechnologySet([
-		"sprint",
 		"sprintSpeed",
 		"spaceJump",
 		"spaceJumpUpgrades",
