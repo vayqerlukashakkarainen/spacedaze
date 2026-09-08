@@ -546,6 +546,10 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
 
 	await k.loadSound("shoot1", "sounds/shoot1.wav");
+	await k.loadSound(
+		"weapon_standard_blaster_fire",
+		"sounds/standard-blaster.wav"
+	);
 	await k.loadSound("weapon_scatter_array", "sounds/laser-shoot-2.wav");
 	await k.loadSound("weapon_burst_driver", "sounds/burst.wav");
 	await k.loadSound("rammer_launch", "sounds/rammer-launch.wav");

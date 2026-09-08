@@ -1,5 +1,14 @@
 # Audio Attributions
 
+## Standard Blaster
+
+"Sci-Fi Blaster Shot" by Universfield
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-sci-fi-blaster-shot-229313/
+- License: Pixabay Content License
+- In-game asset: `standard-blaster.wav`
+- Trimmed from the source recording and converted to mono WAV for responsive playback.
+
 ## Hyperspeed Jump
 
 "Fast Warp In" by GammaGool

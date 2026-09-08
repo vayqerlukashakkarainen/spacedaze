@@ -98,6 +98,8 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		name: "STANDARD BLASTER",
 		description: "Balanced and dependable. No built-in projectile modifiers.",
 		icon: "weapon_standard_blaster",
+		fireSound: "weapon_standard_blaster_fire",
+		fireSoundVolume: 0.72,
 		damageMultiplier: 1,
 		projectileSpeedMultiplier: 1,
 		fireCooldown: 0.18,
