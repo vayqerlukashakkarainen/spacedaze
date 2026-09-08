@@ -3,7 +3,7 @@ import { hexDistance, hexKey, hexNeighbors, type HexCoord } from "../hexUtils"
 import { SeededRNG } from "../seededRng"
 import type { RoomFloorRoom } from "./roomFloorTypes"
 
-export const ROOM_CELL_RADIUS = 6
+export const ROOM_CELL_RADIUS = 5
 export const ROOM_CELL_DIAMETER = ROOM_CELL_RADIUS * 2 + 1
 
 const DIRECTIONS: HexCoord[] = [

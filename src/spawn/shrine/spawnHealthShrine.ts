@@ -18,6 +18,7 @@ interface HealthShrineProps {
 	pos: Vec2
 	respawnOrbs?: boolean
 	tags?: string[]
+	onDepleted?: () => void
 }
 
 export function spawnHealthShrine(props: HealthShrineProps) {
@@ -67,6 +68,7 @@ export function spawnHealthShrine(props: HealthShrineProps) {
 		k.z(0),
 	])
 	const slotGenerations = Array(HEALTH_ORB_COUNT).fill(0) as number[]
+	let collectedOrbCount = 0
 
 	for (let index = 0; index < HEALTH_ORB_COUNT; index++) spawnOrb(index)
 
@@ -89,7 +91,11 @@ export function spawnHealthShrine(props: HealthShrineProps) {
 			persistOffscreen: true,
 			tags: props.tags,
 			onCollected: () => {
-				if (!props.respawnOrbs) return
+				if (!props.respawnOrbs) {
+					collectedOrbCount++
+					if (collectedOrbCount >= HEALTH_ORB_COUNT) props.onDepleted?.()
+					return
+				}
 				k.wait(TRAINING_ORB_RESPAWN_DELAY, () => {
 					if (!shrine.exists() || slotGenerations[index] !== generation) return
 					spawnOrb(index)

@@ -59,6 +59,7 @@ export function generateRoomFloor(
 			distanceFromStart: distances[index],
 			connections: connections[index].map((neighborIndex) => roomId(coords[neighborIndex])),
 			state: index === 0 ? "active" : connections[index].includes(0) ? "discovered" : "unseen",
+			contentCompleted: false,
 			encounter: kind === "combat"
 				? createEncounterPlan(
 					roomSeed,

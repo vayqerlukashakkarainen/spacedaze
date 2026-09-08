@@ -41,6 +41,7 @@ export interface RoomFloorRoom {
 	distanceFromStart: number
 	connections: string[]
 	state: RoomFloorState
+	contentCompleted: boolean
 	encounter?: RoomEncounterPlan
 }
 

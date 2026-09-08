@@ -1685,7 +1685,10 @@ function selectGravityShrineDestinations(
 		.map((cell) => grid.hexToScreen(cell.coord));
 }
 
-function spawnFloorExit(pos: Vec2) {
+export function spawnFloorExit(
+	pos: Vec2,
+	objectTags: string[] = [tags.runMap]
+) {
 	currentFloorExitPosition = pos.clone();
 	let portalReady = false;
 	let previousPhase = getRunPhase();
@@ -1694,6 +1697,7 @@ function spawnFloorExit(pos: Vec2) {
 		pos,
 		falloff: 1,
 		visualizePull: true,
+		tags: objectTags,
 		targetTags: [
 			tags.unit,
 			tags.friendly,
@@ -1711,6 +1715,7 @@ function spawnFloorExit(pos: Vec2) {
 		visual: "wormhole",
 		label: "ACTIVATE EXIT",
 		portalState: "dormant",
+		tags: objectTags,
 		onEnter: (_portal, selectLevel, cancel) => {
 			if (narrativePrologueActive()) {
 				portal.setPortalState("dormant", "SIGNAL JAMMED");

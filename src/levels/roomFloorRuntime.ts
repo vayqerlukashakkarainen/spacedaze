@@ -1,4 +1,4 @@
-import type { GameObj } from "kaplay"
+import type { GameObj, Vec2 } from "kaplay"
 import { gridCollision } from "../comp/gridCollision"
 import { generationMapToHexGrid } from "../generation/gridConversion"
 import { hexNeighbors } from "../generation/hexUtils"
@@ -17,16 +17,28 @@ import {
 	beginRoomFloor,
 	clearRoomFloor,
 	enterFloorRoom,
+	getActiveRoomFloor,
 	getCurrentFloorRoom,
+	markCurrentRoomContentCompleted,
 	markCurrentFloorRoomCleared,
 	markFloorEnemyDefeated,
+	teleportToFloorRoom as teleportRoomState,
 } from "../services/roomFloorService"
 import { spawnPlannedEnemy } from "../services/enemyEncounterService"
+import { getBossHealth } from "../services/bossRegistry"
 import { getHubLevel } from "../services/hubProgressService"
 import { resetPlayerPath } from "../services/playerPathService"
 import { startThreatLevel, stopThreatLevel, updateThreatLevel } from "../services/threatService"
+import { spawnBoss1 } from "../spawn/spawnBoss1"
+import { spawnChest } from "../spawn/spawnChest"
+import { spawnGravityPull } from "../spawn/spawnGravityPull"
+import { spawnRing } from "../spawn/spawnRing"
+import { spawnDroneRepairZone } from "../spawn/rooms/spawnDroneRepairZone"
+import { spawnHealthShrine } from "../spawn/shrine/spawnHealthShrine"
+import { spawnShrine } from "../spawn/shrine/spawnShrine"
 import { tags } from "../tags"
 import type { GeneratedMapConfig } from "./levels"
+import { spawnFloorExit } from "./runMap"
 import {
 	getRunRockTileFrame,
 	RUN_ROCK_TILE_ANCHOR_Y,
@@ -37,6 +49,7 @@ import {
 const ROOM_TRANSITION_COOLDOWN = 0.45
 const ROOM_ENTRY_INSET = 2
 const ROOM_HEX_SIZE = 56
+const ROOM_PROJECTION_Y_SCALE = 0.78
 
 let active = false
 let activeConfig: GeneratedMapConfig | undefined
@@ -89,7 +102,7 @@ export function transitionToConnectedRoom(destinationRoomId: string) {
 	return true
 }
 
-function loadCurrentRoom(previousRoomId?: string) {
+function loadCurrentRoom(previousRoomId?: string, teleportArrival = false) {
 	const room = getCurrentFloorRoom()
 	const config = activeConfig
 	if (!room || !config) return
@@ -99,7 +112,7 @@ function loadCurrentRoom(previousRoomId?: string) {
 		Math.min(config.hexSize, ROOM_HEX_SIZE),
 		0,
 		0,
-		config.projectionYScale
+		Math.max(config.projectionYScale ?? 1, ROOM_PROJECTION_Y_SCALE)
 	)
 	const uncenteredCenter = grid.hexToScreen(template.center)
 	grid.config.offset = k.center().sub(uncenteredCenter)
@@ -107,18 +120,28 @@ function loadCurrentRoom(previousRoomId?: string) {
 	gridRegistry.register(ACTIVE_RUN_GRID_KEY, grid, false)
 	if (playerObj.has("gridCollision")) playerObj.unuse("gridCollision")
 	playerObj.use(gridCollision(ACTIVE_RUN_GRID_KEY))
-	playerObj.pos = getEntryPosition(grid, template, previousRoomId)
+	playerObj.pos = teleportArrival
+		? grid.hexToScreen(template.center).add(0, ROOM_HEX_SIZE * 1.35)
+		: getEntryPosition(grid, template, previousRoomId)
 	resetPlayerPath(playerObj.pos)
-	const roomLocked = room.kind === "combat" && room.state !== "cleared"
+	const roomLocked = (room.kind === "combat" || room.kind === "boss") &&
+		room.state !== "cleared"
 	let doorsLocked = roomLocked
 	setDoorsLocked(grid, template, doorsLocked)
 	renderRoom(grid, template, room, () => doorsLocked)
 	spawnDoorController(grid, template, () => doorsLocked)
-	if (roomLocked) {
+	if (room.kind === "combat" && roomLocked) {
 		spawnCombatRoomController(grid, template, room, () => {
 			doorsLocked = false
 			setDoorsLocked(grid, template, false)
 		})
+	} else if (room.kind === "boss" && roomLocked) {
+		spawnBossRoom(grid, template, room, () => {
+			doorsLocked = false
+			setDoorsLocked(grid, template, false)
+		})
+	} else {
+		spawnRoomContent(grid, template, room)
 	}
 }
 
@@ -341,6 +364,145 @@ function setDoorsLocked(
 	for (const door of template.doors) {
 		grid.setCell(door.coord, locked ? CellType.Wall : CellType.Empty)
 	}
+}
+
+function spawnRoomContent(
+	grid: HexGrid,
+	template: BuiltRoomTemplate,
+	room: RoomFloorRoom
+) {
+	const center = grid.hexToScreen(template.center)
+	const objectTags = [tags.runMap, tags.runRoom]
+	if (room.kind === "start" || room.kind === "combat") return
+	if (room.kind === "gravity") {
+		spawnRoomGravityShrine(center, room)
+		return
+	}
+	if (room.kind === "exit" || (room.kind === "boss" && room.state === "cleared")) {
+		spawnFloorExit(center, objectTags)
+		return
+	}
+	if (room.contentCompleted) return
+
+	switch (room.kind) {
+		case "reward":
+			spawnChest(center, getActiveRoomFloor()?.depth ?? 1, {
+				onOpened: markCurrentRoomContentCompleted,
+				tags: objectTags,
+			})
+			return
+		case "event":
+			spawnChest(center, getActiveRoomFloor()?.depth ?? 1, {
+				rewardType: "weapon",
+				onOpened: markCurrentRoomContentCompleted,
+				tags: objectTags,
+			})
+			return
+		case "health":
+			spawnHealthShrine({
+				pos: center,
+				tags: objectTags,
+				onDepleted: markCurrentRoomContentCompleted,
+			})
+			return
+		case "repair":
+			spawnDroneRepairZone({
+				pos: center,
+				depth: getActiveRoomFloor()?.depth ?? 1,
+				hexSize: grid.config.hexSize,
+				tags: objectTags,
+				spawnDefenders: false,
+				onComplete: markCurrentRoomContentCompleted,
+			})
+			return
+		case "shrine":
+			spawnShrine({
+				pos: center,
+				radius: grid.config.hexSize * 1.8,
+				captureTime: 4.5,
+				level: getActiveRoomFloor()?.depth ?? 1,
+				onComplete: markCurrentRoomContentCompleted,
+				tags: objectTags,
+			})
+			return
+	}
+}
+
+function spawnBossRoom(
+	grid: HexGrid,
+	template: BuiltRoomTemplate,
+	room: RoomFloorRoom,
+	onCleared: () => void
+) {
+	const center = grid.hexToScreen(template.center)
+	const depth = getActiveRoomFloor()?.depth ?? 1
+	spawnBoss1(
+		center,
+		10 + depth * 2,
+		getBossHealth("federation-dreadnought", depth),
+		1,
+		{
+			tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
+			onDefeated: () => {
+				markCurrentFloorRoomCleared()
+				onCleared()
+				spawnRoomContent(grid, template, room)
+			},
+		}
+	)
+}
+
+function spawnRoomGravityShrine(center: Vec2, room: RoomFloorRoom) {
+	const objectTags = [tags.runMap, tags.runRoom]
+	const shrine = k.add([
+		k.pos(center),
+		k.sprite("shrine_gravity"),
+		k.anchor("center"),
+		k.scale(1.25),
+		k.color(205, 185, 255),
+		k.layer(layers.buildings),
+		tags.props,
+		tags.gameLoop,
+		...objectTags,
+	])
+	const gravity = spawnGravityPull({
+		pos: center,
+		radius: ROOM_HEX_SIZE * 2.4,
+		strength: 54 + (getActiveRoomFloor()?.depth ?? 1) * 5,
+		falloff: 0.72,
+		targetTags: [tags.player, tags.enemy, tags.projectile, tags.debree],
+		tagStrengthMultipliers: {
+			[tags.player]: 0.72,
+			[tags.projectile]: 1.4,
+			[tags.debree]: 1.2,
+		},
+		visualizePull: true,
+		tags: objectTags,
+	})
+	shrine.onDestroy(() => {
+		if (gravity.exists()) k.destroy(gravity)
+	})
+	shrine.onUpdate(() => {
+		if (transitionCooldown > 0 || playerObj.pos.dist(shrine.pos) > 14) return
+		const destinations = getActiveRoomFloor()?.rooms.filter((candidate) =>
+			candidate.kind === "gravity" && candidate.id !== room.id
+		) ?? []
+		if (destinations.length === 0) return
+		const destination = destinations[Math.floor(k.rand(destinations.length))]
+		if (!teleportRoomState(destination.id)) return
+		const start = playerObj.pos.clone()
+		transitionCooldown = ROOM_TRANSITION_COOLDOWN
+		spawnRing({
+			pos: start,
+			speed: 250,
+			intensity: 0.42,
+			maxRadius: 72,
+			color: k.rgb(174, 112, 255),
+		})
+		destroyTaggedObjects(tags.runRoom)
+		loadCurrentRoom(room.id, true)
+		k.flash(k.rgb(90, 45, 130), 0.18)
+	})
 }
 
 function destroyTaggedObjects(tag: string) {
