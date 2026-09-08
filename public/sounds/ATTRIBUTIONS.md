@@ -9,6 +9,15 @@
 - In-game asset: `standard-blaster.wav`
 - Trimmed from the source recording and converted to mono WAV for responsive playback.
 
+## Twin Needle
+
+"Blaster" by freesound_community
+
+- Source: https://pixabay.com/sound-effects/blaster-103340/
+- License: Pixabay Content License
+- In-game asset: `twin-needle.wav`
+- Trimmed from the source recording and converted to mono WAV for responsive playback.
+
 ## Hyperspeed Jump
 
 "Fast Warp In" by GammaGool
