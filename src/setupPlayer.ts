@@ -48,7 +48,7 @@ import { timescale } from "./comp/timescale";
 import { addShipThruster } from "./comp/shipThruster"
 import type { GridCollisionComp } from "./comp/gridCollision";
 import { levelTransitionActive } from "./services/levelTransitionService";
-import type { InteractableComp } from "./comp/interactable";
+import { getPriorityInteraction } from "./comp/interactable";
 import {
 	getEquippedWeapon,
 	getWeaponTriggerModifier,
@@ -1310,28 +1310,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	playerObj.onKeyPress("f", () => {
 		if (dialogCapturesInput()) return;
 		if (levelTransitionActive() || respawnTransitionActive) return;
-		let closestInteractable:
-			| GameObj<InteractableComp | PosComp>
-			| undefined;
-		let closestDistance = Infinity;
-		let highestPriority = -Infinity;
-
-		for (const obj of k.get("interactable")) {
-			const interactable = obj as GameObj<InteractableComp | PosComp>;
-			if (!interactable.pos || !interactable.isInRange) continue;
-
-			const priority = interactable.interactionPriority;
-			if (priority < highestPriority) continue;
-			if (priority > highestPriority) closestDistance = Infinity;
-			const distance = interactable.pos.dist(playerObj.pos);
-			if (distance >= closestDistance) continue;
-
-			closestInteractable = interactable;
-			closestDistance = distance;
-			highestPriority = priority;
-		}
-
-		closestInteractable?.onInteract();
+		getPriorityInteraction()?.onInteract();
 	});
 
 	return playerObj;

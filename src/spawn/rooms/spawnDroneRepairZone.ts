@@ -101,7 +101,7 @@ function spawnBrokenDrone(props: BrokenDroneProps) {
 				prompt.color = k.rgb(...(
 					getScore() >= props.cost ? UI_COLORS.accent : UI_COLORS.danger
 				))
-				prompt.opacity = wreck.isInRange ? 1 : 0
+				prompt.opacity = wreck.isInteractionTarget ? 1 : 0
 			}
 			return
 		}

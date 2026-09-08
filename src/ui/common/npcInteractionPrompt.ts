@@ -1,5 +1,6 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { k, layers } from "../../main"
+import type { InteractableComp } from "../../comp/interactable"
 
 interface NpcInteractionPromptOptions {
 	target: GameObj
@@ -54,8 +55,9 @@ export function createNpcInteractionPrompt({
 
 	return {
 		update(visible: boolean) {
-			requestedVisible = visible
-			if (visible) root.hidden = false
+			const interactable = target as GameObj<InteractableComp>
+			requestedVisible = visible && interactable.isInteractionTarget
+			if (requestedVisible) root.hidden = false
 		},
 	}
 

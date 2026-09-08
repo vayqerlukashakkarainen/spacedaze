@@ -40,7 +40,7 @@ import {
 import { Component } from "./compose";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
-import { InteractableComp } from "./comp/interactable";
+import { updatePriorityInteraction } from "./comp/interactable";
 import {
 	activeLevel,
 	activeLevelKey,
@@ -198,15 +198,7 @@ export function updateGameLoop() {
 		}
 	}
 
-	// Check for nearby interactable buildings
-	const interactables = k.get("interactable");
-	for (const obj of interactables) {
-		const interactable = obj as GameObj<InteractableComp | PosComp>;
-		if (!interactable.pos) continue;
-
-		const dist = interactable.pos.dist(playerObj.pos);
-		interactable.isInRange = dist < interactable.interactRadius;
-	}
+	updatePriorityInteraction(k.get("interactable"), playerObj.pos);
 }
 
 export function collectDebreeImmediately(

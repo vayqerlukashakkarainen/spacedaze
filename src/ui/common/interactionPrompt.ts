@@ -9,6 +9,7 @@ import {
 	interactionPromptsSuppressed,
 	registerInteractionPromptHide,
 } from "../../services/interactionPromptVisibilityService"
+import type { InteractableComp } from "../../comp/interactable"
 
 export interface InteractionPromptContent {
 	title: string
@@ -222,7 +223,12 @@ export function createInteractionPrompt({
 	return {
 		update(visible: boolean) {
 			if (!root.exists() || !target.exists()) return
-			if (!visible || interactionPromptsSuppressed()) {
+			const interactable = target as GameObj<InteractableComp>
+			if (
+				!visible ||
+				!interactable.isInteractionTarget ||
+				interactionPromptsSuppressed()
+			) {
 				hidePrompt()
 				return
 			}
