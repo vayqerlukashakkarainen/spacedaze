@@ -1,11 +1,14 @@
 import assert from "node:assert/strict"
 import {
 	cycleEquippedWeapon,
+	equipWeapon,
 	getEquippedWeapon,
 	getWeaponDefinition,
 	resetWeaponInventory,
 	unlockWeapon,
 } from "./weaponService"
+import { discoverAbility } from "./abilityRegistry"
+import { resetHubProgress } from "./hubProgressService"
 
 resetWeaponInventory()
 unlockWeapon("railLance", false)
@@ -16,6 +19,14 @@ assert.equal(cycleEquippedWeapon(1).id, "railLance")
 assert.equal(getEquippedWeapon().charge?.maxDuration, 1.15)
 assert.equal(cycleEquippedWeapon(1).id, "standardBlaster")
 assert.equal(cycleEquippedWeapon(-1).id, "railLance")
+
+resetHubProgress()
+resetWeaponInventory()
+assert.equal(discoverAbility("twinNeedle"), true)
+assert.equal(getEquippedWeapon().id, "twinNeedle")
+assert.equal(equipWeapon("standardBlaster"), true)
+assert.equal(discoverAbility("twinNeedle"), false)
+assert.equal(getEquippedWeapon().id, "standardBlaster")
 
 const plasmaMortar = getWeaponDefinition("plasmaMortar")
 assert.equal(plasmaMortar.proximityRadius, 22)

@@ -200,9 +200,13 @@ export function isAbilityDiscovered(ability: AbilityDefinition) {
 export function discoverAbility(id: AbilityId) {
 	const ability = getAbilityDefinition(id)
 	if (!ability) return false
-	if (ability.slot === "primary") unlockWeapon(ability.id as WeaponId, false)
-	if (ability.defaultUnlocked) return false
-	return discoverBlueprint(getAbilityDiscoveryKey(ability))
+	const newDiscovery = ability.defaultUnlocked
+		? false
+		: discoverBlueprint(getAbilityDiscoveryKey(ability))
+	if (ability.slot === "primary") {
+		unlockWeapon(ability.id as WeaponId, newDiscovery)
+	}
+	return newDiscovery
 }
 
 export function isAbilityId(id: string): id is AbilityId {
