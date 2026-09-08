@@ -27,6 +27,15 @@
 - In-game asset: `rail-lance-fire.wav`
 - Trimmed from the source recording and converted to mono WAV for responsive playback.
 
+## Plasma Mortar and Rail Lance Charge
+
+"Sci-Fi Charge Up" by Hemplock (Freesound)
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-sci-fi-charge-up-37395/
+- License: Pixabay Content License
+- In-game asset: `primary-weapon-charge.wav`
+- Converted to mono WAV with short edge fades for clean playback.
+
 ## Hyperspeed Jump
 
 "Fast Warp In" by GammaGool

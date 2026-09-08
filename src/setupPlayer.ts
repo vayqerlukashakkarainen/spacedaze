@@ -1086,7 +1086,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		nextPrimaryChargeParticleAt = k.time();
 		primaryChargeReadySoundPlayed = false;
 		primaryChargeSoundSpeed = 0.75;
-		primaryChargeSound = audioService.playSound("rail_lance_charge", {
+		primaryChargeSound = audioService.playSound("primary_weapon_charge", {
 			volume: mainSoundVolume * 0.45,
 			loop: true,
 			speed: primaryChargeSoundSpeed,
