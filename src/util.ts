@@ -871,6 +871,10 @@ export async function init(k: KAPLAYCtx) {
 		"sprites/shrines/gravity-shrine.png"
 	)
 	await k.loadSprite(
+		"shrine_health",
+		"sprites/shrines/health-shrine.png"
+	)
+	await k.loadSprite(
 		"tactical_uplink_upg1",
 		"sprites/upgrades/tactical_uplink_upg1.png"
 	)

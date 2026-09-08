@@ -26,6 +26,13 @@ interface HealthOrbCollectionState {
 	spin: number
 }
 
+interface HealthOrbOptions {
+	stationary?: boolean
+	persistOffscreen?: boolean
+	onCollected?: () => void
+	tags?: string[]
+}
+
 export function trySpawnHealthOrb(pos: Vec2, chanceMultiplier = 1) {
 	if (!runSessionActive()) return
 	if (!playerCanReceiveHealth()) return
@@ -34,7 +41,7 @@ export function trySpawnHealthOrb(pos: Vec2, chanceMultiplier = 1) {
 	return spawnHealthOrb(pos)
 }
 
-export function spawnHealthOrb(pos: Vec2) {
+export function spawnHealthOrb(pos: Vec2, options: HealthOrbOptions = {}) {
 	let collected = false
 	const orb = k.add([
 		k.circle(7),
@@ -47,16 +54,17 @@ export function spawnHealthOrb(pos: Vec2) {
 		k.rotate(k.rand(360)),
 		k.scale(HEALTH_ORB_SCALE),
 		timescale(),
-		k.offscreen({ destroy: true }),
+		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{
 			dir: k.rand(k.vec2(-1, -1), k.vec2(1, 1)),
-			speed: k.rand(35, 55),
+			speed: options.stationary ? 0 : k.rand(35, 55),
 			lifeSpan: 0,
 			collection: undefined as HealthOrbCollectionState | undefined,
 		},
 		tags.props,
 		tags.gameLoop,
 		tags.runtimeCullable,
+		...(options.tags ?? []),
 	])
 	const glow = orb.add([
 		k.circle(13),
@@ -126,14 +134,22 @@ export function spawnHealthOrb(pos: Vec2) {
 	}
 
 	function collectHealthOrb() {
-		if (collected || !playerCanReceiveHealth()) return
-		collected = true
+		if (collected) return
+		if (!playerCanReceiveHealth()) {
+			orb.collection = undefined
+			return
+		}
 		const recovered = recoverPlayerHealth(playerObj, HEALTH_ORB_RECOVERY)
-		if (recovered <= 0) return
+		if (recovered <= 0) {
+			orb.collection = undefined
+			return
+		}
+		collected = true
 		audioService.playSound("powerup1", {
 			volume: mainSoundVolume,
 			detune: -200,
 		})
+		options.onCollected?.()
 		k.destroy(orb)
 	}
 

@@ -36,6 +36,7 @@ import { getBossHealth } from "../services/bossRegistry";
 import { getActiveBossEncounter } from "../services/bossEncounterService";
 import { spawnShrine } from "../spawn/shrine/spawnShrine";
 import { spawnDamageShrine } from "../spawn/shrine/spawnDamageShrine";
+import { spawnHealthShrine } from "../spawn/shrine/spawnHealthShrine";
 import { getShrineLevelConfig } from "../spawn/shrine/shrineLevel";
 import { spawnTimescaleZone } from "../spawn/spawnTimescaleZone";
 import {
@@ -1476,6 +1477,12 @@ function spawnGeneratedContent(
 					rewardPos,
 					getContractChallengeRewardCount("overchargedShrines")
 				),
+				tags: [tags.runMap],
+			});
+			return;
+		case "health_shrine":
+			spawnHealthShrine({
+				pos,
 				tags: [tags.runMap],
 			});
 			return;

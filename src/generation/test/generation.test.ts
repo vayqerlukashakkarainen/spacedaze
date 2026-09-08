@@ -587,6 +587,17 @@ test("Generated room content selection is deterministic", () => {
 	assertTrue(!!first, "Shrine room should resolve registered content");
 });
 
+test("Health shrines appear in generated shrine rooms", () => {
+	const shrineResults = Array.from({ length: 80 }, (_, index) =>
+		selectGeneratedContent("shrine", 7712, { q: index, r: 8 }, 1)?.id
+	);
+
+	assertTrue(
+		shrineResults.includes("health_shrine"),
+		"Health shrines should be selectable from the first-floor shrine pool"
+	);
+});
+
 test("Stationary cannon platforms appear in combat rooms", () => {
 	const combatResults = Array.from({ length: 80 }, (_, index) =>
 		selectGeneratedContent("combat", 7712, { q: index, r: 5 }, 1)?.id

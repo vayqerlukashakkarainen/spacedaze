@@ -11,6 +11,7 @@ import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { tags } from "../tags"
 import { UI_COLORS } from "../ui/common"
 import { spawnMeteorite } from "./spawnAsteroid"
+import { spawnHealthShrine } from "./shrine/spawnHealthShrine"
 import { spawnSwarmEnemy, type SwarmPatrol } from "./spawnSwarm"
 
 const RANGE_WIDTH = 660
@@ -59,6 +60,10 @@ export function spawnHubFiringRange(
 	const targetPos = props.pos.add(0, TARGET_OFFSET_Y)
 
 	spawnRangeFrame(root)
+	spawnHealthShrine({
+		pos: props.pos.add(-RANGE_WIDTH / 2 + 70, TARGET_OFFSET_Y),
+		respawnOrbs: true,
+	})
 	let discoverySignature = ""
 	let refreshTimer = 0
 	let abilityPickups: GameObj[] = []
