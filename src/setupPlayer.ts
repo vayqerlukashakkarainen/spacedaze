@@ -500,6 +500,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			}
 			if (primaryChargeProgress >= 1 && !primaryChargeReadySoundPlayed) {
 				primaryChargeReadySoundPlayed = true;
+				stopPrimaryChargeSound();
 				const muzzlePos = getPlayerMuzzlePos(
 					playerObj.pos,
 					k.vec2(0, currentWeapon.muzzleOffsetY),
