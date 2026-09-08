@@ -255,6 +255,23 @@ interface SetupPlayerOptions {
 	spawnPosition?: Vec2;
 }
 
+interface PlayerRespawnTransitionOptions {
+	startPosition?: Vec2
+}
+
+let activePlayerRespawnTransition:
+	| ((target: Vec2, options?: PlayerRespawnTransitionOptions) => void)
+	| undefined
+
+export function playPlayerRespawnTransition(
+	target: Vec2,
+	options: PlayerRespawnTransitionOptions = {}
+) {
+	if (!activePlayerRespawnTransition) return false
+	activePlayerRespawnTransition(target, options)
+	return true
+}
+
 function getPlayerShipDirectionIndex(angle: number) {
 	const safeAngle = Number.isFinite(angle) ? angle : 0
 	return ((Math.round(safeAngle / 45) % 8) + 8) % 8
@@ -267,13 +284,13 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	gravitySlingReleaseVelocity = k.vec2(0);
 	repairPulseGeneration++;
 	reactivePlatingReadyAt = 0;
-	const respawnTarget = options.spawnPosition?.clone() ?? k.center();
-	const respawnStart = respawnTarget.add(
+	let respawnTarget = options.spawnPosition?.clone() ?? k.center();
+	let respawnStart = respawnTarget.add(
 		-k.width() / (WORLD_CAMERA_SCALE * 2) - 48,
 		k.rand(-36, 36)
 	);
-	const respawnDirection = respawnTarget.sub(respawnStart);
-	const respawnAngle = k.Vec2.toAngle(respawnDirection) + 90;
+	let respawnDirection = respawnTarget.sub(respawnStart);
+	let respawnAngle = k.Vec2.toAngle(respawnDirection) + 90;
 	const arrivalDirection = k.Vec2.fromAngle(-90);
 	const arrivalStart = respawnTarget.sub(arrivalDirection.scale(72));
 	const arrivalEnd = respawnTarget.add(arrivalDirection.scale(28));
@@ -550,9 +567,44 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	currentCameraScale = WORLD_CAMERA_SCALE;
 	k.setCamPos(respawnTarget);
 	k.setCamScale(WORLD_CAMERA_SCALE);
+	const beginRespawnTransition = (
+		target: Vec2,
+		transitionOptions: PlayerRespawnTransitionOptions = {}
+	) => {
+		respawnTarget = target.clone()
+		respawnStart = transitionOptions.startPosition?.clone() ?? respawnTarget.add(
+			-k.width() / (WORLD_CAMERA_SCALE * 2) - 48,
+			k.rand(-36, 36)
+		)
+		respawnDirection = respawnTarget.sub(respawnStart)
+		respawnAngle = k.Vec2.toAngle(respawnDirection) + 90
+		respawnTransitionElapsed = 0
+		respawnTransitionActive = true
+		phaseJumpStart = undefined
+		phaseJumpEnd = undefined
+		phaseJumpElapsed = 0
+		retroBurstStart = undefined
+		retroBurstEnd = undefined
+		retroBurstElapsed = 0
+		clearGravitySlingState()
+		gravitySlingReleaseVelocity = k.vec2(0)
+		currentMoveSpeed = 0
+		playerObj.pos = respawnStart.clone()
+		playerObj.gravityVelocity = k.vec2(0)
+		playerObj.angle = respawnAngle
+		playerObj.scale = k.vec2(
+			PLAYER_SCALE * 0.65,
+			PLAYER_SCALE * respawnEntryStretch
+		)
+		playerObj.opacity = 0.3
+		currentCameraPos = respawnTarget.clone()
+		k.setCamPos(respawnTarget)
+		setPlayerDamageInvulnerable(true)
+		spawnRespawnJumpEffect(respawnStart, respawnTarget, respawnAngle)
+	}
+	activePlayerRespawnTransition = beginRespawnTransition
 	if (respawnTransitionActive) {
-		setPlayerDamageInvulnerable(true);
-		spawnRespawnJumpEffect(respawnStart, respawnTarget, respawnAngle);
+		beginRespawnTransition(respawnTarget, { startPosition: respawnStart })
 	}
 	if (arrivalTransitionActive) {
 		setPlayerDamageInvulnerable(true);
@@ -580,6 +632,9 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		beginPlayerDeathSequence();
 	});
 	playerObj.onDestroy(() => {
+		if (activePlayerRespawnTransition === beginRespawnTransition) {
+			activePlayerRespawnTransition = undefined
+		}
 		stopOverclockSound()
 		stopLowHealthWarning()
 		stopPrimaryChargeSound();

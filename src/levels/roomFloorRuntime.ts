@@ -36,6 +36,7 @@ import { spawnRing } from "../spawn/spawnRing"
 import { spawnDroneRepairZone } from "../spawn/rooms/spawnDroneRepairZone"
 import { spawnHealthShrine } from "../spawn/shrine/spawnHealthShrine"
 import { spawnShrine } from "../spawn/shrine/spawnShrine"
+import { playPlayerRespawnTransition } from "../setupPlayer"
 import { tags } from "../tags"
 import type { GeneratedMapConfig } from "./levels"
 import { spawnFloorExit } from "./runMap"
@@ -120,10 +121,21 @@ function loadCurrentRoom(previousRoomId?: string, teleportArrival = false) {
 	gridRegistry.register(ACTIVE_RUN_GRID_KEY, grid, false)
 	if (playerObj.has("gridCollision")) playerObj.unuse("gridCollision")
 	playerObj.use(gridCollision(ACTIVE_RUN_GRID_KEY))
-	playerObj.pos = teleportArrival
+	const entryPosition = teleportArrival
 		? grid.hexToScreen(template.center).add(0, ROOM_HEX_SIZE * 1.35)
 		: getEntryPosition(grid, template, previousRoomId)
-	resetPlayerPath(playerObj.pos)
+	playerObj.pos = entryPosition
+	resetPlayerPath(entryPosition)
+	if (previousRoomId && !teleportArrival) {
+		const entryDoor = template.doors.find(
+			(door) => door.destinationRoomId === previousRoomId
+		)
+		playPlayerRespawnTransition(entryPosition, {
+			startPosition: entryDoor
+				? grid.hexToScreen(entryDoor.coord)
+				: entryPosition.add(-ROOM_HEX_SIZE * 2, 0),
+		})
+	}
 	if (
 		room.state !== "cleared" &&
 		(room.contentCompleted || roomClearsOnEntry(room))
