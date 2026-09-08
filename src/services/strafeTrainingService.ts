@@ -507,7 +507,7 @@ function faceBurtToward(burt: GameObj<PosComp>, target: Vec2) {
 function faceEachOther(burt: GameObj<PosComp>, player: GameObj<PosComp>) {
 	faceBurtToward(burt, player.pos)
 	if ("angle" in player) {
-		player.angle = k.Vec2.toAngle(burt.pos.sub(player.pos)) + 90
+		player.angle = burt.pos.sub(player.pos).angle() + 90
 	}
 }
 

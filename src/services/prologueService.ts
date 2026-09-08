@@ -594,7 +594,7 @@ function faceHubIntroductionActors(
 		const directionalBurt = burt as GameObj<HorizontalDirectionalVisualComp>
 		directionalBurt.faceHorizontal(player.pos.x - burt.pos.x)
 	}
-	player.angle = k.Vec2.toAngle(burt.pos.sub(player.pos)) + 90
+	player.angle = burt.pos.sub(player.pos).angle() + 90
 }
 
 function startPrologueCombat() {
