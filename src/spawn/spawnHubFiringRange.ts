@@ -38,6 +38,7 @@ export interface HubFiringRangeProps {
 
 export interface HubFiringRange {
 	targetPos: Vec2
+	getPrimaryTarget: () => GameObj | undefined
 }
 
 export function spawnHubFiringRange(
@@ -89,15 +90,24 @@ export function spawnHubFiringRange(
 		refreshEquipment()
 	})
 
+	let primaryTarget: GameObj | undefined
 	const targetOffsets = getHubLevel() >= 5 ? [-90, 0, 90] : [0]
 	for (const offsetX of targetOffsets) {
 		spawnTrainingDummy(
 			targetPos.add(offsetX, 0),
-			props.isHubSessionActive
+			props.isHubSessionActive,
+			offsetX === 0
+				? (target) => primaryTarget = target
+				: undefined
 		)
 	}
 
-	return { targetPos }
+	return {
+		targetPos,
+		getPrimaryTarget: () => primaryTarget?.exists()
+			? primaryTarget
+			: undefined,
+	}
 }
 
 function spawnRangeFrame(root: GameObj) {
@@ -163,9 +173,10 @@ function spawnAbilityRow(
 
 function spawnTrainingDummy(
 	pos: Vec2,
-	isHubSessionActive: () => boolean
+	isHubSessionActive: () => boolean,
+	onSpawn?: (target: GameObj) => void
 ) {
-	spawnMeteorite({
+	const target = spawnMeteorite({
 		pos,
 		dir: k.vec2(0, 0),
 		scoreOnKill: 0,
@@ -178,8 +189,10 @@ function spawnTrainingDummy(
 		onDeath: () => {
 			k.wait(TARGET_RESPAWN_DELAY, () => {
 				if (!isHubSessionActive()) return
-				spawnTrainingDummy(pos, isHubSessionActive)
+				spawnTrainingDummy(pos, isHubSessionActive, onSpawn)
 			})
 		},
 	})
+	onSpawn?.(target)
+	return target
 }

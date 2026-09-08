@@ -65,7 +65,7 @@ import {
 } from "../spawn/npcs/spawnHubRepairCrew";
 import { playRequirementErrorSound } from "../services/uiSoundService";
 import { spawnHubAsteroidRunner } from "../spawn/npcs/spawnHubAsteroidRunner";
-import { spawnHubRingWatcher } from "../spawn/npcs/spawnHubRingWatcher";
+import { spawnHubRangeKeeper } from "../spawn/npcs/spawnHubRangeKeeper";
 import { spawnHubBirthdayPair } from "../spawn/npcs/spawnHubBirthdayPair";
 import { spawnHubLampKeeper } from "../spawn/npcs/spawnHubLampKeeper";
 import { spawnHubBurt } from "../spawn/npcs/spawnHubBurt";
@@ -235,7 +235,7 @@ export const hub: Level = {
 		spawnHubBackgroundDepth();
 		spawnPhaseShiftAsteroidField();
 		spawnHubAsteroidRunner(getPhaseFieldCenter());
-		spawnHubRingWatcher(firingRange.targetPos);
+		spawnHubRangeKeeper(firingRange);
 		spawnHubBirthdayPair(k.center().add(-150, 245));
 		saveGame("slot1");
 		k.wait(0.45, showPendingRunEndSummary);
