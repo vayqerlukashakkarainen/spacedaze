@@ -60,7 +60,7 @@ export function generateRoomFloor(
 			connections: connections[index].map((neighborIndex) => roomId(coords[neighborIndex])),
 			state: index === 0 ? "active" : connections[index].includes(0) ? "discovered" : "unseen",
 			contentCompleted: false,
-			encounter: kind === "combat"
+			encounter: roomUsesStandardEncounter(kind)
 				? createEncounterPlan(
 					roomSeed,
 					normalizedDepth,
@@ -189,18 +189,30 @@ function assignRoomKinds(
 	const reward = takeRoom(true)
 	if (reward !== undefined) kinds[reward] = "reward"
 	const support = takeRoom(false)
-	if (support !== undefined) kinds[support] = rng.choice(["health", "repair", "shrine"])
+	if (support !== undefined) kinds[support] = rng.choice(["health", "shrine"])
 	const gravityA = takeRoom(true)
 	const gravityB = takeRoom(false)
 	if (gravityA !== undefined && gravityB !== undefined) {
 		kinds[gravityA] = "gravity"
 		kinds[gravityB] = "gravity"
 	}
+	const shop = takeRoom(false)
+	if (shop !== undefined) kinds[shop] = "shop"
+	const miniBoss = takeRoom(true)
+	if (miniBoss !== undefined) kinds[miniBoss] = "miniBoss"
 	if (coords.length >= 13) {
 		const event = takeRoom(false)
 		if (event !== undefined) kinds[event] = "event"
 	}
 	return kinds
+}
+
+function roomUsesStandardEncounter(kind: RoomFloorKind) {
+	return kind === "combat" ||
+		kind === "reward" ||
+		kind === "shrine" ||
+		kind === "gravity" ||
+		kind === "event"
 }
 
 function createEncounterPlan(

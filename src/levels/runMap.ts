@@ -94,7 +94,6 @@ import { randomExplosion, saveGame } from "../util";
 import { spawnThreatEncounter } from "../services/enemyEncounterService";
 import { spawnGravityPull } from "../spawn/spawnGravityPull";
 import { spawnGravityShrineNetwork } from "../spawn/rooms/spawnGravityShrineNetwork";
-import { spawnDroneRepairZone } from "../spawn/rooms/spawnDroneRepairZone";
 import { spawnGravityAnomaly } from "../spawn/rooms/spawnGravityAnomaly";
 import { spawnMinefield } from "../spawn/rooms/spawnMinefield";
 import { spawnLostConvoy } from "../spawn/rooms/spawnLostConvoy";
@@ -1524,11 +1523,9 @@ function spawnGeneratedContent(
 				tags: [tags.runMap],
 			});
 			return;
-		case "repair_station":
-			spawnDroneRepairZone({
+		case "health_shrine_support":
+			spawnHealthShrine({
 				pos,
-				depth,
-				hexSize,
 				tags: [tags.runMap],
 			});
 			return;
@@ -2165,7 +2162,7 @@ export function getRoomLabel(role: RoomRole) {
 	if (role === "asteroid") return "ASTEROID FIELD";
 	if (role === "shrine") return "SHRINE";
 	if (role === "rift") return "GRAVITY SHRINES";
-	if (role === "repair") return "REPAIR STATION";
+	if (role === "repair") return "HEALTH SHRINE";
 	if (role === "anomaly") return "GRAVITY ANOMALY";
 	if (role === "minefield") return "MINEFIELD";
 	if (role === "convoy") return "LOST CONVOY";

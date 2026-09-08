@@ -14,6 +14,7 @@ import {
 	flashEmptyMobilitySocket,
 	flashEmptyUltimateSocket,
 	updatePlayerHealthBar,
+	updatePlayerSteeringModeUi,
 	updatePhaseJumpUi,
 	updateSpecialBar,
 	updateUltimateUi,
@@ -77,7 +78,10 @@ import {
 import type { WeaponDefinition } from "./services/weaponService";
 import { spawnPlayerDeathDebris } from "./spawn/spawnPlayerDeathDebris";
 import { getCarriedDebree } from "./services/debreeEconomyService";
-import { narrativePrologueActive } from "./services/narrativeService";
+import {
+	isStrafeTrainingUnlocked,
+	narrativePrologueActive,
+} from "./services/narrativeService";
 import { spawnAfterburnerWake } from "./spawn/spawnAfterburnerWake";
 import { spawnEnemyDeathEffect } from "./spawn/spawnEnemyDeathEffect";
 import { spawnFlash } from "./spawn/spawnFlash";
@@ -158,6 +162,7 @@ import {
 	TURRET_AIM_RESPONSE,
 } from "./services/playerSteeringModeService"
 import { addPlayerDamageEffects } from "./services/playerDamageEffectService"
+import { setPlayerTargetLock } from "./services/playerTargetLockService"
 
 let blasters = 0;
 let bulletIndex = 1;
@@ -170,6 +175,7 @@ const strafeCameraPointerWeight = 0.2;
 const strafeTargetQueryRadius = 72;
 const strafeTargetMinimumRadius = 14;
 const strafeTargetPadding = 5;
+const strafeTargetReleasePadding = 64;
 const multiBlasterMountSpacing = 6;
 const weaponRecoilReturnSpeed = 20;
 const maxWeaponRecoilDistance = 8;
@@ -291,7 +297,15 @@ function getPlayerShipDirectionIndex(angle: number) {
 	return ((Math.round(safeAngle / 45) % 8) + 8) % 8
 }
 
+function getWasdDirection() {
+	return k.vec2(
+		(k.isKeyDown("d") ? 1 : 0) - (k.isKeyDown("a") ? 1 : 0),
+		(k.isKeyDown("s") ? 1 : 0) - (k.isKeyDown("w") ? 1 : 0)
+	)
+}
+
 export function setupPlayer(options: SetupPlayerOptions = {}) {
+	setPlayerTargetLock()
 	resetPlayerDeathCause();
 	resetPassiveUpgradeRuntime();
 	clearGravitySlingState();
@@ -584,6 +598,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		if (nextTarget?.id === strafeTarget?.id) return
 		if (strafeTargetMarker?.exists()) k.destroy(strafeTargetMarker)
 		strafeTarget = nextTarget
+		setPlayerTargetLock(nextTarget)
 		strafeTargetMarker = undefined
 		if (!nextTarget) return
 		strafeTargetMarker = spawnStrafeTargetMarker(nextTarget.pos)
@@ -948,7 +963,10 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		const isMobilityMoving =
 			isPhaseJumping || isRetroBursting || isGravitySlinging;
 		const driftModeActive =
-			!isMobilityMoving && k.isKeyDown("shift")
+			!isMobilityMoving &&
+			isStrafeTrainingUnlocked() &&
+			k.isKeyDown("shift")
+		updatePlayerSteeringModeUi(driftModeActive)
 		const pointerWorldPos = k.toWorld(k.mousePos())
 		setStrafeTarget(
 			driftModeActive && !combatInputBlocked()
@@ -990,10 +1008,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			});
 		}
 
-		const wasdDir = k.vec2(
-			(k.isKeyDown("d") ? 1 : 0) - (k.isKeyDown("a") ? 1 : 0),
-			(k.isKeyDown("s") ? 1 : 0) - (k.isKeyDown("w") ? 1 : 0)
-		);
+		const wasdDir = getWasdDirection();
 		const overdriveTier = getAbilityTierValues("thrusterOverdrive");
 		const overdriveUpdate = updateThrusterOverdrive(
 			thrusterOverdriveState,
@@ -1555,9 +1570,14 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			return;
 		}
 
+		const wasdDirection = getWasdDirection();
+		const phaseJumpDirection =
+			k.isKeyDown("shift") && wasdDirection.len() > 0
+				? wasdDirection.unit()
+				: k.Vec2.fromAngle(playerObj.angle - 90);
 		const jumpDirection = mobilityId === "retroBurst"
 			? k.Vec2.fromAngle(turretWorldAngle + 90)
-			: k.Vec2.fromAngle(playerObj.angle - 90);
+			: phaseJumpDirection;
 		const startPos = playerObj.pos.clone();
 		const destination = startPos.add(
 			jumpDirection.scale(config.distance ?? 0)
@@ -1946,7 +1966,11 @@ function findHoveredStrafeTarget(
 ) {
 	if (
 		currentTarget?.exists() &&
-		pointerIsOverTarget(pointerWorldPos, currentTarget)
+		pointerIsOverTarget(
+			pointerWorldPos,
+			currentTarget,
+			strafeTargetReleasePadding
+		)
 	) return currentTarget
 
 	let closestTarget: GameObj<PosComp> | undefined
@@ -1965,12 +1989,16 @@ function findHoveredStrafeTarget(
 	return closestTarget
 }
 
-function pointerIsOverTarget(pointerWorldPos: Vec2, target: GameObj) {
+function pointerIsOverTarget(
+	pointerWorldPos: Vec2,
+	target: GameObj,
+	padding = strafeTargetPadding
+) {
 	const hitRadius = typeof target.hb === "number"
 		? target.hb
 		: 0
 	return target.pos.dist(pointerWorldPos) <=
-		Math.max(strafeTargetMinimumRadius, hitRadius) + strafeTargetPadding
+		Math.max(strafeTargetMinimumRadius, hitRadius) + padding
 }
 
 function spawnStrafeTargetMarker(pos: Vec2) {

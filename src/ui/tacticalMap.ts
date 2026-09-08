@@ -579,7 +579,8 @@ function drawRoomMapNode(
 	center: Vec2,
 	room: RoomFloorRoom
 ) {
-	const typeHidden = room.state === "discovered"
+	const typeHidden =
+		room.state === "discovered" && room.mapIdentityRevealed !== true
 	const color = typeHidden
 		? k.rgb(...UI_COLORS.muted)
 		: getRoomFloorKindColor(room.kind)
@@ -640,10 +641,11 @@ function getRoomFloorKindCode(kind: RoomFloorKind) {
 		combat: "X",
 		reward: "$",
 		health: "+",
-		repair: "R",
 		shrine: "?",
 		gravity: "G",
 		event: "!",
+		shop: "$",
+		miniBoss: "M",
 		boss: "B",
 		exit: "E",
 	}[kind]
@@ -655,19 +657,20 @@ function getRoomFloorKindLabel(kind: RoomFloorKind) {
 		combat: "HOSTILE ROOM",
 		reward: "SALVAGE CACHE",
 		health: "HEALTH SHRINE",
-		repair: "REPAIR STATION",
 		shrine: "UPGRADE SHRINE",
 		gravity: "GRAVITY LINK",
 		event: "UNKNOWN SIGNAL",
+		shop: "SALVAGE EXCHANGE",
+		miniBoss: "MINI-BOSS",
 		boss: "COMMAND THREAT",
 		exit: "FLOOR EXIT",
 	}[kind]
 }
 
 function getRoomFloorKindColor(kind: RoomFloorKind) {
-	if (kind === "combat" || kind === "boss") return k.rgb(...UI_COLORS.danger)
-	if (kind === "health" || kind === "repair") return k.rgb(...UI_COLORS.success)
-	if (kind === "reward") return k.rgb(255, 190, 55)
+	if (kind === "combat" || kind === "miniBoss" || kind === "boss") return k.rgb(...UI_COLORS.danger)
+	if (kind === "health") return k.rgb(...UI_COLORS.success)
+	if (kind === "reward" || kind === "shop") return k.rgb(255, 190, 55)
 	if (kind === "gravity" || kind === "shrine") return k.rgb(185, 80, 255)
 	if (kind === "exit") return k.rgb(...UI_COLORS.accent)
 	if (kind === "event") return k.rgb(255, 145, 45)
@@ -1114,7 +1117,8 @@ function addRoomFloorSidebar(
 
 	rooms.forEach((room, index) => {
 		const yPos = 8 + index * rowHeight
-		const typeHidden = room.state === "discovered"
+		const typeHidden =
+			room.state === "discovered" && room.mapIdentityRevealed !== true
 		const color = room.state === "active"
 			? k.rgb(...UI_COLORS.accent)
 			: typeHidden

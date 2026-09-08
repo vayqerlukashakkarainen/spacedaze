@@ -52,6 +52,7 @@ type DreadnoughtState =
 interface BossOptions {
 	onDefeated?: (pos: Vec2) => void
 	tags?: string[]
+	skipEntry?: boolean
 }
 
 interface TargetableBossPart {
@@ -72,7 +73,7 @@ export function spawnBoss1(
 	const crownOffset = k.vec2(0, -34)
 	const muzzleOffset = k.vec2(0, -22)
 	const arenaAnchor = pos.clone()
-	const spawnPos = pos.add(0, 180)
+	const spawnPos = options.skipEntry ? pos.clone() : pos.add(0, 180)
 	const boss = k.add([
 		k.pos(spawnPos),
 		k.sprite(CLAIMKEEPER_BODY_SPRITES[0]),
@@ -81,7 +82,7 @@ export function spawnBoss1(
 		k.anchor("center"),
 		k.health(hp),
 		k.animate(),
-		k.opacity(0),
+		k.opacity(options.skipEntry ? 1 : 0),
 		k.scale(scale),
 		jitter(),
 		timescale(),
@@ -89,9 +90,9 @@ export function spawnBoss1(
 			hb: BODY_HITBOX * scale,
 			threatRank: ENEMY_THREAT_RANK.boss,
 			baseScale: scale,
-			combatState: "entry" as DreadnoughtState,
+			combatState: (options.skipEntry ? "recover" : "entry") as DreadnoughtState,
 			stateTimer: 0,
-			recoveryDuration: 1.2,
+			recoveryDuration: options.skipEntry ? 1.5 : 1.2,
 			phaseIndex: 0,
 			attackCycle: 0,
 			shotsRemaining: 0,

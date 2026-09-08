@@ -37,6 +37,7 @@ import { findClosestSpatial } from "../services/runtimeSpatialIndexService";
 import { isDebreeAvailable, SalvagerCargo } from "../services/salvagerCargoService"
 import { recoverPlayerHealth } from "../services/playerHealthService"
 import { MEDIC_DRONE_RECOVERY } from "../services/playerHealthBalance"
+import { getPlayerTargetLock } from "../services/playerTargetLockService"
 
 interface Props {
 	hp: number;
@@ -249,6 +250,7 @@ export function spawnFollower(props: Props) {
 			return;
 		}
 
+		syncPlayerDirectedTarget(m)
 		if (m.entryVelocity.len() > 1) {
 			m.move(
 				m.entryVelocity.scale(velocityScale() * m.getTimescale())
@@ -327,7 +329,8 @@ export function spawnFollower(props: Props) {
 					player.rocketSplashSize * player.rocketSplashSizeMultiplier,
 					true,
 					[tags.friendly, tags.rocket],
-					player.followerProjectileLink !== undefined
+					player.followerProjectileLink !== undefined,
+					m.lockedTarget
 				);
 				m.missileCooldown = (player.droneSetBonus
 					? missileDroneCooldown * 0.75
@@ -374,6 +377,20 @@ export function spawnFollower(props: Props) {
 	});
 
 	return m;
+}
+
+function syncPlayerDirectedTarget(drone: GameObj) {
+	const directedTarget = getPlayerTargetLock()
+	if (directedTarget) {
+		drone.lockedTarget = directedTarget
+		drone.playerDirectedTargetId = directedTarget.id
+		return
+	}
+	if (drone.playerDirectedTargetId === undefined) return
+	if (drone.lockedTarget?.id === drone.playerDirectedTargetId) {
+		drone.lockedTarget = null
+	}
+	drone.playerDirectedTargetId = undefined
 }
 
 function getPackDamageMultiplier(drone: GameObj) {

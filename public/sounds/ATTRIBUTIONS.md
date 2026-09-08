@@ -1,5 +1,15 @@
 # Audio Attributions
 
+## Burt Strafe Module Ejection
+
+"fart" by MacKaffee (Freesound), distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/people-fart-83471/
+- License: Pixabay Content License
+- Original filename: `fart-83471.mp3`
+- In-game asset: `burt-strafe-module-eject.mp3`
+- Trimmed to the short audible transient, converted to mono, and faded at both edges.
+
 ## Low Health Warning
 
 "Warning Sound" by m_cel (Freesound), distributed through Pixabay.
@@ -198,6 +208,15 @@
 - Source: https://pixabay.com/sound-effects/film-special-effects-achievement-badge-pop-sound-1-547860/
 - License: Pixabay Content License
 - In-game asset: `run-level-up.mp3`
+
+## Room Cleared
+
+"Heavy Door Unlocking" by DRAGON-STUDIO
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-heavy-door-unlocking-515258/
+- License: Pixabay Content License
+- Original filename: `dragon-studio-heavy-door-unlocking-515258.mp3`
+- In-game asset: `room-cleared.mp3`
 
 ## Thruster Overclock
 

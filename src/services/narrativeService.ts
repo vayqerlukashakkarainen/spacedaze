@@ -7,6 +7,10 @@ interface NarrativeProgress {
 	hubIntroductionComplete: boolean
 	asteroidRunnerComplete: boolean
 	birthdayEncounterComplete: boolean
+	strafeTrainingAvailable: boolean
+	strafeTrainingOffered: boolean
+	strafeTrainingUnlocked: boolean
+	strafeTutorialComplete: boolean
 }
 
 const defaultProgress: NarrativeProgress = {
@@ -14,6 +18,10 @@ const defaultProgress: NarrativeProgress = {
 	hubIntroductionComplete: false,
 	asteroidRunnerComplete: false,
 	birthdayEncounterComplete: false,
+	strafeTrainingAvailable: false,
+	strafeTrainingOffered: false,
+	strafeTrainingUnlocked: false,
+	strafeTutorialComplete: false,
 }
 
 let progress = loadProgress()
@@ -81,6 +89,54 @@ export function completeBirthdayEncounter() {
 	saveProgress()
 }
 
+export function shouldOfferStrafeTraining() {
+	return progress.strafeTrainingAvailable &&
+		!progress.strafeTrainingOffered &&
+		!progress.strafeTrainingUnlocked
+}
+
+export function makeStrafeTrainingAvailable() {
+	if (
+		!progress.prologueComplete ||
+		progress.strafeTrainingAvailable ||
+		progress.strafeTrainingOffered ||
+		progress.strafeTrainingUnlocked
+	) return false
+	progress.strafeTrainingAvailable = true
+	saveProgress()
+	return true
+}
+
+export function beginStrafeTrainingOffer() {
+	progress.strafeTrainingAvailable = false
+	progress.strafeTrainingOffered = true
+	saveProgress()
+}
+
+export function shouldSpawnStrafeTrainingModule() {
+	return progress.strafeTrainingOffered && !progress.strafeTrainingUnlocked
+}
+
+export function isStrafeTrainingUnlocked() {
+	return progress.strafeTrainingUnlocked
+}
+
+export function unlockStrafeTraining() {
+	progress.strafeTrainingAvailable = false
+	progress.strafeTrainingOffered = true
+	progress.strafeTrainingUnlocked = true
+	saveProgress()
+}
+
+export function shouldShowStrafeTutorial() {
+	return progress.strafeTrainingUnlocked && !progress.strafeTutorialComplete
+}
+
+export function completeStrafeTutorial() {
+	progress.strafeTutorialComplete = true
+	saveProgress()
+}
+
 export function skipNarrativeIntroduction() {
 	prologueActive = false
 	progress.prologueComplete = true
@@ -105,6 +161,10 @@ function loadProgress(): NarrativeProgress {
 		hubIntroductionComplete: parsed.hubIntroductionComplete === true,
 		asteroidRunnerComplete: parsed.asteroidRunnerComplete === true,
 		birthdayEncounterComplete: parsed.birthdayEncounterComplete === true,
+		strafeTrainingAvailable: parsed.strafeTrainingAvailable === true,
+		strafeTrainingOffered: parsed.strafeTrainingOffered === true,
+		strafeTrainingUnlocked: parsed.strafeTrainingUnlocked === true,
+		strafeTutorialComplete: parsed.strafeTutorialComplete === true,
 	}
 }
 

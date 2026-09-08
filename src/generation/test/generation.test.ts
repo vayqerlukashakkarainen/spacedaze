@@ -553,7 +553,7 @@ test("Run-sized generated maps include all special room starters", () => {
 	const map = generator.generate(48, 36);
 	const rooms = [
 		["rift", "gravity_shrine_network"],
-		["repair", "repair_station"],
+		["repair", "health_shrine_support"],
 		["anomaly", "gravity_anomaly"],
 		["minefield", "minefield"],
 		["convoy", "lost_convoy"],

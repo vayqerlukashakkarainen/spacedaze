@@ -1,4 +1,4 @@
-import type { GameObj, PosComp, Vec2 } from "kaplay"
+import type { Color, GameObj, PosComp, Vec2 } from "kaplay"
 import { k } from "../main"
 import { registerBatchedEntityUpdate } from "./entityUpdateService"
 import {
@@ -14,6 +14,7 @@ export interface NpcDialogueIndicatorOptions {
 	getDialogueId: () => string | undefined
 	isVisible?: () => boolean
 	offset?: Vec2
+	color?: Color
 }
 
 export function registerNpcDialogueIndicator(
@@ -58,6 +59,7 @@ export function registerNpcDialogueIndicator(
 			screenSize: 32,
 			offset: options.offset ?? k.vec2(0, -48),
 			bobAmount: 1.5,
+			color: options.color,
 		})
 		if (!nextIndicator) return
 		indicator = nextIndicator

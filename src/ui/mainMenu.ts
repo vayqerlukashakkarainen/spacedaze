@@ -54,6 +54,7 @@ const SOUND_CREDITS = [
 	"TIMBRE  //  FREESOUND",
 	"HAMILTHON  //  FREESOUND",
 	"AUTISTIC LUCARIO  //  FREESOUND",
+	"DRAGON-STUDIO  //  PIXABAY",
 ] as const
 
 export function enterMainMenu() {

@@ -41,12 +41,15 @@ export function enterFloorRoom(roomId: string) {
 	return destination
 }
 
-export function teleportToFloorRoom(roomId: string) {
+export function teleportToFloorRoom(
+	roomId: string,
+	allowUnclearedOrigin = false
+) {
 	if (!activeFloor) return undefined
 	const current = getCurrentFloorRoom()
 	const destination = findRoom(roomId)
 	if (!current || !destination || current.id === destination.id) return undefined
-	if (current.state !== "cleared") return undefined
+	if (current.state !== "cleared" && !allowUnclearedOrigin) return undefined
 	destination.state = destination.state === "cleared" ? "cleared" : "active"
 	activeFloor.currentRoomId = destination.id
 	revealConnectedRooms(destination)
@@ -83,6 +86,24 @@ export function markCurrentRoomContentCompleted() {
 	return true
 }
 
+export function discoverAllFloorRooms(): number | undefined {
+	if (!activeFloor) return undefined
+	let discoveredCount = 0
+	for (const room of activeFloor.rooms) {
+		let changed = false
+		if (room.state === "unseen") {
+			room.state = "discovered"
+			changed = true
+		}
+		if (room.state === "discovered" && room.mapIdentityRevealed !== true) {
+			room.mapIdentityRevealed = true
+			changed = true
+		}
+		if (changed) discoveredCount++
+	}
+	return discoveredCount
+}
+
 export function getRoomFloorSnapshot(): RoomFloor | undefined {
 	if (!activeFloor) return undefined
 	return {
@@ -91,6 +112,8 @@ export function getRoomFloorSnapshot(): RoomFloor | undefined {
 			...room,
 			coord: { ...room.coord },
 			connections: [...room.connections],
+			shopOffers: room.shopOffers?.map((offer) => ({ ...offer })),
+			shopPricing: room.shopPricing ? { ...room.shopPricing } : undefined,
 			encounter: room.encounter
 				? {
 					...room.encounter,

@@ -71,6 +71,7 @@ export interface DialogueOptions {
 	autoAdvanceDelay?: number
 	blackout?: boolean
 	overlayOpacity?: number
+	accentColor?: readonly [number, number, number]
 	pauseGameplay?: boolean
 	pauseVisualEffects?: boolean
 	resolveSpeaker?: (speaker: string) => GameObj<PosComp> | undefined
@@ -175,21 +176,24 @@ export function showDialogue(
 	const panelHeight = 146
 	const panelX = (k.width() - panelWidth) / 2
 	const panelY = k.height() - panelHeight - 32
+	const accentColor = options.accentColor
+		? k.rgb(...options.accentColor)
+		: undefined
 	root.add([
 		k.pos(panelX, panelY),
 		k.rect(panelWidth, panelHeight),
 		k.color(...UI_COLORS.panel),
-		k.outline(1, k.rgb(...UI_COLORS.border)),
+		k.outline(1, accentColor ?? k.rgb(...UI_COLORS.border)),
 	])
 	const speakerRail = root.add([
 		k.pos(panelX, panelY),
 		k.rect(4, panelHeight),
-		k.color(...UI_COLORS.accent),
+		k.color(accentColor ?? k.rgb(...UI_COLORS.accent)),
 	])
 	const speaker = root.add([
 		k.pos(panelX + 22, panelY + 18),
 		k.text("", { font: "unscii", size: UI_FONT_SIZES.body }),
-		k.color(...UI_COLORS.accent),
+		k.color(accentColor ?? k.rgb(...UI_COLORS.accent)),
 	])
 	const body = root.add([
 		k.pos(panelX + 22, panelY + 50),
@@ -243,7 +247,7 @@ export function showDialogue(
 		const line = lines[lineIndex]
 		const lineText = getDialogueLineText(line)
 		const profile = getDialogueVoiceProfile(line.speaker)
-		const speakerColor = k.rgb(...profile.color)
+		const speakerColor = accentColor ?? k.rgb(...profile.color)
 		speaker.text = line.speaker.toUpperCase()
 		speaker.color = speakerColor
 		speakerRail.color = speakerColor

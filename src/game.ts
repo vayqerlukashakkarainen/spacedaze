@@ -70,7 +70,10 @@ import {
 	hasEquippedActiveModule,
 	resetActiveModuleCooldown,
 } from "./services/activeModuleService";
-import { shouldStartPrologue } from "./services/narrativeService";
+import {
+	makeStrafeTrainingAvailable,
+	shouldStartPrologue,
+} from "./services/narrativeService";
 import {
 	beginPrologueExperience,
 	cancelPrologueExperience,
@@ -369,6 +372,7 @@ function continueAfterPlayerDeath(diedInHub: boolean) {
 	resetSession();
 	resetPowerupRuntime();
 	loadPlayer();
+	makeStrafeTrainingAvailable();
 	transitionToLevel("hub");
 	playerObj = setupPlayer({ respawnTransition: true });
 	setupGameLoopUi(getPlayerMaxHealth(), hasEquippedActiveModule());

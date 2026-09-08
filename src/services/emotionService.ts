@@ -1,4 +1,4 @@
-import type { AudioPlay, GameObj, PosComp, Vec2 } from "kaplay"
+import type { AudioPlay, Color, GameObj, PosComp, Vec2 } from "kaplay"
 import { k, layers } from "../main"
 import { tags } from "../tags"
 import { audioService } from "./audioService"
@@ -53,6 +53,7 @@ export interface EmotionOptions {
 	offset?: Vec2
 	screenSize?: number
 	bobAmount?: number
+	color?: Color
 }
 
 export interface EmotionHandle {
@@ -119,6 +120,7 @@ export function showEmotion(
 		visualContent,
 		k.anchor("center"),
 		k.scale(0),
+		k.color(options.color ?? k.WHITE),
 		k.opacity(0),
 		k.layer(layers.gameText),
 		k.z(5000),

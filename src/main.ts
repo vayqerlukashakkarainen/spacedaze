@@ -64,6 +64,7 @@ import {
 	toggleCommandConsole,
 } from "./ui/commandConsole";
 import { commandService } from "./services/commandService";
+import { discoverAllFloorRooms } from "./services/roomFloorService";
 import { downloadCompleteGameDump } from "./services/catalogDumpService";
 import { playerObj } from "./game";
 import { recoverPlayerHealth } from "./services/playerHealthService";
@@ -342,6 +343,28 @@ export const k = kaplay({
 	texFilter: "nearest",
 });
 
+const preventBrowserDefault = (event: Event) => {
+	event.preventDefault();
+};
+
+const preventSecondaryMouseDefault = (event: MouseEvent) => {
+	if (event.button === 1 || event.button === 2) event.preventDefault();
+};
+
+document.addEventListener("contextmenu", preventBrowserDefault, {
+	capture: true,
+});
+document.addEventListener("mousedown", preventSecondaryMouseDefault, {
+	capture: true,
+});
+document.addEventListener("mouseup", preventSecondaryMouseDefault, {
+	capture: true,
+});
+document.addEventListener("auxclick", preventSecondaryMouseDefault, {
+	capture: true,
+});
+k.canvas.addEventListener("dragstart", preventBrowserDefault);
+
 installDisplaySettings(k);
 
 installDrawCallProfiler(k.canvas);
@@ -479,7 +502,11 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 		if (commandService.isCapturingInput()) return;
 		if (gameState !== GameState.Playing) return;
 		if (playerDeathSequenceActive()) return;
-		if (isPaused || recoveryShopOpen() || hubFacilityPanelOpen()) return;
+		if (
+			isPaused ||
+			recoveryShopOpen() ||
+			hubFacilityPanelOpen()
+		) return;
 		toggleTacticalMap();
 	});
 
@@ -1395,12 +1422,24 @@ function registerDebugCommands() {
 
 	commandService.register(
 		"revealmap",
-		"Reveal the entire current tactical map",
+		"Reveal the entire tactical map and discover all generated rooms",
 		() => {
-			const revealedCount = revealEntireGeneratedRunMap();
-			if (revealedCount === undefined) return "No generated run is active";
-			return revealedCount > 0
-				? `Revealed ${revealedCount} map cells`
+			const revealedCellCount = revealEntireGeneratedRunMap();
+			const discoveredRoomCount = discoverAllFloorRooms();
+			if (
+				revealedCellCount === undefined &&
+				discoveredRoomCount === undefined
+			) return "No generated run is active";
+			const changes = [
+				revealedCellCount
+					? `${revealedCellCount} map cells`
+					: undefined,
+				discoveredRoomCount
+					? `${discoveredRoomCount} rooms`
+					: undefined,
+			].filter(Boolean);
+			return changes.length > 0
+				? `Revealed ${changes.join(" and ")}`
 				: "The entire map is already revealed";
 		}
 	);

@@ -147,7 +147,6 @@ export async function init(k: KAPLAYCtx) {
 		"recovery_shop_1bit",
 		"sprites/shops/v3/recovery-shop-pixellab-256.png"
 	)
-	await k.loadSprite("room_repair_station", "sprites/rooms/repair-station.png")
 	await k.loadSprite("bullet1", "sprites/bullet1.png");
 	await k.loadSprite("rocket1", "sprites/rocket1.png");
 	await k.loadSpriteAtlas("sprites/salvage-pickups.png", {
@@ -618,6 +617,7 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound("primary_weapon_charge", "sounds/primary-weapon-charge.wav")
 	await k.loadSound("weapon_rail_lance_fire", "sounds/rail-lance-fire.wav")
 	await k.loadSound("run_level_up", "sounds/run-level-up.mp3")
+	await k.loadSound("room_cleared", "sounds/room-cleared.mp3")
 	await k.loadSound("crit1", "sounds/crit1.wav");
 	await k.loadSound("slowdown", "sounds/slowdown.wav");
 	await k.loadSound("going_fast", "sounds/going-fast.wav")
@@ -644,6 +644,10 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound("wormhole_ambience", "sounds/wormhole-ambience.mp3");
 	await k.loadSound("burt_repair_hammer", "sounds/burt-repair-hammer.mp3")
 	await k.loadSound("burt_repair_tool", "sounds/burt-repair-tool.mp3")
+	await k.loadSound(
+		"burt_strafe_module_eject",
+		"sounds/burt-strafe-module-eject.mp3"
+	)
 	await k.loadSound(
 		"secret_cavern_reveal",
 		"sounds/secret-cavern-reveal.mp3"

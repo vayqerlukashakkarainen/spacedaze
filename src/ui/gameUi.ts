@@ -53,6 +53,7 @@ import {
 let healthBarBaseFill: GameObj<RectComp> | null = null;
 let healthBarBonusFill: GameObj<RectComp> | null = null;
 let healthBarLabel: GameObj | null = null;
+let steeringModeLabel: GameObj | null = null;
 let healthCapacity = 0;
 let displayedHealth = 0;
 let specialBar: GameObj<RectComp> | null = null;
@@ -129,6 +130,7 @@ let displayedJumpProgress = Number.NaN;
 let displayedMobilityId = "";
 let displayedUltimateId = "";
 let displayedUltimateProgress = Number.NaN;
+let displayedSteeringMode = "";
 export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 	setupRunLevelHud();
 	shipStatusPanel = createUiPanel({
@@ -431,6 +433,13 @@ export function showSalvageGain(
 function setupPlayerHealthBar(maxHealth: number) {
 	if (!shipStatusPanel) return;
 	healthCapacity = Math.max(1, maxHealth);
+	steeringModeLabel = shipStatusPanel.add([
+		k.pos(HEALTH_BAR_X, -5),
+		k.text("", { size: 6, font: "unscii" }),
+		k.color(...UI_COLORS.text),
+	]);
+	displayedSteeringMode = "";
+	updatePlayerSteeringModeUi(false);
 	healthBarLabel = shipStatusPanel.add([
 		k.pos(HEALTH_BAR_X, 4),
 		k.text("", { size: 6, font: "unscii" }),
@@ -464,6 +473,16 @@ function setupPlayerHealthBar(maxHealth: number) {
 		]);
 	}
 	updatePlayerHealthBar(maxHealth);
+}
+
+export function updatePlayerSteeringModeUi(strafeModeActive: boolean) {
+	const mode = strafeModeActive ? "STRAFE" : "NORMAL";
+	if (!steeringModeLabel || displayedSteeringMode === mode) return;
+	displayedSteeringMode = mode;
+	steeringModeLabel.text = `MODE: ${mode}`;
+	steeringModeLabel.color = strafeModeActive
+		? k.rgb(...UI_COLORS.accent)
+		: k.rgb(...UI_COLORS.text);
 }
 
 export function updatePlayerHealthBar(currentHealth: number) {
@@ -986,6 +1005,7 @@ export function clearGameLoopUi() {
 	healthBarBaseFill = null;
 	healthBarBonusFill = null;
 	healthBarLabel = null;
+	steeringModeLabel = null;
 	healthCapacity = 0;
 	displayedHealth = 0;
 	specialBar = null;
@@ -1016,6 +1036,7 @@ export function clearGameLoopUi() {
 	displayedMissileVisibility = undefined;
 	displayedActiveModuleId = "";
 	displayedPrimaryWeaponId = "";
+	displayedSteeringMode = "";
 	emptySecondaryFlashRemaining = 0;
 	emptyMobilityFlashRemaining = 0;
 	emptyUltimateFlashRemaining = 0;

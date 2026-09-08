@@ -1,15 +1,17 @@
 import type { HexCoord } from "../hexUtils"
 import type { ProgressionEnemyId } from "../../services/enemyProgressionService"
+import type { RewardRarity } from "../../types/rewardTypes"
 
 export type RoomFloorKind =
 	| "start"
 	| "combat"
 	| "reward"
 	| "health"
-	| "repair"
 	| "shrine"
 	| "gravity"
 	| "event"
+	| "shop"
+	| "miniBoss"
 	| "boss"
 	| "exit"
 
@@ -32,6 +34,18 @@ export interface RoomEncounterPlan {
 	enemies: RoomEnemyPlan[]
 }
 
+export interface RoomShopOffer {
+	rewardId: string
+	rarity: RewardRarity
+	price: number
+	purchased: boolean
+}
+
+export interface RoomShopPricing {
+	depth: number
+	difficulty: number
+}
+
 export interface RoomFloorRoom {
 	id: string
 	coord: HexCoord
@@ -41,8 +55,11 @@ export interface RoomFloorRoom {
 	distanceFromStart: number
 	connections: string[]
 	state: RoomFloorState
+	mapIdentityRevealed?: boolean
 	contentCompleted: boolean
 	encounter?: RoomEncounterPlan
+	shopOffers?: RoomShopOffer[]
+	shopPricing?: RoomShopPricing
 }
 
 export interface RoomFloor {

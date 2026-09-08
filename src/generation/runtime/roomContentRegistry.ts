@@ -13,8 +13,8 @@ export type GeneratedContentId =
 	| "capture_shrine"
 	| "damage_shrine"
 	| "health_shrine"
+	| "health_shrine_support"
 	| "gravity_shrine_network"
-	| "repair_station"
 	| "gravity_anomaly"
 	| "minefield"
 	| "lost_convoy"
@@ -42,7 +42,7 @@ export const GENERATED_CONTENT_REGISTRY: readonly GeneratedContentDefinition[] =
 	{ id: "damage_shrine", slot: "shrine", weight: 1, minDepth: 2 },
 	{ id: "health_shrine", slot: "shrine", weight: 1 },
 	{ id: "gravity_shrine_network", slot: "rift", weight: 1 },
-	{ id: "repair_station", slot: "repair", weight: 1 },
+	{ id: "health_shrine_support", slot: "repair", weight: 1 },
 	{ id: "gravity_anomaly", slot: "anomaly", weight: 1 },
 	{ id: "minefield", slot: "minefield", weight: 1 },
 	{ id: "lost_convoy", slot: "convoy", weight: 1 },

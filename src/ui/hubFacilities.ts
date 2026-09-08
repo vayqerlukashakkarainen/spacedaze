@@ -67,13 +67,7 @@ import {
 	getUpgradeDefinition,
 } from "../upgrades/upgradeRegistry"
 import type { UpgradeDefinition } from "../types/upgradeTypes"
-import {
-	equipWeapon,
-	getEquippedWeaponId,
-	isWeaponOwned,
-	type WeaponId,
-	WEAPONS,
-} from "../services/weaponService"
+import { isWeaponOwned, WEAPONS } from "../services/weaponService"
 import {
 	ACTIVE_MODULES,
 	equipActiveModule,
@@ -129,12 +123,13 @@ const LOADOUT_SELECTION_MAX_PAGE_SIZE = 5
 const LOADOUT_SELECTION_MIN_ROW_HEIGHT = 52
 const LOADOUT_SELECTION_ROW_GAP = 5
 
+type ConfigurableLoadoutSlot = Exclude<AbilitySlot, "primary">
+
 const LOADOUT_SLOT_DETAILS: ReadonlyArray<{
-	slot: AbilitySlot
+	slot: ConfigurableLoadoutSlot
 	label: string
 	control: string
 }> = [
-	{ slot: "primary", label: "PRIMARY ARSENAL", control: "Q / E" },
 	{ slot: "secondary", label: "SECONDARY", control: "RIGHT MOUSE" },
 	{ slot: "mobility", label: "MOBILITY", control: "SPACE" },
 	{ slot: "ultimate", label: "ULTIMATE", control: "R" },
@@ -179,7 +174,7 @@ export function showRunPreparation(props: RunPreparationProps) {
 	const tabRoot = panel.add([k.pos(0, 0)])
 	const contentRoot = panel.add([k.pos(0, 0)])
 	let activeTab: RunPreparationTab = "loadout"
-	let editingSlot: AbilitySlot | undefined
+	let editingSlot: ConfigurableLoadoutSlot | undefined
 	let loadoutSelectionPage = 0
 
 	createUiSectionHeader(panel, {
@@ -293,7 +288,7 @@ function renderLoadoutSlots(
 	width: number,
 	height: number,
 	zone: WarpZoneDefinition,
-	onSelectSlot: (slot: AbilitySlot) => void
+	onSelectSlot: (slot: ConfigurableLoadoutSlot) => void
 ) {
 	const previewGap = 12
 	const previewWidth = Math.min(260, width * 0.31)
@@ -308,7 +303,9 @@ function renderLoadoutSlots(
 	})
 	const rowsTop = top + 56
 	const rowGap = 7
-	const rowHeight = (height - 56 - rowGap * 3) / 4
+	const rowHeight = (
+		height - 56 - rowGap * (LOADOUT_SLOT_DETAILS.length - 1)
+	) / LOADOUT_SLOT_DETAILS.length
 	for (let index = 0; index < LOADOUT_SLOT_DETAILS.length; index++) {
 		const details = LOADOUT_SLOT_DETAILS[index]
 		const ability = getAbilityDefinition(getEquippedAbilityId(details.slot) as AbilityId)
@@ -387,7 +384,7 @@ function renderLoadoutSelection(
 	top: number,
 	width: number,
 	height: number,
-	slot: AbilitySlot,
+	slot: ConfigurableLoadoutSlot,
 	page: number,
 	onPageChange: (page: number) => void,
 	onBack: () => void,
@@ -409,8 +406,7 @@ function renderLoadoutSelection(
 		onClick: onBack,
 	})
 
-	const canClear = slot !== "primary"
-	const entryCount = abilities.length + (canClear ? 1 : 0)
+	const entryCount = abilities.length + 1
 	const pageSize = getLoadoutSelectionPageSize(height)
 	const pageCount = Math.max(
 		1,
@@ -432,7 +428,7 @@ function renderLoadoutSelection(
 			Math.max(1, visibleEntryCount)
 	)
 	let row = 0
-	if (canClear && firstEntry === 0) {
+	if (firstEntry === 0) {
 		const emptyEquipped = getEquippedAbilityId(slot) === undefined
 		createUiSelectableRow(root, {
 			pos: k.vec2(left, rowsTop),
@@ -451,7 +447,7 @@ function renderLoadoutSelection(
 		})
 		row++
 	}
-	const firstAbility = Math.max(0, firstEntry - (canClear ? 1 : 0))
+	const firstAbility = Math.max(0, firstEntry - 1)
 	const abilitySlotsOnPage = visibleEntryCount - row
 	for (const ability of abilities.slice(
 		firstAbility,
@@ -502,12 +498,8 @@ function renderLoadoutSelection(
 	})
 }
 
-function getSelectableAbilitiesForSlot(slot: AbilitySlot) {
-	return getAbilitiesForSlot(slot).filter((ability) =>
-		slot === "primary"
-			? isWeaponOwned(ability.id as WeaponId)
-			: isAbilityDiscovered(ability)
-	)
+function getSelectableAbilitiesForSlot(slot: ConfigurableLoadoutSlot) {
+	return getAbilitiesForSlot(slot).filter(isAbilityDiscovered)
 }
 
 function getLoadoutSelectionPageSize(height: number) {
@@ -522,22 +514,21 @@ function getLoadoutSelectionPageSize(height: number) {
 	)
 }
 
-function getEquippedLoadoutPage(slot: AbilitySlot, height: number) {
+function getEquippedLoadoutPage(slot: ConfigurableLoadoutSlot, height: number) {
 	const equippedId = getEquippedAbilityId(slot)
 	if (!equippedId) return 0
 	const abilityIndex = getSelectableAbilitiesForSlot(slot).findIndex(
 		(ability) => ability.id === equippedId
 	)
 	if (abilityIndex < 0) return 0
-	const entryIndex = abilityIndex + (slot === "primary" ? 0 : 1)
+	const entryIndex = abilityIndex + 1
 	return Math.floor(entryIndex / getLoadoutSelectionPageSize(height))
 }
 
-function equipLoadoutAbility(slot: AbilitySlot, abilityId: AbilityId) {
-	if (slot === "primary") {
-		equipWeapon(abilityId as WeaponId)
-		return
-	}
+function equipLoadoutAbility(
+	slot: ConfigurableLoadoutSlot,
+	abilityId: AbilityId
+) {
 	if (slot === "secondary") {
 		equipActiveModule(abilityId as ActiveModuleId)
 		return
@@ -1004,7 +995,6 @@ export function showPhaseStation(
 					arsenalPage = nextPage
 					render()
 				},
-				render,
 				newBlueprintKeys
 			)
 		}
@@ -1248,7 +1238,6 @@ function renderMobilityAndUltimateAbilities(
 	bottom: number,
 	requestedPage: number,
 	onPageChange: (page: number) => void,
-	render: () => void,
 	newBlueprintKeys: ReadonlySet<string>
 ) {
 	const groups = [
@@ -1515,7 +1504,6 @@ function renderArsenal(
 		const weapon = visibleWeapons[index]
 		const owned = isWeaponOwned(weapon.id)
 		const hubLocked = getHubLevel() < weapon.minimumHubLevel
-		const equipped = getEquippedWeaponId() === weapon.id
 		const column = index % columnCount
 		const row = Math.floor(index / columnCount)
 		const card = createUiSurface(root, {
@@ -1525,7 +1513,7 @@ function renderArsenal(
 			),
 			size: k.vec2(cardWidth, cardHeight),
 			tone: "raised",
-			borderColor: equipped ? UI_COLORS.accent : UI_COLORS.border,
+			borderColor: UI_COLORS.border,
 		})
 		if (owned) {
 			card.add([
@@ -1569,22 +1557,11 @@ function renderArsenal(
 			width: cardWidth - 74,
 			lineHeight: 1.15,
 		})
-		if (equipped) {
+		if (owned) {
 			createUiBadge(card, {
 				pos: k.vec2(cardWidth - 112, cardHeight - 32),
 				width: 100,
-				text: "EQUIPPED",
-			})
-		} else if (owned) {
-			createUiActionButton(card, {
-				pos: k.vec2(cardWidth - 112, cardHeight - 36),
-				size: k.vec2(100, 28),
-				text: "EQUIP",
-				onClick: () => {
-					if (!equipWeapon(weapon.id)) return
-					saveGame("slot1")
-					render()
-				},
+				text: "IN ARSENAL",
 			})
 		} else {
 			createUiBadge(card, {

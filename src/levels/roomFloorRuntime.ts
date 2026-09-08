@@ -13,7 +13,7 @@ import { ACTIVE_RUN_GRID_KEY } from "../grid/gridKeys"
 import { gridRegistry } from "../grid/gridRegistry"
 import { hexToPixel } from "../grid/hexCoord"
 import { CellType, type HexGrid } from "../grid/hexGrid"
-import { k, layers } from "../main"
+import { k, layers, mainSoundVolume } from "../main"
 import {
 	beginRoomFloor,
 	clearRoomFloor,
@@ -26,15 +26,24 @@ import {
 	teleportToFloorRoom as teleportRoomState,
 } from "../services/roomFloorService"
 import { spawnPlannedEnemy } from "../services/enemyEncounterService"
+import { audioService } from "../services/audioService"
 import { getBossHealth } from "../services/bossRegistry"
+import type { ProgressionEnemyId } from "../services/enemyProgressionService"
 import { getHubLevel } from "../services/hubProgressService"
 import { resetPlayerPath } from "../services/playerPathService"
+import {
+	addLocalLight,
+	updateLocalLight,
+} from "../services/localLightService"
 import { startThreatLevel, stopThreatLevel, updateThreatLevel } from "../services/threatService"
 import { spawnBoss1 } from "../spawn/spawnBoss1"
 import { spawnChest } from "../spawn/spawnChest"
+import { spawnFlash } from "../spawn/spawnFlash"
 import { spawnGravityPull } from "../spawn/spawnGravityPull"
+import { spawnImpactAce } from "../spawn/spawnImpactAce"
 import { spawnRing } from "../spawn/spawnRing"
-import { spawnDroneRepairZone } from "../spawn/rooms/spawnDroneRepairZone"
+import { spawnDecorativeWormhole } from "../spawn/spawnLevel"
+import { spawnRunUpgradeShop } from "../spawn/rooms/spawnRunUpgradeShop"
 import { spawnHealthShrine } from "../spawn/shrine/spawnHealthShrine"
 import { spawnShrine } from "../spawn/shrine/spawnShrine"
 import { playPlayerRespawnTransition } from "../setupPlayer"
@@ -50,12 +59,67 @@ import {
 
 const ROOM_TRANSITION_COOLDOWN = 0.45
 const ROOM_ENTRY_INSET = 2
-const ROOM_HEX_SIZE = 56
+const ROOM_HEX_SIZE = 42
 const ROOM_PROJECTION_Y_SCALE = 2 / Math.sqrt(3)
+const HOSTILE_ARRIVAL_GHOST_DURATION = 0.48
+const HOSTILE_ARRIVAL_JUMP_DURATION = 0.42
+const HOSTILE_ARRIVAL_JUMP_DISTANCE = 180
+const HOSTILE_ARRIVAL_STAGGER = 0.07
+const HOSTILE_ARRIVAL_COLOR = [255, 75, 90] as const
+const GRAVITY_ROOM_COLOR = [174, 112, 255] as const
+const GRAVITY_ROOM_WORMHOLE_OFFSET_Y = -18
 
 let active = false
 let activeConfig: GeneratedMapConfig | undefined
 let transitionCooldown = 0
+
+interface HostileArrivalPart {
+	sprite: string
+	offset?: readonly [number, number]
+}
+
+interface HostileArrivalVisual {
+	parts: readonly HostileArrivalPart[]
+	scale: number
+}
+
+const HOSTILE_ARRIVAL_VISUALS: Record<ProgressionEnemyId, HostileArrivalVisual> = {
+	"swarm-drone": { parts: [{ sprite: "enemy_swarm_drone" }], scale: 0.5 },
+	fighter: {
+		parts: [
+			{ sprite: "enemy_ship1_body" },
+			{ sprite: "enemy_ship1_left_wing", offset: [-6, -2] },
+			{ sprite: "enemy_ship1_right_wing", offset: [6, -2] },
+		],
+		scale: 1,
+	},
+	assassin: { parts: [{ sprite: "enemy_ship1" }], scale: 1 },
+	rammer: { parts: [{ sprite: "enemy_rammer" }], scale: 0.9 },
+	sniper: { parts: [{ sprite: "enemy_sniper" }], scale: 0.95 },
+	hivemind: { parts: [{ sprite: "enemy_swarm_hivemind" }], scale: 0.72 },
+	"mine-layer": { parts: [{ sprite: "enemy_mine_layer" }], scale: 1 },
+	"shield-drone": { parts: [{ sprite: "enemy_shield_drone" }], scale: 0.72 },
+	"orbit-lancer": { parts: [{ sprite: "enemy_orbit_lancer" }], scale: 0.82 },
+	splitter: { parts: [{ sprite: "enemy_splitter" }], scale: 1.05 },
+	"siege-barge": { parts: [{ sprite: "enemy_siege_barge" }], scale: 1.15 },
+	"tether-drone": { parts: [{ sprite: "enemy_tether_drone" }], scale: 0.78 },
+	"repair-skiff": { parts: [{ sprite: "enemy_repair_skiff" }], scale: 0.72 },
+	"gravity-warden": { parts: [{ sprite: "enemy_gravity_warden" }], scale: 0.9 },
+	"phase-skirmisher": { parts: [{ sprite: "enemy_phase_skirmisher" }], scale: 0.82 },
+	"salvage-scavenger": { parts: [{ sprite: "enemy_salvage_scavenger" }], scale: 0.76 },
+	suppressor: { parts: [{ sprite: "enemy_suppressor" }], scale: 0.92 },
+	"breach-crawler": { parts: [{ sprite: "enemy_breach_crawler" }], scale: 0.92 },
+}
+
+const IMPACT_ACE_ARRIVAL_VISUAL: HostileArrivalVisual = {
+	parts: [{ sprite: "enemy_impact_ace" }],
+	scale: 1,
+}
+
+const DREADNOUGHT_ARRIVAL_VISUAL: HostileArrivalVisual = {
+	parts: [{ sprite: "boss1_body" }],
+	scale: 1,
+}
 
 export function startGeneratedRoomFloor(
 	config: GeneratedMapConfig,
@@ -182,15 +246,23 @@ function loadCurrentRoom(
 		if (!doorsLocked) return
 		doorsLocked = false
 		setDoorsLocked(grid, template, false)
+		audioService.playSound("room_cleared", {
+			volume: mainSoundVolume * 0.8,
+		})
 	}
 	setDoorsLocked(grid, template, doorsLocked)
 	renderRoom(grid, template, room, () => doorsLocked)
 	spawnDoorController(grid, template, () => doorsLocked)
-	if (room.kind === "combat" && doorsLocked) {
+	if (room.kind === "gravity") {
+		spawnRoomContent(grid, template, room, unlockRoom)
+	}
+	if (room.kind === "miniBoss" && doorsLocked) {
+		spawnMiniBossRoom(grid, template, unlockRoom)
+	} else if (roomUsesStandardEncounter(room) && doorsLocked) {
 		spawnCombatRoomController(grid, template, room, unlockRoom)
 	} else if (room.kind === "boss" && doorsLocked) {
 		spawnBossRoom(grid, template, room, unlockRoom)
-	} else {
+	} else if (room.kind !== "gravity") {
 		spawnRoomContent(grid, template, room, unlockRoom)
 	}
 }
@@ -209,7 +281,17 @@ function getRoomTravelDirection(
 }
 
 function roomClearsOnEntry(room: RoomFloorRoom) {
-	return room.kind === "start" || room.kind === "exit" || room.kind === "gravity"
+	return !roomUsesStandardEncounter(room) &&
+		room.kind !== "miniBoss" &&
+		room.kind !== "boss"
+}
+
+function roomUsesStandardEncounter(room: RoomFloorRoom) {
+	return room.kind === "combat" ||
+		room.kind === "reward" ||
+		room.kind === "shrine" ||
+		room.kind === "gravity" ||
+		room.kind === "event"
 }
 
 function getEntryPosition(
@@ -279,16 +361,12 @@ function renderRoom(
 			}, 0)
 			return {
 				center: grid.hexToScreen(cell.coord),
-				corners: grid.getHexScreenCorners(cell.coord),
 				frame: getRunRockTileFrame(
 					~connectionMask & 0b111111,
 					room.seed + cell.coord.q * 73 + cell.coord.r * 151
 				),
 			}
 		})
-	const floorCells = template.map.getAllCells()
-		.filter((cell) => !cell.solid)
-		.map((cell) => grid.getHexScreenCorners(cell.coord))
 	const tileScale = grid.config.hexSize / RUN_ROCK_TILE_SOURCE_RADIUS
 	const tileScaleY = tileScale * (grid.config.projectionYScale ?? 1)
 	const tileCenterOffsetY =
@@ -301,25 +379,7 @@ function renderRoom(
 			draw() {
 				if (!staticRoomPicture) {
 					k.beginPicture()
-					for (const corners of floorCells) {
-						k.drawPolygon({
-							pts: corners,
-							color: k.rgb(8, 20, 28),
-							outline: {
-								width: 1,
-								color: k.rgb(20, 52, 66),
-							},
-						})
-					}
 					for (const wall of walls) {
-						k.drawPolygon({
-							pts: wall.corners,
-							color: k.rgb(18, 34, 44),
-							outline: {
-								width: 1,
-								color: k.rgb(88, 108, 120),
-							},
-						})
 						k.drawSprite({
 							sprite: RUN_ROCK_TILE_SPRITE,
 							frame: wall.frame,
@@ -362,6 +422,9 @@ function spawnCombatRoomController(
 	if (!encounter) {
 		markCurrentFloorRoomCleared()
 		onCleared()
+		if (room.kind !== "gravity") {
+			spawnRoomContent(grid, template, room, onCleared)
+		}
 		return
 	}
 	let wave = nextUndefeatedWave(room)
@@ -373,6 +436,9 @@ function spawnCombatRoomController(
 				if (wave === undefined) {
 					markCurrentFloorRoomCleared()
 					onCleared()
+					if (room.kind !== "gravity") {
+						spawnRoomContent(grid, template, room, onCleared)
+					}
 					k.destroy(controller)
 					return
 				}
@@ -411,16 +477,28 @@ function spawnRoomWave(
 			markFloorEnemyDefeated(entry.id)
 			continue
 		}
-		const enemy = spawnPlannedEnemy(entry.enemyId, grid.hexToScreen(slot), {
-			persistOffscreen: true,
-			elite: entry.elite,
-			tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
-		})
-		if (!enemy) {
-			markFloorEnemyDefeated(entry.id)
-			continue
+		const spawnPos = grid.hexToScreen(slot)
+		const baseVisual = HOSTILE_ARRIVAL_VISUALS[entry.enemyId]
+		const visual = {
+			...baseVisual,
+			scale: baseVisual.scale * (entry.elite ? 1.12 : 1),
 		}
-		enemy.onDestroy(() => markFloorEnemyDefeated(entry.id))
+		spawnHostileArrival(spawnPos, index * HOSTILE_ARRIVAL_STAGGER, visual, () => {
+			const enemy = spawnPlannedEnemy(entry.enemyId, spawnPos, {
+				persistOffscreen: true,
+				elite: entry.elite,
+				tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
+			})
+			if (!enemy) {
+				markFloorEnemyDefeated(entry.id)
+				return
+			}
+			enemy.onDestroy(() => {
+				if (getCurrentFloorRoom()?.id === room.id) {
+					markFloorEnemyDefeated(entry.id)
+				}
+			})
+		})
 	}
 }
 
@@ -465,6 +543,9 @@ function spawnRoomContent(
 	if (room.contentCompleted) return
 
 	switch (room.kind) {
+		case "shop":
+			spawnRunUpgradeShop(center, room, objectTags)
+			return
 		case "reward":
 			spawnChest(center, getActiveRoomFloor()?.depth ?? 1, {
 				onOpened: completeContent,
@@ -485,17 +566,6 @@ function spawnRoomContent(
 				onDepleted: completeContent,
 			})
 			return
-		case "repair":
-			spawnDroneRepairZone({
-				pos: center,
-				depth: getActiveRoomFloor()?.depth ?? 1,
-				hexSize: grid.config.hexSize,
-				tags: objectTags,
-				spawnDefenders: false,
-				stationCost: 0,
-				onComplete: completeContent,
-			})
-			return
 		case "shrine":
 			spawnShrine({
 				pos: center,
@@ -509,6 +579,25 @@ function spawnRoomContent(
 	}
 }
 
+function spawnMiniBossRoom(
+	grid: HexGrid,
+	template: BuiltRoomTemplate,
+	onCleared: () => void
+) {
+	const center = grid.hexToScreen(template.center)
+	const depth = getActiveRoomFloor()?.depth ?? 1
+	spawnHostileArrival(center, 0, IMPACT_ACE_ARRIVAL_VISUAL, () => {
+		spawnImpactAce(center, depth, {
+			persistOffscreen: true,
+			tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
+			onDefeated: () => {
+				markCurrentRoomContentCompleted()
+				onCleared()
+			},
+		})
+	})
+}
+
 function spawnBossRoom(
 	grid: HexGrid,
 	template: BuiltRoomTemplate,
@@ -517,20 +606,186 @@ function spawnBossRoom(
 ) {
 	const center = grid.hexToScreen(template.center)
 	const depth = getActiveRoomFloor()?.depth ?? 1
-	spawnBoss1(
-		center,
-		10 + depth * 2,
-		getBossHealth("federation-dreadnought", depth),
-		1,
+	spawnHostileArrival(center, 0, DREADNOUGHT_ARRIVAL_VISUAL, () => {
+		spawnBoss1(
+			center,
+			10 + depth * 2,
+			getBossHealth("federation-dreadnought", depth),
+			1,
+			{
+				skipEntry: true,
+				tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
+				onDefeated: () => {
+					markCurrentFloorRoomCleared()
+					onCleared()
+					spawnRoomContent(grid, template, room, onCleared)
+				},
+			}
+		)
+	})
+}
+
+function spawnHostileArrival(
+	pos: Vec2,
+	delay: number,
+	visual: HostileArrivalVisual,
+	spawn: () => void
+) {
+	const color = k.rgb(...HOSTILE_ARRIVAL_COLOR)
+	const outward = pos.sub(playerObj.pos)
+	const arrivalDirection = outward.len() > 0.001
+		? outward.unit()
+		: k.vec2(0, -1)
+	const start = pos.add(arrivalDirection.scale(HOSTILE_ARRIVAL_JUMP_DISTANCE))
+	const angle = k.Vec2.toAngle(pos.sub(start)) + 90
+	const ghost = spawnHostileArrivalSilhouette(pos, angle, visual, 0)
+	let traveler: ReturnType<typeof spawnHostileArrivalSilhouette> | undefined
+	const arrival = k.add([
+		k.pos(pos),
 		{
-			tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
-			onDefeated: () => {
-				markCurrentFloorRoomCleared()
-				onCleared()
-				spawnRoomContent(grid, template, room, onCleared)
+			elapsed: -Math.max(0, delay),
+			completed: false,
+			jumpStarted: false,
+			update() {
+				arrival.elapsed += k.dt()
+				if (arrival.elapsed < 0 || arrival.completed) return
+				if (arrival.elapsed < HOSTILE_ARRIVAL_GHOST_DURATION) {
+					const ghostProgress = k.clamp(
+						arrival.elapsed / HOSTILE_ARRIVAL_GHOST_DURATION,
+						0,
+						1
+					)
+					const flicker = Math.sin(arrival.elapsed * 38) * 0.06
+					ghost.opacity = k.clamp(
+						k.lerp(0.14, 0.42, ghostProgress) + flicker,
+						0.08,
+						0.48
+					)
+					const pulse = 1 + Math.sin(arrival.elapsed * 9) * 0.025
+					ghost.scale = k.vec2(visual.scale * pulse)
+					return
+				}
+				if (!arrival.jumpStarted) {
+					arrival.jumpStarted = true
+					traveler = spawnHostileArrivalSilhouette(
+						start,
+						angle,
+						visual,
+						0.3
+					)
+					spawnHostileArrivalTrail(start, pos, angle, visual)
+					audioService.playSound("swap_level", {
+						volume: mainSoundVolume * 0.45,
+					})
+				}
+				const progress = k.clamp(
+					(arrival.elapsed - HOSTILE_ARRIVAL_GHOST_DURATION) /
+						HOSTILE_ARRIVAL_JUMP_DURATION,
+					0,
+					1
+				)
+				const easedProgress = 1 - Math.pow(1 - progress, 3)
+				ghost.opacity = k.lerp(0.38, 0, progress)
+				if (traveler && traveler.exists()) {
+					traveler.pos = start.lerp(pos, easedProgress)
+					traveler.opacity = k.lerp(0.3, 1, progress)
+					traveler.scale = k.vec2(
+						visual.scale * k.lerp(0.65, 1, easedProgress),
+						visual.scale * k.lerp(1.7, 1, easedProgress)
+					)
+				}
+				if (progress < 1) return
+				arrival.completed = true
+				spawn()
+				spawnFlash(pos, 10, color)
+				spawnRing({
+					pos,
+					speed: 420,
+					intensity: 0.3,
+					maxRadius: 74,
+					color,
+					shader: "arrivalShockwave",
+				})
+				if (ghost.exists()) k.destroy(ghost)
+				if (traveler && traveler.exists()) k.destroy(traveler)
+				k.destroy(arrival)
 			},
-		}
-	)
+		},
+		tags.runMap,
+		tags.runRoom,
+		tags.runRoomEnemy,
+		tags.gameLoop,
+	])
+	return arrival
+}
+
+function spawnHostileArrivalSilhouette(
+	pos: Vec2,
+	angle: number,
+	visual: HostileArrivalVisual,
+	opacity: number
+) {
+	const silhouette = k.add([
+		k.pos(pos),
+		k.rotate(angle),
+		k.scale(visual.scale),
+		k.opacity(opacity),
+		k.layer(layers.gameEffects),
+		k.z(8),
+		tags.runMap,
+		tags.runRoom,
+		tags.gameLoop,
+	])
+	for (const part of visual.parts) {
+		silhouette.add([
+			k.pos(part.offset ? k.vec2(...part.offset) : k.vec2(0)),
+			k.sprite(part.sprite),
+			k.anchor("center"),
+			k.color(...HOSTILE_ARRIVAL_COLOR),
+			k.opacity(1),
+		])
+	}
+	return silhouette
+}
+
+function spawnHostileArrivalTrail(
+	start: Vec2,
+	end: Vec2,
+	angle: number,
+	visual: HostileArrivalVisual
+) {
+	const delta = end.sub(start)
+	k.add([
+		k.pos(start),
+		k.opacity(0.72),
+		k.lifespan(HOSTILE_ARRIVAL_JUMP_DURATION, { fade: 0.3 }),
+		k.layer(layers.gameEffects),
+		{
+			draw() {
+				k.drawLine({
+					p1: k.vec2(),
+					p2: delta,
+					width: 3,
+					color: k.rgb(...HOSTILE_ARRIVAL_COLOR),
+					opacity: this.opacity,
+				})
+			},
+		},
+		tags.runMap,
+		tags.runRoom,
+		tags.gameLoop,
+	])
+	for (let index = 0; index < 6; index++) {
+		const progress = (index + 1) / 7
+		const echo = spawnHostileArrivalSilhouette(
+			start.lerp(end, progress),
+			angle,
+			visual,
+			k.lerp(0.12, 0.4, progress)
+		)
+		echo.scale = k.vec2(visual.scale * k.lerp(0.7, 1, progress))
+		echo.use(k.lifespan(HOSTILE_ARRIVAL_JUMP_DURATION, { fade: 0.28 }))
+	}
 }
 
 function spawnRoomGravityShrine(center: Vec2, room: RoomFloorRoom) {
@@ -546,6 +801,26 @@ function spawnRoomGravityShrine(center: Vec2, room: RoomFloorRoom) {
 		tags.gameLoop,
 		...objectTags,
 	])
+	const wormhole = spawnDecorativeWormhole({
+		pos: center.add(0, GRAVITY_ROOM_WORMHOLE_OFFSET_Y),
+		color: k.rgb(...GRAVITY_ROOM_COLOR),
+		scale: 0.56,
+		tags: objectTags,
+	})
+	const glow = addLocalLight(shrine, {
+		size: 150,
+		color: GRAVITY_ROOM_COLOR,
+		opacity: 0.16,
+		pulse: {
+			scaleMin: 0.9,
+			scaleMax: 1.12,
+			scaleSpeed: 2.2,
+			opacityMin: 0.1,
+			opacityMax: 0.22,
+			opacitySpeed: 2.7,
+		},
+	})
+	glow.object.pos = k.vec2(0, GRAVITY_ROOM_WORMHOLE_OFFSET_Y)
 	const gravity = spawnGravityPull({
 		pos: center,
 		radius: ROOM_HEX_SIZE * 2.4,
@@ -562,15 +837,17 @@ function spawnRoomGravityShrine(center: Vec2, room: RoomFloorRoom) {
 	})
 	shrine.onDestroy(() => {
 		if (gravity.exists()) k.destroy(gravity)
+		if (wormhole.exists()) k.destroy(wormhole)
 	})
 	shrine.onUpdate(() => {
+		updateLocalLight(glow)
 		if (transitionCooldown > 0 || playerObj.pos.dist(shrine.pos) > 14) return
 		const destinations = getActiveRoomFloor()?.rooms.filter((candidate) =>
 			candidate.kind === "gravity" && candidate.id !== room.id
 		) ?? []
 		if (destinations.length === 0) return
 		const destination = destinations[Math.floor(k.rand(destinations.length))]
-		if (!teleportRoomState(destination.id)) return
+		if (!teleportRoomState(destination.id, true)) return
 		const start = playerObj.pos.clone()
 		transitionCooldown = ROOM_TRANSITION_COOLDOWN
 		spawnRing({

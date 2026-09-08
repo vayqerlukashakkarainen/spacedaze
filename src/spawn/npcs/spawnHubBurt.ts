@@ -28,6 +28,7 @@ export function spawnHubBurt(homePosition: ReturnType<typeof k.vec2>) {
 		k.sprite("companion_burt"),
 		k.anchor("center"),
 		k.rotate(0),
+		k.scale(1),
 		horizontalDirectionalVisual({
 			nativeFacing: "left",
 			initialFacing: "left",

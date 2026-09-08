@@ -1,12 +1,15 @@
 import {
 	beginRoomFloor,
 	clearRoomFloor,
+	discoverAllFloorRooms,
 	enterFloorRoom,
 	getCurrentFloorRoom,
 	getRoomFloorSnapshot,
 	markCurrentFloorRoomCleared,
 	markFloorEnemyDefeated,
+	teleportToFloorRoom,
 } from "./roomFloorService"
+import { RewardRarity } from "../types/rewardTypes"
 
 function assert(condition: boolean, message: string) {
 	if (!condition) throw new Error(message)
@@ -54,9 +57,59 @@ assert(
 const snapshot = getRoomFloorSnapshot()!
 snapshot.rooms[0].connections.length = 0
 assert(combatFloor.rooms[0].connections.length > 0, "Snapshots must not mutate runtime state")
+const shop = combatFloor.rooms.find((room) => room.kind === "shop")!
+shop.shopOffers = [{
+	rewardId: "upgrade:test:1",
+	rarity: RewardRarity.Common,
+	price: 10,
+	purchased: false,
+}]
+const shopSnapshot = getRoomFloorSnapshot()!
+shopSnapshot.rooms.find((room) => room.id === shop.id)!.shopOffers![0].purchased = true
+assert(shop.shopOffers[0].purchased === false, "Shop offers in snapshots must be isolated")
+
+const hiddenRoomCount = combatFloor.rooms.filter((room) =>
+	room.state === "unseen" ||
+	(room.state === "discovered" && room.mapIdentityRevealed !== true)
+).length
+assert(
+	discoverAllFloorRooms() === hiddenRoomCount,
+	"Revealing a floor should report every newly revealed room"
+)
+assert(
+	combatFloor.rooms.every((room) => room.state !== "unseen"),
+	"Revealing a floor should discover every unseen room"
+)
+assert(
+	combatFloor.rooms.every((room) =>
+		room.state !== "discovered" || room.mapIdentityRevealed === true
+	),
+	"Revealing a floor should show discovered room identities"
+)
+assert(
+	getCurrentFloorRoom()?.state === "cleared",
+	"Revealing a floor should preserve the current room state"
+)
+
+const jumpFloor = beginRoomFloor(58124, 2, { roomCount: 10 })
+const jumpOrigin = getCurrentFloorRoom()!
+const jumpDestination = jumpFloor.rooms.find((room) => room.id !== jumpOrigin.id)!
+assert(
+	teleportToFloorRoom(jumpDestination.id) === undefined,
+	"Normal teleports should remain blocked while the origin room is active"
+)
+assert(
+	teleportToFloorRoom(jumpDestination.id, true)?.id === jumpDestination.id,
+	"Gravity jumps should allow travel while the origin room is active"
+)
+assert(
+	jumpOrigin.state === "active",
+	"Leaving an active gravity encounter should preserve its combat state"
+)
 
 clearRoomFloor()
 assert(getCurrentFloorRoom() === undefined, "Clearing a floor should remove its state")
+assert(discoverAllFloorRooms() === undefined, "Revealing requires an active floor")
 
 function routeBetween(
 	startId: string,

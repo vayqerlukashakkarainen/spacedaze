@@ -40,6 +40,7 @@ import {
 	spawnSpaceJumpBackdrop,
 	type SpaceJumpBackdrop,
 } from "./spaceJumpVisualService"
+import { HUB_WORMHOLE_OFFSET } from "./hubLayoutService"
 import {
 	beginPrologueEnemyEvacuation,
 	cancelPrologueRecoverySequence,
@@ -200,6 +201,38 @@ const HUB_LINES: readonly DialogueLine[] = [
 			{ text: "Good luck,", waitAfter: 0.4 },
 			{ text: " you'll need it." },
 		],
+	},
+]
+const HUB_LAMP_GUIDANCE_LINES: readonly DialogueLine[] = [
+	{
+		speaker: "BURT",
+		text: [
+			{ text: "See those " },
+			{ text: "lamps", color: [0, 210, 255] },
+			{ text: " around the heart of the hub?" },
+		],
+	},
+	{
+		speaker: "BURT",
+		text: "Each one marks another part of Drius brought back online. Bring debris home, and we'll light the rest.",
+	},
+]
+const HUB_PHASE_VOID_GUIDANCE_LINES: readonly DialogueLine[] = [
+	{
+		speaker: "BURT",
+		text: [
+			{ text: "That wormhole leads into the " },
+			{ text: "Phase Void", color: [180, 120, 255] },
+			{ text: "." },
+		],
+	},
+	{
+		speaker: "BURT",
+		text: "A skilled pilot can retrieve weapons, ship systems, and rare salvage from inside.",
+	},
+	{
+		speaker: "BURT",
+		text: "Go as deep as you dare, then bring the haul back here.",
 	},
 ]
 
@@ -407,6 +440,8 @@ function createHubIntroductionCutscene(
 		HUB_INTRODUCTION_ACTOR_OFFSET_Y
 	)
 	const cameraPosition = burtPosition.lerp(playerPosition, 0.5)
+	const hubCenter = k.center()
+	const wormholePosition = hubCenter.add(...HUB_WORMHOLE_OFFSET)
 	const dialogueOptions = {
 		gameplay: "paused" as const,
 		advance: "manual" as const,
@@ -506,7 +541,43 @@ function createHubIntroductionCutscene(
 			{ type: "wait", duration: 0.35 },
 			{
 				type: "dialogue",
-				lines: HUB_LINES.slice(8),
+				lines: HUB_LINES.slice(8, 9),
+				options: dialogueOptions,
+			},
+			{
+				type: "camera",
+				target: hubCenter,
+				zoom: WORLD_CAMERA_SCALE,
+				duration: 0.8,
+				easing: "easeInOutCubic",
+			},
+			{
+				type: "dialogue",
+				lines: HUB_LAMP_GUIDANCE_LINES,
+				options: dialogueOptions,
+			},
+			{
+				type: "camera",
+				target: wormholePosition,
+				zoom: WORLD_CAMERA_SCALE * 1.5,
+				duration: 0.9,
+				easing: "easeInOutCubic",
+			},
+			{
+				type: "dialogue",
+				lines: HUB_PHASE_VOID_GUIDANCE_LINES,
+				options: dialogueOptions,
+			},
+			{
+				type: "camera",
+				target: cameraPosition,
+				zoom: WORLD_CAMERA_SCALE * 2,
+				duration: 0.75,
+				easing: "easeInOutCubic",
+			},
+			{
+				type: "dialogue",
+				lines: HUB_LINES.slice(9),
 				options: dialogueOptions,
 			},
 		],

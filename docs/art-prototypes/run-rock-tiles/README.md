@@ -22,3 +22,15 @@ with the generated low-angle rock bodies. PixelLab supplies all 31 unambiguous
 coastline masks. The script composes the remaining split-edge cases from its
 six generated single-edge treatments so cellular cave artifacts never fall
 back to procedural line art.
+
+## Grayscale detail pass
+
+The runtime high-angle atlas received a second PixelLab Pixen detail pass on
+2026-09-08. The generated sheets are stored under `v2/` and are rebuilt with
+`scripts/buildDetailedRunRockAtlas.py`. The builder preserves the original
+six-edge silhouettes while applying PixelLab's fractured plates, pits, and
+layered cliff shading through an eight-value grayscale palette.
+
+- Left-half PixelLab job: `4a2de3f1-efb5-4596-aecf-4a06414c2174`
+- Right-half PixelLab job: `b72ee8b1-683f-40d6-9b04-e1e7e4a87723`
+- Model: Pixen, seed `47291`, two generations total

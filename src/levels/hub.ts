@@ -87,6 +87,7 @@ import {
 	HUB_PHASE_FIELD_OFFSET,
 	HUB_WORMHOLE_OFFSET,
 } from "../services/hubLayoutService";
+import { restoreStrafeTrainingSequence } from "../services/strafeTrainingService";
 
 let lvlData: any = {};
 let bgAsteroidTimer = 0;
@@ -208,6 +209,7 @@ export const hub: Level = {
 		});
 		spawnHubSettlement();
 		spawnHubBurt(hubFacilityPositions.trainingRange.add(-260, 40));
+		restoreStrafeTrainingSequence();
 		const pendingHubLevelReveal = consumePendingHubLevelReveal();
 		const hubRestoration = spawnHubRestoration(
 			k.center(),

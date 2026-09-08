@@ -27,6 +27,9 @@ for (let seed = 1; seed <= 200; seed++) {
 	const ids = new Set(floor.rooms.map((room) => room.id))
 	assert(ids.size === floor.rooms.length, `Seed ${seed} has duplicate room ids`)
 	assert(floor.rooms.some((room) => room.kind === "reward"), `Seed ${seed} has no reward room`)
+	assert(floor.rooms.filter((room) => room.kind === "shop").length === 1, `Seed ${seed} needs one shop room`)
+	assert(floor.rooms.filter((room) => room.kind === "miniBoss").length === 1, `Seed ${seed} needs one mini-boss room`)
+	assert(!floor.rooms.some((room) => String(room.kind) === "repair"), `Seed ${seed} contains a removed repair room`)
 	assert(floor.rooms.filter((room) => room.kind === "gravity").length === 2, `Seed ${seed} needs two gravity rooms`)
 	const exit = floor.rooms.find((room) => room.id === floor.exitRoomId)
 	assert(exit !== undefined, `Seed ${seed} has no exit room`)
@@ -61,7 +64,7 @@ for (let seed = 1; seed <= 200; seed++) {
 			assert(neighbor !== undefined, `${room.id} links to missing room ${neighborId}`)
 			assert(neighbor!.connections.includes(room.id), `${room.id} connection is not bidirectional`)
 		}
-		if (room.kind !== "combat") continue
+		if (!["combat", "reward", "shrine", "gravity", "event"].includes(room.kind)) continue
 		assert(room.encounter !== undefined, `${room.id} has no encounter plan`)
 		assert(room.encounter!.enemies.length > 0, `${room.id} has no planned enemies`)
 		const enemyIds = new Set(room.encounter!.enemies.map((enemy) => enemy.id))

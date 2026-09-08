@@ -335,7 +335,8 @@ export function spawnHomingRocket(
 	splashSize: number,
 	canSeek: boolean,
 	projectileTags: string[],
-	inheritPlayerModifiers: boolean = false
+	inheritPlayerModifiers: boolean = false,
+	preferredTarget?: GameObj
 ) {
 	const config: ProjectileConfig = {
 		pos,
@@ -371,7 +372,10 @@ export function spawnHomingRocket(
 	};
 	if (inheritPlayerModifiers) applyPlayerProjectileModifiers(config, false);
 
-	return spawnProjectile(config);
+	return applyPreferredRocketTarget(
+		spawnProjectile(config),
+		preferredTarget
+	);
 }
 
 function applyPlayerProjectileModifiers(
