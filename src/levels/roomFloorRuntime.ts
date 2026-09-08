@@ -49,7 +49,7 @@ import {
 const ROOM_TRANSITION_COOLDOWN = 0.45
 const ROOM_ENTRY_INSET = 2
 const ROOM_HEX_SIZE = 56
-const ROOM_PROJECTION_Y_SCALE = 0.78
+const ROOM_PROJECTION_Y_SCALE = 2 / Math.sqrt(3)
 
 let active = false
 let activeConfig: GeneratedMapConfig | undefined
@@ -289,7 +289,7 @@ function spawnCombatRoomController(
 		onCleared()
 		return
 	}
-	let wave = nextUndeafeatedWave(room)
+	let wave = nextUndefeatedWave(room)
 	let waveDelay = 0.65
 	let waveSpawned = false
 	const controller = k.add([
@@ -309,7 +309,7 @@ function spawnCombatRoomController(
 					return
 				}
 				if (k.get(tags.runRoomEnemy).some((enemy) => enemy.exists())) return
-				wave = nextUndeafeatedWave(room)
+				wave = nextUndefeatedWave(room)
 				waveSpawned = false
 				waveDelay = 0.75
 			},
@@ -349,7 +349,7 @@ function spawnRoomWave(
 	}
 }
 
-function nextUndeafeatedWave(room: RoomFloorRoom) {
+function nextUndefeatedWave(room: RoomFloorRoom) {
 	const waves = room.encounter?.enemies
 		.filter((enemy) => !enemy.defeated)
 		.map((enemy) => enemy.wave) ?? []
