@@ -948,6 +948,13 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 				chargeRatio
 			)
 			: 1;
+		const fireSoundDetune = charge?.fireSoundDetune
+			? k.lerp(
+				charge.fireSoundDetune.min,
+				charge.fireSoundDetune.max,
+				chargeRatio
+			)
+			: undefined;
 
 		if (
 			session.primaryRocketChance > 0 &&
@@ -989,6 +996,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 						damageMultiplier,
 						speedMultiplier,
 						playFireSound: shouldPlayFireSound,
+						fireSoundDetune,
 						isFullyCharged: chargeRatio >= 1,
 						wigglePhase: hasPatternWiggle
 							? index * Math.PI

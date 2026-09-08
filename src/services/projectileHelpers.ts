@@ -45,6 +45,7 @@ export interface PlayerBlasterShotOptions {
 	damageMultiplier?: number
 	speedMultiplier?: number
 	playFireSound?: boolean
+	fireSoundDetune?: number
 	isFullyCharged?: boolean
 	wigglePhase?: number
 }
@@ -132,7 +133,7 @@ export function spawnPlayerBlaster(
 			? undefined
 			: weapon.fireSound ?? "shoot1",
 		fireSoundVolume: weapon.fireSoundVolume,
-		fireSoundDetune: weapon.fireSoundDetune,
+		fireSoundDetune: shotOptions.fireSoundDetune ?? weapon.fireSoundDetune,
 	};
 	if (weapon.piercing) {
 		config.piercing = { ...weapon.piercing };

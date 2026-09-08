@@ -41,6 +41,10 @@ export interface WeaponChargeModifier {
 	maxDamageMultiplier: number
 	minSpeedMultiplier?: number
 	maxSpeedMultiplier?: number
+	fireSoundDetune?: {
+		min: number
+		max: number
+	}
 }
 
 export interface WeaponDefinition {
@@ -318,8 +322,8 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		name: "RAIL LANCE",
 		description: "Hold and release to drive a charged shot through an enemy column.",
 		icon: "weapon_rail_lance",
-		fireSound: "shoot1",
-		fireSoundDetune: 500,
+		fireSound: "weapon_rail_lance_fire",
+		fireSoundVolume: 0.65,
 		damageMultiplier: 1.35,
 		projectileSpeedMultiplier: 2.25,
 		fireCooldown: 0.72,
@@ -337,6 +341,10 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 			maxDamageMultiplier: 2.5,
 			minSpeedMultiplier: 0.8,
 			maxSpeedMultiplier: 1.25,
+			fireSoundDetune: {
+				min: -450,
+				max: 500,
+			},
 		},
 		projectileScale: 2,
 		projectileTint: [115, 215, 255],

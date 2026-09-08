@@ -18,6 +18,15 @@
 - In-game asset: `twin-needle.wav`
 - Trimmed from the source recording and converted to mono WAV for responsive playback.
 
+## Rail Lance Fire
+
+"BLASTER 2" by tutarap (Freesound)
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-blaster-2-81267/
+- License: Pixabay Content License
+- In-game asset: `rail-lance-fire.wav`
+- Trimmed from the source recording and converted to mono WAV for responsive playback.
+
 ## Hyperspeed Jump
 
 "Fast Warp In" by GammaGool

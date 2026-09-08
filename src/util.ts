@@ -585,6 +585,7 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound("powerup1", "sounds/powerup1.wav");
 	await k.loadSound("rail_lance_charge", "sounds/rail-lance-charge.wav")
 	await k.loadSound("rail_lance_ready", "sounds/rail-lance-ready.wav")
+	await k.loadSound("weapon_rail_lance_fire", "sounds/rail-lance-fire.wav")
 	await k.loadSound("run_level_up", "sounds/run-level-up.mp3")
 	await k.loadSound("crit1", "sounds/crit1.wav");
 	await k.loadSound("slowdown", "sounds/slowdown.wav");
