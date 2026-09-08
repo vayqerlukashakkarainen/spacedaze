@@ -103,6 +103,29 @@ export function transitionToConnectedRoom(destinationRoomId: string) {
 	return true
 }
 
+export function quickJumpToClearedRoom(destinationRoomId: string) {
+	if (!active || transitionCooldown > 0) return false
+	const floor = getActiveRoomFloor()
+	const previousRoom = getCurrentFloorRoom()
+	const destination = floor?.rooms.find(
+		(room) => room.id === destinationRoomId
+	)
+	if (
+		!previousRoom ||
+		previousRoom.state !== "cleared" ||
+		!destination ||
+		destination.id === previousRoom.id ||
+		destination.state !== "cleared"
+	) return false
+	if (!teleportRoomState(destination.id)) return false
+
+	transitionCooldown = ROOM_TRANSITION_COOLDOWN
+	destroyTaggedObjects(tags.runRoom)
+	loadCurrentRoom(previousRoom.id)
+	k.flash(k.rgb(8, 22, 30), 0.12)
+	return true
+}
+
 function loadCurrentRoom(previousRoomId?: string, teleportArrival = false) {
 	const room = getCurrentFloorRoom()
 	const config = activeConfig

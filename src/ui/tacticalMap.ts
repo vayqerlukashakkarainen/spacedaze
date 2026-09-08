@@ -13,6 +13,7 @@ import {
 	getRoomColor,
 	getRoomLabel,
 } from "../levels/runMap"
+import { quickJumpToClearedRoom } from "../levels/roomFloorRuntime"
 import { activeLevelKey } from "../levels/levels"
 import { k, layers } from "../main"
 import type {
@@ -72,6 +73,7 @@ let pausedObjects = new Set<GameObj>()
 let zoneScroll: UiScrollableControl | undefined
 let activeRoot: GameObj | undefined
 let activeBackdrop: GameObj | undefined
+let afterCloseAction: (() => void) | undefined
 let rememberedMapKey: string | undefined
 let rememberedZoomMultiplier = 1
 
@@ -116,6 +118,7 @@ export function showTacticalMap() {
 
 	open = true
 	closing = false
+	afterCloseAction = undefined
 	uiState.modalOpen = true
 	pausedObjects = new Set()
 	for (const obj of k.get<GameObj>(tags.gameLoop)) {
@@ -228,14 +231,63 @@ export function showTacticalMap() {
 		k.scale(zoom),
 	])
 	mapCanvas.onDestroy(() => rasterizedMap.sprite.data?.tex?.free())
+	const roomNodes = rasterizedMap.roomNodes ?? []
+	const currentRoom = roomFloorSnapshot?.rooms.find(
+		(room) => room.id === roomFloorSnapshot.currentRoomId
+	)
+	const canQuickJump = (node: RoomMapNode) =>
+		currentRoom?.state === "cleared" &&
+		node.roomId !== roomFloorSnapshot?.currentRoomId &&
+		node.state === "cleared"
+	const roomNodeAt = (screenPosition: Vec2) => {
+		if (!roomFloorSnapshot || roomNodes.length === 0) return undefined
+		const mapPoint = screenPosition
+			.sub(viewportPos)
+			.sub(mapCanvas.pos)
+			.scale(1 / zoom)
+		return roomNodes.find(
+			(node) => node.position.dist(mapPoint) <= ROOM_MAP_NODE_RADIUS + 5
+		)
+	}
+	if (roomFloorSnapshot) {
+		viewport.add([
+			k.pos(0, 0),
+			{
+				draw() {
+					const node = roomNodeAt(k.mousePos())
+					if (!node || !canQuickJump(node)) return
+					const center = mapCanvas.pos.add(node.position.scale(zoom))
+					const corners = Array.from({ length: 6 }, (_, index) => {
+						const angle = Math.PI / 3 * index - Math.PI / 2
+						const radius = (ROOM_MAP_NODE_RADIUS + 5) * zoom
+						return center.add(
+							Math.cos(angle) * radius,
+							Math.sin(angle) * radius
+						)
+					})
+					k.drawPolygon({
+						pts: corners,
+						color: k.rgb(...UI_COLORS.accent),
+						opacity: 0.14,
+						outline: {
+							width: 2,
+							color: k.rgb(...UI_COLORS.accent),
+						},
+					})
+				},
+			},
+		])
+	}
 
 	let dragging = false
 	let previousMousePos = k.mousePos()
+	let pressedMousePos: Vec2 | undefined
 	inputControllers = [
 		k.onMousePress("left", () => {
 			if (!viewport.isHovering()) return
 			dragging = true
 			previousMousePos = k.mousePos()
+			pressedMousePos = previousMousePos
 		}),
 		k.onMouseMove(() => {
 			if (!dragging) return
@@ -244,7 +296,16 @@ export function showTacticalMap() {
 			previousMousePos = mousePos
 		}),
 		k.onMouseRelease("left", () => {
+			const releasedAt = k.mousePos()
+			const clicked = pressedMousePos && pressedMousePos.dist(releasedAt) <= 6
 			dragging = false
+			pressedMousePos = undefined
+			if (!clicked) return
+			const node = roomNodeAt(releasedAt)
+			if (!node || !canQuickJump(node)) return
+			hideTacticalMap(() => {
+				quickJumpToClearedRoom(node.roomId)
+			})
 		}),
 		k.onScroll((delta) => {
 			if (!viewport.isHovering()) return
@@ -299,7 +360,9 @@ export function showTacticalMap() {
 		)
 	}
 	addThemedText(contentRoot, {
-		text: "DRAG / WASD  PAN     WHEEL  ZOOM     R  RESET     TAB / ESC  CLOSE",
+		text: roomFloorSnapshot
+			? "CLICK CLEARED ROOM  QUICK JUMP     DRAG / WASD  PAN     WHEEL  ZOOM     R  RESET     TAB / ESC  CLOSE"
+			: "DRAG / WASD  PAN     WHEEL  ZOOM     R  RESET     TAB / ESC  CLOSE",
 		pos: k.vec2(MAP_MARGIN, k.height() - 20),
 		variant: "muted",
 		width: k.width() - MAP_MARGIN * 2,
@@ -314,9 +377,10 @@ export function showTacticalMap() {
 	return true
 }
 
-export function hideTacticalMap() {
+export function hideTacticalMap(onClosed?: () => void) {
 	if (!open || closing) return
 	closing = true
+	afterCloseAction = onClosed
 	for (const controller of inputControllers) controller.cancel()
 	inputControllers = []
 	playShopMenuCloseSound()
@@ -346,6 +410,9 @@ function finishClosingTacticalMap() {
 	loopService.resumeAll()
 	activeRoot = undefined
 	activeBackdrop = undefined
+	const action = afterCloseAction
+	afterCloseAction = undefined
+	action?.()
 }
 
 function createHubMapSnapshot(): HubMapSnapshot | undefined {
@@ -413,6 +480,13 @@ interface RasterizedMap {
 	width: number
 	height: number
 	playerPosition: Vec2
+	roomNodes?: RoomMapNode[]
+}
+
+interface RoomMapNode {
+	roomId: string
+	position: Vec2
+	state: RoomFloorState
 }
 
 const ROOM_MAP_NODE_RADIUS = 28
@@ -492,6 +566,11 @@ function rasterizeRoomFloorMap(snapshot: RoomFloor): RasterizedMap {
 		width,
 		height,
 		playerPosition: k.vec2(width / 2, height / 2),
+		roomNodes: rooms.map((room) => ({
+			roomId: room.id,
+			position: toRasterPosition(centers.get(room.id)!),
+			state: room.state,
+		})),
 	}
 }
 
