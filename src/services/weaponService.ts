@@ -283,7 +283,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		description: "Hold and release to launch a charged plasma shell with built-in splash damage.",
 		icon: "weapon_plasma_mortar",
 		fireSound: "weapon_plasma_mortar_fire",
-		fireSoundVolume: 0.65,
+		fireSoundVolume: 0.85,
 		damageMultiplier: 1.45,
 		projectileSpeedMultiplier: 0.48,
 		fireCooldown: 0.68,
