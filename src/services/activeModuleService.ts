@@ -137,7 +137,7 @@ export const ACTIVE_MODULES: readonly ActiveModuleDefinition[] = [
 		icon: "active_repair_pulse",
 		cooldown: 12,
 		rarity: RewardRarity.Uncommon,
-		stats: { ROLE: "RECOVERY", REPAIR: 1, CHANNEL: "1.5S" },
+		stats: { ROLE: "RECOVERY", REPAIR: 25, CHANNEL: "1.5S" },
 		crateWeight: 82,
 	},
 	{

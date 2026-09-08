@@ -138,6 +138,25 @@ export function setHubLevelForDebug(level: number) {
 	saveProgress()
 }
 
+export function unlockAllHubContentForDebug(blueprintKeys: readonly string[]) {
+	const previousBlueprintCount = progress.discoveredBlueprints.length
+	progress.lifetimeDeposited = HUB_LEVELS[HUB_LEVELS.length - 1].requiredDeposited
+	progress.builtFacilities = HUB_FACILITIES.map((facility) => facility.id)
+	progress.facilityConstruction = undefined
+	progress.forgeLevel = 3
+	progress.discoveredBlueprints = [...new Set([
+		...progress.discoveredBlueprints,
+		...blueprintKeys.filter((key) => key.length > 0),
+	])]
+	restockHubGhostChests(false)
+	saveProgress()
+	return {
+		blueprints: progress.discoveredBlueprints.length - previousBlueprintCount,
+		facilities: progress.builtFacilities.length,
+		hubLevel: getHubLevel(),
+	}
+}
+
 export function isFacilityUnlocked(id: HubFacilityId) {
 	const facility = HUB_FACILITIES.find((definition) => definition.id === id)
 	return facility !== undefined && (isFacilityBuilt(id) || getHubLevel() >= facility.requiredHubLevel)

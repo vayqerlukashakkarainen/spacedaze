@@ -54,21 +54,21 @@ export const rocketShards: Tool = {
 	upgrades: [
 		{
 			name: "Level 1",
-			desc: "Missiles are loaded with space debree, shooting shards when exploded",
+			desc: "Missiles are loaded with space debris, shooting shards when exploded",
 			sprite: "missile_shards_upg1",
 			price: 22,
 			value: 5,
 		},
 		{
 			name: "Level 2",
-			desc: "Squeeze some more debree in those missiles!!",
+			desc: "Squeeze some more debris in those missiles!!",
 			sprite: "missile_shards_upg1",
 			price: 22,
 			value: 7,
 		},
 		{
 			name: "Level 3",
-			desc: "Squeeze some more debree in those missiles!!",
+			desc: "Squeeze some more debris in those missiles!!",
 			sprite: "missile_shards_upg1",
 			price: 22,
 			value: 9,

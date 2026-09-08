@@ -3,12 +3,11 @@ import { isDebreeAvailable, SalvagerCargo, type SalvagerDebree } from "./salvage
 
 interface TestDebree extends SalvagerDebree {
 	value: number
-	runLevelXp: boolean
 	alive: boolean
 }
 
 function piece(value = 1): TestDebree {
-	return { value, runLevelXp: true, alive: true, exists() { return this.alive } }
+	return { value, alive: true, exists() { return this.alive } }
 }
 
 const first = new SalvagerCargo<TestDebree>(1)
@@ -25,7 +24,7 @@ assert.equal(second.load(pieces[5]), true, "Capacity is independent for each dro
 const delivered = first.release(true)
 assert.deepEqual(delivered, pieces.slice(0, 5), "Delivery releases the original entities")
 assert.deepEqual(delivered.map((item) => item.value), [1, 2, 3, 4, 5])
-assert.ok(delivered.every((item) => item.runLevelXp && item.readyForPlayer))
+assert.ok(delivered.every((item) => item.readyForPlayer))
 assert.ok(delivered.every((item) => item.carriedBy === undefined && !isDebreeAvailable(item)))
 assert.equal(first.items.length, 0)
 assert.equal(first.returning, false)

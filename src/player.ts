@@ -7,6 +7,11 @@ import {
 } from "./upg";
 import { resetUltimateCharge } from "./services/ultimateAbilityService";
 import { applyRunLevelBonuses } from "./services/runLevelService";
+import { setThreatRewardTierBonus } from "./services/threatService";
+import {
+	BASE_PLAYER_HEALTH,
+	GLASS_REACTOR_HEALTH,
+} from "./services/playerHealthBalance";
 
 interface Ship {
 	speed: number;
@@ -69,6 +74,11 @@ interface Ship {
 	sawSatellite: number | undefined;
 	kineticRam: number | undefined;
 	nearMissCapacitor: number | undefined;
+	tacticalUplinkMultiplier: number;
+	phaseCounterCapacity: number;
+	threatReactorStacks: number;
+	resonanceCoilStacks: number;
+	wreckHarvesterDamage: number;
 	droneSetBonus: boolean;
 	mobilitySetBonus: boolean;
 	ordnanceSetBonus: boolean;
@@ -99,8 +109,6 @@ interface Ship {
 	projectileReturnDelay: number;
 	projectileGrowthDamage: number;
 	projectileGrowthScale: number;
-	projectileAcceleration: number;
-	projectileOrbitRadius: number;
 	projectileStasisRadius: number;
 	projectileVolatileRadius: number;
 	projectileVolatileDamage: number;
@@ -135,7 +143,7 @@ export const PLAYER_SCALE = 1;
 
 export function getPlayerMaxHealth() {
 	return player.glassReactor !== undefined
-		? 1
+		? GLASS_REACTOR_HEALTH
 		: player.maxHealth + session.extraHealth;
 }
 
@@ -191,7 +199,7 @@ export function resetVolatileCargoObjective() {
 }
 
 export const player: Ship = {
-	maxHealth: 3,
+	maxHealth: BASE_PLAYER_HEALTH,
 	scorePerPickup: 1,
 	blasterDmg: 2,
 	blasterDmgMultiplier: 1,
@@ -242,6 +250,11 @@ export const player: Ship = {
 	sawSatellite: undefined,
 	kineticRam: undefined,
 	nearMissCapacitor: undefined,
+	tacticalUplinkMultiplier: 1,
+	phaseCounterCapacity: 0,
+	threatReactorStacks: 0,
+	resonanceCoilStacks: 0,
+	wreckHarvesterDamage: 0,
 	droneSetBonus: false,
 	mobilitySetBonus: false,
 	ordnanceSetBonus: false,
@@ -270,8 +283,6 @@ export const player: Ship = {
 	projectileReturnDelay: 0,
 	projectileGrowthDamage: 0,
 	projectileGrowthScale: 1,
-	projectileAcceleration: 0,
-	projectileOrbitRadius: 0,
 	projectileStasisRadius: 0,
 	projectileVolatileRadius: 0,
 	projectileVolatileDamage: 0,
@@ -312,7 +323,7 @@ export function loadPlayer() {
 	player.phaseMagazine = getToolUpgradeLvlValue("phaseMagazine");
 
 	player.speedMultiplier = getToolUpgradeLvlValue("movespeed") ?? 1;
-	player.maxHealth = getToolUpgradeLvlValue("maxHealth") ?? 3;
+	player.maxHealth = getToolUpgradeLvlValue("maxHealth") ?? BASE_PLAYER_HEALTH;
 
 	player.followerBlasterDmg = getToolUpgradeLvlValue("followerBlasterDmg") ?? 1;
 	player.missileDroneSlots = getToolUpgradeLvlValue("followerMissiles") ?? 0;
@@ -336,7 +347,19 @@ export function loadPlayer() {
 	player.sawSatellite = getToolUpgradeLvlValue("sawSatellite");
 	player.kineticRam = getToolUpgradeLvlValue("kineticRam");
 	player.nearMissCapacitor = getToolUpgradeLvlValue("nearMissCapacitor");
-	if (player.glassReactor !== undefined) player.maxHealth = 1;
+	player.tacticalUplinkMultiplier = getToolUpgradeLvlValue("tacticalUplink") ?? 1;
+	player.phaseCounterCapacity = Math.round(
+		getToolUpgradeLvlValue("phaseCounter") ?? 0
+	);
+	player.threatReactorStacks = Math.round(
+		getToolUpgradeLvlValue("threatReactor") ?? 0
+	);
+	setThreatRewardTierBonus(player.threatReactorStacks);
+	player.resonanceCoilStacks = Math.round(
+		getToolUpgradeLvlValue("resonanceCoil") ?? 0
+	);
+	player.wreckHarvesterDamage = getToolUpgradeLvlValue("wreckHarvester") ?? 0;
+	if (player.glassReactor !== undefined) player.maxHealth = GLASS_REACTOR_HEALTH;
 	player.droneSetBonus = hasTechnologySet([
 		"followerBlasterDmg",
 		"followerMissiles",
@@ -432,8 +455,6 @@ export function loadPlayer() {
 	player.projectileGrowthDamage = getToolUpgradeLvlValue("growingCharge") ?? 0;
 	player.projectileGrowthScale =
 		getToolUpgradeStatValue("growingCharge", "projectileGrowthScale") ?? 1;
-	player.projectileAcceleration = getToolUpgradeLvlValue("momentumCore") ?? 0;
-	player.projectileOrbitRadius = getToolUpgradeLvlValue("orbitingRounds") ?? 0;
 	player.projectileStasisRadius = getToolUpgradeLvlValue("stasisBurst") ?? 0;
 	player.projectileVolatileRadius =
 		getToolUpgradeLvlValue("volatileCorrosion") ?? 0;

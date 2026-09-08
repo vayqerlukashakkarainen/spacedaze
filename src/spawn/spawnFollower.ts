@@ -32,10 +32,11 @@ import {
 	assignDroneTypes,
 	DroneType,
 } from "../services/droneRoleService";
-import { updatePlayerHealthBar } from "../ui/gameUi";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import { findClosestSpatial } from "../services/runtimeSpatialIndexService";
 import { isDebreeAvailable, SalvagerCargo } from "../services/salvagerCargoService"
+import { recoverPlayerHealth } from "../services/playerHealthService"
+import { MEDIC_DRONE_RECOVERY } from "../services/playerHealthBalance"
 
 interface Props {
 	hp: number;
@@ -731,8 +732,7 @@ function updateMedicBehavior(medic: GameObj) {
 	if ((medic.medicKillCharge ?? 0) < requiredKills) return;
 	if (!playerObj.exists() || playerObj.hp >= playerObj.maxHP) return;
 	medic.medicKillCharge = 0;
-	playerObj.hp = Math.min(playerObj.maxHP, playerObj.hp + 1);
-	updatePlayerHealthBar(playerObj.hp);
+	recoverPlayerHealth(playerObj, MEDIC_DRONE_RECOVERY);
 	spawnFlash(playerObj.pos.clone(), 10, k.WHITE);
 	audioService.playSound("collect1", { volume: subSoundVolume });
 }

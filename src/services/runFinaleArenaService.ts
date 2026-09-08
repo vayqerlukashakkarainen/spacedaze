@@ -23,24 +23,6 @@ export function getRunFinaleBattleZone() {
 	return battleZone
 }
 
-export function constrainToRunFinaleBattleZone(
-	position: Vec2,
-	margin = 0
-) {
-	if (!battleZone) return false
-	position.x = k.clamp(
-		position.x,
-		battleZone.center.x - battleZone.halfWidth + margin,
-		battleZone.center.x + battleZone.halfWidth - margin
-	)
-	position.y = k.clamp(
-		position.y,
-		battleZone.center.y - battleZone.halfHeight + margin,
-		battleZone.center.y + battleZone.halfHeight - margin
-	)
-	return true
-}
-
 export function clearRunFinaleBattleZone() {
 	battleZone = undefined
 }

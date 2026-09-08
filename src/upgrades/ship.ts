@@ -1,39 +1,39 @@
 import { Tool } from "../upg";
 
 export const debreeDist: Tool = {
-	toolName: "Debree magnets",
+	toolName: "Salvage magnets",
 	upgrades: [
 		{
 			name: "Level 1",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
+			desc: "Increase the ship's salvage collection range",
 			sprite: "debree_dist_upg1",
 			price: 32,
 			value: 1.2,
 		},
 		{
 			name: "Level 2",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
+			desc: "Increase the ship's salvage collection range",
 			sprite: "debree_dist_upg1",
 			price: 32,
 			value: 1.4,
 		},
 		{
 			name: "Level 3",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
+			desc: "Increase the ship's salvage collection range",
 			sprite: "debree_dist_upg1",
 			price: 32,
 			value: 1.6,
 		},
 		{
 			name: "Level 4",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
+			desc: "Increase the ship's salvage collection range",
 			sprite: "debree_dist_upg1",
 			price: 32,
 			value: 1.8,
 		},
 		{
 			name: "Level 5",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
+			desc: "Increase the ship's salvage collection range",
 			sprite: "debree_dist_upg1",
 			price: 32,
 			value: 2,
@@ -177,19 +177,19 @@ export const movespeed: Tool = {
 };
 
 export const debreeValue: Tool = {
-	toolName: "Shiny debree",
+	toolName: "Refined salvage",
 	requirements: { allOf: [{ toolKey: "debreeDist" }] },
 	upgrades: [
 		{
 			name: "Level 1",
-			desc: "Debree becomes more valueable, who could have thought",
+			desc: "Collected debris yields twice as much salvage",
 			sprite: "debree_value_upg1",
 			price: 32,
 			value: 2,
 		},
 		{
 			name: "Level 2",
-			desc: "Debree becomes almost as valuable as gold",
+			desc: "Collected debris yields three times as much salvage",
 			sprite: "debree_value_upg1",
 			price: 32,
 			value: 3,
@@ -202,52 +202,52 @@ export const maxHealth: Tool = {
 	upgrades: [
 		{
 			name: "Level 1",
-			desc: "Upgrade hull and increase health by one",
+			desc: "Upgrade hull and increase health by 15",
 			sprite: "hull_upg1",
 			price: 32,
-			value: 4,
+			value: 115,
 		},
 		{
 			name: "Level 2",
-			desc: "Upgrade hull and increase health by one",
+			desc: "Upgrade hull and increase health by 15",
 			sprite: "hull_upg1",
 			price: 32,
-			value: 5,
+			value: 130,
 		},
 		{
 			name: "Level 3",
-			desc: "Upgrade hull and increase health by one",
+			desc: "Upgrade hull and increase health by 15",
 			sprite: "hull_upg1",
 			price: 32,
-			value: 6,
+			value: 145,
 		},
 		{
 			name: "Level 4",
-			desc: "Upgrade hull and increase health by one",
+			desc: "Upgrade hull and increase health by 15",
 			sprite: "hull_upg1",
 			price: 32,
-			value: 7,
+			value: 160,
 		},
 		{
 			name: "Level 5",
-			desc: "Upgrade hull and increase health by one",
+			desc: "Upgrade hull and increase health by 15",
 			sprite: "hull_upg1",
 			price: 32,
-			value: 8,
+			value: 175,
 		},
 		{
 			name: "Level 6",
-			desc: "Upgrade hull and increase health by one",
+			desc: "Upgrade hull and increase health by 15",
 			sprite: "hull_upg1",
 			price: 32,
-			value: 9,
+			value: 190,
 		},
 		{
 			name: "Level 7",
-			desc: "Upgrade hull and increase health by one",
+			desc: "Upgrade hull and increase health by 15",
 			sprite: "hull_upg1",
 			price: 32,
-			value: 10,
+			value: 205,
 		},
 	],
 };

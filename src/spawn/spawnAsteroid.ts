@@ -120,7 +120,6 @@ export function spawnMeteorite(props: Props) {
 				"enemy",
 				true,
 				{
-					shipWreckage: false,
 					tier: profile.elite ? "elite" : "normal",
 				}
 			);
@@ -152,6 +151,8 @@ export function spawnMeteorite(props: Props) {
 	m.onHurt(() => {
 		m.animation.seek(0);
 	});
+
+	return m;
 }
 
 function bounceOffGridCell(

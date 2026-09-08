@@ -23,7 +23,6 @@ const hubLevelOneAdditions = [
 	"decoyBeacon",
 	"scrapMine",
 	"retroBurst",
-	"driftBrake",
 	"gravitySling",
 ] as const
 

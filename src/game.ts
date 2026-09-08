@@ -29,12 +29,11 @@ import {
 
 import { clearPlayer, setupPlayer } from "./setupPlayer";
 import { tags } from "./tags";
-import { addRunLevelXp } from "./services/runLevelService";
 import {
-	addHealthBar,
 	clearGameLoopUi,
 	setupGameLoopUi,
 	showSalvageGain,
+	syncPlayerHealthBarCapacity,
 	updatePlayerHealthBar,
 } from "./ui/gameUi";
 import { Component } from "./compose";
@@ -82,6 +81,8 @@ import {
 } from "./services/prologueService";
 import { hideDialogue } from "./services/dialogService";
 import { saveGame } from "./util";
+import { recoverPlayerHealth } from "./services/playerHealthService";
+import { RUN_HULL_REINFORCEMENT_AMOUNT } from "./services/playerHealthBalance";
 import {
 	clearPendingRunEndSummary,
 	completeRun,
@@ -119,7 +120,7 @@ export function startGame() {
 		arrivalTransition: true,
 		arrivalBass: startsWithPrologue,
 	});
-	setupGameLoopUi(player.maxHealth, hasEquippedActiveModule());
+	setupGameLoopUi(getPlayerMaxHealth(), hasEquippedActiveModule());
 	if (startsWithPrologue) {
 		loadLevel("level1");
 		beginPrologueExperience(() => {
@@ -205,7 +206,6 @@ export function collectDebreeImmediately(
 	debris: GameObj & {
 		salvageValue?: number;
 		color?: Color;
-		runLevelXp?: boolean;
 	},
 	collectionPos: Vec2
 ) {
@@ -214,18 +214,32 @@ export function collectDebreeImmediately(
 	const color = debris.color ?? k.WHITE;
 	k.destroy(debris);
 	recordDebreeCollected();
-	audioService.playSound("salvage_pickup", { volume: mainSoundVolume });
+	audioService.playSound("salvage_pickup", {
+		volume: mainSoundVolume * k.clamp(0.72 + salvageValue * 0.028, 0.72, 1),
+		detune: salvagePickupDetune(salvageValue),
+	});
+	spawnFlash(
+		collectionPos.clone(),
+		3 + Math.min(6, salvageValue * 0.6),
+		color
+	);
 	const duplicatedBySet = player.salvageSetBonus && k.chance(0.2);
 	const salvageGained = addScore(
 		player.scorePerPickup * salvageValue * player.debreeValueMultiplier *
 			(duplicatedBySet ? 2 : 1)
 	);
 	if (duplicatedBySet) spawnFlash(collectionPos.clone(), 7, k.rgb(80, 255, 175));
-	if (debris.runLevelXp) addRunLevelXp(salvageGained);
 	addScrapArmorProgress(salvageGained);
 	chargeSalvageBattery(playerObj, salvageGained);
 	showSalvageGain(salvageGained, color, collectionPos);
 	return salvageGained;
+}
+
+function salvagePickupDetune(value: number) {
+	if (value >= 10) return 500;
+	if (value >= 5) return 250;
+	if (value >= 3) return 0;
+	return -200;
 }
 
 function beginDebreeCollection(
@@ -293,6 +307,10 @@ function updateDebreeCollection(
 export function beginPlayerDeathSequence() {
 	if (isPlayerDying) return;
 	isPlayerDying = true;
+	audioService.pauseMusic();
+	audioService.playSound("player_game_over", {
+		volume: mainSoundVolume,
+	});
 	recordPlayerDeath();
 	const deathCause = getPlayerDeathCause();
 	const diedInHub = activeLevelKey() === "hub";
@@ -354,7 +372,7 @@ function continueAfterPlayerDeath(diedInHub: boolean) {
 	loadPlayer();
 	transitionToLevel("hub");
 	playerObj = setupPlayer({ respawnTransition: true });
-	setupGameLoopUi(player.maxHealth, hasEquippedActiveModule());
+	setupGameLoopUi(getPlayerMaxHealth(), hasEquippedActiveModule());
 	setTimescale(1, 0.4, false);
 	isPlayerDying = false;
 }
@@ -381,7 +399,7 @@ export function exitRunToHub() {
 	debrees = [];
 	transitionToLevel("hub");
 	playerObj = setupPlayer({ respawnTransition: true });
-	setupGameLoopUi(player.maxHealth, hasEquippedActiveModule());
+	setupGameLoopUi(getPlayerMaxHealth(), hasEquippedActiveModule());
 	setTimescale(1, 0.2, false);
 }
 
@@ -487,7 +505,7 @@ async function recoverFromPrologueDeath() {
 		x: Math.round(repairResult.playerSpawnPosition.x),
 		y: Math.round(repairResult.playerSpawnPosition.y),
 	});
-	setupGameLoopUi(player.maxHealth, hasEquippedActiveModule());
+	setupGameLoopUi(getPlayerMaxHealth(), hasEquippedActiveModule());
 	setTimescale(1, 0.4, false);
 	isPlayerDying = false;
 	k.wait(0.65, () => void showHubIntroductionIfNeeded());
@@ -549,10 +567,10 @@ export function pickUnitInDistance(
 export function addMaxHealth() {
 	if (!playerObj) return;
 
-	session.extraHealth++;
+	const previousMaxHealth = getPlayerMaxHealth();
+	session.extraHealth += RUN_HULL_REINFORCEMENT_AMOUNT;
 	const totalHealth = getPlayerMaxHealth();
 	playerObj.maxHP = totalHealth;
-	addHealthBar(totalHealth - 1);
-	playerObj.hp = playerObj.maxHP;
-	updatePlayerHealthBar(playerObj.hp);
+	syncPlayerHealthBarCapacity(totalHealth);
+	recoverPlayerHealth(playerObj, totalHealth - previousMaxHealth);
 }

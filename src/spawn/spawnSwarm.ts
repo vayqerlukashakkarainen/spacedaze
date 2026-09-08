@@ -24,6 +24,7 @@ import { tags } from "../tags"
 import { randomExplosion } from "../util"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { DensePool } from "../services/densePool"
+import { spawnEnemyDeathEffect } from "./spawnEnemyDeathEffect"
 
 type SwarmPhase = "gather" | "stage" | "charge" | "regroup"
 
@@ -31,6 +32,21 @@ interface SwarmCommand {
 	target: Vec2
 	speed: number
 	charging: boolean
+}
+
+export interface SwarmPatrol {
+	center: Vec2
+	radiusX: number
+	radiusY: number
+	angularSpeed: number
+	phase: number
+	speed: number
+}
+
+export interface SwarmEnemyBehavior {
+	patrol?: SwarmPatrol
+	suppressRewards?: boolean
+	onDeath?: () => void
 }
 
 const MINIMUM_COORDINATED_SWARM = 5
@@ -171,7 +187,8 @@ export function spawnSwarmEnemy(
 	pos: Vec2,
 	hp = 2,
 	options: EnemySpawnOptions = {},
-	hiveMind?: GameObj
+	hiveMind?: GameObj,
+	behavior: SwarmEnemyBehavior = {}
 ) {
 	const profile = createEnemySpawnProfile(hp, 1, 1, options)
 	const spriteScale = profile.scale * SWARM_DRONE_BASE_SCALE
@@ -211,6 +228,7 @@ export function spawnSwarmEnemy(
 			desiredSpeed: 48 * profile.speedMultiplier,
 			baseScale: spriteScale,
 			hiveMind,
+			patrol: behavior.patrol,
 			swarmCommand: undefined as SwarmCommand | undefined,
 		},
 		tags.enemy,
@@ -233,7 +251,9 @@ export function spawnSwarmEnemy(
 	swarmCollisionSystem.add({ owner: enemy })
 
 	enemy.onDeath(() => {
-		enemyOnDeath(
+		if (behavior.suppressRewards) {
+			spawnEnemyDeathEffect(enemy.pos, 0.42)
+		} else enemyOnDeath(
 			enemy.pos,
 			2 * profile.rewardMultiplier,
 			profile.rewardMultiplier,
@@ -247,6 +267,7 @@ export function spawnSwarmEnemy(
 		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume * 0.25 })
 		k.destroy(enemy)
+		behavior.onDeath?.()
 	})
 	enemy.onHurt(() => {
 		audioService.playSound("hit1", { volume: mainSoundVolume * 0.75 })
@@ -351,6 +372,22 @@ function drawSwarmThruster(nozzleY: number, length: number) {
 }
 
 function updateSwarmDecision(enemy: GameObj, speedMultiplier: number) {
+	const patrol = enemy.patrol as SwarmPatrol | undefined
+	if (patrol) {
+		const angle = patrol.phase + k.time() * patrol.angularSpeed
+		const lookAhead = angle + Math.sign(patrol.angularSpeed) * 24
+		const target = patrol.center.add(
+			Math.cos(lookAhead * Math.PI / 180) * patrol.radiusX,
+			Math.sin(lookAhead * Math.PI / 180) * patrol.radiusY
+		)
+		const toTarget = target.sub(enemy.pos)
+		enemy.hiveMind = undefined
+		enemy.swarmCommand = undefined
+		enemy.desiredDirection = toTarget.len() > 1 ? toTarget.unit() : k.vec2(0)
+		enemy.navigationDirection = enemy.desiredDirection
+		enemy.desiredSpeed = patrol.speed
+		return
+	}
 	const hive = enemy.hiveMind as GameObj | undefined
 	const hasHive = hive?.exists() && hive.tags.includes(tags.hiveMind)
 	if (!hasHive) {
@@ -526,6 +563,7 @@ export function spawnSwarmGroup(
 function recruitNearbySwarm(hive: GameObj) {
 	for (const candidate of k.get(tags.swarmEnemy)) {
 		if (!candidate.exists() || candidate.pos.dist(hive.pos) > RECRUIT_RADIUS) continue
+		if (candidate.patrol) continue
 		const currentHive = candidate.hiveMind as GameObj | undefined
 		if (currentHive?.exists() && currentHive.id !== hive.id) continue
 		candidate.hiveMind = hive

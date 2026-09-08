@@ -1,5 +1,8 @@
 import type { GameObj, Vec2 } from "kaplay"
-import { spawnDamageNumber } from "../spawn/spawnDamageNumber"
+import {
+	spawnDamageNumber,
+	spawnPlayerDamageNumber,
+} from "../spawn/spawnDamageNumber"
 import { tags } from "../tags"
 import { isPlayerDamageInvulnerable } from "./playerDamageState"
 import { tryBlockPlayerDamage } from "./shipUpgradeService"
@@ -10,6 +13,7 @@ import {
 } from "./runTelemetryService"
 import { runtimeDebug } from "./runtimeDebugService"
 import { showPlayerDamageDirection } from "./combatImpactService"
+import { LEGACY_PLAYER_DAMAGE_SCALE } from "./playerHealthBalance"
 
 export interface DamageOptions {
 	critical?: boolean
@@ -17,6 +21,7 @@ export interface DamageOptions {
 	showNumber?: boolean
 	source?: PlayerDeathCause
 	incomingDirection?: Vec2
+	playerHullDamage?: boolean
 }
 
 export interface PlayerDeathCause {
@@ -60,18 +65,23 @@ export function applyDamage(
 		target.tags.includes(tags.player) &&
 		(isPlayerDamageInvulnerable() || target.activeModuleInvulnerable === true)
 	) return false
-	if (tryBlockPlayerDamage(target, damage)) return false
-
-	const numberPos = options.position?.clone() ?? target.pos?.clone()
-	if (target.tags.includes(tags.player) && options.source) {
+	const damagesPlayer = target.tags.includes(tags.player)
+	const numberPos = damagesPlayer
+		? target.pos?.clone()
+		: options.position?.clone() ?? target.pos?.clone()
+	if (damagesPlayer && options.source) {
 		playerDeathCause = { ...options.source }
 	}
-	const appliedDamage = target.tags.includes(tags.player)
-		? damage * getPlayerStatusMultiplier("incomingDamage")
+	const playerDamage = damagesPlayer && options.playerHullDamage !== true
+		? damage * LEGACY_PLAYER_DAMAGE_SCALE
 		: damage
+	const appliedDamage = damagesPlayer
+		? playerDamage * getPlayerStatusMultiplier("incomingDamage")
+		: damage
+	if (tryBlockPlayerDamage(target, appliedDamage)) return false
 	const healthBefore = target.hp
 	target.hp -= appliedDamage
-	if (target.tags.includes(tags.player)) {
+	if (damagesPlayer) {
 		showPlayerDamageDirection(
 			target,
 			appliedDamage,
@@ -99,9 +109,15 @@ export function applyDamage(
 		recordTelemetryEnemyDamage(enemyType, appliedDamage)
 	}
 	if (options.showNumber !== false && numberPos) {
-		spawnDamageNumber(numberPos, appliedDamage, {
-			critical: options.critical,
-		})
+		if (damagesPlayer) {
+			spawnPlayerDamageNumber(numberPos, appliedDamage, {
+				critical: options.critical,
+			})
+		} else {
+			spawnDamageNumber(numberPos, appliedDamage, {
+				critical: options.critical,
+			})
+		}
 	}
 	return true
 }

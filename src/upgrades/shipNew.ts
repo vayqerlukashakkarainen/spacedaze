@@ -2,13 +2,13 @@ import { UpgradeDefinition } from "../types/upgradeTypes";
 
 export const debreeDist: UpgradeDefinition = {
 	toolKey: "debreeDist",
-	toolName: "Debree magnets",
+	toolName: "Salvage magnets",
 	category: "resources",
 	type: "stat",
 	levels: [
 		{
 			name: "Level 1",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
+			desc: "Increase the ship's salvage collection range",
 			sprite: "debree_dist_upg1",
 			price: 32,
 			effects: {
@@ -23,7 +23,7 @@ export const debreeDist: UpgradeDefinition = {
 		},
 		{
 			name: "Level 2",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
+			desc: "Increase the ship's salvage collection range",
 			sprite: "debree_dist_upg1",
 			price: 32,
 			effects: {
@@ -38,7 +38,7 @@ export const debreeDist: UpgradeDefinition = {
 		},
 		{
 			name: "Level 3",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
+			desc: "Increase the ship's salvage collection range",
 			sprite: "debree_dist_upg1",
 			price: 32,
 			effects: {
@@ -53,7 +53,7 @@ export const debreeDist: UpgradeDefinition = {
 		},
 		{
 			name: "Level 4",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
+			desc: "Increase the ship's salvage collection range",
 			sprite: "debree_dist_upg1",
 			price: 32,
 			effects: {
@@ -68,7 +68,7 @@ export const debreeDist: UpgradeDefinition = {
 		},
 		{
 			name: "Level 5",
-			desc: "Upgrade the ships magnetic magnets and increase debree collect distance",
+			desc: "Increase the ship's salvage collection range",
 			sprite: "debree_dist_upg1",
 			price: 32,
 			effects: {
@@ -255,14 +255,14 @@ export const movespeed: UpgradeDefinition = {
 
 export const debreeValue: UpgradeDefinition = {
 	toolKey: "debreeValue",
-	toolName: "Shiny debree",
+	toolName: "Refined salvage",
 	category: "resources",
 	type: "stat",
 	requirements: { allOf: [{ toolKey: "debreeDist" }] },
 	levels: [
 		{
 			name: "Level 1",
-			desc: "Debree becomes more valueable, who could have thought",
+			desc: "Collected debris yields twice as much salvage",
 			sprite: "debree_value_upg1",
 			price: 32,
 			effects: {
@@ -273,7 +273,7 @@ export const debreeValue: UpgradeDefinition = {
 		},
 		{
 			name: "Level 2",
-			desc: "Debree becomes almost as valuable as gold",
+			desc: "Collected debris yields three times as much salvage",
 			sprite: "debree_value_upg1",
 			price: 32,
 			effects: {
@@ -293,65 +293,65 @@ export const maxHealth: UpgradeDefinition = {
 	levels: [
 		{
 			name: "Level 1",
-			desc: "Upgrade hull and increase health by one",
+			desc: "Upgrade hull and increase health by 15",
 			sprite: "hull_upg1",
 			price: 32,
 			effects: {
-				modifiers: [{ stat: "maxHealth", value: 4, type: "base" }],
+				modifiers: [{ stat: "maxHealth", value: 115, type: "base" }],
 			},
 		},
 		{
 			name: "Level 2",
-			desc: "Upgrade hull and increase health by one",
+			desc: "Upgrade hull and increase health by 15",
 			sprite: "hull_upg1",
 			price: 32,
 			effects: {
-				modifiers: [{ stat: "maxHealth", value: 5, type: "base" }],
+				modifiers: [{ stat: "maxHealth", value: 130, type: "base" }],
 			},
 		},
 		{
 			name: "Level 3",
-			desc: "Upgrade hull and increase health by one",
+			desc: "Upgrade hull and increase health by 15",
 			sprite: "hull_upg1",
 			price: 32,
 			effects: {
-				modifiers: [{ stat: "maxHealth", value: 6, type: "base" }],
+				modifiers: [{ stat: "maxHealth", value: 145, type: "base" }],
 			},
 		},
 		{
 			name: "Level 4",
-			desc: "Upgrade hull and increase health by one",
+			desc: "Upgrade hull and increase health by 15",
 			sprite: "hull_upg1",
 			price: 32,
 			effects: {
-				modifiers: [{ stat: "maxHealth", value: 7, type: "base" }],
+				modifiers: [{ stat: "maxHealth", value: 160, type: "base" }],
 			},
 		},
 		{
 			name: "Level 5",
-			desc: "Upgrade hull and increase health by one",
+			desc: "Upgrade hull and increase health by 15",
 			sprite: "hull_upg1",
 			price: 32,
 			effects: {
-				modifiers: [{ stat: "maxHealth", value: 8, type: "base" }],
+				modifiers: [{ stat: "maxHealth", value: 175, type: "base" }],
 			},
 		},
 		{
 			name: "Level 6",
-			desc: "Upgrade hull and increase health by one",
+			desc: "Upgrade hull and increase health by 15",
 			sprite: "hull_upg1",
 			price: 32,
 			effects: {
-				modifiers: [{ stat: "maxHealth", value: 9, type: "base" }],
+				modifiers: [{ stat: "maxHealth", value: 190, type: "base" }],
 			},
 		},
 		{
 			name: "Level 7",
-			desc: "Upgrade hull and increase health by one",
+			desc: "Upgrade hull and increase health by 15",
 			sprite: "hull_upg1",
 			price: 32,
 			effects: {
-				modifiers: [{ stat: "maxHealth", value: 10, type: "base" }],
+				modifiers: [{ stat: "maxHealth", value: 205, type: "base" }],
 			},
 		},
 	],

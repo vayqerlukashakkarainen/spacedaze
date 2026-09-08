@@ -587,6 +587,17 @@ test("Generated room content selection is deterministic", () => {
 	assertTrue(!!first, "Shrine room should resolve registered content");
 });
 
+test("Stationary cannon platforms appear in combat rooms", () => {
+	const combatResults = Array.from({ length: 80 }, (_, index) =>
+		selectGeneratedContent("combat", 7712, { q: index, r: 5 }, 1)?.id
+	);
+
+	assertTrue(
+		combatResults.includes("stationary_cannon_platform"),
+		"Cannon platforms should be selectable from the first-floor combat pool"
+	);
+});
+
 test("Mini-boss combat rooms unlock from depth two", () => {
 	const depthOneResults = Array.from({ length: 80 }, (_, index) =>
 		selectGeneratedContent("combat", 7712, { q: index, r: 8 }, 1)?.id

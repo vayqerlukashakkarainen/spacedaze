@@ -8,16 +8,17 @@ import {
 import type { AbilitySlot } from "../services/abilityLoadoutService"
 import { spawnAbilityLoadoutPickup } from "../services/abilitySwapService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { getHubLevel } from "../services/hubProgressService"
 import { tags } from "../tags"
 import { UI_COLORS } from "../ui/common"
 import { spawnMeteorite } from "./spawnAsteroid"
+import { spawnSwarmEnemy, type SwarmPatrol } from "./spawnSwarm"
 
 const RANGE_WIDTH = 660
 const TARGET_OFFSET_Y = 230
 const TARGET_RESPAWN_DELAY = 1.5
 const DISCOVERY_REFRESH_INTERVAL = 0.5
 const PICKUP_SPACING = 60
+const TRAINING_SWARM_COUNT = 5
 
 const SLOT_ROWS: readonly {
 	slot: AbilitySlot
@@ -91,7 +92,7 @@ export function spawnHubFiringRange(
 	})
 
 	let primaryTarget: GameObj | undefined
-	const targetOffsets = getHubLevel() >= 5 ? [-90, 0, 90] : [0]
+	const targetOffsets = [-90, 0, 90]
 	for (const offsetX of targetOffsets) {
 		spawnTrainingDummy(
 			targetPos.add(offsetX, 0),
@@ -101,6 +102,7 @@ export function spawnHubFiringRange(
 				: undefined
 		)
 	}
+	spawnTrainingSwarm(targetPos, props.isHubSessionActive)
 
 	return {
 		targetPos,
@@ -108,6 +110,56 @@ export function spawnHubFiringRange(
 			? primaryTarget
 			: undefined,
 	}
+}
+
+function spawnTrainingSwarm(
+	center: Vec2,
+	isHubSessionActive: () => boolean
+) {
+	for (let index = 0; index < TRAINING_SWARM_COUNT; index++) {
+		spawnTrainingSwarmEnemy(center, index, isHubSessionActive)
+	}
+}
+
+function spawnTrainingSwarmEnemy(
+	center: Vec2,
+	index: number,
+	isHubSessionActive: () => boolean
+) {
+	const phase = 360 / TRAINING_SWARM_COUNT * index
+	const angularSpeed = index % 2 === 0 ? 34 : -30
+	const patrol: SwarmPatrol = {
+		center,
+		radiusX: 185,
+		radiusY: 66,
+		angularSpeed,
+		phase,
+		speed: 54,
+	}
+	const pos = center.add(
+		Math.cos(phase * Math.PI / 180) * patrol.radiusX,
+		Math.sin(phase * Math.PI / 180) * patrol.radiusY
+	)
+	spawnSwarmEnemy(
+		pos,
+		5,
+		{
+			disableThreatScaling: true,
+			persistOffscreen: true,
+			tags: [tags.trainingTarget, tags.stressEnemy],
+		},
+		undefined,
+		{
+			patrol,
+			suppressRewards: true,
+			onDeath: () => {
+				k.wait(TARGET_RESPAWN_DELAY, () => {
+					if (!isHubSessionActive()) return
+					spawnTrainingSwarmEnemy(center, index, isHubSessionActive)
+				})
+			},
+		}
+	)
 }
 
 function spawnRangeFrame(root: GameObj) {

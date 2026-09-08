@@ -23,6 +23,7 @@ import { spawnPhaseSkirmisher } from "../spawn/spawnPhaseSkirmisher"
 import { spawnSalvageScavenger } from "../spawn/spawnSalvageScavenger"
 import { spawnSuppressor } from "../spawn/spawnSuppressor"
 import { spawnBreachCrawler } from "../spawn/spawnBreachCrawler"
+import { spawnStationaryCannonPlatform } from "../spawn/spawnStationaryCannonPlatform"
 import { tags } from "../tags"
 
 export type DebugEnemyType =
@@ -41,6 +42,7 @@ export type DebugEnemyType =
 	| "salvage-scavenger"
 	| "suppressor"
 	| "breach-crawler"
+	| "cannon-platform"
 	| "shield"
 	| "swarm"
 	| "hivemind"
@@ -64,6 +66,7 @@ const DEBUG_ENEMY_TYPES: readonly DebugEnemyType[] = [
 	"salvage-scavenger",
 	"suppressor",
 	"breach-crawler",
+	"cannon-platform",
 	"shield",
 	"swarm",
 	"hivemind",
@@ -191,6 +194,9 @@ function spawnDebugEnemy(type: DebugEnemyType, pos: Vec2) {
 			return
 		case "breach-crawler":
 			spawnBreachCrawler(pos, 8, persistOptions)
+			return
+		case "cannon-platform":
+			spawnStationaryCannonPlatform(pos, 1, persistOptions)
 			return
 		case "shield": {
 			const protectedTarget = spawnShip1(

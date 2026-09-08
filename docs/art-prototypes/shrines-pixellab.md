@@ -4,9 +4,10 @@ Runtime sprites:
 
 - `public/sprites/shrines/capture-shrine.png`
 - `public/sprites/shrines/damage-shrine.png`
+- `public/sprites/shrines/gravity-shrine.png`
 
-Both sprites were generated at 64x64 with transparent backgrounds using the
-existing three-color SpaceDaze palette from `public/sprites/crate-v2.png`.
+The sprites were generated at 64x64 with transparent backgrounds and reduced
+to compact grayscale palettes without dithering.
 
 ## Capture shrine
 
@@ -21,3 +22,14 @@ existing three-color SpaceDaze palette from `public/sprites/crate-v2.png`.
 - Seed: `83022`
 - High top-down view, north orientation
 - Armored combat reactor with a bright exposed target core
+
+## Gravity shrine
+
+- Pixel Lab job: `860b0531-90ac-40cb-b763-8863470295df`
+- Palette job: `1d08d05e-751b-4879-90cb-b461c4faf362`
+- Seed: `83117`
+- High top-down view, north orientation
+- Broken stone basin with four ritual pillars surrounding an open gravity well
+- Runtime dressing places the shrine on a dark floating planet fragment with two
+  detached asteroid pieces, then layers a compact purple wormhole and procedural
+  lightning above the open well.

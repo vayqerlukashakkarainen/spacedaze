@@ -9,7 +9,7 @@ import { UI_FONT_SIZES } from "./common";
 let isStatsWindowOpen = false;
 
 const STAT_LABELS: Record<string, string> = {
-	debreeSeekDistanceMultiplier: "Debree Seek Dist Mult",
+	debreeSeekDistanceMultiplier: "Salvage Collection Range",
 	rocketSplashSizeMultiplier: "Rocket Splash Size Mult",
 	rocketSplashDmgFallOverDistance: "Splash Falloff Amount",
 	rocketSplashDmgFallDistanceValue: "Splash Falloff Distance",

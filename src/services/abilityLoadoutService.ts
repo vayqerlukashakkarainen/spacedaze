@@ -6,7 +6,6 @@ export type MobilityAbilityId =
 	| "thrusterOverdrive"
 	| "phaseJump"
 	| "retroBurst"
-	| "driftBrake"
 	| "gravitySling"
 export type UltimateAbilityId = "phaseNova"
 export type AbilityId =

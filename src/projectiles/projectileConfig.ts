@@ -1,4 +1,5 @@
 import { Color, Vec2 } from "kaplay";
+import type { ExplosionSoundPoolId } from "../services/explosionSoundPoolService";
 
 // Core Modifiers
 
@@ -104,6 +105,13 @@ export interface AccelerateModifier {
 	acceleration: number;
 	maxSpeed?: number;
 	minSpeed?: number;
+}
+
+export interface SpinModifier {
+	initialSpeed: number;
+	acceleration: number;
+	maxSpeed: number;
+	direction?: "clockwise" | "counterclockwise" | "random";
 }
 
 export interface GravityModifier {
@@ -265,6 +273,7 @@ export interface ProjectileConfig {
 	spiral?: SpiralModifier;
 	duplicate?: DuplicateModifier;
 	accelerate?: AccelerateModifier;
+	spin?: SpinModifier;
 	gravity?: GravityModifier;
 	curve?: CurveModifier;
 	wiggle?: WiggleModifier;
@@ -286,4 +295,6 @@ export interface ProjectileConfig {
 	fireSoundVolume?: number;
 	fireSoundDetune?: number;
 	destroySound?: string;
+	explosionSoundPool?: ExplosionSoundPoolId;
+	explosionSoundVolume?: number;
 }

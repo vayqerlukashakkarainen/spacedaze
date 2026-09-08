@@ -130,34 +130,6 @@ export const growingCharge: UpgradeDefinition = {
 	)),
 }
 
-export const momentumCore: UpgradeDefinition = {
-	toolKey: "momentumCore",
-	toolName: "Momentum core",
-	category: "combat",
-	type: "passive",
-	levels: [180, 280, 400].map((acceleration, index) => level(
-		index,
-		`Projectiles accelerate by ${acceleration} speed per second`,
-		"momentum_core_upg1",
-		20 + index * 6,
-		{ projectileAcceleration: acceleration }
-	)),
-}
-
-export const orbitingRounds: UpgradeDefinition = {
-	toolKey: "orbitingRounds",
-	toolName: "Orbiting rounds",
-	category: "combat",
-	type: "passive",
-	levels: [8, 13, 18].map((radius, index) => level(
-		index,
-		`Shots spiral around their trajectory with a ${radius}px orbit`,
-		"orbiting_rounds_upg1",
-		25 + index * 7,
-		{ projectileOrbitRadius: radius }
-	)),
-}
-
 export const stasisBurst: UpgradeDefinition = {
 	toolKey: "stasisBurst",
 	toolName: "Stasis burst",

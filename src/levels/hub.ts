@@ -10,7 +10,6 @@ import { Level } from "./levels";
 import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject";
 import { getReddishBackgroundTint } from "../services/backgroundPaletteService";
 import { spawnChest } from "../spawn/spawnChest";
-import { spawnCrate } from "../spawn/spawnCrate";
 import { playerObj, projectiles } from "../game";
 import { tags } from "../tags";
 import { interactable } from "../comp/interactable";
@@ -45,12 +44,10 @@ import { starsEmitter } from "../particles";
 import { beginRunSession } from "../services/runDirectorService";
 import { getUnlockedWarpZones } from "../services/warpZoneService";
 import { ASTEROID_SPRITES } from "../asteroidSprites";
-import { spawnDebreeValues } from "../spawn/spawnDebree";
 import { phaseJumpActive } from "../setupPlayer";
 import { tryBounceProjectile } from "../services/projectileService";
 import { applyDamage } from "../services/damageService";
 import { spawnGravityPull } from "../spawn/spawnGravityPull";
-import { spawnHealthOrb } from "../spawn/spawnHealthOrb";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import { PLANET_CHUNK_SPRITES } from "../planetChunkSprites";
 import {
@@ -59,6 +56,12 @@ import {
 } from "../spawn/spawnCurrencyBurst";
 import { showPendingRunEndSummary } from "../ui/runEndSummary";
 import { spawnHubRestoration } from "../spawn/spawnHubRestoration";
+import {
+	consumePendingHubLevelReveal,
+} from "../services/runCompletionService";
+import {
+	playHubRestorationLevelReveal,
+} from "../services/hubRestorationCutsceneService";
 import {
 	HubRepairCrew,
 	spawnHubRepairCrew,
@@ -73,6 +76,10 @@ import { spawnHubSettlement } from "../spawn/spawnHubSettlement";
 import { spawnHubFiringRange } from "../spawn/spawnHubFiringRange";
 import { addBuildingPlayerDepth } from "../comp/buildingPlayerDepth";
 import {
+	addLocalLight,
+	updateLocalLight,
+} from "../services/localLightService";
+import {
 	HUB_FACILITY_OFFSETS,
 	HUB_FIRING_RANGE_OFFSET,
 	HUB_HALF_HEIGHT,
@@ -80,7 +87,6 @@ import {
 	HUB_PHASE_FIELD_OFFSET,
 	HUB_WORMHOLE_OFFSET,
 } from "../services/hubLayoutService";
-import { createHubGuidance } from "../ui/hubGuidance";
 
 let lvlData: any = {};
 let bgAsteroidTimer = 0;
@@ -192,27 +198,6 @@ export const hub: Level = {
 		});
 		spawnHubGhostChest(k.center().add(-60, 20));
 		spawnHubGhostWeaponChest(k.center().add(80, 20));
-		spawnCrate({
-			pos: k.center().add(-300, -50),
-			am: 4,
-			hp: 4,
-			powerupMultiplier: 0,
-			tier: "normal",
-			speed: 0,
-			destroyOffscreen: false,
-		});
-		spawnCrate({
-			pos: k.center().add(230, 110),
-			am: 4,
-			hp: 6,
-			powerupMultiplier: 0,
-			tier: "golden",
-			speed: 0,
-			destroyOffscreen: false,
-		});
-		const healthOrb = spawnHealthOrb(k.center().add(-330, 90));
-		healthOrb.speed = 0;
-		spawnDebreeValues(k.center().add(90, 55), [1, 2, 3, 4, 5]);
 		const hubFacilityPositions = getHubFacilityPositions();
 		const repairCrew = spawnHubRepairCrew(hubFacilityPositions.trainingRange);
 		spawnHubFacilities(hubFacilityPositions, repairCrew);
@@ -221,15 +206,16 @@ export const hub: Level = {
 			pos: k.center().add(...HUB_FIRING_RANGE_OFFSET),
 			isHubSessionActive: () => lvlData === hubSession,
 		});
-		createHubGuidance({
-			facilityPositions: hubFacilityPositions,
-		});
 		spawnHubSettlement();
 		spawnHubBurt(hubFacilityPositions.trainingRange.add(-260, 40));
-		spawnHubRestoration(
+		const pendingHubLevelReveal = consumePendingHubLevelReveal();
+		const hubRestoration = spawnHubRestoration(
 			k.center(),
 			hubFacilityPositions.trainingRange,
-			k.vec2(hubHalfWidth, hubHalfHeight)
+			k.vec2(hubHalfWidth, hubHalfHeight),
+			{
+				initialLampLevel: pendingHubLevelReveal?.previousLevel,
+			}
 		);
 		spawnHubLampKeeper(k.center());
 		spawnHubBackgroundDepth();
@@ -238,7 +224,16 @@ export const hub: Level = {
 		spawnHubRangeKeeper(firingRange);
 		spawnHubBirthdayPair(k.center().add(-150, 245));
 		saveGame("slot1");
-		k.wait(0.45, showPendingRunEndSummary);
+		k.wait(0.45, () => {
+			if (!pendingHubLevelReveal) {
+				showPendingRunEndSummary();
+				return;
+			}
+			void playHubRestorationLevelReveal(
+				hubRestoration,
+				pendingHubLevelReveal
+			).finally(showPendingRunEndSummary);
+		});
 	},
 	lvlUpd: () => {
 		const center = k.center();
@@ -404,7 +399,24 @@ function spawnPhaseShiftAsteroidField() {
 		k.z(2),
 		{
 			draw() {
+				const camera = k.getCamPos();
+				const cameraScale = k.getCamScale();
+				const halfWidth = k.width() / (2 * cameraScale.x) + 48;
+				const halfHeight = k.height() / (2 * cameraScale.y) + 48;
+				const minX = camera.x - halfWidth;
+				const maxX = camera.x + halfWidth;
+				const minY = camera.y - halfHeight;
+				const maxY = camera.y + halfHeight;
 				for (const asteroid of asteroids) {
+					const worldX = fieldCenter.x + asteroid.offset.x;
+					const worldY = fieldCenter.y + asteroid.offset.y;
+					const visualRadius = 24 * asteroid.scale;
+					if (
+						worldX + visualRadius < minX ||
+						worldX - visualRadius > maxX ||
+						worldY + visualRadius < minY ||
+						worldY - visualRadius > maxY
+					) continue;
 					k.drawSprite({
 						sprite: asteroid.sprite,
 						pos: asteroid.offset,
@@ -586,6 +598,26 @@ function spawnHubFacility(
 		k.color(getHubFacilityVisualColor(facility.id, built)),
 		k.opacity(1),
 	]);
+	let phaseStationRingLight: ReturnType<typeof addLocalLight> | undefined;
+	const addPhaseStationRingGlow = () => {
+		if (facility.id !== "trainingRange" || phaseStationRingLight) return;
+		const ringCenter = k.vec2(-37, 15);
+		phaseStationRingLight = addLocalLight(buildingVisual, {
+			size: 84,
+			color: [90, 210, 255],
+			opacity: 0.82,
+			pulse: {
+				scaleMin: 0.92,
+				scaleMax: 1.18,
+				scaleSpeed: 3.4,
+				opacityMin: 0.72,
+				opacityMax: 1,
+				opacitySpeed: 2.8,
+			},
+		});
+		phaseStationRingLight.object.pos = ringCenter;
+	};
+	if (built) addPhaseStationRingGlow();
 	addBuildingPlayerDepth(buildingVisual, {
 		centerY: () => building.pos.y + buildingVisual.pos.y,
 		renderedHeight: () =>
@@ -618,6 +650,9 @@ function spawnHubFacility(
 		repairCrew.setRepairTarget(undefined);
 		starsEmitter.emitter.position = building.pos;
 		starsEmitter.emit(28);
+		if (facility.id === "trainingRange") {
+			addPhaseStationRingGlow();
+		}
 		saveGame("slot1");
 	};
 	const prompt = createInteractionPrompt({
@@ -655,7 +690,7 @@ function spawnHubFacility(
 				action: "BUILD FACILITY",
 				detailLeft: facility.cost === 0
 					? "FREE"
-					: `COST ${facility.cost} SCRAP`,
+					: `COST ${facility.cost} SALVAGE`,
 				detailRight: `${getScore()} AVAILABLE`,
 				requirementsMet: getScore() >= facility.cost,
 			},
@@ -676,6 +711,7 @@ function spawnHubFacility(
 				newInfoMarker.opacity = k.wave(0.55, 1, k.time() * 5);
 			}
 		}
+		if (phaseStationRingLight) updateLocalLight(phaseStationRingLight);
 		prompt.update(building.isInRange);
 	});
 }
@@ -687,6 +723,7 @@ function getHubFacilityVisualScale(id: HubFacilityId, built: boolean) {
 
 function getHubFacilityVisualColor(id: HubFacilityId, built: boolean) {
 	if (!built) return k.rgb(100, 110, 120)
+	if (id === "trainingRange") return k.rgb(200, 208, 213)
 	return k.rgb(145, 160, 170)
 }
 
@@ -735,6 +772,7 @@ function spawnHubBoundaries() {
 				u_playerPos: playerObj.pos,
 				u_revealRadius: boundaryRevealRadius,
 			})),
+			tags.runtimeCullable,
 			tags.hubBoundary,
 			tags.props,
 		]);

@@ -31,6 +31,7 @@ import { spawnLevel } from "../spawn/spawnLevel";
 import { spawnCrate } from "../spawn/spawnCrate";
 import { spawnBoss1 } from "../spawn/spawnBoss1";
 import { spawnImpactAce } from "../spawn/spawnImpactAce";
+import { spawnStationaryCannonPlatform } from "../spawn/spawnStationaryCannonPlatform";
 import { getBossHealth } from "../services/bossRegistry";
 import { getActiveBossEncounter } from "../services/bossEncounterService";
 import { spawnShrine } from "../spawn/shrine/spawnShrine";
@@ -50,8 +51,6 @@ import type { GeneratedMapConfig } from "./levels";
 import {
 	activateRunFinale,
 	getRunFinaleRampProgress,
-	getRunFinaleObjective,
-	getRunFinaleTransitionSecondsRemaining,
 	getRunPhase,
 } from "../services/runFinaleService";
 import {
@@ -1419,6 +1418,12 @@ function spawnGeneratedContent(
 		case "combat_assassins":
 			spawnCombatRoomTrigger(pos, hexSize);
 			return;
+		case "stationary_cannon_platform":
+			spawnStationaryCannonPlatform(pos, depth, {
+				persistOffscreen: true,
+				tags: [tags.runMap],
+			});
+			return;
 		case "impact_ace_miniboss":
 			spawnMiniBossRoomTrigger(pos, hexSize, depth);
 			return;
@@ -1653,15 +1658,7 @@ function spawnFloorExit(pos: Vec2) {
 			}
 			if (getRunPhase() !== "exitReady") {
 				if (activateRunFinale()) {
-					const transitionSeconds = Math.ceil(
-						getRunFinaleTransitionSecondsRemaining()
-					);
-					portal.setPortalState(
-						"charging",
-						transitionSeconds > 0
-							? `WARP CHARGING ${transitionSeconds}`
-							: "SURVIVE"
-					);
+					portal.setPortalState("charging", "");
 					k.flash(k.WHITE, 0.22);
 					explosionEmitter.emitter.position = portal.pos.clone();
 					explosionEmitter.emit(44);
@@ -1701,13 +1698,7 @@ function spawnFloorExit(pos: Vec2) {
 				k.shake(k.lerp(0.25, 6, progress * progress));
 				rampShakeCooldown = k.lerp(0.16, 0.035, progress);
 			}
-			portal.setPortalState(
-				"charging",
-				`WARP CHARGING ${Math.max(
-					1,
-					Math.ceil(getRunFinaleTransitionSecondsRemaining())
-				)}`
-			);
+			portal.setPortalState("charging", "");
 		}
 		if (phase === "finale") {
 			if (previousPhase === "transition") {
@@ -1715,7 +1706,7 @@ function spawnFloorExit(pos: Vec2) {
 				k.flash(k.WHITE, 0.85);
 			}
 			portal.setPortalProgress(0);
-			portal.setPortalState("dormant", getRunFinaleObjective());
+			portal.setPortalState("dormant", "");
 			gravity.radius = 36;
 			gravity.strength = 8;
 		}

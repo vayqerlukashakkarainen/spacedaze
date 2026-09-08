@@ -46,6 +46,7 @@ export function spawnRunVillages(grid: HexGrid, zones: RunVillageZone[]) {
 				tags.props,
 				tags.runMap,
 				tags.gameLoop,
+				tags.runtimeCullable,
 			])
 			addBuildingPlayerDepth(building)
 		}

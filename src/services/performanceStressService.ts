@@ -152,7 +152,11 @@ export function spawnDebreeStressTest(
 	paused: boolean
 ) {
 	const removed = clearDebreeStressTest();
-	const values = Array.from({ length: count }, () => 1 as const);
+	const denominations = [1, 3, 5, 10] as const;
+	const values = Array.from(
+		{ length: count },
+		(_, index) => denominations[index % denominations.length]
+	);
 	spawnDebreeValues(origin.add(420, 0), values, {
 		pattern: "radial",
 		minSpeed: 40,

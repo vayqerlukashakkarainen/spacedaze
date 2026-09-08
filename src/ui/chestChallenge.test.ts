@@ -1,10 +1,15 @@
 import assert from "node:assert/strict"
 import {
 	consumeNextChestDifficulty,
+	consumeNextChestWorldOpenAnimation,
+	consumeNextChestWorldPosition,
 	createChestChallengeConfig,
 	normalizeChestChallengeHits,
 	setNextChestDifficulty,
+	setNextChestWorldOpenAnimation,
+	setNextChestWorldPosition,
 } from "./chestChallenge"
+import type { Vec2 } from "kaplay"
 
 const fixedVariation = { random: () => 0.5 }
 const easyLinear = createChestChallengeConfig(1, "linear", fixedVariation)
@@ -59,9 +64,30 @@ setNextChestDifficulty(4)
 assert.equal(consumeNextChestDifficulty(), 4)
 assert.equal(consumeNextChestDifficulty(), 1)
 
+const chestPosition = testPosition(120, 240)
+setNextChestWorldPosition(chestPosition)
+chestPosition.x = 999
+const consumedPosition = consumeNextChestWorldPosition()
+assert.equal(consumedPosition?.x, 120)
+assert.equal(consumedPosition?.y, 240)
+assert.equal(consumeNextChestWorldPosition(), undefined)
+
+const chestOpenAnimation = async () => {}
+setNextChestWorldOpenAnimation(chestOpenAnimation)
+assert.equal(consumeNextChestWorldOpenAnimation(), chestOpenAnimation)
+assert.equal(consumeNextChestWorldOpenAnimation(), undefined)
+
 console.log("Chest challenge tests passed")
 
 function sequenceRandom(values: number[]) {
 	let index = 0
 	return () => values[index++] ?? values[values.length - 1] ?? 0
+}
+
+function testPosition(x: number, y: number): Vec2 {
+	return {
+		x,
+		y,
+		clone: () => testPosition(x, y),
+	} as Vec2
 }

@@ -8,6 +8,7 @@ import {
 	UpgradeServiceState,
 	UpgradeEffect,
 } from "../types/upgradeTypes";
+import { BASE_PLAYER_HEALTH } from "./playerHealthBalance";
 
 interface ServiceCallbacks {
 	onStatChange?: (stat: string, oldValue: number, newValue: number) => void;
@@ -59,7 +60,7 @@ const defaultStats: Record<string, number> = {
 	debreeValueMultiplier: 1,
 
 	// Survival
-	maxHealth: 3,
+	maxHealth: BASE_PLAYER_HEALTH,
 	extraHealth: 0,
 
 	// Follower

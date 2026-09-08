@@ -12,11 +12,12 @@ import type { StatModifier } from "../types/upgradeTypes"
 import { getUpgradeDefinition } from "../upgrades/upgradeRegistry"
 import type { UiStatRow } from "./common"
 import { getTacticalUplinkHullThreshold } from "../services/tacticalUplinkService"
+import { BASE_PLAYER_HEALTH } from "../services/playerHealthBalance"
 
 const BASE_STAT_VALUES: Readonly<Record<string, number>> = {
 	blasterCount: 1,
 	followerBlasterDmg: 1,
-	maxHealth: 3,
+	maxHealth: BASE_PLAYER_HEALTH,
 	rocketCount: 3,
 	rocketShards: 0,
 }

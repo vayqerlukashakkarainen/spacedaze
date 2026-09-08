@@ -45,8 +45,16 @@ import { getRunLevelSnapshot } from "../services/runLevelService";
 import { createUiProgressBar } from "./common/progressBar";
 import { hideRunLevelChoice, showRunLevelChoice } from "./runLevelChoice";
 import { RewardRarity } from "../types/rewardTypes";
+import {
+	getStackingRewardFeedbackSnapshot,
+	type StackingRewardFeedbackSnapshot,
+} from "../services/passiveUpgradeRuntimeService";
 
-let healthBars: GameObj<OpacityComp>[] = [];
+let healthBarBaseFill: GameObj<RectComp> | null = null;
+let healthBarBonusFill: GameObj<RectComp> | null = null;
+let healthBarLabel: GameObj | null = null;
+let healthCapacity = 0;
+let displayedHealth = 0;
 let specialBar: GameObj<RectComp> | null = null;
 let missileCooldownGroup: GameObj | null = null;
 let activeModuleIcon: GameObj | null = null;
@@ -55,6 +63,7 @@ let secondaryWarning: GameObj<OpacityComp> | null = null;
 let secondaryEmptyRing: GameObj<OpacityComp> | null = null;
 let phaseJumpIcon: GameObj | null = null;
 let phaseJumpSegments: GameObj<OpacityComp>[] = [];
+let mobilityChargeLabel: GameObj | null = null;
 let mobilityWarning: GameObj<OpacityComp> | null = null;
 let ultimateIcon: GameObj | null = null;
 let ultimateEmptyRing: GameObj<OpacityComp> | null = null;
@@ -75,6 +84,8 @@ const collectedItems = new Map<
 		reward: Reward;
 		tile: GameObj;
 		icon: GameObj;
+		statusLabel: GameObj;
+		lastProcSerial: number;
 	}
 >();
 
@@ -95,6 +106,13 @@ const phaseJumpSegmentCount = 10;
 const HUD_SCALE = 1.5;
 const HUD_MARGIN = 12;
 const SALVAGE_GAIN_LIFETIME = 0.7;
+const HEALTH_BAR_X = 4;
+const HEALTH_BAR_Y = 17;
+const HEALTH_BAR_WIDTH = 104;
+const HEALTH_BAR_HEIGHT = 7;
+const HEALTH_BAR_SEGMENTS = 10;
+const LOW_HEALTH_COLOR_THRESHOLD = 0.3;
+const LOW_HEALTH_COLOR = [255, 70, 70] as const;
 let displayedSalvage = Number.NaN;
 let displayedDebreeMode = "";
 let displayedRerollTokens = Number.NaN;
@@ -123,6 +141,7 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		frameless: true,
 		scale: HUD_SCALE,
 	});
+	setupPlayerHealthBar(health);
 	shipStatusPanel.add([
 		k.pos(116, 5),
 		k.rect(1, 20),
@@ -300,10 +319,8 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		frameless: true,
 	});
 	loadoutIconsContainer = runLoadoutPanel.add([k.pos(0, 0)]);
+	registerBatchedUiUpdate("hud", runLoadoutPanel, updateStackingRewardFeedback);
 
-	for (let i = 0; i < health; i++) {
-		addHealthBar(i);
-	}
 }
 
 function setupRunLevelHud() {
@@ -411,42 +428,77 @@ export function showSalvageGain(
 	});
 }
 
-export function addHealthBar(healthValue: number) {
+function setupPlayerHealthBar(maxHealth: number) {
 	if (!shipStatusPanel) return;
-	const pipWidth = 8;
-	const pipGap = 3;
-	const isRunHealth = healthValue >= player.maxHealth;
-	const pipColor = isRunHealth
-		? REWARD_RARITY_COLORS[RewardRarity.Rare]
-		: [255, 255, 255] as const;
-	const c = shipStatusPanel.add([
-		k.pos(0 + healthValue * (pipWidth + pipGap), 11),
-		k.rect(pipWidth, 8),
-		k.color(...pipColor),
-		k.opacity(1),
+	healthCapacity = Math.max(1, maxHealth);
+	healthBarLabel = shipStatusPanel.add([
+		k.pos(HEALTH_BAR_X, 4),
+		k.text("", { size: 6, font: "unscii" }),
+		k.color(...UI_COLORS.text),
 	]);
-
-	healthBars.push(c);
+	shipStatusPanel.add([
+		k.pos(HEALTH_BAR_X, HEALTH_BAR_Y),
+		k.rect(HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT),
+		k.color(...UI_COLORS.muted),
+		k.opacity(0.22),
+	]);
+	healthBarBaseFill = shipStatusPanel.add([
+		k.pos(HEALTH_BAR_X, HEALTH_BAR_Y),
+		k.rect(HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT),
+		k.color(...UI_COLORS.text),
+	]);
+	healthBarBonusFill = shipStatusPanel.add([
+		k.pos(HEALTH_BAR_X, HEALTH_BAR_Y),
+		k.rect(0, HEALTH_BAR_HEIGHT),
+		k.color(...REWARD_RARITY_COLORS[RewardRarity.Rare]),
+	]);
+	for (let index = 1; index < HEALTH_BAR_SEGMENTS; index++) {
+		shipStatusPanel.add([
+			k.pos(
+				HEALTH_BAR_X + Math.round(HEALTH_BAR_WIDTH * index / HEALTH_BAR_SEGMENTS),
+				HEALTH_BAR_Y
+			),
+			k.rect(1, HEALTH_BAR_HEIGHT),
+			k.color(...UI_COLORS.panel),
+			k.opacity(0.9),
+		]);
+	}
+	updatePlayerHealthBar(maxHealth);
 }
 
 export function updatePlayerHealthBar(currentHealth: number) {
-	for (let i = 0; i < healthBars.length; i++) {
-		if (i < currentHealth) {
-			healthBars[i].opacity = 1;
-			continue;
-		}
-		healthBars[i].opacity = 0.2;
-	}
+	displayedHealth = k.clamp(currentHealth, 0, healthCapacity);
+	if (!healthBarBaseFill || !healthBarBonusFill || !healthBarLabel) return;
+	const healthRatio = displayedHealth / healthCapacity;
+	const lowHealthProgress = k.clamp(
+		(LOW_HEALTH_COLOR_THRESHOLD - healthRatio) / LOW_HEALTH_COLOR_THRESHOLD,
+		0,
+		1
+	);
+	const healthColor = k.rgb(
+		255,
+		k.lerp(255, LOW_HEALTH_COLOR[1], lowHealthProgress),
+		k.lerp(255, LOW_HEALTH_COLOR[2], lowHealthProgress)
+	);
+	const baseCapacity = Math.min(player.maxHealth, healthCapacity);
+	const baseHealth = Math.min(displayedHealth, baseCapacity);
+	const bonusHealth = Math.max(0, displayedHealth - baseCapacity);
+	const baseWidth = HEALTH_BAR_WIDTH * baseHealth / healthCapacity;
+	const bonusStart = HEALTH_BAR_WIDTH * baseCapacity / healthCapacity;
+	healthBarBaseFill.width = baseWidth;
+	healthBarBaseFill.color = healthColor;
+	healthBarBonusFill.pos.x = HEALTH_BAR_X + bonusStart;
+	healthBarBonusFill.width = HEALTH_BAR_WIDTH * bonusHealth / healthCapacity;
+	healthBarBonusFill.color = healthRatio < LOW_HEALTH_COLOR_THRESHOLD
+		? healthColor
+		: k.rgb(...REWARD_RARITY_COLORS[RewardRarity.Rare]);
+	healthBarLabel.color = healthColor;
+	healthBarLabel.text = `HULL ${Math.ceil(displayedHealth)} / ${Math.ceil(healthCapacity)}`;
 }
 
 export function syncPlayerHealthBarCapacity(maxHealth: number) {
-	while (healthBars.length > maxHealth) {
-		const bar = healthBars.pop();
-		if (bar) k.destroy(bar);
-	}
-	while (healthBars.length < maxHealth) {
-		addHealthBar(healthBars.length);
-	}
+	healthCapacity = Math.max(1, maxHealth);
+	updatePlayerHealthBar(displayedHealth);
 }
 
 export function updateSpecialBar(
@@ -532,6 +584,13 @@ export function updatePhaseJumpUi(
 				k.opacity(0.22),
 			]));
 		}
+		mobilityChargeLabel = systemsPanel.add([
+			k.text("", { size: UI_FONT_SIZES.micro, font: "unscii" }),
+			k.pos(240, 15),
+			k.anchor("right"),
+			k.color(...UI_COLORS.accent),
+			k.opacity(0),
+		]);
 
 		mobilityWarning = systemsPanel.add([
 			k.pos(79, 0),
@@ -557,6 +616,18 @@ export function updatePhaseJumpUi(
 	displayedJumpMaxCharges = maxCharges;
 	displayedJumpProgress = rechargeProgress;
 	phaseJumpIcon.opacity = mobility ? charges > 0 ? 1 : 0.25 : 0.18;
+	if (mobilityChargeLabel) {
+		const hasMultipleCharges = mobility !== undefined && maxCharges > 1;
+		mobilityChargeLabel.text = hasMultipleCharges
+			? `x${Math.max(0, Math.floor(charges))}`
+			: "";
+		mobilityChargeLabel.color = charges > 0
+			? k.rgb(...UI_COLORS.accent)
+			: k.rgb(...UI_COLORS.danger);
+		mobilityChargeLabel.opacity = hasMultipleCharges
+			? charges > 0 ? 1 : 0.55
+			: 0;
+	}
 	const filledSegments = rechargeProgress * phaseJumpSegmentCount;
 	const overdriveOverused =
 		mobilityId === "thrusterOverdrive" && charges <= 0;
@@ -702,6 +773,14 @@ export function addCollectedPowerup(
 		k.pos(0, 0),
 		k.anchor("center"),
 		k.color(k.WHITE),
+		k.opacity(1),
+		k.scale(1),
+	]);
+	const statusLabel = tile.add([
+		k.text("", { size: UI_FONT_SIZES.tiny * HUD_SCALE, font: "unscii" }),
+		k.pos(-tileSize / 2 + 2, -tileSize / 2 + 2),
+		k.anchor("topleft"),
+		k.color(...UI_COLORS.accent),
 	]);
 	const countLabel = tile.add([
 		k.text("x1", { size: UI_FONT_SIZES.tiny * HUD_SCALE, font: "unscii" }),
@@ -710,7 +789,16 @@ export function addCollectedPowerup(
 		k.color(k.WHITE),
 	]);
 
-	const collectedItem = { count: 1, countLabel, reward, tile, icon };
+	const feedback = getStackingRewardFeedbackSnapshot();
+	const collectedItem = {
+		count: 1,
+		countLabel,
+		reward,
+		tile,
+		icon,
+		statusLabel,
+		lastProcSerial: getStackingRewardProcSerial(collectionKey, feedback),
+	};
 	collectedItems.set(collectionKey, collectedItem);
 	layoutCollectedUpgrades();
 
@@ -726,6 +814,67 @@ export function addCollectedPowerup(
 		uiState.isOverUI = false;
 		hideRewardTooltip();
 	});
+}
+
+function updateStackingRewardFeedback() {
+	const snapshot = getStackingRewardFeedbackSnapshot();
+	for (const [key, item] of collectedItems) {
+		const procSerial = getStackingRewardProcSerial(key, snapshot);
+		if (procSerial > item.lastProcSerial) {
+			item.lastProcSerial = procSerial;
+			item.icon.scale = k.vec2(1.35);
+		}
+		const nextScale = k.lerp(
+			item.icon.scale.x,
+			1,
+			k.clamp(k.dt() * 12, 0, 1)
+		);
+		item.icon.scale = k.vec2(nextScale);
+
+		if (key === "phaseCounter") {
+			item.statusLabel.text =
+				`${snapshot.phaseCounterCharge}/${snapshot.phaseCounterCapacity}`;
+			item.statusLabel.color = k.rgb(...UI_COLORS.accent);
+			item.icon.opacity = snapshot.phaseCounterCharge > 0
+				? k.wave(0.72, 1, k.time() * 8)
+				: 0.42;
+			continue;
+		}
+		if (key === "resonanceCoil") {
+			const ready = snapshot.resonanceCooldownRemaining <= 0;
+			const cooldownProgress = snapshot.resonanceCooldownDuration <= 0
+				? 1
+				: 1 - snapshot.resonanceCooldownRemaining /
+					snapshot.resonanceCooldownDuration;
+			item.statusLabel.text = ready
+				? "RDY"
+				: `${Math.ceil(snapshot.resonanceCooldownRemaining)}s`;
+			item.statusLabel.color = k.rgb(
+				...(ready ? UI_COLORS.accent : UI_COLORS.muted)
+			);
+			item.icon.opacity = ready
+				? k.wave(0.72, 1, k.time() * 7)
+				: 0.25 + k.clamp(cooldownProgress, 0, 1) * 0.5;
+			continue;
+		}
+		if (key === "threatReactor") {
+			item.statusLabel.text = `T+${snapshot.threatTierBonus}`;
+			item.statusLabel.color = k.rgb(...UI_COLORS.danger);
+			continue;
+		}
+		item.statusLabel.text = "";
+	}
+}
+
+function getStackingRewardProcSerial(
+	key: string,
+	snapshot: StackingRewardFeedbackSnapshot
+) {
+	if (key === "tacticalUplink") return snapshot.procSerials.tacticalUplink;
+	if (key === "phaseCounter") return snapshot.procSerials.phaseCounter;
+	if (key === "resonanceCoil") return snapshot.procSerials.resonanceCoil;
+	if (key === "wreckHarvester") return snapshot.procSerials.wreckHarvester;
+	return 0;
 }
 
 export function showRewardAcquisitionPopover(reward: Reward) {
@@ -829,7 +978,11 @@ export function clearGameLoopUi() {
 	hideRunLevelChoice();
 	hideRewardTooltip();
 	k.destroyAll(tags.gameLoopUi);
-	healthBars = [];
+	healthBarBaseFill = null;
+	healthBarBonusFill = null;
+	healthBarLabel = null;
+	healthCapacity = 0;
+	displayedHealth = 0;
 	specialBar = null;
 	missileCooldownGroup = null;
 	activeModuleIcon = null;
@@ -838,6 +991,7 @@ export function clearGameLoopUi() {
 	secondaryEmptyRing = null;
 	phaseJumpIcon = null;
 	phaseJumpSegments = [];
+	mobilityChargeLabel = null;
 	mobilityWarning = null;
 	ultimateIcon = null;
 	ultimateEmptyRing = null;

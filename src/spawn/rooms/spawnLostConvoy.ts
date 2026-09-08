@@ -45,6 +45,7 @@ export function spawnLostConvoy(props: LostConvoyProps) {
 		tags.friendly,
 		tags.unit,
 		tags.gameLoop,
+		tags.runtimeCullable,
 		...(props.tags ?? []),
 	])
 	registerBatchedEntityUpdate("world", drone, () => {

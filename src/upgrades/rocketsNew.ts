@@ -75,7 +75,7 @@ export const rocketShards: UpgradeDefinition = {
 	levels: [
 		{
 			name: "Level 1",
-			desc: "Missiles are loaded with space debree, shooting shards when exploded",
+			desc: "Missiles are loaded with space debris, shooting shards when exploded",
 			sprite: "missile_shards_upg1",
 			price: 22,
 			effects: {
@@ -84,7 +84,7 @@ export const rocketShards: UpgradeDefinition = {
 		},
 		{
 			name: "Level 2",
-			desc: "Squeeze some more debree in those missiles!!",
+			desc: "Squeeze some more debris in those missiles!!",
 			sprite: "missile_shards_upg1",
 			price: 22,
 			effects: {
@@ -93,7 +93,7 @@ export const rocketShards: UpgradeDefinition = {
 		},
 		{
 			name: "Level 3",
-			desc: "Squeeze some more debree in those missiles!!",
+			desc: "Squeeze some more debris in those missiles!!",
 			sprite: "missile_shards_upg1",
 			price: 22,
 			effects: {

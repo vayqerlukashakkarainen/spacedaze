@@ -92,7 +92,7 @@ export function spawnLevel(props: Props) {
 		label?: string
 	) => {
 		m.portalState = state;
-		if (label) portalLabel.text = label;
+		if (label !== undefined) portalLabel.text = label;
 	};
 	m.setPortalProgress = (progress: number) => {
 		m.portalProgress = k.clamp(progress, 0, 1);

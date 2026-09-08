@@ -3,6 +3,7 @@ import {
 	getEquippedPrimaryAbilityId,
 } from "./abilityLoadoutService"
 import { getAbilityTierValues } from "./abilityTierService"
+import type { ExplosionSoundPoolId } from "./explosionSoundPoolService"
 
 export type WeaponId =
 	| "standardBlaster"
@@ -47,6 +48,17 @@ export interface WeaponChargeModifier {
 	}
 }
 
+export interface WeaponProjectileAcceleration {
+	acceleration: number
+	maxSpeedMultiplier: number
+}
+
+export interface WeaponProjectileSpin {
+	initialSpeed: number
+	acceleration: number
+	maxSpeed: number
+}
+
 export interface WeaponDefinition {
 	id: WeaponId
 	minimumHubLevel: number
@@ -56,6 +68,8 @@ export interface WeaponDefinition {
 	fireSound?: string
 	fireSoundVolume?: number
 	fireSoundDetune?: number
+	explosionSoundPool?: ExplosionSoundPoolId
+	explosionSoundVolume?: number
 	damageMultiplier: number
 	projectileSpeedMultiplier: number
 	fireCooldown: number
@@ -72,6 +86,8 @@ export interface WeaponDefinition {
 	projectileFlash?: boolean
 	projectileFlashMinOpacity?: number
 	projectileWobble?: number
+	projectileAcceleration?: WeaponProjectileAcceleration
+	projectileSpin?: WeaponProjectileSpin
 	explosionDelay?: number
 	lifespan?: number
 	splash?: {
@@ -103,7 +119,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		description: "Balanced and dependable. No built-in projectile modifiers.",
 		icon: "weapon_standard_blaster",
 		fireSound: "weapon_standard_blaster_fire",
-		fireSoundVolume: 0.72,
+		fireSoundVolume: 0.9,
 		damageMultiplier: 1,
 		projectileSpeedMultiplier: 1,
 		fireCooldown: 0.18,
@@ -173,10 +189,10 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		id: "impactDriver",
 		minimumHubLevel: 1,
 		name: "IMPACT DRIVER",
-		description: "Launches a slow heavy bolt that violently knocks targets back.",
+		description: "Launches a spinning heavy bolt that rapidly gains speed and violently knocks targets back.",
 		icon: "weapon_impact_driver",
 		damageMultiplier: 1.55,
-		projectileSpeedMultiplier: 0.78,
+		projectileSpeedMultiplier: 0.34,
 		fireCooldown: 0.38,
 		triggerModifier: {
 			mode: "press",
@@ -188,6 +204,15 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		muzzleOffsetY: -13,
 		projectileSprite: "impact_driver_arc_projectile",
 		projectileScale: 1.35,
+		projectileAcceleration: {
+			acceleration: 700,
+			maxSpeedMultiplier: 1.15,
+		},
+		projectileSpin: {
+			initialSpeed: 90,
+			acceleration: 1080,
+			maxSpeed: 720,
+		},
 		knockback: 52,
 	},
 	{
@@ -259,6 +284,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		description: "Fires three accurate rounds. Each round hits 25% harder than the last.",
 		icon: "weapon_burst_driver",
 		fireSound: "weapon_burst_driver",
+		fireSoundVolume: 0.5,
 		damageMultiplier: 0.74,
 		projectileSpeedMultiplier: 1.15,
 		fireCooldown: 0.46,
@@ -284,6 +310,8 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		icon: "weapon_plasma_mortar",
 		fireSound: "weapon_plasma_mortar_fire",
 		fireSoundVolume: 0.85,
+		explosionSoundPool: "plasmaMortar",
+		explosionSoundVolume: 0.7,
 		damageMultiplier: 1.45,
 		projectileSpeedMultiplier: 0.48,
 		fireCooldown: 0.68,
@@ -377,6 +405,14 @@ export function getEquippedWeapon() {
 		damageMultiplier: weapon.damageMultiplier * tier.power,
 		projectileSpeedMultiplier: weapon.projectileSpeedMultiplier * tier.speed,
 		fireCooldown: weapon.fireCooldown / tier.recovery,
+		charge: weapon.charge
+			? {
+				...weapon.charge,
+				maxDuration: weapon.id === "railLance"
+					? weapon.charge.maxDuration / tier.recovery
+					: weapon.charge.maxDuration,
+			}
+			: undefined,
 		triggerModifier: weapon.triggerModifier
 			? {
 				...weapon.triggerModifier,

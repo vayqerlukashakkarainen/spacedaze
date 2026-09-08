@@ -14,6 +14,9 @@ interface DamageNumberOptions {
 	prefix?: string
 }
 
+const PLAYER_DAMAGE_COLOR = [255, 70, 70] as const
+const PLAYER_HEALING_COLOR = [70, 255, 120] as const
+
 export function spawnDamageNumber(
 	pos: Vec2,
 	damage: number,
@@ -49,5 +52,23 @@ export function spawnDamageNumber(
 		number.move(0, -DAMAGE_NUMBER_RISE_SPEED * number.getTimescale())
 		number.opacity = 1 - k.clamp(number.elapsed / DAMAGE_NUMBER_LIFETIME, 0, 1)
 		if (number.elapsed >= DAMAGE_NUMBER_LIFETIME) k.destroy(number)
+	})
+}
+
+export function spawnPlayerDamageNumber(
+	pos: Vec2,
+	damage: number,
+	options: Pick<DamageNumberOptions, "critical"> = {}
+) {
+	spawnDamageNumber(pos, damage, {
+		critical: options.critical,
+		color: k.rgb(...PLAYER_DAMAGE_COLOR),
+	})
+}
+
+export function spawnHealingNumber(pos: Vec2, recovered: number) {
+	spawnDamageNumber(pos, recovered, {
+		color: k.rgb(...PLAYER_HEALING_COLOR),
+		prefix: "+",
 	})
 }

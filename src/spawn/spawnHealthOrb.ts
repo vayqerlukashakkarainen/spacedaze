@@ -4,11 +4,11 @@ import { dt, k, layers, mainSoundVolume, velocityScale } from "../main"
 import { player } from "../player"
 import { audioService } from "../services/audioService"
 import { tags } from "../tags"
-import { updatePlayerHealthBar } from "../ui/gameUi"
 import { timescale } from "../comp/timescale"
-import { spawnDamageNumber } from "./spawnDamageNumber"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { recordTelemetryHealing } from "../services/runTelemetryService"
+import { runSessionActive } from "../services/runDirectorService"
+import { recoverPlayerHealth } from "../services/playerHealthService"
+import { HEALTH_ORB_RECOVERY } from "../services/playerHealthBalance"
 
 export const HEALTH_ORB_DROP_CHANCE = 0.05
 
@@ -16,7 +16,6 @@ const ORB_COLOR = [70, 255, 120] as const
 const ORB_HIGHLIGHT = [190, 255, 205] as const
 const HEALTH_ORB_SCALE = 0.3
 const HEALTH_ORB_COLLECTION_DURATION = 0.48
-const HEALTH_PULSE_DURATION = 0.6
 
 interface HealthOrbCollectionState {
 	elapsed: number
@@ -28,6 +27,7 @@ interface HealthOrbCollectionState {
 }
 
 export function trySpawnHealthOrb(pos: Vec2, chanceMultiplier = 1) {
+	if (!runSessionActive()) return
 	if (!playerCanReceiveHealth()) return
 	const chance = k.clamp(HEALTH_ORB_DROP_CHANCE * chanceMultiplier, 0, 1)
 	if (!k.chance(chance)) return
@@ -56,6 +56,7 @@ export function spawnHealthOrb(pos: Vec2) {
 		},
 		tags.props,
 		tags.gameLoop,
+		tags.runtimeCullable,
 	])
 	const glow = orb.add([
 		k.circle(13),
@@ -127,15 +128,8 @@ export function spawnHealthOrb(pos: Vec2) {
 	function collectHealthOrb() {
 		if (collected || !playerCanReceiveHealth()) return
 		collected = true
-		const previousHealth = playerObj.hp
-		playerObj.hp = Math.min(playerObj.maxHP, playerObj.hp + 1)
-		recordTelemetryHealing(playerObj.hp - previousHealth)
-		updatePlayerHealthBar(playerObj.hp)
-		spawnDamageNumber(playerObj.pos.clone(), 1, {
-			color: k.rgb(...ORB_COLOR),
-			prefix: "+",
-		})
-		spawnPlayerHealthPulse()
+		const recovered = recoverPlayerHealth(playerObj, HEALTH_ORB_RECOVERY)
+		if (recovered <= 0) return
 		audioService.playSound("powerup1", {
 			volume: mainSoundVolume,
 			detune: -200,
@@ -193,27 +187,4 @@ function updateHealthOrbCollection(
 	}
 
 	return progress >= 1
-}
-
-function spawnPlayerHealthPulse() {
-	const pulse = playerObj.add([
-		k.sprite("ship"),
-		k.anchor("center"),
-		k.color(...ORB_COLOR),
-		k.opacity(0.65),
-		k.scale(1),
-		k.z(1),
-		{
-			elapsed: 0,
-		},
-	])
-
-	registerBatchedEntityUpdate("effects", pulse, () => {
-		pulse.elapsed += k.dt()
-		const progress = k.clamp(pulse.elapsed / HEALTH_PULSE_DURATION, 0, 1)
-		const wave = (Math.sin(progress * Math.PI * 4) + 1) / 2
-		pulse.opacity = (0.2 + wave * 0.55) * (1 - progress)
-		pulse.scale = k.vec2(k.lerp(1, 1.08, wave))
-		if (progress >= 1) k.destroy(pulse)
-	})
 }

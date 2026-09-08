@@ -4,10 +4,8 @@ import { getScore, k, layers, mainSoundVolume, spendScore } from "../../main"
 import { addThreatTime } from "../../services/threatService"
 import { spawnThreatEncounter } from "../../services/enemyEncounterService"
 import { audioService } from "../../services/audioService"
-import { updatePlayerHealthBar } from "../../ui/gameUi"
 import { tags } from "../../tags"
 import { spawnBuilding } from "../spawnBuilding"
-import { spawnDamageNumber } from "../spawnDamageNumber"
 import { spawnRing } from "../spawnRing"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 import { UI_FONT_SIZES } from "../../ui/common"
@@ -16,6 +14,7 @@ import {
 	spawnCurrencyBurst,
 } from "../spawnCurrencyBurst"
 import { playRequirementErrorSound } from "../../services/uiSoundService"
+import { recoverPlayerHealth } from "../../services/playerHealthService"
 
 interface RepairStationProps {
 	pos: Vec2
@@ -34,13 +33,13 @@ export function spawnRepairStation(props: RepairStationProps) {
 		pos: props.pos,
 		sprite: "room_repair_station",
 		spriteSize: k.vec2(128, 128),
-		scale: 0.62,
+		scale: 1,
 		interactRadius: 75,
 		interactPromptOffset: k.vec2(0, -138),
 		interactionPrompt: () => ({
 			title: "REPAIR STATION",
 			action: "START REPAIR",
-			detailLeft: `COST ${props.cost} SCRAP`,
+			detailLeft: `COST ${props.cost} SALVAGE`,
 			detailRight: `${getScore()} AVAILABLE`,
 			requirementsMet: getScore() >= props.cost,
 		}),
@@ -80,15 +79,7 @@ export function spawnRepairStation(props: RepairStationProps) {
 
 		repairing = false
 		repaired = true
-		const restored = Math.max(0, playerObj.maxHP - playerObj.hp)
-		playerObj.hp = playerObj.maxHP
-		updatePlayerHealthBar(playerObj.hp)
-		if (restored > 0) {
-			spawnDamageNumber(playerObj.pos.clone(), restored, {
-				color: k.rgb(90, 255, 135),
-				prefix: "+",
-			})
-		}
+		recoverPlayerHealth(playerObj, playerObj.maxHP)
 		status.text = "REPAIR COMPLETE"
 		station.setInteractRadius(0)
 		spawnRing({

@@ -1,5 +1,4 @@
 import type { Vec2 } from "kaplay";
-import { ASTEROID_SPRITES } from "../asteroidSprites";
 import { timescale } from "../comp/timescale";
 import { debrees } from "../game";
 import { dt, k, velocityScale } from "../main";
@@ -10,6 +9,10 @@ import {
 	updateLocalLight,
 } from "../services/localLightService";
 import { scaleThreatDebreeAmount } from "../services/threatService";
+import {
+	splitSalvageValue,
+	type SalvagePickupValue,
+} from "../services/salvagePickupService";
 
 export interface DebreeCollectionState {
 	elapsed: number;
@@ -21,25 +24,39 @@ export interface DebreeCollectionState {
 	spin: number;
 }
 
-export type DebreeValue = 1 | 2 | 3 | 4 | 5;
+export type DebreeValue = SalvagePickupValue;
 
 export interface DebreeSpawnOptions {
 	pattern?: "random" | "radial";
 	minSpeed?: number;
 	maxSpeed?: number;
-	runLevelXp?: boolean;
 	tags?: string[];
 }
 
 const debreeTiers: Record<
 	DebreeValue,
-	{ color: [number, number, number]; scale: number; weight: number }
+	{ sprite: string; color: [number, number, number]; scale: number }
 > = {
-	1: { color: [255, 255, 255], scale: 0.2, weight: 16 },
-	2: { color: [70, 180, 255], scale: 0.235, weight: 8 },
-	3: { color: [255, 225, 70], scale: 0.27, weight: 4 },
-	4: { color: [255, 135, 35], scale: 0.305, weight: 2 },
-	5: { color: [190, 75, 255], scale: 0.34, weight: 1 },
+	1: {
+		sprite: "salvage_shard",
+		color: [255, 255, 255],
+		scale: 0.6,
+	},
+	3: {
+		sprite: "salvage_plate",
+		color: [70, 180, 255],
+		scale: 0.7,
+	},
+	5: {
+		sprite: "salvage_core",
+		color: [255, 225, 70],
+		scale: 0.8,
+	},
+	10: {
+		sprite: "salvage_reactor_fragment",
+		color: [190, 75, 255],
+		scale: 0.95,
+	},
 };
 
 export function spawnDebree(
@@ -49,7 +66,7 @@ export function spawnDebree(
 ) {
 	spawnDebreeValues(
 		pos,
-		splitDebreeValue(scaleThreatDebreeAmount(amount)),
+		splitSalvageValue(scaleThreatDebreeAmount(amount)),
 		options
 	);
 }
@@ -66,9 +83,6 @@ export function spawnDebreeValues(
 	for (let index = 0; index < values.length; index++) {
 		const salvageValue = values[index];
 		const tier = debreeTiers[salvageValue];
-		const spriteName = ASTEROID_SPRITES[
-			Math.floor(k.rand(0, ASTEROID_SPRITES.length))
-		]
 		const dir = options.pattern === "radial"
 			? k.Vec2.fromAngle(
 				radialStartAngle + angleStep * index + k.rand(-angleStep * 0.18, angleStep * 0.18)
@@ -76,7 +90,7 @@ export function spawnDebreeValues(
 			: k.rand(k.vec2(-1, -1), k.vec2(1, 1));
 		const d = k.add([
 			k.pos(pos.add(dir.scale(options.pattern === "radial" ? k.rand(2, 8) : 0))),
-			k.sprite(spriteName),
+			k.sprite(tier.sprite),
 			k.anchor("center"),
 			k.animate({ relative: true }),
 			k.rotate(k.rand(360)),
@@ -85,7 +99,6 @@ export function spawnDebreeValues(
 			k.opacity(1),
 			{
 				salvageValue,
-				runLevelXp: options.runLevelXp ?? false,
 				dir,
 				speed: k.rand(minSpeed, maxSpeed),
 				lifeSpan: 0,
@@ -97,7 +110,7 @@ export function spawnDebreeValues(
 			tags.gameLoop,
 			...(options.tags ?? []),
 		]);
-		const rareGlow = salvageValue === 5
+		const rareGlow = salvageValue === 10
 			? addLocalLight(d, {
 				size: 32,
 				color: [190, 75, 255],
@@ -112,7 +125,7 @@ export function spawnDebreeValues(
 				},
 			})
 			: undefined;
-		if (salvageValue === 5) addRareDebreeParticles(d);
+		if (salvageValue === 10) addRareDebreeParticles(d);
 
 		registerBatchedEntityUpdate("debris", d, () => {
 			if (rareGlow) updateLocalLight(rareGlow);
@@ -130,10 +143,6 @@ export function spawnDebreeValues(
 			);
 
 			d.lifeSpan += dt() * 45;
-		});
-
-		d.animate("opacity", [1, 0.5], {
-			duration: 1,
 		});
 
 		debrees.push(d);
@@ -169,32 +178,4 @@ function addRareDebreeParticles(debris: ReturnType<typeof k.add>) {
 			}
 		),
 	]);
-}
-
-function splitDebreeValue(amount: number): DebreeValue[] {
-	let remaining = Math.max(0, Math.round(amount));
-	const values: DebreeValue[] = [];
-
-	while (remaining > 0) {
-		const available = ([1, 2, 3, 4, 5] as DebreeValue[]).filter(
-			(value) => value <= remaining
-		);
-		const totalWeight = available.reduce(
-			(total, value) => total + debreeTiers[value].weight,
-			0
-		);
-		let roll = k.rand(0, totalWeight);
-		let selected = available[0];
-		for (const value of available) {
-			roll -= debreeTiers[value].weight;
-			if (roll > 0) continue;
-			selected = value;
-			break;
-		}
-
-		values.push(selected);
-		remaining -= selected;
-	}
-
-	return values;
 }

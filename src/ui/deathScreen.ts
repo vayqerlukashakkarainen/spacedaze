@@ -137,7 +137,7 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 	})
 	depositValue.use(k.scale(1))
 	addThemedText(panel, {
-		text: "DEBRIS DEPOSITED",
+		text: "SALVAGE DEPOSITED",
 		pos: k.vec2(-130, top + 104),
 		variant: "caption",
 		width: 260,
@@ -209,7 +209,7 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 			{ label: "KILLS", value: `${summary.run?.kills ?? 0}` },
 			{ label: "REWARDS", value: `${summary.run?.rewardsCollected ?? 0}` },
 			{
-				label: "DEBRIS LOST",
+				label: "SALVAGE LOST",
 				value: `${summary.debree.lost}`,
 				valueColor: k.rgb(...UI_COLORS.danger),
 			},

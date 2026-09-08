@@ -266,7 +266,7 @@ function createAsteroidRunnerCutscene(
 					const deathPos = runner.pos.clone()
 					completeAsteroidRunnerEncounter()
 					k.destroy(runner)
-					spawnEnemyDeathEffect(deathPos, 0.9, true)
+					spawnEnemyDeathEffect(deathPos, 0.9)
 					audioService.playPositionalSound(
 						randomExplosion(),
 						deathPos,

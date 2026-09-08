@@ -20,6 +20,8 @@ export function spawnRiftJunction(props: RiftJunctionProps) {
 		k.pos(props.pos),
 		tags.props,
 		tags.gameLoop,
+		tags.runtimeCullable,
+		{ runtimeCullRadius: 48 },
 		...(props.tags ?? []),
 	])
 	const core = junction.add([
@@ -38,6 +40,7 @@ export function spawnRiftJunction(props: RiftJunctionProps) {
 			interactable(34, () => useRift(destination)),
 			tags.props,
 			tags.gameLoop,
+			tags.runtimeCullable,
 			...(props.tags ?? []),
 		])
 		const ring = portal.add([

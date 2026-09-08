@@ -1,5 +1,23 @@
 # Audio Attributions
 
+## Low Health Warning
+
+"Warning Sound" by m_cel (Freesound), distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-warning-sound-6686/
+- License: Pixabay Content License
+- Original filename: `freesound_community-warning-sound-6686.mp3`
+- In-game asset: `low-health-warning.mp3`
+
+## Player Game Over
+
+"Game Over Arcade" by myfox14 (Freesound), distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-game-over-arcade-6435/
+- License: Pixabay Content License
+- Original filename: `freesound_community-game-over-arcade-6435.mp3`
+- In-game asset: `game-over-arcade.mp3`
+
 ## Standard Blaster
 
 "Sci-Fi Blaster Shot" by Universfield
@@ -7,7 +25,7 @@
 - Source: https://pixabay.com/sound-effects/film-special-effects-sci-fi-blaster-shot-229313/
 - License: Pixabay Content License
 - In-game asset: `standard-blaster.wav`
-- Trimmed from the source recording and converted to mono WAV for responsive playback.
+- Trimmed to a 320 ms transient from the source recording and converted to mono WAV for responsive playback.
 
 ## Twin Needle
 
@@ -44,6 +62,27 @@
 - License: Pixabay Content License
 - In-game asset: `plasma-mortar-fire.wav`
 - Trimmed from the source recording and converted to mono WAV for responsive playback.
+
+## Plasma Mortar Explosion
+
+"Large Underwater Explosion" by DavidDumaisAudio
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-large-underwater-explosion-190270/
+- License: Pixabay Content License
+- Original filename: `daviddumaisaudio-large-underwater-explosion-190270.mp3`
+- In-game asset: `plasma-mortar-explosion.mp3`
+
+"Explosion #3" by Gearpile
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-explosion-3-386885/
+- License: Pixabay Content License
+- In-game asset: `plasma-explosion-gearpile.mp3`
+
+"Explosion" by FlashTrauma (Freesound), distributed through Pixabay
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-explosion-6055/
+- License: Pixabay Content License
+- In-game asset: `plasma-explosion-flashtrauma.mp3`
 
 ## Hyperspeed Jump
 
@@ -194,3 +233,12 @@ User-provided audio asset.
 - Creator and license: Not provided
 - Original filename: `laster_shoot_2.wav`
 - In-game asset: `laser-shoot-2.wav`
+
+## Burst Driver
+
+"BLASTER 2" by tutarap (Freesound), distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-blaster-2-81267/
+- License: Pixabay Content License
+- Original filename: `freesound_community-blaster-2-81267.mp3`
+- In-game asset: `burst-driver.mp3`

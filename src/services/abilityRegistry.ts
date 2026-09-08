@@ -46,6 +46,8 @@ export interface AbilityDefinition {
 	defaultUnlocked?: boolean
 }
 
+export const RETRO_BURST_CHARGE_COUNT = 3
+
 export const MOBILITY_ABILITIES: readonly AbilityDefinition[] = [
 	{
 		id: "thrusterOverdrive" as MobilityAbilityId,
@@ -86,34 +88,25 @@ export const MOBILITY_ABILITIES: readonly AbilityDefinition[] = [
 		minimumHubLevel: 1,
 		rarity: RewardRarity.Uncommon,
 		trigger: "press",
-		resource: { type: "charges", count: 1, recharge: 3.2 },
+		resource: {
+			type: "charges",
+			count: RETRO_BURST_CHARGE_COUNT,
+			recharge: 3.2,
+		},
 		tags: ["movement", "evasive", "repulsor"],
 		weights: { crate: 82, enemy: 15, boss: 65 },
-	},
-	{
-		id: "driftBrake" as MobilityAbilityId,
-		slot: "mobility",
-		name: "DRIFT BRAKE",
-		description: "Cancels momentum instantly and briefly protects the ship while its thrusters stabilize.",
-		icon: "mobility_drift_brake",
-		minimumHubLevel: 1,
-		rarity: RewardRarity.Common,
-		trigger: "press",
-		resource: { type: "charges", count: 1, recharge: 3.6 },
-		tags: ["movement", "control", "defense"],
-		weights: { crate: 96, enemy: 18, boss: 68 },
 	},
 	{
 		id: "gravitySling" as MobilityAbilityId,
 		slot: "mobility",
 		name: "GRAVITY SLING",
-		description: "Creates a temporary gravity point at the cursor that bends the ship's momentum toward it.",
+		description: "Fires a gravity hook into a target or distant point, slings through nearby hostiles, and releases at increased speed.",
 		icon: "mobility_gravity_sling",
 		minimumHubLevel: 1,
 		rarity: RewardRarity.Uncommon,
 		trigger: "press",
 		resource: { type: "charges", count: 1, recharge: 5 },
-		tags: ["movement", "gravity", "control"],
+		tags: ["movement", "gravity", "grapple", "damage"],
 		weights: { crate: 76, enemy: 12, boss: 62 },
 	},
 ]

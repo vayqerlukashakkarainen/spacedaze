@@ -7,6 +7,7 @@ import { setPerformanceCounter } from "./frameProfilerService"
 type RuntimeSpriteVisual = GameObj & {
 	pos: Vec2
 	sprite: string
+	visualAngle?: number
 }
 
 const VISUAL_PADDING = 48
@@ -108,7 +109,7 @@ function drawEnemyVisuals() {
 		k.drawSprite({
 			sprite: obj.sprite,
 			pos: obj.pos,
-			angle: obj.angle ?? 0,
+			angle: obj.visualAngle ?? obj.angle ?? 0,
 			anchor: obj.anchor ?? "center",
 			scale: obj.scale,
 			color: obj.color,

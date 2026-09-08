@@ -18,6 +18,7 @@ import {
 	setLoadoutRarity,
 } from "./upg";
 import {
+	getPlayerMaxHealth,
 	getRerollTokens,
 	grantRerollTokens,
 	loadPlayer,
@@ -63,7 +64,10 @@ import {
 	toggleCommandConsole,
 } from "./ui/commandConsole";
 import { commandService } from "./services/commandService";
+import { downloadCompleteGameDump } from "./services/catalogDumpService";
 import { playerObj } from "./game";
+import { recoverPlayerHealth } from "./services/playerHealthService";
+import { RUN_HULL_REINFORCEMENT_AMOUNT } from "./services/playerHealthBalance";
 import { activeLevelKey, transitionToLevel } from "./levels/levels";
 import {
 	clearSelectedContract,
@@ -90,6 +94,7 @@ import {
 	createDirectUpgradeReward,
 	RewardRarity,
 	RewardSource,
+	type RewardKind,
 } from "./services/rewardService";
 import {
 	hideRecoveryShop,
@@ -106,6 +111,7 @@ import {
 	runSessionActive,
 } from "./services/runDirectorService";
 import { applyDamage } from "./services/damageService";
+import { spawnHealthOrb } from "./spawn/spawnHealthOrb";
 import {
 	isPlayerDebugInvulnerable,
 	setPlayerDebugInvulnerable,
@@ -217,10 +223,16 @@ import {
 	resetHubProgress,
 	restockHubGhostChests,
 	setHubLevelForDebug,
+	unlockAllHubContentForDebug,
 } from "./services/hubProgressService";
-import { resetWarpZoneProgress } from "./services/warpZoneService";
+import {
+	resetWarpZoneProgress,
+	unlockWarpZone,
+	WARP_ZONES,
+} from "./services/warpZoneService";
 import {
 	resetWeaponInventory,
+	unlockWeapon,
 	WEAPONS,
 } from "./services/weaponService";
 import {
@@ -230,6 +242,11 @@ import {
 	resetActiveModule,
 } from "./services/activeModuleService";
 import { equipAbilityWithWorldDrop } from "./services/abilitySwapService";
+import {
+	ABILITIES,
+	getAbilityDiscoveryKey,
+} from "./services/abilityRegistry";
+import { getAllUpgradeDefinitions } from "./upgrades/upgradeRegistry";
 import { spawnRewardPickup } from "./spawn/spawnPowerup";
 import {
 	addAvailableDebree,
@@ -240,7 +257,10 @@ import {
 	resetDebreeEconomy,
 	spendAvailableDebree,
 } from "./services/debreeEconomyService";
-import { clearPendingRunEndSummary } from "./services/runCompletionService";
+import {
+	clearPendingHubLevelReveal,
+	clearPendingRunEndSummary,
+} from "./services/runCompletionService";
 import {
 	debreeDepositPanelOpen,
 } from "./ui/debreeDepositPanel";
@@ -724,6 +744,7 @@ export function resetGameProfile() {
 	resetAbilityLoadout()
 	resetHubProgress()
 	clearPendingRunEndSummary()
+	clearPendingHubLevelReveal()
 	clearRunTelemetry()
 	resetWarpZoneProgress()
 	resetRunStats()
@@ -904,9 +925,10 @@ function registerDebugCommands() {
 			loadPlayer();
 			saveGame("slot1");
 
-			playerObj.maxHP = player.maxHealth;
+			playerObj.maxHP = getPlayerMaxHealth();
+			playerObj.hp = Math.min(playerObj.hp, playerObj.maxHP);
 			clearGameLoopUi();
-			setupGameLoopUi(player.maxHealth, false);
+			setupGameLoopUi(getPlayerMaxHealth(), false);
 			updatePlayerHealthBar(playerObj.hp);
 
 			return clearedUpgradeCount > 0
@@ -1172,6 +1194,7 @@ function registerDebugCommands() {
 		if (!Number.isFinite(amount) || amount <= 0) return "Invalid damage amount";
 		applyDamage(playerObj, amount, {
 			source: { name: "DEBUG COMMAND", sprite: "bullet1" },
+			playerHullDamage: true,
 		});
 		return `Dealt ${amount} damage`;
 	});
@@ -1179,9 +1202,20 @@ function registerDebugCommands() {
 	commandService.register("heal", "heal [amount]", (args) => {
 		const amount = Number(args[0] ?? playerObj.maxHP);
 		if (!Number.isFinite(amount) || amount <= 0) return "Invalid heal amount";
-		playerObj.hp = Math.min(playerObj.maxHP, playerObj.hp + amount);
-		return `Healed ${amount}`;
+		const recovered = recoverPlayerHealth(playerObj, amount);
+		return `Healed ${recovered}`;
 	});
+
+	commandService.register(
+		"healthglobe",
+		"Spawn a health globe near the player",
+		() => {
+			if (!playerObj || !playerObj.exists()) return "No active player";
+			spawnHealthOrb(playerObj.pos.add(42, 0));
+			hideCommandConsole();
+			return "Spawned health globe";
+		}
+	);
 
 	commandService.register(
 		"invulnerable",
@@ -1332,12 +1366,12 @@ function registerDebugCommands() {
 		return "Jumped to the run exit";
 	});
 
-	commandService.register("relay", "Jump to the nearest debree relay", () => {
+	commandService.register("relay", "Jump to the nearest salvage relay", () => {
 		if (!teleportPlayerToNearestDebreeDeposit()) {
-			return "No debree relay is currently available";
+			return "No salvage relay is currently available";
 		}
 		hideCommandConsole();
-		return "Jumped to the nearest debree relay";
+		return "Jumped to the nearest salvage relay";
 	});
 
 	commandService.register(
@@ -1369,17 +1403,17 @@ function registerDebugCommands() {
 	});
 
 	commandService.register(
-		"debree",
-		"debree clear - Clear the player's available debree",
+		"salvage",
+		"salvage clear - Clear the player's available salvage",
 		(args) => {
 			if (args[0]?.toLowerCase() !== "clear") {
-				return "Usage: debree clear";
+				return "Usage: salvage clear";
 			}
 			const cleared = clearAvailableDebree();
 			saveGame("slot1");
 			return cleared > 0
-				? `Cleared ${cleared} debree`
-				: "Player debree is already clear";
+				? `Cleared ${cleared} salvage`
+				: "Player salvage is already clear";
 		}
 	);
 
@@ -1394,6 +1428,28 @@ function registerDebugCommands() {
 		setHubLevelForDebug(level);
 		return `Hub level set to ${level}`;
 	});
+
+	commandService.register(
+		"unlockall",
+		"Unlock all progression, facilities, equipment, and discoveries",
+		() => {
+			const rewardBlueprintKeys = getAllRewardDefinitions()
+				.filter((reward) =>
+					reward.kind === "powerup" || reward.kind === "item"
+				)
+				.map((reward) => reward.powerupKey ?? reward.id);
+			const blueprintKeys = [
+				...ABILITIES.map(getAbilityDiscoveryKey),
+				...getAllUpgradeDefinitions().map((upgrade) => upgrade.toolKey),
+				...rewardBlueprintKeys,
+			];
+			const hub = unlockAllHubContentForDebug(blueprintKeys);
+			for (const weapon of WEAPONS) unlockWeapon(weapon.id, false);
+			for (const zone of WARP_ZONES) unlockWarpZone(zone.id);
+			saveGame("slot1");
+			return `Unlocked all content | Hub ${hub.hubLevel} | ${hub.facilities} facilities | ${WEAPONS.length} weapons | ${ABILITIES.length} abilities | ${blueprintKeys.length} discoveries | ${WARP_ZONES.length} zones`;
+		}
+	);
 
 	commandService.register("hubxp", "hubxp <amount> - Add deposited hub XP", (args) => {
 		const amount = Number(args[0]);
@@ -1424,15 +1480,28 @@ function registerDebugCommands() {
 	);
 
 	commandService.register(
+		"dump",
+		"Download and print the complete game data catalog",
+		() => {
+			const filename = downloadCompleteGameDump();
+			return filename
+				? `Complete game data printed and downloaded as ${filename}`
+				: "Game data export is unavailable";
+		}
+	);
+
+	commandService.register(
 		"rewards",
-		"rewards [crate|enemy|boss] - Print reward stats and weights",
+		"rewards [source] [-t type] [-r rarity] - Filter reward stats and weights",
 		(args) => {
-			const source = args[0] as RewardSource | undefined;
-			if (source && !["crate", "enemy", "boss"].includes(source)) {
-				return "Source must be crate, enemy, or boss";
-			}
-			const rewards = getAllRewardDefinitions(source);
-			if (rewards.length === 0) return "No rewards for this source";
+			const filters = parseRewardFilters(args);
+			if (filters.error) return filters.error;
+			const rewards = getAllRewardDefinitions(filters.source).filter(
+				(reward) =>
+					(!filters.kind || reward.kind === filters.kind) &&
+					(!filters.rarity || reward.rarity === filters.rarity)
+			);
+			if (rewards.length === 0) return "No rewards match these filters";
 			const lines = [
 				`## Rewards (${rewards.length})`,
 				"| Icon | Reward | Type | Rarity | OK | Effect | C | E | B |",
@@ -1458,12 +1527,20 @@ function registerDebugCommands() {
 
 	commandService.register(
 		"reward",
-		"reward <id> [rarity] | reward allweapons - Grant rewards or drop every weapon",
+		"reward <id> [rarity] | reward allweapons|allactivemodules|allmobility|allultimates|allpowerups|allitems|allupgrades",
 		(args) => {
-			if (args[0]?.toLowerCase() === "allweapons") {
+			const testCategory = getRewardTestCategory(args[0]);
+			if (testCategory) {
 				if (!playerObj || !playerObj.exists()) return "No active player";
 				hideCommandConsole();
-				return spawnAllWeaponTestPickups(playerObj.pos.clone());
+				return spawnRewardTestCategory(
+					playerObj.pos.clone(),
+					testCategory.kind,
+					testCategory.label
+				);
+			}
+			if (args[0]?.toLowerCase().startsWith("all")) {
+				return "Categories: allweapons, allactivemodules, allmobility, allultimates, allpowerups, allitems, allupgrades";
 			}
 			const definition = getRewardDefinition(args[0] ?? "");
 			const isAbility = definition?.abilityId !== undefined &&
@@ -1497,17 +1574,123 @@ function registerDebugCommands() {
 	);
 }
 
-function spawnAllWeaponTestPickups(position: Vec2) {
-	const radius = 170;
+interface RewardFilters {
+	source?: RewardSource;
+	kind?: RewardKind;
+	rarity?: RewardRarity;
+	error?: string;
+}
+
+const REWARD_TYPE_FILTERS: Readonly<Record<string, RewardKind>> = {
+	powerup: "powerup",
+	powerups: "powerup",
+	upgrade: "upgrade",
+	upgrades: "upgrade",
+	weapon: "weapon",
+	weapons: "weapon",
+	item: "item",
+	items: "item",
+	active: "activeModule",
+	activemodule: "activeModule",
+	activemodules: "activeModule",
+	module: "activeModule",
+	modules: "activeModule",
+	mobility: "mobility",
+	ultimate: "ultimate",
+	ultimates: "ultimate",
+};
+
+function parseRewardFilters(args: string[]): RewardFilters {
+	const filters: RewardFilters = {};
+	for (let index = 0; index < args.length; index++) {
+		const arg = args[index].toLowerCase();
+		if (arg === "-s" || arg === "--source") {
+			const source = args[++index]?.toLowerCase();
+			if (!source || !["crate", "enemy", "boss"].includes(source)) {
+				return { error: "Source must be crate, enemy, or boss" };
+			}
+			filters.source = source as RewardSource;
+			continue;
+		}
+		if (arg === "-t" || arg === "--type") {
+			const type = args[++index]?.toLowerCase();
+			const kind = type ? REWARD_TYPE_FILTERS[type] : undefined;
+			if (!kind) {
+				return {
+					error: "Type must be powerup, upgrade, weapon, item, active, mobility, or ultimate",
+				};
+			}
+			filters.kind = kind;
+			continue;
+		}
+		if (arg === "-r" || arg === "--rarity") {
+			const rarityName = args[++index]?.toUpperCase();
+			const rarity = Object.values(RewardRarity).find(
+				(value) => value === rarityName
+			);
+			if (!rarity) {
+				return {
+					error: "Rarity must be common, uncommon, rare, epic, or legendary",
+				};
+			}
+			filters.rarity = rarity;
+			continue;
+		}
+		if (["crate", "enemy", "boss"].includes(arg) && !filters.source) {
+			filters.source = arg as RewardSource;
+			continue;
+		}
+		return {
+			error: "Usage: rewards [crate|enemy|boss] [-t type] [-r rarity]",
+		};
+	}
+	return filters;
+}
+
+const REWARD_TEST_CATEGORIES: Readonly<
+	Record<string, { kind: RewardKind; label: string }>
+> = {
+	allweapons: { kind: "weapon", label: "weapons" },
+	allactivemodules: { kind: "activeModule", label: "active modules" },
+	allactive: { kind: "activeModule", label: "active modules" },
+	allmodules: { kind: "activeModule", label: "active modules" },
+	allmobility: { kind: "mobility", label: "mobility abilities" },
+	allultimates: { kind: "ultimate", label: "ultimate abilities" },
+	allultimate: { kind: "ultimate", label: "ultimate abilities" },
+	allpowerups: { kind: "powerup", label: "powerups" },
+	allitems: { kind: "item", label: "items" },
+	allupgrades: { kind: "upgrade", label: "upgrades" },
+};
+
+function getRewardTestCategory(input: string | undefined) {
+	if (!input) return undefined;
+	return REWARD_TEST_CATEGORIES[input.toLowerCase()];
+}
+
+function spawnRewardTestCategory(
+	position: Vec2,
+	kind: RewardKind,
+	label: string
+) {
+	const definitions = getAllRewardDefinitions().filter(
+		(definition) => definition.kind === kind
+	);
+	const pickupsPerRing = 10;
+	const firstRadius = 170;
+	const ringSpacing = 95;
 	let spawned = 0;
-	for (let index = 0; index < WEAPONS.length; index++) {
-		const weapon = WEAPONS[index];
-		const reward = createReward(
-			`weapon:${weapon.id}`,
-			RewardRarity.Common
-		);
+	for (let index = 0; index < definitions.length; index++) {
+		const definition = definitions[index];
+		const reward = createReward(definition.id, RewardRarity.Common);
 		if (!reward) continue;
-		const angle = -90 + index * (360 / WEAPONS.length);
+		const ringIndex = Math.floor(index / pickupsPerRing);
+		const indexInRing = index % pickupsPerRing;
+		const itemsInRing = Math.min(
+			pickupsPerRing,
+			definitions.length - ringIndex * pickupsPerRing
+		);
+		const angle = -90 + indexInRing * (360 / itemsInRing);
+		const radius = firstRadius + ringIndex * ringSpacing;
 		spawnRewardPickup(
 			position.add(k.Vec2.fromAngle(angle).scale(radius)),
 			reward,
@@ -1515,16 +1698,23 @@ function spawnAllWeaponTestPickups(position: Vec2) {
 				stationary: true,
 				interactionOnly: true,
 				suppressAcquisition: true,
-				label: weapon.name,
+				label: definition.name,
 				applyEffect: (pickedReward, pickupPosition) => {
 					if (!applyReward(pickedReward, pickupPosition)) return false;
-					return equipConsoleReward(pickedReward, pickupPosition);
+					const isAbility = pickedReward.abilityId !== undefined &&
+						pickedReward.abilitySlot !== undefined;
+					if (
+						isAbility &&
+						!equipConsoleReward(pickedReward, pickupPosition)
+					) return false;
+					saveGame("slot1");
+					return true;
 				},
 			}
 		);
 		spawned++;
 	}
-	return `Dropped ${spawned} weapons around the player`;
+	return `Dropped ${spawned} ${label} around the player`;
 }
 
 function equipConsoleReward(
@@ -1563,9 +1753,9 @@ function addPlaytestBuildToArsenal(build: PlaytestBuild) {
 	);
 	addBuildPowerups(
 		"addPlayerMaxHealth",
-		build.extraHealth ?? 0,
+		(build.extraHealth ?? 0) * RUN_HULL_REINFORCEMENT_AMOUNT,
 		session.extraHealth,
-		1,
+		RUN_HULL_REINFORCEMENT_AMOUNT,
 		additions
 	);
 	addBuildPowerups(

@@ -126,7 +126,7 @@ function showRunEndSummary(summary: RunEndSummary) {
 		color: k.rgb(...UI_COLORS.success),
 	})
 	addThemedText(panel, {
-		text: "DEBRIS DEPOSITED",
+		text: "SALVAGE DEPOSITED",
 		pos: k.vec2(-120, top + 124),
 		variant: "caption",
 		width: 240,
@@ -183,8 +183,8 @@ function showRunEndSummary(summary: RunEndSummary) {
 				label: "HUB LEVEL",
 				value: `${summary.hub.currentLevel}`,
 			},
-			{ label: "DEBRIS RECOVERED", value: `${summary.run?.salvageEarned ?? 0}` },
-			{ label: "DEBRIS LOST", value: `${summary.debree.lost}` },
+			{ label: "SALVAGE RECOVERED", value: `${summary.run?.salvageEarned ?? 0}` },
+			{ label: "SALVAGE LOST", value: `${summary.debree.lost}` },
 			{ label: "CHEST LUCK", value: `+${Math.round(levelDefinition.chestLuck * 100)}%` },
 		],
 	})
@@ -249,7 +249,7 @@ function showHubLevelUpSummary(summary: RunEndSummary) {
 		pos: k.vec2(left + 1, top + 1),
 		width: panelSize.x - 2,
 		height: 62,
-		eyebrow: `${summary.outcome} EXPEDITION  //  +${summary.debree.deposited} DEBRIS DEPOSITED`,
+		eyebrow: `${summary.outcome} EXPEDITION  //  +${summary.debree.deposited} SALVAGE DEPOSITED`,
 		title: `HUB LEVEL ${summary.hub.currentLevel} REACHED`,
 		action: `${summary.hub.previousLevel}  >  ${summary.hub.currentLevel}`,
 	})
@@ -310,7 +310,7 @@ function showHubLevelUpSummary(summary: RunEndSummary) {
 				entries: facilities.map((facility) => ({
 					name: facility.name,
 					sprite: HUB_FACILITY_ICONS[facility.id],
-					meta: `${facility.cost} DEBRIS`,
+					meta: `${facility.cost} SALVAGE`,
 				})),
 			}
 		)

@@ -13,6 +13,8 @@ import { spawnBuilding } from "./spawnBuilding";
 import {
 	setNextChestDifficulty,
 	setNextChestRewardType,
+	setNextChestWorldOpenAnimation,
+	setNextChestWorldPosition,
 	type ChestRewardType,
 } from "../ui/chestChallenge";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
@@ -23,6 +25,8 @@ import { playRequirementErrorSound } from "../services/uiSoundService";
 const CHEST_SCALE = 0.75;
 const CHEST_AURA_RADIUS = 20;
 const CHEST_RING_RADIUS = 25;
+const CHEST_OPEN_ANTICIPATION_DURATION = 0.22;
+const CHEST_OPEN_RELEASE_DURATION = 0.28;
 
 interface ChestOptions {
 	rewardType?: ChestRewardType;
@@ -73,7 +77,7 @@ export function spawnChest(
 				: {
 					title: chestTitle,
 					action: weaponChest ? "BUY CACHE" : "BUY CHEST",
-					detailLeft: `COST ${getPurchaseCost()} SCRAP`,
+					detailLeft: `COST ${getPurchaseCost()} SALVAGE`,
 					detailRight: `${getScore()} AVAILABLE`,
 					requirementsMet: getScore() >= getPurchaseCost(),
 				}
@@ -87,7 +91,7 @@ export function spawnChest(
 					title: "SALVAGE CHEST",
 					action: "OPEN CHEST",
 				},
-		onInteract: () => {
+			onInteract: () => {
 			if (opened) return;
 			if (!purchased && requiresPurchase) {
 				const purchaseCost = getPurchaseCost();
@@ -110,27 +114,73 @@ export function spawnChest(
 				return;
 			}
 			opened = true;
-			openChest();
+			startChestSequence();
 		},
 	});
 	chest.use(k.opacity(ghost ? 0.38 : 1));
 
-	function openChest() {
+	function startChestSequence() {
 		if (!chest.exists()) return;
 		setNextChestDifficulty(difficulty);
 		setNextChestRewardType(rewardType);
-		starsEmitter.emitter.position = chest.pos.clone();
-		starsEmitter.emit(32);
-		chest.use(k.sprite(openedChestSprite));
-		chest.opacity = 0.72;
+		setNextChestWorldPosition(chest.pos.clone());
+		setNextChestWorldOpenAnimation(playChestOpenAnimation);
 		chest.isInRange = false;
 		chest.setInteractRadius(0);
 		chest.setOnInteract(() => {});
 		if (aura.exists()) k.destroy(aura);
 		if (auraRing.exists()) k.destroy(auraRing);
 		if (sparkles.exists()) k.destroy(sparkles);
-		options.onOpened?.();
 		changeGameState(GameState.ChestOpening);
+	}
+
+	async function playChestOpenAnimation() {
+		if (!chest.exists()) return;
+		chest.use(k.animate());
+		chest.animate(
+			"scale",
+			[
+				k.vec2(CHEST_SCALE),
+				k.vec2(CHEST_SCALE * 1.12, CHEST_SCALE * 0.72),
+			],
+			{
+				duration: CHEST_OPEN_ANTICIPATION_DURATION,
+				loops: 1,
+				easing: k.easings.easeInCubic,
+			}
+		);
+		audioService.playSound("primary_weapon_charge", {
+			volume: mainSoundVolume * 0.4,
+			speed: 1.45,
+		});
+		await k.wait(CHEST_OPEN_ANTICIPATION_DURATION);
+		if (!chest.exists()) return;
+		chest.use(k.sprite(openedChestSprite));
+		chest.animate(
+			"scale",
+			[
+				k.vec2(CHEST_SCALE * 1.24, CHEST_SCALE * 0.82),
+				k.vec2(CHEST_SCALE * 0.92, CHEST_SCALE * 1.08),
+				k.vec2(CHEST_SCALE),
+			],
+			{
+				duration: CHEST_OPEN_RELEASE_DURATION,
+				loops: 1,
+				timing: [0, 0.55, 1],
+				easing: k.easings.easeOutCubic,
+			}
+		);
+		starsEmitter.emitter.position = chest.pos.clone();
+		starsEmitter.emit(32);
+		audioService.playSound("powerup1", {
+			volume: mainSoundVolume * 0.65,
+			detune: 80,
+		});
+		chest.opacity = 0.72;
+		await k.wait(CHEST_OPEN_RELEASE_DURATION);
+		if (!chest.exists()) return;
+		chest.scale = k.vec2(CHEST_SCALE);
+		options.onOpened?.();
 	}
 	const aura = chest.add([
 		k.circle(CHEST_AURA_RADIUS),

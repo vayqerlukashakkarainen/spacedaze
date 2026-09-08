@@ -46,6 +46,11 @@ import {
 	isEnemyProgressionUnlocked,
 	type ProgressionEnemyId,
 } from "./enemyProgressionService"
+import {
+	BASE_PLAYER_HEALTH,
+	HULL_UPGRADE_AMOUNT,
+	LEGACY_PLAYER_DAMAGE_SCALE,
+} from "./playerHealthBalance"
 
 interface SimulationOptions {
 	runCount: number
@@ -207,7 +212,7 @@ export function formatSyntheticRewardDiversity() {
 	return [
 		`${records.length} synthetic runs | ${offered.size}/${catalog.size} reward families appeared | ${selected.size} collected`,
 		`Sources: ${sourceSummary || "none"}`,
-		`Debree: ${Math.round(debreeEarned)} earned | ${Math.round(debreeDeposited)} extracted | ${Math.round(debreeLost)} lost`,
+		`Salvage: ${Math.round(debreeEarned)} earned | ${Math.round(debreeDeposited)} extracted | ${Math.round(debreeLost)} lost`,
 		`Never appeared (${missing.length}): ${missing.slice(0, 18).join(", ") || "none"}${missing.length > 18 ? `, +${missing.length - 18} more` : ""}`,
 		`Appeared but not collected (${unselected.length}): ${unselected.slice(0, 18).join(", ") || "none"}${unselected.length > 18 ? `, +${unselected.length - 18} more` : ""}`,
 		"ITEM COUNTS",
@@ -319,7 +324,8 @@ function simulateCombat(
 	random: () => number,
 	state: MutableSyntheticState
 ) {
-	const maxHull = 3 + Math.floor((config.hubLevel - 1) / 2)
+	const maxHull = BASE_PLAYER_HEALTH +
+		Math.floor((config.hubLevel - 1) / 2) * HULL_UPGRADE_AMOUNT
 	let remainingHull = maxHull
 	let reachedDepth = 0
 	for (let depth = 1; depth <= config.targetDepth; depth++) {
@@ -355,7 +361,8 @@ function simulateCombat(
 				const damage = getEnemyDamagePressure(enemy) * tier *
 					(0.55 + random() * 0.9) *
 					Math.max(0.35, 1 - (config.hubLevel - 1) * 0.055) *
-					(elite ? 1.35 : 1)
+					(elite ? 1.35 : 1) *
+					LEGACY_PLAYER_DAMAGE_SCALE
 				if (random() < 0.42) {
 					remainingHull -= damage
 					recordTelemetryPlayerDamage(damage, enemy)
@@ -376,7 +383,10 @@ function simulateCombat(
 			)
 			if (bossReward) collectSyntheticReward(bossReward, "boss-drop", state)
 		}
-		remainingHull = Math.min(maxHull, remainingHull + 0.5)
+		remainingHull = Math.min(
+			maxHull,
+			remainingHull + LEGACY_PLAYER_DAMAGE_SCALE * 0.5
+		)
 	}
 	return { outcome: "EXTRACTED" as const, reachedDepth }
 }

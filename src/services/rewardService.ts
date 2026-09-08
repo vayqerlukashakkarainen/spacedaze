@@ -58,6 +58,7 @@ import {
 	discoverAbility,
 	getAbilityDefinition,
 	isAbilityDiscovered,
+	RETRO_BURST_CHARGE_COUNT,
 	type AbilityDefinition,
 } from "./abilityRegistry"
 import type {
@@ -195,8 +196,8 @@ const powerupRewardRegistry: Record<PowerupKey, RewardDefinition> = {
 		kind: "powerup",
 		powerupKey: "addPlayerMaxHealth",
 		name: "HULL REINFORCEMENT",
-		description: "Increases your maximum health by 1",
-		stats: { maxHealth: "+1", healing: "+1" },
+		description: "Increases your maximum health by 15",
+		stats: { maxHealth: "+15", healing: "+15" },
 		sprite: powerupsSprites.addPlayerMaxHealth,
 		rarity: RewardRarity.Rare,
 		progression: scalingProgression(RewardRarity.Rare, "stack"),
@@ -1094,7 +1095,7 @@ function formatAbilityTierStats(
 		const weapon = WEAPONS.find((candidate) => candidate.id === definition.weaponId)
 		if (weapon) {
 			const trigger = getWeaponTriggerModifier(weapon)
-			return {
+			const stats: Record<string, number | string> = {
 				DAMAGE: formatMultiplier(weapon.damageMultiplier * values.power),
 				"PROJECTILE SPEED": formatMultiplier(
 					weapon.projectileSpeedMultiplier * values.speed
@@ -1103,6 +1104,11 @@ function formatAbilityTierStats(
 					? `${(values.recovery / weapon.fireCooldown).toFixed(1)}/S`
 					: "PER CLICK",
 			}
+			if (weapon.id === "railLance" && weapon.charge) {
+				stats["CHARGE TIME"] =
+					`${(weapon.charge.maxDuration / values.recovery).toFixed(2)}S`
+			}
+			return stats
 		}
 	}
 	if (definition.abilitySlot === "secondary" && definition.activeModuleId) {
@@ -1122,6 +1128,14 @@ function formatAbilityTierStats(
 			DISTANCE: Math.round(75 * values.speed),
 			RECHARGE: `${(2.5 / values.recovery).toFixed(1)}S`,
 			POWER: formatMultiplier(values.power),
+		}
+	}
+	if (definition.abilityId === "retroBurst") {
+		return {
+			CHARGES: RETRO_BURST_CHARGE_COUNT,
+			SPEED: formatMultiplier(values.speed),
+			POWER: formatMultiplier(values.power),
+			RECOVERY: formatMultiplier(values.recovery),
 		}
 	}
 	if (definition.abilitySlot === "mobility") {

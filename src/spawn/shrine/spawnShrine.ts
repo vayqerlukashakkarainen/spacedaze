@@ -6,6 +6,12 @@ import { explosionEmitter } from "../../particles";
 import { tags } from "../../tags";
 import { spawnThreatEncounter } from "../../services/enemyEncounterService";
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService";
+import { createChargeZoneFeedback } from "../../services/chargeZoneFeedbackService";
+import {
+	addLocalLight,
+	updateLocalLight,
+} from "../../services/localLightService";
+import { spawnRing } from "../spawnRing";
 
 const SHRINE_VISUAL_SCALE = 1.5;
 
@@ -30,16 +36,20 @@ export function spawnShrine(props: ShrineProps) {
 		k.anchor("center"),
 		k.layer(layers.buildings),
 		k.scale(SHRINE_VISUAL_SCALE),
+		k.color(k.WHITE),
 		k.opacity(1),
 		{
 			timer: 0,
 			maxTimer: props.captureTime,
 			isPlayerInside: false,
+			completed: false,
 			enemySpawnTimer: props.enemySpawnDelay ?? 1.5,
 			wavesSpawned: 0,
 		},
 		tags.props,
 		tags.gameLoop,
+		tags.runtimeCullable,
+		{ runtimeCullRadius: props.radius },
 		...(props.tags ?? []),
 	]);
 
@@ -72,8 +82,20 @@ export function spawnShrine(props: ShrineProps) {
 		k.opacity(0.9),
 		k.layer(layers.gameEffects),
 	]);
+	const chargeFeedback = createChargeZoneFeedback();
+	let completedLight: ReturnType<typeof addLocalLight> | undefined;
+	let completedCore: ReturnType<typeof shrine.add> | undefined;
 
 	registerBatchedEntityUpdate("world", shrine, () => {
+		if (shrine.completed) {
+			if (completedLight) updateLocalLight(completedLight);
+			if (completedCore) {
+				completedCore.scale = k.vec2(k.wave(0.85, 1.2, k.time() * 4));
+				completedCore.opacity = k.wave(0.72, 1, k.time() * 5);
+			}
+			return;
+		}
+
 		// Check if player is inside radius
 		const distToPlayer = playerObj.pos.dist(shrine.pos);
 		shrine.isPlayerInside = distToPlayer < props.radius;
@@ -100,23 +122,64 @@ export function spawnShrine(props: ShrineProps) {
 		}
 
 		// Update timer bar
-		const progress = shrine.timer / shrine.maxTimer;
+		const progress = k.clamp(shrine.timer / shrine.maxTimer, 0, 1);
 		barFill.width = barWidth * progress;
+		chargeFeedback.update(shrine.isPlayerInside, progress);
 
 		// Check if capture complete
 		if (shrine.timer >= shrine.maxTimer) {
+			shrine.completed = true;
+			shrine.isPlayerInside = false;
+			chargeFeedback.stop("charge-zone-complete");
+			k.destroy(circle);
+			k.destroy(barBg);
+			k.destroy(barFill);
+			shrine.color = k.rgb(175, 225, 255);
+
 			// Spawn particles
 			explosionEmitter.pos = shrine.pos;
 			explosionEmitter.emit(30);
+			spawnRing({
+				pos: shrine.pos,
+				speed: 270,
+				intensity: 0.48,
+				maxRadius: Math.max(190, props.radius * 1.12),
+				color: k.rgb(90, 205, 255),
+				visualOpacity: 0.9,
+				outlineWidth: 4,
+			});
+			k.shake(6);
+			completedLight = addLocalLight(shrine, {
+				size: 46,
+				color: [70, 185, 255],
+				opacity: 0.72,
+				pulse: {
+					scaleMin: 0.82,
+					scaleMax: 1.2,
+					scaleSpeed: 3.2,
+					opacityMin: 0.48,
+					opacityMax: 0.82,
+					opacitySpeed: 4.1,
+				},
+			});
+			completedCore = shrine.add([
+				k.circle(4),
+				k.anchor("center"),
+				k.color(125, 225, 255),
+				k.opacity(1),
+				k.scale(1),
+				k.layer(layers.gameEffects),
+				k.z(1001),
+				k.blend(k.BlendMode.Add),
+			]);
 
 			// Play sound
 			audioService.playSound("powerup1", { volume: mainSoundVolume });
 			props.onComplete?.(shrine.pos.clone());
-
-			// Destroy shrine
-			k.destroy(shrine);
 		}
 	});
+
+	shrine.onDestroy(() => chargeFeedback.stop("charge-zone-destroyed"));
 
 	function spawnShrineEnemyWave() {
 		const spawnDistance = props.enemySpawnDistance ?? props.radius + 120;

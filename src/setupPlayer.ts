@@ -39,13 +39,23 @@ import { tags } from "./tags";
 import { audioService } from "./services/audioService";
 import { loopService } from "./services/loopService";
 import { profileSection } from "./services/frameProfilerService";
-import { applyProjectileDamage } from "./services/projectileService";
+import {
+	applyKnockbackImpulse,
+	applyProjectileDamage,
+} from "./services/projectileService";
 import {
 	applyDamage,
 	resetPlayerDeathCause,
 } from "./services/damageService";
 import { timescale } from "./comp/timescale";
 import { addShipThruster } from "./comp/shipThruster"
+import { registerBatchedEntityUpdate } from "./services/entityUpdateService"
+import { recoverPlayerHealth } from "./services/playerHealthService"
+import {
+	BASE_PLAYER_HEALTH,
+	HULL_UPGRADE_AMOUNT,
+	REPAIR_PULSE_RECOVERY,
+} from "./services/playerHealthBalance"
 import type { GridCollisionComp } from "./comp/gridCollision";
 import { levelTransitionActive } from "./services/levelTransitionService";
 import { getPriorityInteraction } from "./comp/interactable";
@@ -60,20 +70,21 @@ import { narrativePrologueActive } from "./services/narrativeService";
 import { spawnAfterburnerWake } from "./spawn/spawnAfterburnerWake";
 import { spawnFlash } from "./spawn/spawnFlash";
 import { spawnRing } from "./spawn/spawnRing";
+import { spawnEmpDischarge } from "./spawn/spawnEmpDischarge"
 import {
 	resetPlayerDamageState,
 	setPlayerDamageInvulnerable,
 } from "./services/playerDamageState";
-import { forEachSpatialNearby } from "./services/runtimeSpatialIndexService";
+import {
+	forEachSpatialNearby,
+	querySpatialNearby,
+} from "./services/runtimeSpatialIndexService";
 import { isPointerOverUi } from "./services/uiPointerService";
 import {
 	clearCameraBob,
 	getCameraBobScale,
 	startCameraBob,
 } from "./services/cameraEffectService";
-import {
-	constrainToRunFinaleBattleZone,
-} from "./services/runFinaleArenaService";
 import { dialogCapturesInput } from "./services/dialogService";
 import { cutsceneActive } from "./services/cutsceneService";
 import { uiState } from "./ui/uiState";
@@ -108,9 +119,15 @@ import {
 	consumeUltimateCharge,
 	getUltimateChargeProgress,
 } from "./services/ultimateAbilityService";
-import { getAbilityDefinition } from "./services/abilityRegistry";
+import {
+	getAbilityDefinition,
+	RETRO_BURST_CHARGE_COUNT,
+} from "./services/abilityRegistry";
 import { playRequirementErrorSound } from "./services/uiSoundService";
-import { getAbilityTierValues } from "./services/abilityTierService";
+import {
+	getAbilityTierValues,
+	type AbilityTierValues,
+} from "./services/abilityTierService";
 import {
 	resetPassiveUpgradeRuntime,
 	updatePassiveUpgradeRuntime,
@@ -128,14 +145,22 @@ const playerAcceleration = 420;
 const playerDeceleration = 560;
 const cameraZoomLerpSpeed = 5;
 const multiBlasterMountSpacing = 6;
+const weaponRecoilReturnSpeed = 20;
+const maxWeaponRecoilDistance = 8;
 const overclockShakeInterval = 0.12;
 const overclockShakeIntensity = 0.25;
+const lowHealthWarningThreshold = 0.1;
 const afterburnerWakeInterval = 0.14;
 const phaseJumpAfterimageDuration = 0.18;
 const phaseJumpPostInvulnerability = 0.6;
 const phaseJumpDuration = 0.12;
+const gravitySlingRange = 300;
+const gravitySlingHookSpeed = 760;
+const gravitySlingBaseDamage = 14;
+const gravitySlingReleaseSpeedMultiplier = 1.8;
 const phaseJumpCooldownBarWidth = 22;
 const phaseJumpCooldownBarOffset = -22;
+const retroBurstKnockbackForce = 48;
 const normalCameraFollowSpeed = 16;
 const phaseCameraFollowSpeed = 6;
 const respawnTransitionDuration = 0.42;
@@ -171,6 +196,24 @@ const phaseJumpHitTargets = new Set<number>();
 let retroBurstStart: Vec2 | undefined;
 let retroBurstEnd: Vec2 | undefined;
 let retroBurstElapsed = 0;
+interface GravitySlingState {
+	phase: "hook" | "sling";
+	target?: GameObj<PosComp>;
+	anchorPos: Vec2;
+	hookStart: Vec2;
+	hookVisual: GameObj<PosComp>;
+	tetherVisual: GameObj<PosComp> & { endPos: Vec2 };
+	elapsed: number;
+	duration: number;
+	slingStart?: Vec2;
+	slingEnd?: Vec2;
+	slingDirection?: Vec2;
+	arcSide: number;
+	damage: number;
+	speedMultiplier: number;
+	hitTargets: Set<number>;
+}
+let gravitySlingState: GravitySlingState | undefined;
 let nextPrimaryFireTime = 0;
 let configuredWeaponId = "";
 let overclockShakeTimer = 0;
@@ -200,6 +243,7 @@ function getPlayerShipDirectionIndex(angle: number) {
 export function setupPlayer(options: SetupPlayerOptions = {}) {
 	resetPlayerDeathCause();
 	resetPassiveUpgradeRuntime();
+	clearGravitySlingState();
 	repairPulseGeneration++;
 	reactivePlatingReadyAt = 0;
 	const respawnTarget = options.spawnPosition?.clone() ?? k.center();
@@ -258,6 +302,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		k.opacity(playerObj.opacity),
 		k.z(0),
 	])
+	playerObj.playerHullVisual = playerHullObj
 	playerHullObj.onUpdate(() => {
 		const nextDirection = getPlayerShipDirectionIndex(playerObj.angle)
 		if (nextDirection !== playerHullDirection) {
@@ -280,6 +325,28 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		if (!overclockSound) return
 		audioService.stopSound(overclockSound, "overclock-ended")
 		overclockSound = undefined
+	}
+	let lowHealthWarningSound: AudioPlay | undefined
+	const stopLowHealthWarning = () => {
+		if (!lowHealthWarningSound) return
+		audioService.stopSound(lowHealthWarningSound, "health-recovered")
+		lowHealthWarningSound = undefined
+	}
+	const syncLowHealthWarning = () => {
+		const healthRatio = playerObj.maxHP > 0
+			? playerObj.hp / playerObj.maxHP
+			: 0
+		const lowHealth = playerObj.hp > 0 &&
+			healthRatio <= lowHealthWarningThreshold
+		if (!lowHealth) {
+			stopLowHealthWarning()
+			return
+		}
+		if (lowHealthWarningSound) return
+		lowHealthWarningSound = audioService.playSound("low_health_warning", {
+			volume: mainSoundVolume * 0.55,
+			loop: true,
+		})
 	}
 	const inputControllers: KEventController[] = [];
 	const readinessFlashQueue: ReturnType<typeof k.rgb>[] = [];
@@ -387,6 +454,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		k.z(-1),
 	]);
 	let turretWorldAngle = playerObj.angle;
+	let weaponRecoilOffset = 0;
 
 	const targetObj = k.add([k.pos(k.center()), k.z(1000), tags.gameLoop]);
 	currentCameraPos = respawnTarget.clone();
@@ -424,11 +492,13 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	});
 	playerObj.onDestroy(() => {
 		stopOverclockSound()
+		stopLowHealthWarning()
 		stopPrimaryChargeSound();
 		for (const controller of inputControllers) controller.cancel();
 	});
 
 	playerObj.onUpdate(() => profileSection("external:playerVisuals", () => {
+		syncLowHealthWarning()
 		// Clear before transition early returns so jumps never leave a stale flame.
 		if (levelTransitionActive() || arrivalTransitionActive || respawnTransitionActive) {
 			thruster.update(0, 0)
@@ -449,13 +519,21 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		const currentWeapon = getEquippedWeapon();
 		if (configuredWeaponId !== currentWeapon.id) {
 			weaponVisual.use(k.sprite(currentWeapon.icon));
-			weaponVisual.pos.y = currentWeapon.mountOffsetY / PLAYER_SCALE;
+			weaponRecoilOffset = 0;
 			weaponVisual.scale = k.vec2(
 				currentWeapon.mountScale / PLAYER_SCALE
 			);
 			configuredWeaponId = currentWeapon.id;
 			configureBlasters(muzzleObj);
 		}
+		weaponRecoilOffset = k.lerp(
+			weaponRecoilOffset,
+			0,
+			1 - Math.exp(-weaponRecoilReturnSpeed * dt())
+		);
+		if (weaponRecoilOffset < 0.01) weaponRecoilOffset = 0;
+		weaponVisual.pos.y =
+			(currentWeapon.mountOffsetY + weaponRecoilOffset) / PLAYER_SCALE;
 		const primaryChargeProgress = currentWeapon.charge &&
 			primaryChargeStartedAt !== undefined &&
 			currentWeapon.id === primaryChargeWeaponId
@@ -571,7 +649,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			const addedHealth = Math.max(0, desiredMaxHealth - playerObj.maxHP);
 			playerObj.maxHP = desiredMaxHealth;
 			if (addedHealth > 0) {
-				playerObj.hp = Math.min(playerObj.maxHP, playerObj.hp + addedHealth);
+				recoverPlayerHealth(playerObj, addedHealth);
 			}
 			syncPlayerHealthBarCapacity(desiredMaxHealth);
 			updatePlayerHealthBar(playerObj.hp);
@@ -690,10 +768,12 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 
 		const isPhaseJumping = updatePhaseJump(playerObj);
 		const isRetroBursting = updateRetroBurst(playerObj);
-		const isMobilityMoving = isPhaseJumping || isRetroBursting;
-		constrainToRunFinaleBattleZone(playerObj.pos, 16);
+		const isGravitySlinging = updateGravitySling(playerObj);
+		const isMobilityMoving =
+			isPhaseJumping || isRetroBursting || isGravitySlinging;
 		const isInvulnerable =
-			isPhaseJumping || k.time() < phaseJumpInvulnerableUntil;
+			isPhaseJumping || isGravitySlinging ||
+			k.time() < phaseJumpInvulnerableUntil;
 		setPlayerDamageInvulnerable(isInvulnerable);
 		playerObj.opacity = isInvulnerable ? 0.35 : 1;
 		const cameraFollowSpeed = isMobilityMoving
@@ -849,7 +929,11 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		// Hull reinforcement and attached armor stand in for visual weight;
 		// this affects exhaust only, leaving movement balance unchanged.
 		const thrustWeight = 1 + Math.min(0.75,
-			Math.max(0, player.maxHealth + session.extraHealth - 3) * 0.08 +
+			Math.max(
+				0,
+				(player.maxHealth + session.extraHealth - BASE_PLAYER_HEALTH) /
+					HULL_UPGRADE_AMOUNT
+			) * 0.08 +
 			session.scrapArmorCharges * 0.1
 		)
 		const emitThrusterParticle = thruster.update(
@@ -867,8 +951,6 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 				PLAYER_SCALE
 			);
 		}
-		constrainToRunFinaleBattleZone(playerObj.pos, 16);
-
 		if (emitThrusterParticle && !isMobilityMoving) {
 			const activeTrailEmitter = isBoosting
 				? boostTrailEmitter
@@ -914,7 +996,6 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		audioService.playSound("hit2", { volume: mainSoundVolume });
 		playerObj.animation.seek(0);
 		k.shake(20);
-		k.flash(k.RED, 0.4);
 		updatePlayerHealthBar(playerObj.hp);
 	});
 
@@ -928,6 +1009,23 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		levelTransitionActive() ||
 		respawnTransitionActive;
 	const canFirePrimaryWeapon = () => !combatInputBlocked();
+	const kickWeaponVisual = (weapon: WeaponDefinition, chargeRatio: number) => {
+		const projectileCount = Math.max(
+			1,
+			Math.floor(weapon.pattern?.projectileCount ?? 1)
+		);
+		const salvoMultiplier = 1 + Math.min(0.45, (projectileCount - 1) * 0.1);
+		const chargeMultiplier = weapon.charge
+			? k.lerp(0.7, 1.35, k.clamp(chargeRatio, 0, 1))
+			: 1;
+		const recoilDistance = k.clamp(
+			(2 + weapon.damageMultiplier * 2.2) *
+				salvoMultiplier * chargeMultiplier,
+			2.5,
+			maxWeaponRecoilDistance
+		);
+		weaponRecoilOffset = Math.max(weaponRecoilOffset, recoilDistance);
+	};
 
 	const fireWeaponVolley = (
 		weapon: WeaponDefinition,
@@ -960,6 +1058,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 				chargeRatio
 			)
 			: undefined;
+		kickWeaponVisual(weapon, chargeRatio);
 
 		if (
 			session.primaryRocketChance > 0 &&
@@ -1172,79 +1271,17 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			!config ||
 			phaseJumpCharges <= 0 ||
 			phaseJumpEnd ||
-			retroBurstEnd
+			retroBurstEnd ||
+			gravitySlingState
 		) {
 			recordTelemetryAbilityFailure("mobility", mobilityId);
 			return;
 		}
-		if (mobilityId === "driftBrake") {
-			consumeMobilityCharge();
-			currentMoveSpeed = 0;
-			playerObj.gravityVelocity = k.vec2(0);
-			phaseJumpInvulnerableUntil = Math.max(
-				phaseJumpInvulnerableUntil,
-				k.time() + 0.18
-			);
-			spawnRing({
-				pos: playerObj.pos.clone(),
-				speed: 230,
-				intensity: 0.24,
-				maxRadius: 40,
-				color: k.rgb(180, 230, 255),
-			});
-			spawnFlash(playerObj.pos.clone(), 7, k.rgb(180, 230, 255));
-			audioService.playSound("swap_level", {
-				volume: mainSoundVolume * 0.5,
-				detune: -180,
-			});
-			recordTelemetryAbilityUse("mobility", mobilityId);
-			return;
-		}
 		if (mobilityId === "gravitySling") {
-			consumeMobilityCharge();
 			const tier = getAbilityTierValues(mobilityId);
-			const targetPos = getActiveModuleTarget(
-				playerObj.pos,
-				180 * tier.speed
-			);
-			const gravity = spawnGravityPull({
-				pos: targetPos,
-				radius: 230 * tier.speed,
-				strength: 68 * tier.power,
-				falloff: 0.7,
-				visualizePull: true,
-				targetTags: [tags.player],
-			});
-			const sling = k.add([
-				k.pos(targetPos),
-				k.sprite("mobility_gravity_sling"),
-				k.anchor("center"),
-				k.scale(0.72),
-				k.color(120, 190, 255),
-				k.opacity(0.8),
-				k.rotate(0),
-				k.layer(layers.gameEffects),
-				tags.gameLoop,
-			]);
-			sling.onUpdate(() => {
-				sling.angle += 180 * dt();
-				sling.opacity = k.wave(0.38, 0.9, k.time() * 8);
-			});
-			k.wait(1.15 * tier.power, () => {
-				if (gravity.exists()) k.destroy(gravity);
-				if (sling.exists()) k.destroy(sling);
-			});
-			spawnRing({
-				pos: targetPos,
-				speed: 80,
-				intensity: 0.22,
-				maxRadius: 48,
-				color: k.rgb(120, 190, 255),
-			});
-			audioService.playSound("swap_level", {
-				volume: mainSoundVolume * 0.55,
-				detune: -420,
-			});
+			const aimDirection = k.Vec2.fromAngle(turretWorldAngle - 90);
+			beginGravitySling(playerObj, aimDirection, tier);
+			consumeMobilityCharge();
 			recordTelemetryAbilityUse("mobility", mobilityId);
 			return;
 		}
@@ -1256,7 +1293,6 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		const destination = startPos.add(
 			jumpDirection.scale(config.distance ?? 0)
 		);
-		constrainToRunFinaleBattleZone(destination, 16);
 		const gridCollision = playerObj.has("gridCollision")
 			? (playerObj.c("gridCollision") as GridCollisionComp)
 			: undefined;
@@ -1269,6 +1305,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		recordTelemetryAbilityUse("mobility", mobilityId);
 		consumeMobilityCharge();
 		if (mobilityId === "retroBurst") {
+			const tier = getAbilityTierValues(mobilityId);
 			retroBurstStart = startPos;
 			retroBurstEnd = destination;
 			retroBurstElapsed = 0;
@@ -1278,7 +1315,11 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			}, (enemy) => {
 				const away = enemy.pos.sub(startPos);
 				if (away.len() <= 0) return;
-				enemy.pos = enemy.pos.add(away.unit().scale(30));
+				applyKnockbackImpulse(
+					enemy,
+					away,
+					retroBurstKnockbackForce * tier.power
+				);
 			});
 			return;
 		}
@@ -1554,11 +1595,8 @@ function getMobilityChargeConfig(): PhaseJumpConfig | undefined {
 		return {
 			distance: 68 * tier.speed,
 			cooldown: 3.2 / tier.recovery,
-			charges: 1,
+			charges: RETRO_BURST_CHARGE_COUNT,
 		};
-	}
-	if (mobilityId === "driftBrake") {
-		return { cooldown: 3.6 / tier.recovery, charges: 1 };
 	}
 	if (mobilityId === "gravitySling") {
 		return { cooldown: 5 / tier.recovery, charges: 1 };
@@ -1947,50 +1985,63 @@ function activateModule(
 		case "repairPulse": {
 			const generation = ++repairPulseGeneration;
 			const channelDuration = 1.5;
-			const pulseInterval = 0.25;
-			for (let step = 1; step <= channelDuration / pulseInterval; step++) {
-				k.wait(step * pulseInterval, () => {
-					if (!playerObj.exists() || generation !== repairPulseGeneration) return;
-					spawnRing({
-						pos: playerObj.pos.clone(),
-						speed: 90,
-						intensity: 0.12,
-						maxRadius: 30,
-						color: k.rgb(80, 255, 175),
-					});
-					if (step < channelDuration / pulseInterval) return;
-					const maxHp = typeof playerObj.maxHP === "number"
-						? playerObj.maxHP
-						: player.maxHealth;
-					playerObj.hp = Math.min(
-						maxHp,
-						playerObj.hp + Math.max(1, Math.round(tier.power))
-					);
-					updatePlayerHealthBar(playerObj.hp);
-					spawnFlash(playerObj.pos, 10, k.rgb(80, 255, 175));
-					audioService.playSound("collect1", {
-						volume: mainSoundVolume * 0.65,
-						detune: 420,
-					});
+			const chargePulse = k.add([
+				k.pos(playerObj.pos),
+				k.circle(28),
+				k.anchor("center"),
+				k.color(80, 255, 175),
+				k.opacity(0.12),
+				k.scale(1),
+				k.layer(layers.gameEffects),
+				k.z(-3),
+				{
+					elapsed: 0,
+				},
+			]);
+			registerBatchedEntityUpdate("effects", chargePulse, () => {
+				if (generation !== repairPulseGeneration) {
+					k.destroy(chargePulse);
+					return;
+				}
+				chargePulse.pos = playerObj.pos;
+				chargePulse.elapsed += k.dt();
+				const progress = k.clamp(
+					chargePulse.elapsed / channelDuration,
+					0,
+					1
+				);
+				const wave = (Math.sin(chargePulse.elapsed * Math.PI * 4) + 1) / 2;
+				const easedWave = wave * wave * (3 - 2 * wave);
+				chargePulse.scale = k.vec2(k.lerp(0.88, 1.18, easedWave));
+				chargePulse.opacity = k.lerp(0.08, 0.2, easedWave) *
+					k.lerp(0.65, 1, progress);
+			});
+			k.wait(channelDuration, () => {
+				if (!playerObj.exists() || generation !== repairPulseGeneration) return;
+				if (chargePulse.exists()) k.destroy(chargePulse);
+				recoverPlayerHealth(
+					playerObj,
+					Math.round(REPAIR_PULSE_RECOVERY * tier.power)
+				);
+				spawnFlash(playerObj.pos, 10, k.rgb(80, 255, 175));
+				audioService.playSound("collect1", {
+					volume: mainSoundVolume * 0.65,
+					detune: 420,
 				});
-			}
+			});
 			return;
 		}
 
 		case "empBeacon": {
 			const origin = playerObj.pos.clone();
-			spawnRing({
-				pos: origin,
-				speed: 320,
-				intensity: 0.45,
-				maxRadius: 150 * tier.speed,
-				color: k.rgb(75, 205, 255),
-			});
+			const radius = 150 * tier.speed;
+			const affectedTargets: Vec2[] = [];
 			spawnFlash(origin, 12, k.rgb(75, 205, 255));
-			forEachSpatialNearby(origin, 150 * tier.speed, {
+			forEachSpatialNearby(origin, radius, {
 				allTags: [tags.enemy, tags.unit],
 			}, (enemy) => {
 				if (!(enemy.timescaleModifiers instanceof Map)) return;
+				affectedTargets.push(enemy.pos.clone());
 				enemy.timescaleModifiers.set(empTimescaleModifierId, 0.05);
 				k.wait(3 * tier.power, () => {
 					if (enemy.exists() && enemy.timescaleModifiers instanceof Map) {
@@ -1998,6 +2049,7 @@ function activateModule(
 					}
 				});
 			});
+			spawnEmpDischarge({ pos: origin, radius, targets: affectedTargets });
 			audioService.playSound("swap_level", {
 				volume: mainSoundVolume * 0.75,
 				detune: -520,
@@ -2197,9 +2249,8 @@ function spawnRetroBurstEffect(start: Vec2, end: Vec2, angle: number) {
 		},
 		tags.gameLoop,
 	]);
-	audioService.playSound("swap_level", {
-		volume: mainSoundVolume * 0.55,
-		detune: 180,
+	audioService.playSound("mobility_phase_jump", {
+		volume: mainSoundVolume * 0.65,
 	});
 	k.shake(2);
 }
@@ -2249,6 +2300,267 @@ function spawnRespawnJumpEffect(start: Vec2, end: Vec2, angle: number) {
 		volume: 0.45,
 		detune: 350,
 	});
+}
+
+function beginGravitySling(
+	playerObj: GameObj<PosComp>,
+	aimDirection: Vec2,
+	tier: AbilityTierValues
+) {
+	const direction = aimDirection.len() > 0
+		? aimDirection.unit()
+		: k.Vec2.fromAngle(playerObj.angle - 90);
+	const range = gravitySlingRange * tier.speed;
+	const target = findGravitySlingTarget(playerObj, direction, range);
+
+	const hookStart = playerObj.pos.clone();
+	const anchorPos = target?.pos.clone() ?? hookStart.add(direction.scale(range));
+	const hookVisual = k.add([
+		k.pos(hookStart),
+		k.sprite("mobility_gravity_sling"),
+		k.anchor("center"),
+		k.scale(0.46),
+		k.rotate(k.Vec2.toAngle(direction) + 90),
+		k.color(120, 210, 255),
+		k.opacity(0.95),
+		k.layer(layers.gameEffects),
+		k.z(10),
+		tags.gameLoop,
+	]);
+	const tetherVisual = k.add([
+		k.pos(hookStart),
+		k.layer(layers.gameEffects),
+		k.z(9),
+		{
+			endPos: hookStart.clone(),
+			draw() {
+				const end = this.endPos.sub(this.pos);
+				k.drawLine({
+					p1: k.vec2(),
+					p2: end,
+					width: 3,
+					color: k.rgb(10, 28, 38),
+					opacity: 0.85,
+				});
+				k.drawLine({
+					p1: k.vec2(),
+					p2: end,
+					width: 1,
+					color: k.rgb(120, 210, 255),
+					opacity: 0.95,
+				});
+			},
+		},
+		tags.gameLoop,
+	]) as GameObj<PosComp> & { endPos: Vec2 };
+	const currentDirection = k.Vec2.fromAngle(playerObj.angle - 90);
+	const cross = direction.x * currentDirection.y - direction.y * currentDirection.x;
+
+	gravitySlingState = {
+		phase: "hook",
+		target: target as GameObj<PosComp> | undefined,
+		anchorPos,
+		hookStart,
+		hookVisual,
+		tetherVisual,
+		elapsed: 0,
+		duration: k.clamp(hookStart.dist(anchorPos) / gravitySlingHookSpeed, 0.12, 0.42),
+		arcSide: Math.abs(cross) > 0.05 ? Math.sign(cross) : 1,
+		damage: gravitySlingBaseDamage * tier.power,
+		speedMultiplier: tier.speed,
+		hitTargets: new Set<number>(),
+	};
+	audioService.playSound("mobility_phase_jump", {
+		volume: mainSoundVolume * 0.48,
+		detune: -520,
+	});
+}
+
+function findGravitySlingTarget(
+	playerObj: GameObj<PosComp>,
+	direction: Vec2,
+	range: number
+) {
+	const queryCenter = playerObj.pos.add(direction.scale(range * 0.5));
+	const candidates = querySpatialNearby(queryCenter, range * 0.5 + 56, {
+		anyTags: [tags.unit],
+	});
+	let target: GameObj | undefined;
+	let targetScore = Number.POSITIVE_INFINITY;
+	for (const candidate of candidates) {
+		if (
+			candidate.id === playerObj.id ||
+			candidate.is(tags.friendly) ||
+			candidate.is(tags.projectile) ||
+			!candidate.pos
+		) continue;
+		const offset = candidate.pos.sub(playerObj.pos);
+		const forwardDistance = offset.dot(direction);
+		if (forwardDistance < 18 || forwardDistance > range) continue;
+		const closestPoint = playerObj.pos.add(direction.scale(forwardDistance));
+		const targetRadius = Math.max(
+			14,
+			Number(candidate.hb) || 0,
+			Math.min(36, Math.max(Number(candidate.width) || 0, Number(candidate.height) || 0) * 0.35)
+		);
+		const lateralDistance = candidate.pos.dist(closestPoint);
+		if (lateralDistance > targetRadius + 18) continue;
+		const score = forwardDistance + lateralDistance * 2;
+		if (score >= targetScore) continue;
+		target = candidate;
+		targetScore = score;
+	}
+	return target;
+}
+
+function updateGravitySling(playerObj: GameObj<PosComp>) {
+	const state = gravitySlingState;
+	if (!state) return false;
+	if (!state.hookVisual.exists() || !state.tetherVisual.exists()) {
+		clearGravitySlingState();
+		return false;
+	}
+
+	if (state.target?.exists()) state.anchorPos = state.target.pos.clone();
+	state.elapsed += dt();
+	state.tetherVisual.pos = playerObj.pos.clone();
+
+	if (state.phase === "hook") {
+		const progress = k.clamp(state.elapsed / state.duration, 0, 1);
+		const easedProgress = 1 - Math.pow(1 - progress, 3);
+		state.hookVisual.pos = state.hookStart.lerp(state.anchorPos, easedProgress);
+		state.tetherVisual.endPos = state.hookVisual.pos.clone();
+		if (progress < 1) return false;
+
+		state.phase = "sling";
+		state.elapsed = 0;
+		state.slingStart = playerObj.pos.clone();
+		const toAnchor = state.anchorPos.sub(state.slingStart);
+		state.slingDirection = toAnchor.len() > 0.001
+			? toAnchor.unit()
+			: k.Vec2.fromAngle(playerObj.angle - 90);
+		state.slingEnd = resolveGravitySlingEnd(
+			playerObj,
+			state.anchorPos,
+			state.slingDirection,
+			Math.max(90, state.slingStart.dist(state.anchorPos) * 0.62) *
+				state.speedMultiplier
+		);
+		const travelDistance = state.slingStart.dist(state.slingEnd);
+		state.duration = k.clamp(
+			travelDistance / (500 * state.speedMultiplier),
+			0.34,
+			0.68
+		);
+		state.hookVisual.pos = state.anchorPos.clone();
+		spawnRing({
+			pos: state.anchorPos.clone(),
+			speed: 150,
+			intensity: 0.28,
+			maxRadius: 34,
+			color: k.rgb(120, 210, 255),
+		});
+		spawnFlash(state.anchorPos.clone(), 6, k.rgb(120, 210, 255));
+		k.shake(2);
+	}
+
+	if (!state.slingStart || !state.slingEnd || !state.slingDirection) return false;
+	const previousPos = playerObj.pos.clone();
+	const progress = k.clamp(state.elapsed / state.duration, 0, 1);
+	const acceleratedProgress = progress * (0.55 + progress * 0.45);
+	const perpendicular = k.vec2(-state.slingDirection.y, state.slingDirection.x);
+	const arcHeight = Math.min(
+		32,
+		state.slingStart.dist(state.anchorPos) * 0.14
+	) * state.arcSide;
+	playerObj.pos = state.slingStart
+		.lerp(state.slingEnd, acceleratedProgress)
+		.add(perpendicular.scale(Math.sin(progress * Math.PI) * arcHeight));
+	state.tetherVisual.pos = playerObj.pos.clone();
+	const movement = playerObj.pos.sub(previousPos);
+	if (movement.len() > 0.001) playerObj.angle = k.Vec2.toAngle(movement) + 90;
+	playerObj.gravityVelocity = k.vec2(0);
+	state.tetherVisual.endPos = state.anchorPos.clone();
+	state.hookVisual.pos = state.anchorPos.clone();
+	applyGravitySlingDamage(previousPos, playerObj.pos, state);
+	boostTrailEmitter.emitter.position = playerObj.pos;
+	boostTrailEmitter.emitter.direction = k.Vec2.toAngle(movement.scale(-1));
+	boostTrailEmitter.emit(2);
+
+	if (progress < 1) return true;
+	const releaseDirection = state.slingDirection
+		.add(perpendicular.scale(-state.arcSide * 0.6))
+		.unit();
+	const releaseSpeed = player.speed * player.speedMultiplier *
+		gravitySlingReleaseSpeedMultiplier * state.speedMultiplier;
+	playerObj.angle = k.Vec2.toAngle(releaseDirection) + 90;
+	currentMoveSpeed = Math.max(currentMoveSpeed, releaseSpeed);
+	phaseJumpInvulnerableUntil = Math.max(
+		phaseJumpInvulnerableUntil,
+		k.time() + 0.12
+	);
+	spawnRing({
+		pos: playerObj.pos.clone(),
+		speed: 260,
+		intensity: 0.3,
+		maxRadius: 44,
+		color: k.rgb(120, 210, 255),
+	});
+	spawnFlash(playerObj.pos.clone(), 8, k.rgb(120, 210, 255));
+	audioService.playSound("mobility_phase_jump", {
+		volume: mainSoundVolume * 0.65,
+		detune: 180,
+	});
+	k.shake(4);
+	clearGravitySlingState();
+	return true;
+}
+
+function resolveGravitySlingEnd(
+	playerObj: GameObj<PosComp>,
+	anchorPos: Vec2,
+	direction: Vec2,
+	desiredDistance: number
+) {
+	const gridCollision = playerObj.has("gridCollision")
+		? playerObj.c("gridCollision") as GridCollisionComp
+		: undefined;
+	if (!gridCollision) return anchorPos.add(direction.scale(desiredDistance));
+	for (let distance = desiredDistance; distance >= 24; distance -= 12) {
+		const candidate = anchorPos.add(direction.scale(distance));
+		if (gridCollision.canMoveTo(candidate)) return candidate;
+	}
+	return anchorPos.clone();
+}
+
+function applyGravitySlingDamage(
+	start: Vec2,
+	end: Vec2,
+	state: GravitySlingState
+) {
+	const midpoint = start.lerp(end, 0.5);
+	const radius = start.dist(end) * 0.5 + 56;
+	forEachSpatialNearby(midpoint, radius, {
+		allTags: [tags.unit, tags.enemy],
+	}, (target) => {
+		if (
+			state.hitTargets.has(target.id) ||
+			typeof target.hp !== "number"
+		) return;
+		const hitRadius = Math.max(12, Number(target.hb) || 0) + 10;
+		if (distanceToSegment(target.pos, start, end) > hitRadius) return;
+		if (!applyDamage(target, state.damage, { position: end })) return;
+		state.hitTargets.add(target.id);
+		spawnFlash(target.pos.clone(), 8, k.rgb(120, 210, 255));
+	});
+}
+
+function clearGravitySlingState() {
+	const state = gravitySlingState;
+	gravitySlingState = undefined;
+	if (!state) return;
+	if (state.hookVisual.exists()) k.destroy(state.hookVisual);
+	if (state.tetherVisual.exists()) k.destroy(state.tetherVisual);
 }
 
 function updatePhaseJump(playerObj: GameObj<PosComp>): boolean {

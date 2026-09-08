@@ -78,6 +78,7 @@ function spawnBrokenDrone(props: BrokenDroneProps) {
 		{ repairCost: props.cost },
 		tags.props,
 		tags.gameLoop,
+		tags.runtimeCullable,
 		...props.tags,
 	])
 	const prompt = wreck.add([

@@ -9,6 +9,7 @@ import { spawnBuilding } from "../spawnBuilding"
 import { spawnRing } from "../spawnRing"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 import { UI_FONT_SIZES } from "../../ui/common"
+import { createChargeZoneFeedback } from "../../services/chargeZoneFeedbackService"
 
 interface SignalRelayProps {
 	pos: Vec2
@@ -24,6 +25,7 @@ export function spawnSignalRelay(props: SignalRelayProps) {
 	let completed = false
 	let activeNode = 0
 	let nodeProgress = 0
+	const chargeFeedback = createChargeZoneFeedback()
 	const relay = spawnBuilding({
 		pos: props.pos,
 		sprite: "room_signal_relay",
@@ -59,6 +61,7 @@ export function spawnSignalRelay(props: SignalRelayProps) {
 			},
 			tags.props,
 			tags.gameLoop,
+			tags.runtimeCullable,
 			...(props.tags ?? []),
 		])
 		node.add([
@@ -80,12 +83,15 @@ export function spawnSignalRelay(props: SignalRelayProps) {
 			: `REACH NODE ${activeNode + 1}`
 		node.color = inside ? k.rgb(110, 205, 255) : k.rgb(155, 165, 180)
 		if (!inside) {
+			chargeFeedback.update(false, 0)
 			nodeProgress = Math.max(0, nodeProgress - k.dt())
 			return
 		}
 
 		nodeProgress += k.dt()
+		chargeFeedback.update(true, nodeProgress / props.nodeCaptureTime)
 		if (nodeProgress < props.nodeCaptureTime) return
+		chargeFeedback.stop("charge-zone-node-complete")
 		node.color = k.rgb(90, 255, 135)
 		node.opacity = 1
 		activeNode++
@@ -108,6 +114,8 @@ export function spawnSignalRelay(props: SignalRelayProps) {
 		props.onComplete?.(relay.pos.clone())
 		audioService.playSound("powerup1", { volume: mainSoundVolume })
 	})
+
+	relay.onDestroy(() => chargeFeedback.stop("charge-zone-destroyed"))
 
 	function activateRelay() {
 		if (active || completed) return

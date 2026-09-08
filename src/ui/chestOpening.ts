@@ -25,6 +25,8 @@ import { addCollectedPowerup } from "./gameUi";
 import {
 	consumeNextChestDifficulty,
 	consumeNextChestRewardType,
+	consumeNextChestWorldOpenAnimation,
+	consumeNextChestWorldPosition,
 	createChestChallengeConfig,
 	normalizeChestChallengeHits,
 	type ChestChallengeConfig,
@@ -67,6 +69,7 @@ import {
 import { equipAbilityWithWorldDrop } from "../services/abilitySwapService";
 import { playerObj } from "../game";
 import { getRewardStatComparisonRows } from "./rewardStatComparison";
+import { spawnRewardPickup } from "../spawn/spawnPowerup";
 
 interface TimingZone {
 	start: number; // 0-1
@@ -180,6 +183,15 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		{ random: () => k.rand() }
 	);
 	const rewardType = consumeNextChestRewardType();
+	const chestWorldPosition = consumeNextChestWorldPosition() ??
+		playerObj.pos.clone();
+	const worldChestOpenAnimation = consumeNextChestWorldOpenAnimation();
+	let worldChestOpenStarted = false;
+	const playWorldChestOpenAnimation = async () => {
+		if (worldChestOpenStarted) return;
+		worldChestOpenStarted = true;
+		await worldChestOpenAnimation?.();
+	};
 	const weaponCache = rewardType === "weapon";
 	const generateRewards = (
 		successfulHits: number,
@@ -1127,6 +1139,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 
 		if (chestController.rewards.length === 0) {
 			finishSequence();
+			void playWorldChestOpenAnimation();
 			return;
 		}
 
@@ -1137,7 +1150,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 
 		chestController.uiContainer.add([
 			k.text(
-				rewardType === "weapon" ? "WEAPON CACHE OPENED" : "CRATE OPENED",
+				rewardType === "weapon" ? "WEAPON CACHE CONTENTS" : "CHEST CONTENTS",
 				{ size: UI_FONT_SIZES.display, font: "unscii" }
 			),
 			k.pos(0, -150),
@@ -1403,38 +1416,28 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 
 		let accepted = false;
 		const acceptControllers = chestController.detailControllers;
-		const acceptReward = (reward: ChestReward) => {
+		const acceptReward = async (reward: ChestReward) => {
 			if (accepted) return;
 			accepted = true;
-
-			const isDiscovery = isAbilityReward(reward);
-			if (
-				isDiscovery &&
-				weaponCache &&
-				!claimDiscoveryReward(reward)
-			) {
-				accepted = false;
-				return;
-			}
-			const applied = isDiscovery
-				? equipDiscoveredAbility(reward)
-				: applyReward(reward, k.center());
-			if (!applied) {
-				accepted = false;
-				return;
-			}
-			if (!isDiscovery) {
-				addCollectedPowerup(reward, {
-					source: "chest",
-					category: reward.kind,
-					rarity: reward.rarity,
-				});
-			}
 
 			// Play purchase sound
 			audioService.playSound("purchase1", { volume: mainSoundVolume });
 
 			finishSequence();
+			await playWorldChestOpenAnimation();
+			spawnRewardPickup(chestWorldPosition, reward, {
+				stationary: true,
+				telemetrySource: "chest",
+				recordOffer: false,
+				launch: {
+					endOffset: k.vec2(0, -48),
+					height: 34,
+					duration: 0.52,
+				},
+				applyEffect: isAbilityReward(reward)
+					? applyChestAbilityReward
+					: undefined,
+			});
 		};
 		const rerollRewards = () => {
 			if (accepted) return;
@@ -1640,12 +1643,13 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 	chestController.onDestroy(stopCapacitorChargeSound);
 }
 
-function equipDiscoveredAbility(reward: ChestReward) {
+function applyChestAbilityReward(reward: ChestReward, position: Vec2) {
 	if (!reward.abilityId || !reward.abilitySlot) return false;
+	if (!applyReward(reward, position)) return false;
 	return equipAbilityWithWorldDrop(
 		reward.abilitySlot,
 		reward.abilityId,
-		playerObj.pos.clone()
+		position
 	);
 }
 

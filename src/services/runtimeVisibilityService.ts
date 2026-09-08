@@ -5,7 +5,14 @@ import { DensePool } from "./densePool"
 import { setPerformanceCounter } from "./frameProfilerService"
 import type { RunFrameContext } from "./runLoopService"
 
-type VisibilityObject = GameObj & { pos: Vec2 }
+type VisibilityObject = GameObj & {
+	pos: Vec2
+	runtimeCullRadius?: number
+}
+
+type CullableEmitter = GameObj & {
+	runtimeVisibilityEmitterPaused?: boolean
+}
 
 const VISIBILITY_MARGIN = 160
 const DENSE_VISIBILITY_THRESHOLD = 750
@@ -45,12 +52,16 @@ export function updateRuntimeVisibility(context: RunFrameContext) {
 			obj.pos.y + radius < minY ||
 			obj.pos.y - radius > maxY
 		if (outside) {
-			obj.hidden = true
-			obj.runtimeVisibilityCulled = true
+			if (obj.runtimeVisibilityCulled !== true) {
+				obj.hidden = true
+				obj.runtimeVisibilityCulled = true
+				setEmitterSimulationPaused(obj, true)
+			}
 			culled++
 		} else if (obj.runtimeVisibilityCulled === true) {
 			if (!sharedVisual) obj.hidden = false
 			obj.runtimeVisibilityCulled = false
+			setEmitterSimulationPaused(obj, false)
 		}
 	})
 
@@ -62,8 +73,11 @@ function ensureRegistry() {
 	if (initialized) return
 	initialized = true
 	for (const obj of k.get<GameObj>(tags.gameLoop)) registerObject(obj)
+	for (const obj of k.get<GameObj>(tags.runtimeCullable)) registerObject(obj)
 	k.onAdd(tags.gameLoop, registerObject)
 	k.onAdd(tags.runtimeCullable, registerObject)
+	k.onTag(tags.runtimeCullable, registerObject)
+	k.onAdd("particles", pauseEmitterUnderCulledParent)
 }
 
 function registerObject(obj: GameObj) {
@@ -79,7 +93,46 @@ function isCullable(obj: GameObj) {
 }
 
 function getVisualRadius(obj: GameObj) {
-	const width = typeof obj.width === "number" ? obj.width * (obj.scale?.x ?? 1) : 0
-	const height = typeof obj.height === "number" ? obj.height * (obj.scale?.y ?? 1) : 0
-	return Math.max(24, width / 2, height / 2, obj.hb ?? 0)
+	const explicitRadius = typeof obj.runtimeCullRadius === "number"
+		? obj.runtimeCullRadius
+		: 0
+	const width = typeof obj.width === "number"
+		? obj.width * Math.abs(obj.scale?.x ?? 1)
+		: 0
+	const height = typeof obj.height === "number"
+		? obj.height * Math.abs(obj.scale?.y ?? 1)
+		: 0
+	return Math.max(24, explicitRadius, width / 2, height / 2, obj.hb ?? 0)
+}
+
+function setEmitterSimulationPaused(root: GameObj, paused: boolean) {
+	setEmitterPaused(root, paused)
+	for (const descendant of root.get("*", { recursive: true })) {
+		setEmitterPaused(descendant, paused)
+	}
+}
+
+function setEmitterPaused(obj: GameObj, paused: boolean) {
+	if (!obj.has("particles")) return
+	const emitter = obj as CullableEmitter
+	if (paused) {
+		if (emitter.paused) return
+		emitter.paused = true
+		emitter.runtimeVisibilityEmitterPaused = true
+		return
+	}
+	if (emitter.runtimeVisibilityEmitterPaused !== true) return
+	emitter.paused = false
+	delete emitter.runtimeVisibilityEmitterPaused
+}
+
+function pauseEmitterUnderCulledParent(obj: GameObj) {
+	let parent = obj.parent
+	while (parent) {
+		if (parent.runtimeVisibilityCulled === true) {
+			setEmitterPaused(obj, true)
+			return
+		}
+		parent = parent.parent
+	}
 }

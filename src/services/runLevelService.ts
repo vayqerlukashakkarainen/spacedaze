@@ -2,7 +2,6 @@ import { RewardRarity } from "../types/rewardTypes"
 
 export type RunLevelBonusId =
 	| "weaponDamage"
-	| "projectileSpeed"
 	| "moveSpeed"
 	| "criticalChance"
 	| "collectionRange"
@@ -35,7 +34,6 @@ export interface RunLevelPlayerStats {
 	blasterDmgMultiplier: number
 	rocketDmgMultiplier: number
 	followerBlasterDmgMultiplier: number
-	blasterSpeedMultiplier: number
 	speedMultiplier: number
 	critChance: number
 	debreeSeekDistanceMultiplier: number
@@ -51,17 +49,6 @@ export const RUN_LEVEL_BONUSES: readonly RunLevelBonusDefinition[] = [
 		baseValue: 0.08,
 		percentage: true,
 		sprite: "blaster_upg_dmg1",
-		rarity: RewardRarity.Common,
-		maxStacks: 8,
-	},
-	{
-		id: "projectileSpeed",
-		name: "BALLISTIC COILS",
-		description: "Increase the velocity of primary weapon projectiles",
-		stat: "PROJECTILE SPEED",
-		baseValue: 0.1,
-		percentage: true,
-		sprite: "blaster_upg_speed1",
 		rarity: RewardRarity.Common,
 		maxStacks: 8,
 	},
@@ -270,7 +257,6 @@ export function applyRunLevelBonuses(target: RunLevelPlayerStats) {
 	target.blasterDmgMultiplier *= damageMultiplier
 	target.rocketDmgMultiplier *= damageMultiplier
 	target.followerBlasterDmgMultiplier *= damageMultiplier
-	target.blasterSpeedMultiplier *= 1 + 0.1 * bonusPower.projectileSpeed
 	target.speedMultiplier *= 1 + 0.07 * bonusPower.moveSpeed
 	target.critChance += 3 * bonusPower.criticalChance
 	target.debreeSeekDistanceMultiplier *= 1 + 0.15 * bonusPower.collectionRange
@@ -280,7 +266,6 @@ export function applyRunLevelBonuses(target: RunLevelPlayerStats) {
 function createEmptyBonusStacks(): Record<RunLevelBonusId, number> {
 	return {
 		weaponDamage: 0,
-		projectileSpeed: 0,
 		moveSpeed: 0,
 		criticalChance: 0,
 		collectionRange: 0,

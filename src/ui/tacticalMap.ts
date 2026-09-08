@@ -850,7 +850,7 @@ function addZoneSidebar(
 			k.color(...UI_COLORS.success),
 		])
 		zoneScroll.content.add([
-			k.text(`SAFE  DEBREE RELAY  x${depositCount}`, {
+			k.text(`SAFE  SALVAGE RELAY  x${depositCount}`, {
 				size: UI_FONT_SIZES.small,
 				font: "unscii",
 				width: width - 24,
@@ -859,7 +859,7 @@ function addZoneSidebar(
 			k.color(...UI_COLORS.success),
 		])
 		zoneScroll.content.add([
-			k.text("DEPOSIT CARRIED DEBREE", {
+			k.text("DEPOSIT CARRIED SALVAGE", {
 				size: UI_FONT_SIZES.tiny,
 				font: "unscii",
 			}),

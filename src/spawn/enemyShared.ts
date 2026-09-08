@@ -2,7 +2,10 @@ import { GameObj, Vec2 } from "kaplay";
 import { k } from "../main";
 import { starsEmitter } from "../particles";
 import { spawnDebree } from "./spawnDebree";
-import { applyProjectileDamage } from "../services/projectileService";
+import {
+	applyProjectileDamage,
+	spawnProjectile,
+} from "../services/projectileService";
 import {
 	RewardSource,
 	rollDropReward,
@@ -19,11 +22,13 @@ import { tags } from "../tags";
 import { spawnEnemyDeathEffect } from "./spawnEnemyDeathEffect";
 import type { EnemyDeathTier } from "./spawnEnemyDeathEffect";
 import { grantUltimateCharge } from "../services/ultimateAbilityService";
+import { player } from "../player";
+import { triggerWreckHarvesterFeedback } from "../services/passiveUpgradeRuntimeService";
+import { addRunLevelXp } from "../services/runLevelService";
 
 interface EnemyDeathVisualOptions {
 	intensity?: number;
 	starCount?: number;
-	shipWreckage?: boolean;
 	tier?: EnemyDeathTier;
 }
 
@@ -55,7 +60,6 @@ export function enemyOnDeath(
 	spawnEnemyDeathEffect(
 		pos,
 		visuals.intensity ?? Math.sqrt(Math.max(1, powerupMultiplier)),
-		visuals.shipWreckage !== false,
 		rewardSource === "boss" ? "boss" : visuals.tier ?? "normal"
 	);
 	for (const follower of k.get(tags.follower) as GameObj[]) {
@@ -67,7 +71,9 @@ export function enemyOnDeath(
 	}
 	starsEmitter.emitter.position = pos;
 	starsEmitter.emit(visuals.starCount ?? 20);
-	spawnDebree(pos, score, { runLevelXp: true });
+	const reactorRewardMultiplier = 1 + player.threatReactorStacks * 0.25;
+	if (score > 0) addRunLevelXp(Math.max(1, Math.round(score)));
+	spawnDebree(pos, score * reactorRewardMultiplier);
 	const dropMultiplier =
 		powerupMultiplier * getForgeDropMultiplier();
 	trySpawnHealthOrb(pos, dropMultiplier);
@@ -81,4 +87,33 @@ export function enemyOnDeath(
 		});
 	}
 	if (allowHack) trySpawnHackedAlly(pos);
+	spawnWreckHarvesterShards(pos);
+}
+
+function spawnWreckHarvesterShards(pos: Vec2) {
+	if (player.wreckHarvesterDamage <= 0) return;
+	triggerWreckHarvesterFeedback(pos);
+	for (const angle of [-25, 25]) {
+		const direction = k.Vec2.fromAngle(angle - 90);
+		spawnProjectile({
+			pos: pos.clone(),
+			dir: direction,
+			rotation: angle,
+			sprite: "particle3",
+			tint: k.rgb(100, 200, 255),
+			effectTint: k.rgb(100, 200, 255),
+			visualScale: 0.65,
+			speed: 105,
+			tags: [tags.friendly, tags.blaster],
+			impact: { damage: player.wreckHarvesterDamage },
+			seek: {
+				enabled: true,
+				acquireDelay: 0.05,
+				seekDistance: 320,
+				turnSpeed: 320,
+				targetTags: [tags.enemy],
+			},
+			lifespan: { duration: 2.8 },
+		});
+	}
 }

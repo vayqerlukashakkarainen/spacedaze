@@ -108,7 +108,8 @@ export function updateDebug() {
 			`Enemy FX ${snapshot.counters.enemyFxEmitted ?? 0}/${snapshot.counters.enemyFxRequested ?? 0}  culled ${snapshot.counters.enemyFxCulled ?? 0}  cadence ${snapshot.counters.enemyFxCadence ?? 1}`,
 			`Enemies ${objectStats.enemies}  Projectiles ${objectStats.projectiles}`,
 			`Debris ${objectStats.debris}  Run map ${objectStats.runMap}`,
-			`UI objects ${objectStats.ui}  Areas ${objectStats.areas}  Hit regions ${snapshot.counters.uiPointerRegions ?? 0}  Text ${objectStats.text}  Masks ${objectStats.masks}  Emitters ${objectStats.emitters}`,
+			`UI objects ${objectStats.ui}  Areas ${objectStats.areas}  Hit regions ${snapshot.counters.uiPointerRegions ?? 0}  Masks ${objectStats.masks}`,
+			`Text draw ${objectStats.textDrawing}/${objectStats.textTotal}  Emitters upd ${objectStats.emittersUpdating}/${objectStats.emittersTotal} draw ${objectStats.emittersDrawing}/${objectStats.emittersTotal} particles ${objectStats.activeParticles}`,
 			`Primitives walls ${snapshot.counters.wallPrimitives ?? 0}  UI FX ${snapshot.counters.uiEffectPrimitives ?? 0}`,
 			`Batches enemies ${snapshot.counters["batch:enemies:count"] ?? 0}  followers ${snapshot.counters["batch:followers:count"] ?? 0}  debris ${snapshot.counters["batch:debris:count"] ?? 0}  world ${snapshot.counters["batch:world:count"] ?? 0}  FX ${snapshot.counters["batch:effects:count"] ?? 0}`,
 			`UI batches ${snapshot.counters["batch:ui:count"] ?? 0}  HUD ${snapshot.counters["batch:ui:hud:count"] ?? 0}  overlays ${snapshot.counters["batch:ui:overlay:count"] ?? 0}  modal ${snapshot.counters["batch:ui:modal:count"] ?? 0}  menu ${snapshot.counters["batch:ui:menu:count"] ?? 0}`,
@@ -127,23 +128,103 @@ function collectDebugObjectStats() {
 		runMap: 0,
 		ui: 0,
 		areas: 0,
-		text: 0,
+		textTotal: 0,
+		textDrawing: 0,
 		masks: 0,
-		emitters: 0,
+		emittersTotal: 0,
+		emittersUpdating: 0,
+		emittersDrawing: 0,
+		activeParticles: 0,
 	};
 	for (const obj of k.get<GameObj>("*", { recursive: true })) {
 		const objectLayer = (obj as GameObj & { layer?: string }).layer;
 		if (objectLayer === layers.ui || objectLayer === layers.uiEffects) stats.ui++;
 		if (obj.has("area")) stats.areas++;
-		if (obj.has("text")) stats.text++;
+		if (obj.has("text")) {
+			stats.textTotal++;
+			if (isDrawEnabled(obj) && isInViewport(obj)) stats.textDrawing++;
+		}
 		if (obj.has("mask")) stats.masks++;
-		if (obj.has("particles")) stats.emitters++;
+		if (obj.has("particles")) {
+			stats.emittersTotal++;
+			if (isUpdateEnabled(obj)) stats.emittersUpdating++;
+			const activeParticles = getActiveParticleCount(obj);
+			stats.activeParticles += activeParticles;
+			if (
+				activeParticles > 0 &&
+				isDrawEnabled(obj) &&
+				isInViewport(obj, true)
+			) stats.emittersDrawing++;
+		}
 		if (obj.is(tags.enemy)) stats.enemies++;
 		if (obj.is(tags.projectile)) stats.projectiles++;
 		if (obj.is(tags.debree)) stats.debris++;
 		if (obj.is(tags.runMap)) stats.runMap++;
 	}
 	return stats;
+}
+
+function isUpdateEnabled(obj: GameObj) {
+	let current: GameObj | null = obj;
+	while (current) {
+		if (current.paused) return false;
+		current = current.parent;
+	}
+	return true;
+}
+
+function isDrawEnabled(obj: GameObj) {
+	let current: GameObj | null = obj;
+	while (current) {
+		if (current.hidden) return false;
+		current = current.parent;
+	}
+	return true;
+}
+
+function isInViewport(obj: GameObj, useEmitterPosition = false) {
+	const positioned = findPositionedObject(obj);
+	if (!positioned) return true;
+	const emitterPosition = useEmitterPosition
+		? (obj as GameObj & { emitter?: { position?: ReturnType<typeof k.vec2> } })
+			.emitter?.position
+		: undefined;
+	const screenPosition = emitterPosition && obj.has("pos")
+		? (obj as any).toScreen(emitterPosition)
+		: positioned.screenPos;
+	const margin = useEmitterPosition
+		? 160
+		: Math.max(
+			32,
+			Math.max(
+				typeof obj.width === "number" ? obj.width : 0,
+				typeof obj.height === "number" ? obj.height : 0
+			) / 2
+		);
+	return screenPosition.x >= -margin &&
+		screenPosition.x <= k.width() + margin &&
+		screenPosition.y >= -margin &&
+		screenPosition.y <= k.height() + margin;
+}
+
+function findPositionedObject(obj: GameObj) {
+	let current: GameObj | null = obj;
+	while (current) {
+		if (current.has("pos")) {
+			return current as GameObj & {
+				screenPos: ReturnType<typeof k.vec2>;
+			};
+		}
+		current = current.parent;
+	}
+	return undefined;
+}
+
+function getActiveParticleCount(obj: GameObj) {
+	const particleInspection = obj.inspect().particles;
+	if (typeof particleInspection !== "string") return 0;
+	const match = /count:\s*(\d+)/.exec(particleInspection);
+	return match ? Number(match[1]) : 0;
 }
 
 function formatMs(value: number) {

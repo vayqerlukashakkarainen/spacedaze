@@ -1,3 +1,5 @@
+import type { Vec2 } from "kaplay"
+
 export type ChestChallengeType =
 	| "linear"
 	| "bezier"
@@ -5,6 +7,7 @@ export type ChestChallengeType =
 	| "capacitor"
 
 export type ChestRewardType = "salvage" | "weapon"
+export type ChestWorldOpenAnimation = () => Promise<void>
 
 export interface ChestChallengeConfig {
 	difficulty: number
@@ -32,6 +35,8 @@ export interface ChestChallengeVariationOptions {
 
 let nextChestDifficulty = 1
 let nextChestRewardType: ChestRewardType = "salvage"
+let nextChestWorldPosition: Vec2 | undefined
+let nextChestWorldOpenAnimation: ChestWorldOpenAnimation | undefined
 
 export function setNextChestDifficulty(difficulty: number) {
 	nextChestDifficulty = difficulty
@@ -39,6 +44,16 @@ export function setNextChestDifficulty(difficulty: number) {
 
 export function setNextChestRewardType(type: ChestRewardType) {
 	nextChestRewardType = type
+}
+
+export function setNextChestWorldPosition(position: Vec2) {
+	nextChestWorldPosition = position.clone()
+}
+
+export function setNextChestWorldOpenAnimation(
+	animation: ChestWorldOpenAnimation
+) {
+	nextChestWorldOpenAnimation = animation
 }
 
 export function consumeNextChestDifficulty() {
@@ -51,6 +66,18 @@ export function consumeNextChestRewardType() {
 	const type = nextChestRewardType
 	nextChestRewardType = "salvage"
 	return type
+}
+
+export function consumeNextChestWorldPosition() {
+	const position = nextChestWorldPosition?.clone()
+	nextChestWorldPosition = undefined
+	return position
+}
+
+export function consumeNextChestWorldOpenAnimation() {
+	const animation = nextChestWorldOpenAnimation
+	nextChestWorldOpenAnimation = undefined
+	return animation
 }
 
 export function createChestChallengeConfig(

@@ -29,6 +29,7 @@ export function spawnVolatileCargoObjective(
 		k.opacity(0.95),
 		tags.props,
 		tags.gameLoop,
+		tags.runtimeCullable,
 		...(props.tags ?? []),
 	])
 	const glow = cargo.add([

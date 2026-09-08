@@ -100,7 +100,7 @@ export function showPopover(options: PopoverOptions) {
 		variant: "caption",
 		color: accent,
 		size: UI_FONT_SIZES.small,
-		gapAfter: 3,
+		gapAfter: 7,
 	})
 	title.use(k.opacity(0))
 	fadeTargets.push({ obj: title, baseOpacity: 1 })

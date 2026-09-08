@@ -61,6 +61,7 @@ export function spawnBuilding(
 		interactable(interactRadius, onInteract),
 		tags.gameLoop,
 		tags.props,
+		tags.runtimeCullable,
 	]);
 	addBuildingPlayerDepth(building);
 

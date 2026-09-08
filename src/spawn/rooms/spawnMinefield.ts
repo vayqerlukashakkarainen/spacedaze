@@ -47,6 +47,7 @@ function spawnProximityMine(pos: Vec2, damage: number, extraTags?: string[]) {
 		k.opacity(0.9),
 		tags.props,
 		tags.gameLoop,
+		tags.runtimeCullable,
 		...(extraTags ?? []),
 	])
 

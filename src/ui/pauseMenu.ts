@@ -158,7 +158,7 @@ function addSessionCommands(
 	if (actions.onExitRun) {
 		addCommand("QUIT RUN", "", () => showConfirmation(
 			"QUIT CURRENT RUN?",
-			"ALL CARRIED DEBRIS AND CURRENT EXPEDITION PROGRESS WILL BE LOST. RETURN TO THE HUB?",
+			"ALL CARRIED SALVAGE AND CURRENT EXPEDITION PROGRESS WILL BE LOST. RETURN TO THE HUB?",
 			"QUIT RUN",
 			"KEEP FLYING",
 			actions.onExitRun!

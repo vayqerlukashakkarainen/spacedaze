@@ -50,8 +50,6 @@ import {
 	growingCharge,
 	hunterGuidance,
 	mineLayer,
-	momentumCore,
-	orbitingRounds,
 	proximityFuse,
 	stasisBurst,
 	targetPainter,
@@ -73,6 +71,13 @@ import {
 	salvageBattery,
 	scrapArmor,
 } from "./systemsNew"
+import {
+	phaseCounter,
+	resonanceCoil,
+	tacticalUplink,
+	threatReactor,
+	wreckHarvester,
+} from "./stackingRewardsNew"
 
 const definitions: Record<string, UpgradeDefinition> = {
 	// Blasters
@@ -123,6 +128,11 @@ const definitions: Record<string, UpgradeDefinition> = {
 	sawSatellite,
 	kineticRam,
 	nearMissCapacitor,
+	tacticalUplink,
+	phaseCounter,
+	threatReactor,
+	resonanceCoil,
+	wreckHarvester,
 
 	// Projectile modifiers
 	armorPiercing,
@@ -142,8 +152,6 @@ const definitions: Record<string, UpgradeDefinition> = {
 	afterimageRounds,
 	boomerangPayload,
 	growingCharge,
-	momentumCore,
-	orbitingRounds,
 	stasisBurst,
 	volatileCorrosion,
 	criticalShatter,
@@ -189,6 +197,11 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	sawSatellite: policy(RewardRarity.Rare, ["crate", "boss"], 42, 0, 115, 2),
 	kineticRam: policy(RewardRarity.Rare, ["crate", "boss"], 42, 0, 118, 3),
 	nearMissCapacitor: policy(RewardRarity.Epic, ["crate", "boss"], 22, 0, 132, 4),
+	tacticalUplink: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 105, 20, 95),
+	phaseCounter: policy(RewardRarity.Rare, ["crate", "boss"], 48, 0, 120, 2),
+	threatReactor: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 130, 3),
+	resonanceCoil: policy(RewardRarity.Rare, ["crate", "boss"], 45, 0, 120, 2),
+	wreckHarvester: policy(RewardRarity.Legendary, ["crate", "boss"], 8, 0, 55, 4),
 	armorPiercing: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 130, 35, 90),
 	cryoRounds: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 30, 80),
 	corrosivePayload: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 100, 20, 100),
@@ -206,8 +219,6 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	afterimageRounds: policy(RewardRarity.Epic, ["crate", "boss"], 22, 0, 135, 3),
 	boomerangPayload: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 82, 14, 90),
 	growingCharge: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 90, 18, 95),
-	momentumCore: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 115, 24, 80),
-	orbitingRounds: policy(RewardRarity.Rare, ["crate", "boss"], 48, 0, 105),
 	stasisBurst: policy(RewardRarity.Rare, ["crate", "boss"], 42, 0, 115),
 	volatileCorrosion: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 135, 4),
 	criticalShatter: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 135, 4),

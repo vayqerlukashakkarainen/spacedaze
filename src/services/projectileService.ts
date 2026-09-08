@@ -55,6 +55,7 @@ import type {
 	ReturnModifier,
 	SeekModifier,
 	SlowModifier,
+	SpinModifier,
 	SplashModifier,
 	SpiralModifier,
 	SplitModifier,
@@ -88,12 +89,16 @@ import {
 } from "./runtimeSpatialIndexService";
 import { getShipThrusterFlash } from "../comp/shipThruster";
 import { registerRuntimeSpriteVisual } from "./enemyVisualBatchService";
-import { triggerTacticalUplinkFeedback } from "./passiveUpgradeRuntimeService";
+import {
+	consumePhaseCounterMultiplier,
+	triggerTacticalUplinkFeedback,
+	triggerResonanceCoil,
+} from "./passiveUpgradeRuntimeService";
 import { getTacticalUplinkHullThreshold } from "./tacticalUplinkService";
 
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
 const PLAYER_PROJECTILE_SCALE = 0.7;
-const KNOCKBACK_PUSH_DURATION = 0.16;
+const KNOCKBACK_PUSH_DURATION = 0.32;
 const KNOCKBACK_FULL_STEER_STRENGTH = 60;
 let projectileUpdateController: GameObj | undefined;
 
@@ -101,6 +106,7 @@ interface KnockbackImpulse {
 	direction: Vec2;
 	distance: number;
 	elapsed: number;
+	steerAmount: number;
 }
 
 interface ChainLightningRuntime extends ChainModifier {
@@ -164,6 +170,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	applySpiralModifier(proj, config.spiral);
 	applyDuplicateModifier(proj, config.duplicate);
 	applyAccelerateModifier(proj, config.accelerate);
+	applySpinModifier(proj, config.spin);
 	applyGravityModifier(proj, config.gravity);
 	applyCurveModifier(proj, config.curve);
 	applyWiggleModifier(proj, config.wiggle);
@@ -326,6 +333,7 @@ function updateProjectile(proj: GameObj) {
 		updateDuplicate(proj, config);
 	}
 	if (proj.accelerateConfig) updateAccelerate(proj);
+	if (proj.spinConfig) updateSpin(proj);
 	if (proj.gravityConfig) updateGravity(proj);
 	if (proj.curveConfig) updateCurve(proj);
 
@@ -534,6 +542,22 @@ function applyAccelerateModifier(proj: GameObj, config?: AccelerateModifier) {
 		acceleration: config.acceleration,
 		maxSpeed: config.maxSpeed ?? 1000,
 		minSpeed: config.minSpeed ?? 50,
+	};
+}
+
+function applySpinModifier(proj: GameObj, config?: SpinModifier) {
+	if (!config) return;
+	const direction = config.direction === "counterclockwise"
+		? -1
+		: config.direction === "random"
+			? (k.chance(0.5) ? -1 : 1)
+			: 1;
+	proj.visualAngle = proj.angle;
+	proj.spinConfig = {
+		angularSpeed: config.initialSpeed,
+		acceleration: config.acceleration,
+		maxSpeed: config.maxSpeed,
+		direction,
 	};
 }
 
@@ -910,6 +934,16 @@ function updateAccelerate(proj: GameObj) {
 	proj.speed +=
 		config.acceleration * k.dt() * velocityScale() * proj.getTimescale();
 	proj.speed = Math.max(config.minSpeed, Math.min(config.maxSpeed, proj.speed));
+}
+
+function updateSpin(proj: GameObj) {
+	const config = proj.spinConfig;
+	const delta = k.dt() * velocityScale() * proj.getTimescale();
+	config.angularSpeed = Math.min(
+		config.maxSpeed,
+		config.angularSpeed + config.acceleration * delta
+	);
+	proj.visualAngle += config.angularSpeed * config.direction * delta;
 }
 
 function updateGravity(proj: GameObj) {
@@ -1446,6 +1480,9 @@ export function applyProjectileDamage(
 			damage *= player.tacticalUplinkMultiplier;
 			triggerTacticalUplinkFeedback(projectile.pos);
 		}
+		if (friendlyProjectile) {
+			damage *= consumePhaseCounterMultiplier(projectile);
+		}
 		if (
 			player.glassReactor !== undefined &&
 			projectile.tags.includes(tags.friendly)
@@ -1495,6 +1532,7 @@ export function applyProjectileDamage(
 			source: projectile.projectileConfig?.damageSource,
 		});
 		if (damageApplied && target.tags.includes(tags.enemy)) {
+			triggerResonanceCoil(target, projectile, damage);
 			if (!projectile.suppressImpactEffects) {
 				const piercing = projectile.piercesRemaining !== undefined &&
 					projectile.piercesRemaining > 0;
@@ -1600,7 +1638,7 @@ export function applyProjectileDamage(
 	return shouldDestroy;
 }
 
-function applyKnockbackImpulse(
+export function applyKnockbackImpulse(
 	target: GameObj,
 	direction: Vec2,
 	strength: number
@@ -1612,12 +1650,12 @@ function applyKnockbackImpulse(
 		0,
 		1
 	);
-	steerObjectDirection(target, pushDirection, steerAmount);
 
 	const impulse: KnockbackImpulse = {
 		direction: pushDirection,
 		distance: strength,
 		elapsed: 0,
+		steerAmount,
 	};
 	const impulses = target.knockbackImpulses as KnockbackImpulse[] | undefined;
 	if (impulses) {
@@ -1643,6 +1681,7 @@ function applyKnockbackImpulse(
 			? target.getTimescale()
 			: 1;
 		const impulseDelta = k.vec2(0, 0);
+		const steeringImpulse = activeImpulses[activeImpulses.length - 1];
 		for (let index = activeImpulses.length - 1; index >= 0; index--) {
 			const activeImpulse = activeImpulses[index];
 			const previousProgress = k.clamp(
@@ -1656,12 +1695,20 @@ function applyKnockbackImpulse(
 				0,
 				1
 			);
-			const previousEase = 1 - Math.pow(1 - previousProgress, 3);
-			const ease = 1 - Math.pow(1 - progress, 3);
+			const previousEase = smoothstep(previousProgress);
+			const ease = smoothstep(progress);
 			impulseDelta.x += activeImpulse.direction.x *
 				activeImpulse.distance * (ease - previousEase);
 			impulseDelta.y += activeImpulse.direction.y *
 				activeImpulse.distance * (ease - previousEase);
+			if (activeImpulse === steeringImpulse) {
+				steerObjectDirection(
+					target,
+					activeImpulse,
+					previousEase,
+					ease
+				);
+			}
 			if (progress >= 1) activeImpulses.splice(index, 1);
 		}
 
@@ -1673,11 +1720,23 @@ function applyKnockbackImpulse(
 
 function steerObjectDirection(
 	target: GameObj,
-	pushDirection: Vec2,
-	steerAmount: number
+	impulse: KnockbackImpulse,
+	previousProgress: number,
+	progress: number
 ) {
+	const previousAmount = impulse.steerAmount * previousProgress;
+	const nextAmount = impulse.steerAmount * progress;
+	const amount = k.clamp(
+		(nextAmount - previousAmount) / Math.max(0.001, 1 - previousAmount),
+		0,
+		1
+	);
 	if (target.vel && typeof target.vel.len === "function") {
-		target.vel = blendDirection(target.vel, pushDirection, steerAmount);
+		target.vel = blendDirection(
+			target.vel,
+			impulse.direction,
+			amount
+		);
 	}
 	if (
 		target.moveDirection &&
@@ -1685,10 +1744,14 @@ function steerObjectDirection(
 	) {
 		target.moveDirection = blendDirection(
 			target.moveDirection,
-			pushDirection,
-			steerAmount
+			impulse.direction,
+			amount
 		);
 	}
+}
+
+function smoothstep(progress: number) {
+	return progress * progress * (3 - 2 * progress);
 }
 
 function blendDirection(current: Vec2, target: Vec2, amount: number) {
@@ -1704,6 +1767,7 @@ function createProjectileExplosion(
 	options: Omit<ExplosionOptions, "onResolved">
 ) {
 	const config = projectile.projectileConfig as ProjectileConfig;
+	playProjectileExplosionSound(config, options.pos);
 	return createExplosion({
 		...options,
 		visualColor: options.visualColor ?? config.effectTint,
@@ -1727,6 +1791,7 @@ function scheduleProjectileExplosion(
 		duration: delay,
 		color: visualColor,
 		onComplete: () => {
+			playProjectileExplosionSound(config, explosionPos);
 			createExplosion({
 				...options,
 				pos: explosionPos,
@@ -1736,6 +1801,13 @@ function scheduleProjectileExplosion(
 				},
 			});
 		},
+	});
+}
+
+function playProjectileExplosionSound(config: ProjectileConfig, pos: Vec2) {
+	if (!config.explosionSoundPool) return;
+	audioService.playPositionalSound(randomExplosion(config.explosionSoundPool), pos, {
+		volume: subSoundVolume * (config.explosionSoundVolume ?? 1),
 	});
 }
 

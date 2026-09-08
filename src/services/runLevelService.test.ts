@@ -24,7 +24,6 @@ assert.deepEqual(
 		pendingSelections: 0,
 		bonuses: {
 			weaponDamage: 0,
-			projectileSpeed: 0,
 			moveSpeed: 0,
 			criticalChance: 0,
 			collectionRange: 0,
@@ -32,7 +31,6 @@ assert.deepEqual(
 		},
 		bonusPower: {
 			weaponDamage: 0,
-			projectileSpeed: 0,
 			moveSpeed: 0,
 			criticalChance: 0,
 			collectionRange: 0,

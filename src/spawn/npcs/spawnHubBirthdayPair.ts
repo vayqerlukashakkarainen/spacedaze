@@ -258,7 +258,7 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 						jubileeAlive = false
 						completeBirthdayEncounter()
 						k.destroy(jubilee)
-						spawnEnemyDeathEffect(deathPos, 0.85, true)
+						spawnEnemyDeathEffect(deathPos, 0.85)
 						audioService.playPositionalSound(randomExplosion(), deathPos, {
 							volume: subSoundVolume,
 							minDistance: 35,

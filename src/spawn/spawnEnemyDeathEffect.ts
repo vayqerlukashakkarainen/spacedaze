@@ -14,15 +14,6 @@ const FRAGMENT_SPRITES = [
 	"particle4",
 ] as const
 
-const SHIP_WRECKAGE_SPRITES = [
-	"enemy_ship1_left_wing",
-	"enemy_ship1_right_wing",
-	"enemy_ship1_body",
-] as const
-
-const MIN_WRECKAGE_LIFETIME = 3.8
-const MAX_WRECKAGE_LIFETIME = 6.8
-
 export type EnemyDeathTier = "normal" | "elite" | "boss"
 
 interface EnemyDeathProfile {
@@ -31,13 +22,11 @@ interface EnemyDeathProfile {
 	particleMultiplier: number
 	burstCount: number
 	shake: number
-	wreckageMultiplier: number
 }
 
 export function spawnEnemyDeathEffect(
 	pos: Vec2,
 	intensity: number = 1,
-	spawnWreckage = true,
 	tier: EnemyDeathTier = "normal"
 ) {
 	const profile = getDeathProfile(tier)
@@ -46,12 +35,6 @@ export function spawnEnemyDeathEffect(
 	const fragmentCount = Math.round(
 		k.lerp(4, 14, normalizedIntensity) * profile.fragmentMultiplier
 	)
-	const wreckageIntensity = k.clamp(intensity, 0.35, 2.5)
-	const normalizedWreckageSize = (wreckageIntensity - 0.35) / 2.15
-	const wreckageCount = Math.round(
-		k.lerp(2, 7, normalizedWreckageSize) * profile.wreckageMultiplier
-	)
-
 	spawnExplosionEffect(pos, 13 * effectIntensity, {
 		ringIntensity: tier === "boss" ? 0.62 : tier === "elite" ? 0.4 : 0.24,
 		particleCount: Math.round(
@@ -88,15 +71,6 @@ export function spawnEnemyDeathEffect(
 	for (let index = 0; index < fragmentCount; index++) {
 		spawnDeathFragment(pos, effectIntensity, index, fragmentCount, profile.color)
 	}
-	for (let index = 0; spawnWreckage && index < wreckageCount; index++) {
-		spawnShipWreckage(
-			pos,
-			wreckageIntensity,
-			normalizedWreckageSize,
-			index,
-			wreckageCount
-		)
-	}
 }
 
 function getDeathProfile(tier: EnemyDeathTier): EnemyDeathProfile {
@@ -107,7 +81,6 @@ function getDeathProfile(tier: EnemyDeathTier): EnemyDeathProfile {
 			particleMultiplier: 1.7,
 			burstCount: 4,
 			shake: 9,
-			wreckageMultiplier: 1.6,
 		}
 	}
 	if (tier === "elite") {
@@ -117,7 +90,6 @@ function getDeathProfile(tier: EnemyDeathTier): EnemyDeathProfile {
 			particleMultiplier: 1.25,
 			burstCount: 2,
 			shake: 2.2,
-			wreckageMultiplier: 1.25,
 		}
 	}
 	return {
@@ -126,61 +98,7 @@ function getDeathProfile(tier: EnemyDeathTier): EnemyDeathProfile {
 		particleMultiplier: 1,
 		burstCount: 1,
 		shake: 0.28,
-		wreckageMultiplier: 1,
 	}
-}
-
-function spawnShipWreckage(
-	pos: Vec2,
-	intensity: number,
-	normalizedSize: number,
-	index: number,
-	pieceCount: number
-) {
-	const direction = k.Vec2.fromAngle(
-		(index / Math.max(1, pieceCount)) * 360 + k.rand(-32, 32)
-	)
-	const sizeMultiplier = k.lerp(0.62, 1.85, normalizedSize)
-	const lifetime = k.rand(MIN_WRECKAGE_LIFETIME, MAX_WRECKAGE_LIFETIME)
-	const initialScale = k.rand(0.42, 0.78) * sizeMultiplier
-	const drift = k.vec2(k.rand(-3, 3), k.rand(-5, 2))
-	const wreckage = k.add([
-		k.pos(pos.add(direction.scale(k.rand(2, 9) * intensity))),
-		k.sprite(k.choose(SHIP_WRECKAGE_SPRITES)),
-		k.anchor("center"),
-		k.rotate(k.rand(0, 360)),
-		k.scale(initialScale),
-		k.color(k.WHITE),
-		k.opacity(1),
-		k.layer(layers.gameEffects),
-		k.z(-1),
-		k.offscreen({ destroy: true, distance: 220 }),
-		k.lifespan(lifetime, { fade: k.rand(1.1, 1.7) }),
-		{
-			velocity: direction.scale(k.rand(18, 44) * k.lerp(0.8, 1.25, normalizedSize)),
-			drift,
-			angularVelocity: k.rand(-135, 135),
-			initialScale,
-			elapsed: 0,
-			lifetime,
-		},
-		tags.props,
-		tags.gameLoop,
-	])
-
-	registerBatchedEntityUpdate("effects", wreckage, () => {
-		wreckage.elapsed += k.dt()
-		wreckage.velocity = wreckage.velocity
-			.add(wreckage.drift.scale(k.dt()))
-			.scale(Math.pow(0.988, k.dt() * 60))
-		wreckage.pos = wreckage.pos.add(wreckage.velocity.scale(k.dt()))
-		wreckage.angle += wreckage.angularVelocity * k.dt()
-		wreckage.angularVelocity *= Math.pow(0.992, k.dt() * 60)
-		const progress = k.clamp(wreckage.elapsed / wreckage.lifetime, 0, 1)
-		wreckage.scale = k.vec2(
-			wreckage.initialScale * k.lerp(1, 0.88, progress)
-		)
-	})
 }
 
 function spawnDeathFragment(

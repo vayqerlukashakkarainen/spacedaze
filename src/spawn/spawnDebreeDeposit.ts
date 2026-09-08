@@ -38,6 +38,8 @@ export function spawnDebreeDeposit(pos: Vec2) {
 		tags.runMap,
 		tags.props,
 		tags.gameLoop,
+		tags.runtimeCullable,
+		{ runtimeCullRadius: 120 },
 	]) as GameObj<PosComp | InteractableComp>
 
 	function playDepositEffect(deposited: number) {
@@ -100,10 +102,10 @@ export function spawnDebreeDeposit(pos: Vec2) {
 		target: station,
 		offset: k.vec2(0, -92),
 		content: () => ({
-			title: "DEBREE RELAY",
+			title: "SALVAGE RELAY",
 			action: getCarriedDebree() > 0
 				? "MANAGE DEPOSIT"
-				: "NO DEBREE TO DEPOSIT",
+				: "NO SALVAGE TO DEPOSIT",
 			detailLeft: `${getCarriedDebree()} CARRIED`,
 			detailRight: `${getDepositedDebree()} SAFE`,
 		}),

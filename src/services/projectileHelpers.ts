@@ -82,6 +82,9 @@ export function spawnPlayerBlaster(
 				shotOptions.chargeRatio ?? (isFullyChargedWeapon ? 1 : 0)
 			)
 			: weapon.knockback;
+	const inheritedSpeedMultiplier =
+		player.blasterSpeedMultiplier *
+		(shotOptions.speedMultiplier ?? 1);
 	const config: ProjectileConfig = {
 		pos,
 		dir: k.Vec2.fromAngle(rot + spreadAngle - 90),
@@ -99,9 +102,7 @@ export function spawnPlayerBlaster(
 		explosionDelay: weapon.explosionDelay,
 		speed: BULLET_SPEED,
 		speedMultiplier:
-			player.blasterSpeedMultiplier *
-			weapon.projectileSpeedMultiplier *
-			(shotOptions.speedMultiplier ?? 1),
+			inheritedSpeedMultiplier * weapon.projectileSpeedMultiplier,
 		tags: [tags.friendly, tags.blaster],
 		impact: {
 			damage: impactDamage,
@@ -124,6 +125,23 @@ export function spawnPlayerBlaster(
 		knockback: knockbackStrength !== undefined
 			? { strength: knockbackStrength }
 			: undefined,
+		accelerate: weapon.projectileAcceleration
+			? {
+				acceleration:
+					weapon.projectileAcceleration.acceleration *
+					inheritedSpeedMultiplier,
+				maxSpeed:
+					BULLET_SPEED *
+					weapon.projectileAcceleration.maxSpeedMultiplier *
+					inheritedSpeedMultiplier,
+			}
+			: undefined,
+		spin: weapon.projectileSpin
+			? {
+				...weapon.projectileSpin,
+				direction: "random",
+			}
+			: undefined,
 		bounce: weapon.bounce ? { ...weapon.bounce } : undefined,
 		wiggle: weapon.pattern?.wiggle
 			? {
@@ -144,6 +162,8 @@ export function spawnPlayerBlaster(
 			: weapon.fireSound ?? "shoot1",
 		fireSoundVolume: weapon.fireSoundVolume,
 		fireSoundDetune: shotOptions.fireSoundDetune ?? weapon.fireSoundDetune,
+		explosionSoundPool: weapon.explosionSoundPool,
+		explosionSoundVolume: weapon.explosionSoundVolume,
 	};
 	if (weapon.piercing) {
 		config.piercing = { ...weapon.piercing };
@@ -471,21 +491,6 @@ function applyPlayerProjectileModifiers(
 			maxDistance: 420,
 			maxScale: player.projectileGrowthScale,
 			maxDamageMultiplier: player.projectileGrowthDamage,
-		};
-	}
-
-	if (player.projectileAcceleration > 0) {
-		config.accelerate = {
-			acceleration: player.projectileAcceleration,
-			maxSpeed: config.speed * 3.2,
-			minSpeed: config.speed * 0.4,
-		};
-	}
-
-	if (player.projectileOrbitRadius > 0) {
-		config.spiral = {
-			rotationSpeed: 520,
-			radius: player.projectileOrbitRadius,
 		};
 	}
 

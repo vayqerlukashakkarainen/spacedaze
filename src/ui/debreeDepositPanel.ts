@@ -78,7 +78,7 @@ export function showDebreeDepositPanel(options: DebreeDepositPanelOptions) {
 
 	addThemedText(panel, {
 		pos: k.vec2(-226, -104),
-		text: "DEBREE RELAY",
+		text: "SALVAGE RELAY",
 		variant: "eyebrow",
 		color: k.rgb(...UI_COLORS.success),
 	})
@@ -90,7 +90,7 @@ export function showDebreeDepositPanel(options: DebreeDepositPanelOptions) {
 	})
 	addThemedText(panel, {
 		pos: k.vec2(-226, -44),
-		text: "DEPOSITED DEBREE SURVIVES DEATH. KEEP SOME CARRIED TO BUY RUN UPGRADES.",
+		text: "DEPOSITED SALVAGE SURVIVES DEATH. KEEP SOME CARRIED TO BUY RUN UPGRADES.",
 		variant: "muted",
 		width: 452,
 		size: 9,

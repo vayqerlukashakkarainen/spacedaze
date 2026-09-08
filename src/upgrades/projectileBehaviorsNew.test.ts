@@ -8,8 +8,6 @@ const behaviorKeys = [
 	"afterimageRounds",
 	"boomerangPayload",
 	"growingCharge",
-	"momentumCore",
-	"orbitingRounds",
 	"stasisBurst",
 	"volatileCorrosion",
 	"criticalShatter",

@@ -121,6 +121,12 @@ interface RewardPickupOptions {
 	applyEffect?: (reward: Reward, pos: Vec2) => boolean;
 	onCollected?: (reward: Reward) => void;
 	telemetrySource?: RewardTelemetrySource;
+	recordOffer?: boolean;
+	launch?: {
+		endOffset?: Vec2;
+		height?: number;
+		duration?: number;
+	};
 }
 
 export function spawnRerollTokenPickup(
@@ -140,7 +146,11 @@ export function spawnRewardPickup(
 	reward: Reward,
 	options: RewardPickupOptions = {}
 ) {
-	if (options.telemetrySource && !options.suppressAcquisition) {
+	if (
+		options.telemetrySource &&
+		!options.suppressAcquisition &&
+		options.recordOffer !== false
+	) {
 		recordTelemetryRewardOffered(reward.id, {
 			source: options.telemetrySource,
 			category: reward.kind,
@@ -148,10 +158,11 @@ export function spawnRewardPickup(
 		});
 	}
 	let collected = false;
-	let armed = !options.armWhenPlayerLeaves;
+	let armed = !options.armWhenPlayerLeaves && !options.launch;
 	const feedback = RARITY_FEEDBACK[reward.rarity];
 	const rarityColor = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
-	const auraRadius = options.compactAura ? 18 : feedback.auraRadius;
+	const compactAura = options.compactAura ?? true;
+	const auraRadius = compactAura ? 18 : feedback.auraRadius;
 	const components: any[] = [
 		k.pos(pos),
 		k.sprite(reward.sprite, { width: 24, height: 24 }),
@@ -169,6 +180,7 @@ export function spawnRewardPickup(
 		tags.props,
 		tags.unit,
 		tags.gameLoop,
+		tags.runtimeCullable,
 	];
 	if (options.interactionOnly) {
 		components.push(interactable(
@@ -177,19 +189,24 @@ export function spawnRewardPickup(
 		));
 	}
 	const m = k.add(components);
+	const launchStart = pos.clone();
+	const launchEnd = pos.add(options.launch?.endOffset ?? k.vec2(0, -48));
+	const launchDuration = options.launch?.duration ?? 0.52;
+	const launchHeight = options.launch?.height ?? 34;
+	let launchElapsed = 0;
 	const pickupBackdrop = m.add([
-		k.circle(options.compactAura ? auraRadius : auraRadius - 3),
+		k.circle(compactAura ? auraRadius : auraRadius - 3),
 		k.anchor("center"),
 		k.scale(1),
 		k.color(rarityColor),
-		k.opacity(options.compactAura ? 0.16 : feedback.auraOpacity * 0.65),
-		k.outline(options.compactAura ? 1 : 2, rarityColor),
+		k.opacity(compactAura ? 0.16 : feedback.auraOpacity * 0.65),
+		k.outline(compactAura ? 1 : 2, rarityColor),
 		k.z(-1),
 		k.layer(layers.gameEffects),
 	]);
 
 	const auraRings = Array.from({
-		length: options.compactAura ? 0 : feedback.tier,
+		length: compactAura ? 0 : feedback.tier,
 	}, (_, index) =>
 		m.add([
 			k.circle(auraRadius + index * 5, { fill: false }),
@@ -200,7 +217,7 @@ export function spawnRewardPickup(
 			k.layer(layers.gameEffects),
 		])
 	);
-	const interactionGlow = options.interactionOnly && !options.compactAura
+	const interactionGlow = options.interactionOnly && !compactAura
 		? addLocalLight(m, {
 			size: feedback.auraRadius * 2.2,
 			color: REWARD_RARITY_COLORS[reward.rarity],
@@ -215,7 +232,7 @@ export function spawnRewardPickup(
 			},
 		})
 		: undefined;
-	if (options.interactionOnly && !options.compactAura) {
+	if (options.interactionOnly && !compactAura) {
 		m.add([
 			k.pos(),
 			k.z(-1),
@@ -317,16 +334,31 @@ export function spawnRewardPickup(
 		const dist = m.pos.dist(playerObj.pos);
 		interactionPrompt?.update(m.isInRange === true);
 		if (interactionGlow) updateLocalLight(interactionGlow);
+		if (options.launch && launchElapsed < launchDuration) {
+			launchElapsed = Math.min(
+				launchDuration,
+				launchElapsed + dt() * m.getTimescale()
+			);
+			const progress = k.clamp(launchElapsed / launchDuration, 0, 1);
+			m.pos = launchStart.lerp(launchEnd, progress);
+			m.pos.y -= Math.sin(progress * Math.PI) * launchHeight;
+			const popScale = progress < 0.24
+				? k.lerp(0.35, 1.12, progress / 0.24)
+				: k.lerp(1.12, 1, (progress - 0.24) / 0.76);
+			m.scale = k.vec2(REWARD_PICKUP_SCALE * popScale);
+			if (progress >= 1) armed = true;
+			return;
+		}
 		if (!armed && dist > 40) armed = true;
 
-		const pulseAmount = options.compactAura ? 0.015 : feedback.pulseAmount;
+		const pulseAmount = compactAura ? 0.015 : feedback.pulseAmount;
 		const pulse = k.wave(
 			REWARD_PICKUP_SCALE * (1 - pulseAmount),
 			REWARD_PICKUP_SCALE * (1 + pulseAmount),
 			k.time() * feedback.pulseSpeed
 		);
 		m.scale = k.vec2(pulse);
-		pickupBackdrop.scale = k.vec2(options.compactAura
+		pickupBackdrop.scale = k.vec2(compactAura
 			? k.wave(0.98, 1.02, k.time() * 2)
 			: k.wave(0.96, 1.04, k.time() * 2));
 		for (let index = 0; index < auraRings.length; index++) {

@@ -55,6 +55,11 @@ let active = false
 let depth = 1
 let elapsedSeconds = 0
 let debugTier: number | undefined
+let rewardTierBonus = 0
+
+export function setThreatRewardTierBonus(stacks: number) {
+	rewardTierBonus = Math.max(0, Math.floor(stacks))
+}
 
 export function startThreatLevel(runDepth: number) {
 	active = true
@@ -91,7 +96,9 @@ export function getThreatSnapshot(): ThreatSnapshot {
 	const calculatedTier = clampTier(
 		Math.floor(effectiveSeconds / THREAT_TIER_DURATION) + 1
 	)
-	const tier = debugTier ?? calculatedTier
+	const tier = clampTier(
+		(debugTier ?? calculatedTier) + rewardTierBonus
+	)
 	const tierStart = (calculatedTier - 1) * THREAT_TIER_DURATION
 	const progress = calculatedTier >= MAX_THREAT_TIER
 		? 1

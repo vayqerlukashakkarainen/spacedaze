@@ -25,6 +25,10 @@ import {
 	HUB_SETTLEMENT_ATLAS,
 	HUB_SETTLEMENT_ROCK_FOUNDATION_ATLAS,
 } from "./hubSettlementSprites";
+import {
+	randomExplosionSound,
+	type ExplosionSoundPoolId,
+} from "./services/explosionSoundPoolService";
 
 const SAVE_VERSION = 2;
 const LEGACY_SAVE_KEYS = [
@@ -146,6 +150,12 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("room_repair_station", "sprites/rooms/repair-station.png")
 	await k.loadSprite("bullet1", "sprites/bullet1.png");
 	await k.loadSprite("rocket1", "sprites/rocket1.png");
+	await k.loadSpriteAtlas("sprites/salvage-pickups.png", {
+		salvage_shard: { x: 0, y: 0, width: 16, height: 16 },
+		salvage_plate: { x: 16, y: 0, width: 16, height: 16 },
+		salvage_core: { x: 32, y: 0, width: 16, height: 16 },
+		salvage_reactor_fragment: { x: 48, y: 0, width: 16, height: 16 },
+	})
 	await k.loadSpriteAtlas("sprites/swarm-atlas.png", {
 		drone_combat: atlasEntry(0, 24),
 		drone_gunship: atlasEntry(1, 24),
@@ -296,7 +306,6 @@ export async function init(k: KAPLAYCtx) {
 
 	await k.loadSprite("debree_part1", "sprites/debree_part1.png");
 	await k.loadSprite("room_rift_anchor", "sprites/rooms/rift-anchor.png");
-	await k.loadSprite("room_gravity_core", "sprites/rooms/gravity-core.png");
 	await k.loadSprite("room_proximity_mine", "sprites/rooms/proximity-mine.png");
 	await k.loadSprite("room_convoy_drone", "sprites/rooms/convoy-drone.png");
 	await k.loadSprite("room_signal_relay", "sprites/rooms/signal-relay.png");
@@ -395,7 +404,6 @@ export async function init(k: KAPLAYCtx) {
 		"sprites/upgrades/space_jump_upg1.png"
 	);
 	await k.loadSprite("mobility_retro_burst", "sprites/upgrades/retro_burst.png")
-	await k.loadSprite("mobility_drift_brake", "sprites/upgrades/drift_brake.png")
 	await k.loadSprite("mobility_gravity_sling", "sprites/upgrades/gravity_sling.png")
 	await k.loadSprite(
 		"reroll_token",
@@ -444,8 +452,6 @@ export async function init(k: KAPLAYCtx) {
 		"afterimage_rounds_upg1",
 		"boomerang_payload_upg1",
 		"growing_charge_upg1",
-		"momentum_core_upg1",
-		"orbiting_rounds_upg1",
 		"stasis_burst_upg1",
 		"volatile_corrosion_upg1",
 		"critical_shatter_upg1",
@@ -544,6 +550,14 @@ export async function init(k: KAPLAYCtx) {
 		"sprites/chests/weapon-chest-ui.png"
 	)
 	await k.loadSprite(
+		"enemy_stationary_cannon_platform",
+		"sprites/enemies/stationary-cannon-platform.png"
+	)
+	await k.loadSprite(
+		"enemy_stationary_cannon_platform_destroyed",
+		"sprites/enemies/stationary-cannon-platform-destroyed.png"
+	)
+	await k.loadSprite(
 		"hub_firing_range_control",
 		"sprites/hub/firing-range-control.png"
 	)
@@ -556,8 +570,20 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSound("weapon_twin_needle_fire", "sounds/twin-needle.wav")
 	await k.loadSound("weapon_plasma_mortar_fire", "sounds/plasma-mortar-fire.wav")
+	await k.loadSound(
+		"weapon_plasma_mortar_explosion",
+		"sounds/plasma-mortar-explosion.mp3"
+	)
+	await k.loadSound(
+		"weapon_plasma_explosion_gearpile",
+		"sounds/plasma-explosion-gearpile.mp3"
+	)
+	await k.loadSound(
+		"weapon_plasma_explosion_flashtrauma",
+		"sounds/plasma-explosion-flashtrauma.mp3"
+	)
 	await k.loadSound("weapon_scatter_array", "sounds/laser-shoot-2.wav");
-	await k.loadSound("weapon_burst_driver", "sounds/burst.wav");
+	await k.loadSound("weapon_burst_driver", "sounds/burst-driver.mp3");
 	await k.loadSound("rammer_launch", "sounds/rammer-launch.wav");
 	await k.loadSound("lay_mine", "sounds/lay-mine.wav");
 	await k.loadSound("fire_rocket1", "sounds/rocket_fire1.wav");
@@ -569,6 +595,8 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound("hit1", "sounds/hit1.wav");
 	await k.loadSound("hit2", "sounds/hit2.wav");
 	await k.loadSound("player_hit1", "sounds/player_hit1.wav");
+	await k.loadSound("player_game_over", "sounds/game-over-arcade.mp3");
+	await k.loadSound("low_health_warning", "sounds/low-health-warning.mp3");
 	await k.loadSound("collect1", "sounds/collect1.wav");
 	await k.loadSound("salvage_pickup", "sounds/salvage-pickup.mp3");
 	await k.loadSound("click1", "sounds/click.wav");
@@ -838,6 +866,30 @@ export async function init(k: KAPLAYCtx) {
 		"shrine_damage",
 		"sprites/shrines/damage-shrine.png"
 	)
+	await k.loadSprite(
+		"shrine_gravity",
+		"sprites/shrines/gravity-shrine.png"
+	)
+	await k.loadSprite(
+		"tactical_uplink_upg1",
+		"sprites/upgrades/tactical_uplink_upg1.png"
+	)
+	await k.loadSprite(
+		"phase_counter_upg1",
+		"sprites/upgrades/phase_counter_upg1.png"
+	)
+	await k.loadSprite(
+		"threat_reactor_upg1",
+		"sprites/upgrades/threat_reactor_upg1.png"
+	)
+	await k.loadSprite(
+		"resonance_coil_upg1",
+		"sprites/upgrades/resonance_coil_upg1.png"
+	)
+	await k.loadSprite(
+		"wreck_harvester_upg1",
+		"sprites/upgrades/wreck_harvester_upg1.png"
+	)
 
 	await k.loadSprite("boss1_body", "sprites/boss/boss1/boss1_body.png");
 	await k.loadSprite(
@@ -1020,11 +1072,8 @@ export async function init(k: KAPLAYCtx) {
 	);
 }
 
-const explArr = ["explosion1", "explosion2", "explosion3"];
-
-export function randomExplosion() {
-	const r = Math.floor(Math.random() * explArr.length);
-	return explArr[r];
+export function randomExplosion(poolId: ExplosionSoundPoolId = "general") {
+	return randomExplosionSound(poolId);
 }
 
 export function adjustedTarget(from: number, to: number) {
