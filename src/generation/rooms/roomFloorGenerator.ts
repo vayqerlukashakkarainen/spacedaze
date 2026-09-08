@@ -34,7 +34,7 @@ export function generateRoomFloor(
 	)
 	const rng = new SeededRNG(mixSeed(seed, normalizedDepth, 701))
 	const coords = growRoomGraph(targetCount, rng)
-	const connections = connectAdjacentRooms(coords, normalizedDepth, rng)
+	const connections = connectAdjacentRooms(coords)
 	const distances = calculateDistances(coords, connections)
 	const exitIndex = selectFarthestRoom(coords, distances)
 	const kinds = assignRoomKinds(
@@ -117,42 +117,16 @@ function growRoomGraph(targetCount: number, rng: SeededRNG) {
 	return coords
 }
 
-function connectAdjacentRooms(
-	coords: HexCoord[],
-	depth: number,
-	rng: SeededRNG
-) {
+function connectAdjacentRooms(coords: HexCoord[]) {
 	const indexByKey = new Map(coords.map((coord, index) => [hexKey(coord), index]))
 	const connections = coords.map(() => new Set<number>())
 
-	for (let index = 1; index < coords.length; index++) {
-		const earlierNeighbors = hexNeighbors(coords[index])
-			.map((neighbor) => indexByKey.get(hexKey(neighbor)))
-			.filter((neighborIndex): neighborIndex is number =>
-				neighborIndex !== undefined && neighborIndex < index
-			)
-		const parentIndex = earlierNeighbors
-			.sort((a, b) => hexDistance(coords[a], { q: 0, r: 0 }) - hexDistance(coords[b], { q: 0, r: 0 }))
-			.at(-1)
-		if (parentIndex === undefined) continue
-		connections[index].add(parentIndex)
-		connections[parentIndex].add(index)
-	}
-
-	if (depth >= 3 && rng.nextBool(Math.min(0.55, 0.18 + depth * 0.04))) {
-		const loopCandidates: Array<[number, number]> = []
-		for (let index = 0; index < coords.length; index++) {
-			for (const neighbor of hexNeighbors(coords[index])) {
-				const neighborIndex = indexByKey.get(hexKey(neighbor))
-				if (neighborIndex === undefined || neighborIndex <= index) continue
-				if (connections[index].has(neighborIndex)) continue
-				loopCandidates.push([index, neighborIndex])
-			}
-		}
-		if (loopCandidates.length > 0) {
-			const [a, b] = rng.choice(loopCandidates)
-			connections[a].add(b)
-			connections[b].add(a)
+	for (let index = 0; index < coords.length; index++) {
+		for (const neighbor of hexNeighbors(coords[index])) {
+			const neighborIndex = indexByKey.get(hexKey(neighbor))
+			if (neighborIndex === undefined || neighborIndex <= index) continue
+			connections[index].add(neighborIndex)
+			connections[neighborIndex].add(index)
 		}
 	}
 

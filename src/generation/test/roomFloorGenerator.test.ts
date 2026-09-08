@@ -1,4 +1,5 @@
 import { generateRoomFloor } from "../rooms/roomFloorGenerator"
+import { hexKey, hexNeighbors } from "../hexUtils"
 
 function assert(condition: boolean, message: string) {
 	if (!condition) throw new Error(message)
@@ -32,8 +33,29 @@ for (let seed = 1; seed <= 200; seed++) {
 	assert(exit!.kind === (depth % 3 === 0 ? "boss" : "exit"), `Seed ${seed} has wrong exit kind`)
 	const maxDistance = Math.max(...floor.rooms.map((room) => room.distanceFromStart))
 	assert(exit!.distanceFromStart === maxDistance, `Seed ${seed} exit is not farthest from start`)
+	const roomByCoord = new Map(floor.rooms.map((room) => [hexKey(room.coord), room]))
+	const connectionCount = floor.rooms.reduce(
+		(total, room) => total + room.connections.length,
+		0
+	) / 2
+	assert(
+		connectionCount >= floor.rooms.length,
+		`Seed ${seed} should contain an alternate room connection`
+	)
+	assert(
+		floor.rooms.filter((room) => room.connections.length >= 3).length >= 2,
+		`Seed ${seed} should contain multiple junction rooms`
+	)
 
 	for (const room of floor.rooms) {
+		for (const neighborCoord of hexNeighbors(room.coord)) {
+			const adjacentRoom = roomByCoord.get(hexKey(neighborCoord))
+			if (!adjacentRoom) continue
+			assert(
+				room.connections.includes(adjacentRoom.id),
+				`${room.id} should connect to adjacent ${adjacentRoom.id}`
+			)
+		}
 		for (const neighborId of room.connections) {
 			const neighbor = floor.rooms.find((candidate) => candidate.id === neighborId)
 			assert(neighbor !== undefined, `${room.id} links to missing room ${neighborId}`)
