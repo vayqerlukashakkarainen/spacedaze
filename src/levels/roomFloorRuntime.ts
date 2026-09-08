@@ -231,8 +231,9 @@ function renderRoom(
 		.filter((cell) => !cell.solid)
 		.map((cell) => grid.getHexScreenCorners(cell.coord))
 	const tileScale = grid.config.hexSize / RUN_ROCK_TILE_SOURCE_RADIUS
+	const tileScaleY = tileScale * (grid.config.projectionYScale ?? 1)
 	const tileCenterOffsetY =
-		(RUN_ROCK_TILE_SOURCE_RADIUS - RUN_ROCK_TILE_ANCHOR_Y) * tileScale
+		(RUN_ROCK_TILE_SOURCE_RADIUS - RUN_ROCK_TILE_ANCHOR_Y) * tileScaleY
 	let staticRoomPicture: ReturnType<typeof k.endPicture> | undefined
 	const roomRenderer = k.add([
 		k.pos(0, 0),
@@ -265,7 +266,7 @@ function renderRoom(
 							frame: wall.frame,
 							pos: wall.center.add(0, tileCenterOffsetY),
 							anchor: "center",
-							scale: k.vec2(tileScale),
+							scale: k.vec2(tileScale, tileScaleY),
 						})
 					}
 					staticRoomPicture = k.endPicture()

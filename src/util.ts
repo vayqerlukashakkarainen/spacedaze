@@ -842,9 +842,9 @@ export async function init(k: KAPLAYCtx) {
 		"sprites/ships/enemy1/enemy_ship1_body.png"
 	);
 	await k.loadSprite(
-		"run_rock_low",
-		"sprites/terrain/run-rock-low-atlas.png",
-		{ sliceX: 16, sliceY: 16 }
+		"run_rock_high",
+		"sprites/terrain/run-rock-high-atlas.png",
+		{ sliceX: 8, sliceY: 4 }
 	)
 	await k.loadSprite(
 		"plasma_mortar_projectile",

@@ -969,15 +969,16 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 	let visibleStaticPicture: ReturnType<typeof k.endPicture> | undefined;
 	let visibleStaticPrimitiveCount = 0;
 	const tileScale = grid.config.hexSize / RUN_ROCK_TILE_SOURCE_RADIUS;
+	const tileScaleY = tileScale * (grid.config.projectionYScale ?? 1);
 	const tileCenterOffsetY =
-		(RUN_ROCK_TILE_SOURCE_RADIUS - RUN_ROCK_TILE_ANCHOR_Y) * tileScale;
+		(RUN_ROCK_TILE_SOURCE_RADIUS - RUN_ROCK_TILE_ANCHOR_Y) * tileScaleY;
 	const drawWallTile = (visual: RockWallTile) => {
 		k.drawSprite({
 			sprite: RUN_ROCK_TILE_SPRITE,
 			frame: visual.frame,
 			pos: visual.center.add(0, tileCenterOffsetY),
 			anchor: "center",
-			scale: k.vec2(tileScale),
+			scale: k.vec2(tileScale, tileScaleY),
 		});
 	};
 
@@ -1027,7 +1028,7 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 		z: number;
 	}
 	const shiftedShipDepths = new Map<number, ShiftedShipDepth>();
-	const renderedTileHeight = RUN_ROCK_TILE_SOURCE_RADIUS * 2 * tileScale;
+	const renderedTileHeight = RUN_ROCK_TILE_SOURCE_RADIUS * 2 * tileScaleY;
 	const maxVerticalDistance =
 		renderedTileHeight * RUN_WALL_FOREGROUND_HEIGHT_RATIO;
 	const maxHorizontalDistance = grid.config.hexSize;
