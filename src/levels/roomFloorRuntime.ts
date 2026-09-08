@@ -11,6 +11,7 @@ import type { RoomFloorRoom } from "../generation/rooms/roomFloorTypes"
 import { playerObj } from "../game"
 import { ACTIVE_RUN_GRID_KEY } from "../grid/gridKeys"
 import { gridRegistry } from "../grid/gridRegistry"
+import { hexToPixel } from "../grid/hexCoord"
 import { CellType, type HexGrid } from "../grid/hexGrid"
 import { k, layers } from "../main"
 import {
@@ -96,9 +97,10 @@ export function transitionToConnectedRoom(destinationRoomId: string) {
 	if (!previousRoom) return false
 	const destination = enterFloorRoom(destinationRoomId)
 	if (!destination) return false
+	const travelDirection = getRoomTravelDirection(previousRoom, destination)
 	transitionCooldown = ROOM_TRANSITION_COOLDOWN
 	destroyTaggedObjects(tags.runRoom)
-	loadCurrentRoom(previousRoom.id)
+	loadCurrentRoom(previousRoom.id, false, travelDirection)
 	k.flash(k.rgb(8, 22, 30), 0.12)
 	return true
 }
@@ -118,15 +120,20 @@ export function quickJumpToClearedRoom(destinationRoomId: string) {
 		destination.state !== "cleared"
 	) return false
 	if (!teleportRoomState(destination.id)) return false
+	const travelDirection = getRoomTravelDirection(previousRoom, destination)
 
 	transitionCooldown = ROOM_TRANSITION_COOLDOWN
 	destroyTaggedObjects(tags.runRoom)
-	loadCurrentRoom(previousRoom.id)
+	loadCurrentRoom(previousRoom.id, false, travelDirection)
 	k.flash(k.rgb(8, 22, 30), 0.12)
 	return true
 }
 
-function loadCurrentRoom(previousRoomId?: string, teleportArrival = false) {
+function loadCurrentRoom(
+	previousRoomId?: string,
+	teleportArrival = false,
+	travelDirection?: Vec2
+) {
 	const room = getCurrentFloorRoom()
 	const config = activeConfig
 	if (!room || !config) return
@@ -154,9 +161,13 @@ function loadCurrentRoom(previousRoomId?: string, teleportArrival = false) {
 			(door) => door.destinationRoomId === previousRoomId
 		)
 		playPlayerRespawnTransition(entryPosition, {
-			startPosition: entryDoor
-				? grid.hexToScreen(entryDoor.coord)
-				: entryPosition.add(-ROOM_HEX_SIZE * 2, 0),
+			startPosition: travelDirection
+				? entryPosition.sub(travelDirection.scale(
+					grid.config.hexSize * Math.sqrt(3) * 3
+				))
+				: entryDoor
+					? grid.hexToScreen(entryDoor.coord)
+					: entryPosition.add(-ROOM_HEX_SIZE * 2, 0),
 		})
 	}
 	if (
@@ -182,6 +193,19 @@ function loadCurrentRoom(previousRoomId?: string, teleportArrival = false) {
 	} else {
 		spawnRoomContent(grid, template, room, unlockRoom)
 	}
+}
+
+function getRoomTravelDirection(
+	fromRoom: RoomFloorRoom,
+	toRoom: RoomFloorRoom
+) {
+	if (
+		fromRoom.coord.q === toRoom.coord.q &&
+		fromRoom.coord.r === toRoom.coord.r
+	) return undefined
+	return hexToPixel(toRoom.coord, 1)
+		.sub(hexToPixel(fromRoom.coord, 1))
+		.unit()
 }
 
 function roomClearsOnEntry(room: RoomFloorRoom) {
