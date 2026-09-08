@@ -23,7 +23,7 @@
 		"test:sprites": "swift scripts/normalizeSpritePngs.swift public/sprites --check",
 		"sprites:normalize": "swift scripts/normalizeSpritePngs.swift public/sprites --write",
 		"test:generation": "tsx src/generation/test/generation.test.ts",
-		"test:room-floors": "tsx src/generation/test/roomFloorGenerator.test.ts && tsx src/generation/test/roomTemplateBuilder.test.ts",
+		"test:room-floors": "tsx src/generation/test/roomFloorGenerator.test.ts && tsx src/generation/test/roomTemplateBuilder.test.ts && tsx src/services/roomFloorService.test.ts",
 		"test:run-pool": "tsx src/services/runLevelPool.test.ts",
 		"test:run-level": "tsx src/services/runLevelService.test.ts",
 		"test:wall-tiles": "tsx src/levels/hexWallTiles.test.ts",
