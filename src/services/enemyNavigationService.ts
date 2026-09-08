@@ -5,6 +5,7 @@ import { hexNeighbors, hexToString } from "../grid/hexCoord"
 import type { HexGrid } from "../grid/hexGrid"
 import {
 	buildWalkableHexFlowField,
+	findWalkableHexPath,
 	getNextWalkableHexStep,
 	type HexFlowField,
 } from "../grid/hexPathfinding"
@@ -101,6 +102,42 @@ export function getEnemyNavigationTarget(enemy: GameObj, target: Vec2) {
 	const toTarget = target.sub(enemy.pos)
 	const direction = getEnemyNavigationDirection(enemy, toTarget, target)
 	return enemy.pos.add(direction.scale(Math.max(1, toTarget.len())))
+}
+
+export function pickRandomWalkableEnemyRoute(
+	enemy: GameObj,
+	minimumSteps: number = 3
+): Vec2[] | undefined {
+	const grid = gridRegistry.get(ACTIVE_RUN_GRID_KEY)
+	if (!grid || !enemy.exists()) return undefined
+
+	let start = grid.screenToHex(enemy.pos)
+	if (!grid.isWalkable(start)) {
+		const recoveryCell = findNearestWalkableCell(grid, start)
+		if (!recoveryCell) return []
+		enemy.pos = grid.hexToScreen(recoveryCell)
+		start = recoveryCell
+		clearEnemyNavigationPath(enemy.id)
+	}
+
+	const candidates = grid.getCurrentLayerCells()
+		.filter((cell) => grid.isWalkable(cell.coord))
+	for (let index = candidates.length - 1; index > 0; index--) {
+		const randomIndex = Math.floor(k.rand(0, index + 1))
+		const current = candidates[index]
+		candidates[index] = candidates[randomIndex]
+		candidates[randomIndex] = current
+	}
+
+	let fallbackPath: HexCoord[] = []
+	for (const candidate of candidates) {
+		const path = findWalkableHexPath(grid, start, candidate.coord)
+		if (path.length <= 1) continue
+		if (path.length > fallbackPath.length) fallbackPath = path
+		if (path.length - 1 < minimumSteps) continue
+		return path.slice(1).map((coord) => grid.hexToScreen(coord))
+	}
+	return fallbackPath.slice(1).map((coord) => grid.hexToScreen(coord))
 }
 
 export function hasEnemyLineOfSight(enemy: GameObj, target: Vec2) {

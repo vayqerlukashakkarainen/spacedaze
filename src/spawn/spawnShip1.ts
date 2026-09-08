@@ -21,7 +21,10 @@ import {
 	type EnemySpawnOptions,
 } from "../services/threatService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
-import { hasEnemyLineOfSight } from "../services/enemyNavigationService";
+import {
+	hasEnemyLineOfSight,
+	pickRandomWalkableEnemyRoute,
+} from "../services/enemyNavigationService";
 
 const wingOffset = [6, 2];
 export const unitComponents: Record<number, Component[]> = {};
@@ -52,6 +55,10 @@ export function spawnShip1(
 		{
 			vel: dir,
 			speed: speed * profile.speedMultiplier,
+			route: [] as Vec2[],
+			routeIndex: 0,
+			nextRouteAt: 0,
+			usesGridNavigation: false,
 			hb,
 			elite: profile.elite,
 			damage: profile.damage,
@@ -107,7 +114,30 @@ export function spawnShip1(
 	});
 
 	registerBatchedEntityUpdate("enemies", m, () => {
-		m.move(m.vel.scale(m.speed * velocityScale() * m.getTimescale()));
+		if (m.routeIndex >= m.route.length && k.time() >= m.nextRouteAt) {
+			const route = pickRandomWalkableEnemyRoute(m);
+			if (route !== undefined) {
+				m.route = route;
+				m.routeIndex = 0;
+				m.usesGridNavigation = true;
+			}
+			m.nextRouteAt = k.time() + (route && route.length > 0 ? 0.2 : 0.8);
+		}
+		const waypoint = m.route[m.routeIndex];
+		if (waypoint) {
+			const offset = waypoint.sub(m.pos);
+			const maxStep = m.speed * velocityScale() * m.getTimescale() * k.dt();
+			if (offset.len() <= Math.max(3, maxStep)) {
+				m.pos = waypoint.clone();
+				m.routeIndex++;
+			} else {
+				m.vel = offset.unit();
+				m.angle = m.vel.angle() + 90;
+				m.move(m.vel.scale(m.speed * velocityScale() * m.getTimescale()));
+			}
+		} else if (!m.usesGridNavigation) {
+			m.move(m.vel.scale(m.speed * velocityScale() * m.getTimescale()));
+		}
 
 		checkProjectileComponentIntersection(
 			m.pos,
