@@ -119,6 +119,7 @@ import {
 	createThrusterOverdriveState,
 	updateThrusterOverdrive,
 } from "./services/thrusterOverdriveService";
+import { addPlayerDamageEffects } from "./services/playerDamageEffectService"
 
 let blasters = 0;
 let bulletIndex = 1;
@@ -401,6 +402,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	}
 
 	registerHitAnimation(playerObj);
+	addPlayerDamageEffects(playerObj)
 
 	configureBlasters(muzzleObj);
 	configuredWeaponId = equippedWeapon.id;
