@@ -103,6 +103,8 @@ export interface WeaponDefinition {
 		maxBounces: number
 		speedRetention?: number
 		damageRetention?: number
+		seekNextTarget?: boolean
+		seekDistance?: number
 	}
 	chain?: {
 		maxChains: number
@@ -189,7 +191,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		id: "impactDriver",
 		minimumHubLevel: 1,
 		name: "IMPACT DRIVER",
-		description: "Launches a spinning heavy bolt that rapidly gains speed and violently knocks targets back.",
+		description: "Launches an accelerating heavy bolt that knocks targets back and ricochets toward nearby enemies.",
 		icon: "weapon_impact_driver",
 		damageMultiplier: 1.55,
 		projectileSpeedMultiplier: 0.34,
@@ -212,6 +214,13 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 			initialSpeed: 90,
 			acceleration: 1080,
 			maxSpeed: 720,
+		},
+		bounce: {
+			maxBounces: 2,
+			speedRetention: 0.95,
+			damageRetention: 0.72,
+			seekNextTarget: true,
+			seekDistance: 420,
 		},
 		knockback: 52,
 	},

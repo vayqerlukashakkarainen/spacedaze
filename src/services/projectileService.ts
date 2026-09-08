@@ -84,6 +84,7 @@ import { profileSection } from "./frameProfilerService";
 import { runLoop } from "./runLoopService";
 import { registerBatchedEntityUpdate } from "./entityUpdateService";
 import {
+	findClosestSpatial,
 	findSpatialNearby,
 	querySpatialNearby,
 } from "./runtimeSpatialIndexService";
@@ -473,6 +474,8 @@ function applyBounceModifier(proj: GameObj, config?: BounceModifier) {
 	proj.bouncesRemaining = config.maxBounces;
 	proj.bounceSpeedRetention = config.speedRetention ?? 1;
 	proj.bounceDamageRetention = config.damageRetention ?? 0.7;
+	proj.bounceSeeksNextTarget = config.seekNextTarget ?? false;
+	proj.bounceSeekDistance = config.seekDistance ?? 320;
 	proj.stripPlayerModifiersOnBounce = config.stripPlayerModifiers ?? false;
 	proj.bounceInheritsPlayerModifiers = config.inheritPlayerModifiers ?? false;
 	proj.bounceModifierFallbacks = config.modifierFallbacks;
@@ -1257,16 +1260,16 @@ export function tryBounceProjectile(
 	}
 	if (!normal) normal = projectile.dir.scale(-1);
 
-	// Get incident direction (current projectile direction)
+	const targetDirection = target && projectile.bounceSeeksNextTarget
+		? findNextBounceDirection(projectile, target)
+		: undefined;
 	const incident = projectile.dir;
-
-	// Reflect projectile direction across the normal
-	// Formula: reflected = incident - 2 * (incident · normal) * normal
 	const dotProduct = incident.dot(normal);
-	const reflected = incident.sub(normal.scale(2 * dotProduct));
+	const reflected = targetDirection ??
+		incident.sub(normal.scale(2 * dotProduct)).unit();
 
 	// Update projectile direction and angle
-	projectile.dir = reflected.unit();
+	projectile.dir = reflected;
 	projectile.angle = k.rad2deg(k.Vec2.toAngle(projectile.dir)) + 90;
 
 	// Increase speed (arcade-style energy boost)
@@ -1294,6 +1297,25 @@ export function tryBounceProjectile(
 		stripPlayerModifiersAfterBounce(projectile);
 	}
 	return true;
+}
+
+function findNextBounceDirection(projectile: GameObj, currentTarget: GameObj) {
+	const excludedTargetIds = new Set<number>(projectile.hitTargets ?? []);
+	excludedTargetIds.add(currentTarget.id);
+	const targetTags = projectile.tags.includes(tags.friendly)
+		? [tags.enemy, tags.unit]
+		: [tags.player];
+	const nextTarget = findClosestSpatial(
+		projectile.pos,
+		projectile.bounceSeekDistance,
+		{
+			allTags: targetTags,
+			excludeIds: excludedTargetIds,
+		}
+	);
+	if (!nextTarget?.pos) return;
+	const direction = nextTarget.pos.sub(projectile.pos);
+	return direction.len() > 0.001 ? direction.unit() : undefined;
 }
 
 function stripPlayerModifiersAfterBounce(projectile: GameObj) {

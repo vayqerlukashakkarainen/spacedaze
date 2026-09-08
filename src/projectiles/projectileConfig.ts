@@ -48,6 +48,8 @@ export interface BounceModifier {
 	maxBounces: number;
 	speedRetention?: number;
 	damageRetention?: number;
+	seekNextTarget?: boolean;
+	seekDistance?: number;
 	stripPlayerModifiers?: boolean;
 	inheritPlayerModifiers?: boolean;
 	modifierFallbacks?: BounceModifierFallbacks;

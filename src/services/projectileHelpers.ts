@@ -374,6 +374,8 @@ function applyPlayerProjectileModifiers(
 				builtInDamageRetention,
 				player.projectileBounceDamageRetention
 			),
+			seekNextTarget: config.bounce?.seekNextTarget,
+			seekDistance: config.bounce?.seekDistance,
 			stripPlayerModifiers: true,
 			inheritPlayerModifiers:
 				player.ricochetInheritsModifiers !== undefined,
