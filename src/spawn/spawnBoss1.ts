@@ -505,6 +505,7 @@ export function spawnBoss1(
 			boss.pos.dist(playerObj.pos) < boss.hb + 8
 		) {
 			applyDamage(playerObj, boss.damage, {
+				position: boss.pos,
 				source: { name: definition.name, sprite: "boss1_body" },
 			})
 		}
@@ -524,7 +525,6 @@ export function spawnBoss1(
 			{ intensity: 4.5, starCount: 90 }
 		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
-		k.shake(12)
 		k.destroy(boss)
 	})
 	boss.onHurt(() => {

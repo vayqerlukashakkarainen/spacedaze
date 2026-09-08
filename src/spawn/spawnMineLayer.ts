@@ -123,6 +123,7 @@ export function spawnMineLayer(
 			mineLayer.pos.dist(playerObj.pos) < mineLayer.hb + 8
 		) {
 			applyDamage(playerObj, mineLayer.damage, {
+				position: mineLayer.pos,
 				source: { name: "MINE LAYER", sprite: "enemy_mine_layer" },
 			})
 			applyDamage(mineLayer, mineLayer.hp)
@@ -130,7 +131,14 @@ export function spawnMineLayer(
 	})
 
 	mineLayer.onDeath(() => {
-		enemyOnDeath(mineLayer.pos, 6 * profile.rewardMultiplier, 1.3 * profile.rewardMultiplier)
+		enemyOnDeath(
+			mineLayer.pos,
+			6 * profile.rewardMultiplier,
+			1.3 * profile.rewardMultiplier,
+			"enemy",
+			true,
+			{ tier: profile.elite ? "elite" : "normal" }
+		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
 		k.destroy(mineLayer)
 	})

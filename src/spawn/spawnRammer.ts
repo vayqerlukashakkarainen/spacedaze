@@ -296,6 +296,7 @@ export function spawnRammer(
 			rammer.pos.dist(playerObj.pos) < rammer.hb + 8
 		) {
 			applyDamage(playerObj, rammer.damage, {
+				position: rammer.pos,
 				source: { name: "RAMMER", sprite: "enemy_rammer" },
 			})
 			applyDamage(rammer, rammer.hp)
@@ -303,7 +304,14 @@ export function spawnRammer(
 	})
 
 	rammer.onDeath(() => {
-		enemyOnDeath(rammer.pos, 4 * profile.rewardMultiplier, profile.rewardMultiplier)
+		enemyOnDeath(
+			rammer.pos,
+			4 * profile.rewardMultiplier,
+			profile.rewardMultiplier,
+			"enemy",
+			true,
+			{ tier: profile.elite ? "elite" : "normal" }
+		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
 		k.destroy(rammer)
 	})

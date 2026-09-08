@@ -17,22 +17,19 @@ import { trySpawnHealthOrb } from "./spawnHealthOrb";
 import { trySpawnHackedAlly } from "./spawnHackedAlly";
 import { tags } from "../tags";
 import { spawnEnemyDeathEffect } from "./spawnEnemyDeathEffect";
+import type { EnemyDeathTier } from "./spawnEnemyDeathEffect";
 import { grantUltimateCharge } from "../services/ultimateAbilityService";
 
 interface EnemyDeathVisualOptions {
 	intensity?: number;
 	starCount?: number;
 	shipWreckage?: boolean;
+	tier?: EnemyDeathTier;
 }
 
 export function onEnemyHit(m: GameObj, p: GameObj) {
 	// Use new projectile damage system
 	const shouldDestroy = applyProjectileDamage(m, p);
-
-	// Shake on splash damage
-	if (p.splashDamage !== undefined && !p.isDeployedMine) {
-		k.shake(3);
-	}
 
 	if (shouldDestroy) {
 		k.destroy(p);
@@ -58,7 +55,8 @@ export function enemyOnDeath(
 	spawnEnemyDeathEffect(
 		pos,
 		visuals.intensity ?? Math.sqrt(Math.max(1, powerupMultiplier)),
-		visuals.shipWreckage !== false
+		visuals.shipWreckage !== false,
+		rewardSource === "boss" ? "boss" : visuals.tier ?? "normal"
 	);
 	for (const follower of k.get(tags.follower) as GameObj[]) {
 		if (!follower.exists() || follower.droneType !== "medic") continue;

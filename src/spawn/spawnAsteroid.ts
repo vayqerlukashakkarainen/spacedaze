@@ -101,6 +101,7 @@ export function spawnMeteorite(props: Props) {
 			playerObj.pos.dist(m.pos) < m.hb
 		) {
 			applyDamage(playerObj, m.damage, {
+				position: m.pos,
 				source: {
 					name: profile.elite ? "ELITE ASTEROID" : "ASTEROID",
 					sprite: spriteName,
@@ -118,7 +119,10 @@ export function spawnMeteorite(props: Props) {
 				(props.powerupMultiplier ?? 1) * profile.rewardMultiplier,
 				"enemy",
 				true,
-				{ shipWreckage: false }
+				{
+					shipWreckage: false,
+					tier: profile.elite ? "elite" : "normal",
+				}
 			);
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume });
 		k.destroy(m);

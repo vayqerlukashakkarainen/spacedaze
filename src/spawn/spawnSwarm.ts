@@ -154,6 +154,7 @@ const swarmCollisionSystem = createCadencedSystem<SwarmCollisionEntry>({
 				enemy.pos.dist(playerObj.pos) < enemy.hb + 8
 			) {
 				applyDamage(playerObj, enemy.damage, {
+					position: enemy.pos,
 					source: { name: "SWARM DRONE", sprite: "enemy_swarm_drone" },
 				})
 				applyDamage(enemy, enemy.hp)
@@ -238,7 +239,11 @@ export function spawnSwarmEnemy(
 			profile.rewardMultiplier,
 			"enemy",
 			true,
-			{ intensity: 0.42, starCount: 5 }
+			{
+				intensity: 0.42,
+				starCount: 5,
+				tier: profile.elite ? "elite" : "normal",
+			}
 		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume * 0.25 })
 		k.destroy(enemy)
@@ -464,6 +469,7 @@ export function spawnHiveMind(
 			hive.pos.dist(playerObj.pos) < hive.hb + 8
 		) {
 			applyDamage(playerObj, hive.damage, {
+				position: hive.pos,
 				source: { name: "SWARM HIVEMIND", sprite: "enemy_swarm_hivemind" },
 			})
 			applyDamage(hive, hive.hp)
@@ -480,7 +486,14 @@ export function spawnHiveMind(
 	}
 	hive.onDeath(() => {
 		releaseSwarm()
-		enemyOnDeath(hive.pos, 10 * profile.rewardMultiplier, 1.6 * profile.rewardMultiplier)
+		enemyOnDeath(
+			hive.pos,
+			10 * profile.rewardMultiplier,
+			1.6 * profile.rewardMultiplier,
+			"enemy",
+			true,
+			{ tier: profile.elite ? "elite" : "normal" }
+		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
 		k.destroy(hive)
 	})

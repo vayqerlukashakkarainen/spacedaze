@@ -64,6 +64,7 @@ export function spawnHeavyVehicle(
 			playerObj.pos.dist(m.pos) < m.hb
 		) {
 			applyDamage(playerObj, m.damage, {
+				position: m.pos,
 				source: { name: "HEAVY SHIP", sprite },
 			});
 			applyDamage(m, profile.hp);
@@ -71,10 +72,13 @@ export function spawnHeavyVehicle(
 	});
 
 	m.onDeath(() => {
-		enemyOnDeath(
+			enemyOnDeath(
 			m.pos,
 			10 * profile.rewardMultiplier,
-			2 * profile.rewardMultiplier
+			2 * profile.rewardMultiplier,
+			"enemy",
+			true,
+			{ tier: profile.elite ? "elite" : "normal" }
 		);
 		audioService.playSound(randomExplosion(), { volume: mainSoundVolume });
 		k.destroy(m);

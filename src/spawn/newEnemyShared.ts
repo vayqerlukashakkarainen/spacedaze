@@ -23,6 +23,7 @@ export function handleEnemyCombat(
 		enemy.pos.dist(playerObj.pos) < enemy.hb + 8
 	) {
 		applyDamage(playerObj, enemy.damage, {
+			position: enemy.pos,
 			source: { name, sprite },
 		})
 		applyDamage(enemy, enemy.hp)
@@ -42,7 +43,10 @@ export function registerEnemyLifecycle(
 		enemyOnDeath(
 			enemy.pos,
 			score * profile.rewardMultiplier,
-			powerupMultiplier * profile.rewardMultiplier
+			powerupMultiplier * profile.rewardMultiplier,
+			"enemy",
+			true,
+			{ tier: profile.elite ? "elite" : "normal" }
 		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
 		k.destroy(enemy)

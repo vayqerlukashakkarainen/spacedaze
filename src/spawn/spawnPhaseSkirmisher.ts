@@ -80,8 +80,12 @@ function spawnPhaseSeam(start: Vec2, end: Vec2, damage: number, extraTags?: stri
 		const fromStart = playerObj.pos.sub(start)
 		const lengthSquared = Math.max(1, delta.x * delta.x + delta.y * delta.y)
 		const projection = k.clamp((fromStart.x * delta.x + fromStart.y * delta.y) / lengthSquared, 0, 1)
-		if (playerObj.pos.dist(start.add(delta.scale(projection))) > 10) return
+		const impactPosition = start.add(delta.scale(projection))
+		if (playerObj.pos.dist(impactPosition) > 10) return
 		hit = true
-		applyDamage(playerObj, damage, { source: { name: "PHASE SEAM", sprite: "enemy_phase_skirmisher" } })
+		applyDamage(playerObj, damage, {
+			position: impactPosition,
+			source: { name: "PHASE SEAM", sprite: "enemy_phase_skirmisher" },
+		})
 	})
 }

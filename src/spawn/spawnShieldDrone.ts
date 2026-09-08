@@ -122,6 +122,7 @@ export function spawnShieldDrone(
 			drone.pos.dist(playerObj.pos) < drone.hb + 8
 		) {
 			applyDamage(playerObj, drone.damage, {
+				position: drone.pos,
 				source: { name: "SHIELD DRONE", sprite: "enemy_shield_drone" },
 			})
 			applyDamage(drone, drone.hp)
@@ -130,7 +131,14 @@ export function spawnShieldDrone(
 
 	drone.onDeath(() => {
 		clearShieldProvider(protectedTarget, drone)
-		enemyOnDeath(drone.pos, 5 * profile.rewardMultiplier, 1.2 * profile.rewardMultiplier)
+		enemyOnDeath(
+			drone.pos,
+			5 * profile.rewardMultiplier,
+			1.2 * profile.rewardMultiplier,
+			"enemy",
+			true,
+			{ tier: profile.elite ? "elite" : "normal" }
+		)
 		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
 		k.destroy(drone)
 	})

@@ -9,12 +9,14 @@ import {
 	recordTelemetryPlayerDamage,
 } from "./runTelemetryService"
 import { runtimeDebug } from "./runtimeDebugService"
+import { showPlayerDamageDirection } from "./combatImpactService"
 
 export interface DamageOptions {
 	critical?: boolean
 	position?: Vec2
 	showNumber?: boolean
 	source?: PlayerDeathCause
+	incomingDirection?: Vec2
 }
 
 export interface PlayerDeathCause {
@@ -70,6 +72,12 @@ export function applyDamage(
 	const healthBefore = target.hp
 	target.hp -= appliedDamage
 	if (target.tags.includes(tags.player)) {
+		showPlayerDamageDirection(
+			target,
+			appliedDamage,
+			options.position,
+			options.incomingDirection
+		)
 		runtimeDebug.log("combat", "player:damaged", {
 			amount: appliedDamage,
 			healthBefore,
