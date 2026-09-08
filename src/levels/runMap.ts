@@ -92,7 +92,7 @@ import { audioService } from "../services/audioService";
 import { randomExplosion } from "../util";
 import { spawnThreatEncounter } from "../services/enemyEncounterService";
 import { spawnGravityPull } from "../spawn/spawnGravityPull";
-import { spawnRiftJunction } from "../spawn/rooms/spawnRiftJunction";
+import { spawnGravityShrineNetwork } from "../spawn/rooms/spawnGravityShrineNetwork";
 import { spawnDroneRepairZone } from "../spawn/rooms/spawnDroneRepairZone";
 import { spawnGravityAnomaly } from "../spawn/rooms/spawnGravityAnomaly";
 import { spawnMinefield } from "../spawn/rooms/spawnMinefield";
@@ -1486,10 +1486,14 @@ function spawnGeneratedContent(
 				tags: [tags.runMap],
 			});
 			return;
-		case "rift_junction":
-			spawnRiftJunction({
-				pos,
-				destinations: selectRiftDestinations(grid, map, coord),
+		case "gravity_shrine_network":
+			spawnGravityShrineNetwork({
+				positions: [
+					pos,
+					...selectGravityShrineDestinations(grid, map, coord),
+				],
+				pullRadius: hexSize * 2.4,
+				pullStrength: 48 + depth * 6,
 				tags: [tags.runMap],
 			});
 			return;
@@ -1604,25 +1608,54 @@ function spawnMapChallengeRewards(pos: Vec2, count = 1) {
 	}
 }
 
-function selectRiftDestinations(
+function selectGravityShrineDestinations(
 	grid: HexGrid,
 	map: GenerationMap,
 	origin: { q: number; r: number }
 ) {
 	const seed = currentRunSeed ?? 1;
-	return map
+	const openCells = map
 		.getAllCells()
 		.filter(
 			(cell) =>
 				!cell.solid &&
 				!cell.tags.has("room_anchor") &&
-				hexDistance(origin, cell.coord) >= 12
+				!cell.tags.has("resource_node") &&
+				!cell.tags.has("hazard")
 		)
 		.sort(
 			(a, b) =>
 				cavernHash(seed, a.coord, 4817) - cavernHash(seed, b.coord, 4817)
 		)
-		.slice(0, 3)
+	const preferred = openCells.filter(
+		(cell) =>
+			hexDistance(origin, cell.coord) >= 12 &&
+			!getRoomRole(cell) &&
+			hexNeighbors(cell.coord).filter((neighborCoord) => {
+				const neighbor = map.getCell(neighborCoord)
+				return neighbor && !neighbor.solid
+			}).length >= 4
+	)
+	const fallback = openCells.filter(
+		(cell) => hexDistance(origin, cell.coord) >= 5
+	)
+	const selected: GenCell[] = []
+	for (const cell of [...preferred, ...fallback]) {
+		if (selected.includes(cell)) continue
+		if (
+			selected.some(
+				(selectedCell) => hexDistance(selectedCell.coord, cell.coord) < 8
+			)
+		) continue
+		selected.push(cell)
+		if (selected.length >= 2) break
+	}
+	for (const cell of fallback) {
+		if (selected.length >= 2) break
+		if (!selected.includes(cell)) selected.push(cell)
+	}
+	if (selected.length === 0 && openCells[0]) selected.push(openCells[0])
+	return selected
 		.map((cell) => grid.hexToScreen(cell.coord));
 }
 
@@ -2068,7 +2101,7 @@ export function getRoomColor(role: RoomRole) {
 export function getRoomLabel(role: RoomRole) {
 	if (role === "asteroid") return "ASTEROID FIELD";
 	if (role === "shrine") return "SHRINE";
-	if (role === "rift") return "RIFT JUNCTION";
+	if (role === "rift") return "GRAVITY SHRINES";
 	if (role === "repair") return "REPAIR STATION";
 	if (role === "anomaly") return "GRAVITY ANOMALY";
 	if (role === "minefield") return "MINEFIELD";

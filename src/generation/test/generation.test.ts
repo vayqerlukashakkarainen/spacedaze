@@ -552,7 +552,7 @@ test("Run-sized generated maps include all special room starters", () => {
 	const generator = new CaveGenerator(1142);
 	const map = generator.generate(48, 36);
 	const rooms = [
-		["rift", "rift_junction"],
+		["rift", "gravity_shrine_network"],
 		["repair", "repair_station"],
 		["anomaly", "gravity_anomaly"],
 		["minefield", "minefield"],
