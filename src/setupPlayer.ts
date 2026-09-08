@@ -154,9 +154,7 @@ import {
 	DRIFT_HULL_RESPONSE,
 	DRIFT_SPEED_MULTIPLIER,
 	easeAngle,
-	getHullAimFollowTarget,
 	getSignedAngleDelta,
-	NORMAL_AIM_HULL_RESPONSE,
 	TURRET_AIM_RESPONSE,
 } from "./services/playerSteeringModeService"
 import { addPlayerDamageEffects } from "./services/playerDamageEffectService"
@@ -1049,19 +1047,6 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			)
 			desiredPlayerAngle = turretWorldAngle
 		} else {
-			const hullAimTarget = getHullAimFollowTarget(
-				nextPlayerAngle,
-				desiredTurretWorldAngle
-			)
-			if (Math.abs(getSignedAngleDelta(nextPlayerAngle, hullAimTarget)) > 0.001) {
-				nextPlayerAngle = easeAngle(
-					nextPlayerAngle,
-					hullAimTarget,
-					NORMAL_AIM_HULL_RESPONSE,
-					steeringDelta
-				)
-				desiredPlayerAngle = hullAimTarget
-			}
 			const constrainedTurretAngle = clampTurretWorldAngle(
 				nextPlayerAngle,
 				desiredTurretWorldAngle
