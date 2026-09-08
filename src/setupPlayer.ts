@@ -214,6 +214,7 @@ interface GravitySlingState {
 	hitTargets: Set<number>;
 }
 let gravitySlingState: GravitySlingState | undefined;
+let gravitySlingReleaseVelocity: Vec2;
 let nextPrimaryFireTime = 0;
 let configuredWeaponId = "";
 let overclockShakeTimer = 0;
