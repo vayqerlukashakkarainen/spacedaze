@@ -2,6 +2,7 @@ import type { GameObj, Vec2 } from "kaplay"
 import { k } from "../main"
 import { tags } from "../tags"
 import { setPerformanceCounter } from "./frameProfilerService"
+import type { RunFrameContext } from "./runLoopService"
 import { SpatialHash } from "./spatialHash"
 
 const SPATIAL_CELL_SIZE = 96
@@ -14,6 +15,21 @@ const projectileObjects: Array<GameObj & { pos: Vec2 }> = []
 const enemyUnitObjects: Array<GameObj & { pos: Vec2 }> = []
 const spatialObjectIndices = new Map<number, number>()
 let registryInitialized = false
+
+const DENSE_INDEX_THRESHOLD = 750
+
+export function updateRuntimeSpatialIndex(context: RunFrameContext) {
+	ensureSpatialObjectRegistry()
+	if (
+		spatialObjects.length >= DENSE_INDEX_THRESHOLD &&
+		context.frame % 2 !== 0
+	) {
+		setPerformanceCounter("spatialIndexSkipped", 1)
+		return
+	}
+	setPerformanceCounter("spatialIndexSkipped", 0)
+	rebuildRuntimeSpatialIndex()
+}
 
 export interface SpatialQueryOptions {
 	allTags?: string[]

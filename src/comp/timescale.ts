@@ -3,6 +3,7 @@ import { Comp } from "kaplay";
 export interface TimescaleComp extends Comp {
 	timescale: number;
 	timescaleModifiers: Map<number, number>;
+	runtimeUpdateScale?: number;
 	setTimescale: (value: number) => void;
 	getTimescale: () => number;
 }
@@ -22,7 +23,8 @@ export function timescale(): TimescaleComp {
 		getTimescale() {
 			return (
 				this.timescale *
-				Array.from(this.timescaleModifiers.values()).reduce((a, b) => a * b, 1)
+				Array.from(this.timescaleModifiers.values()).reduce((a, b) => a * b, 1) *
+				(this.runtimeUpdateScale ?? 1)
 			);
 		},
 	};

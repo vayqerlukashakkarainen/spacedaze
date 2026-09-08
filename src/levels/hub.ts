@@ -427,6 +427,7 @@ function spawnPhaseShiftAsteroidField() {
 		for (const projectile of projectiles) {
 			if (
 				!projectile.exists() ||
+				projectile.is(tags.stressProjectile) ||
 				!projectile.tags.includes(tags.friendly)
 			) continue;
 			const fieldDistance = projectile.pos.dist(fieldCenter);

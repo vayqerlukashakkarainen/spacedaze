@@ -84,10 +84,8 @@ export function applySteeringLean(
 		? (1 + steeringAmount * ROUNDED_STEERING_STRETCH) * baseScale
 		: (1 - steeringAmount / 40) * baseScale;
 	const bankLerp = k.clamp(12 * k.dt(), 0, 1);
-	m.scale = k.vec2(
-		k.lerp(m.scale.x, targetScaleX, bankLerp),
-		k.lerp(m.scale.y, targetScaleY, bankLerp)
-	);
+	m.scale.x = k.lerp(m.scale.x, targetScaleX, bankLerp);
+	m.scale.y = k.lerp(m.scale.y, targetScaleY, bankLerp);
 }
 
 export function applyDirectionalSteeringLean(

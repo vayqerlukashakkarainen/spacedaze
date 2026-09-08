@@ -61,6 +61,10 @@ export function spawnSalvageScavenger(pos: Vec2, hp = 4, options: EnemySpawnOpti
 
 function findNearestDebris(pos: Vec2) {
 	return (debrees as GameObj[])
-		.filter((debris) => debris.exists() && !debris.collection)
+		.filter((debris) =>
+			debris.exists() &&
+			!debris.collection &&
+			!debris.is(tags.stressDebree)
+		)
 		.sort((a, b) => a.pos.dist(pos) - b.pos.dist(pos))[0]
 }

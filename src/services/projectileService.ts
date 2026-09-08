@@ -85,6 +85,7 @@ import {
 	querySpatialNearby,
 } from "./runtimeSpatialIndexService";
 import { getShipThrusterFlash } from "../comp/shipThruster";
+import { registerRuntimeSpriteVisual } from "./enemyVisualBatchService";
 
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
 const PLAYER_PROJECTILE_SCALE = 0.7;
@@ -117,7 +118,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 		k.pos(config.pos),
 		k.rotate(config.rotation),
 		timescale(),
-		k.offscreen({ destroy: true }),
+		...(config.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		k.anchor("center"),
 		k.sprite(config.sprite),
 		k.color(
@@ -226,6 +227,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 
 	// Add to projectiles array
 	projectiles.push(proj);
+	registerRuntimeSpriteVisual(proj);
 	ensureProjectileUpdateController();
 
 	return proj;
@@ -262,7 +264,10 @@ export function updateProjectileBatch() {
 
 function updateProjectile(proj: GameObj) {
 	const config = proj.projectileConfig as ProjectileConfig;
-	const previousPos = proj.pos.clone();
+	const activeGrid = config.ignoreWorldCollision
+		? undefined
+		: gridRegistry.get(ACTIVE_RUN_GRID_KEY);
+	const previousPos = activeGrid ? proj.pos.clone() : undefined;
 	proj.lifetime += k.dt() * proj.getTimescale();
 	if (config.flashLikeThruster) {
 		proj.opacity = getShipThrusterFlash(k.time())
@@ -322,7 +327,9 @@ function updateProjectile(proj: GameObj) {
 
 	if (!proj.spiralConfig) updateMovement(proj);
 	if (proj.wiggleConfig?.trailPoints) updateWiggleTrail(proj);
-	const wallCollision = findSolidCellCollision(previousPos, proj.pos);
+	const wallCollision = activeGrid && previousPos
+		? findSolidCellCollision(activeGrid, previousPos, proj.pos)
+		: undefined;
 	if (wallCollision) {
 		let hitDestructibleWall = false;
 		if (proj.damagesDestructibleWalls) {
@@ -365,12 +372,10 @@ interface SolidCellCollision {
 }
 
 function findSolidCellCollision(
+	grid: HexGrid,
 	start: Vec2,
 	end: Vec2
 ): SolidCellCollision | undefined {
-	const grid = gridRegistry.get(ACTIVE_RUN_GRID_KEY);
-	if (!grid) return undefined;
-
 	const distance = start.dist(end);
 	const sampleSpacing = Math.max(4, grid.config.hexSize * 0.2);
 	const sampleCount = Math.max(1, Math.ceil(distance / sampleSpacing));
@@ -770,12 +775,16 @@ function updateMovement(proj: GameObj) {
 			? proj.wiggleConfig.baseAngle + getWiggleAngle(proj)
 			: proj.angle;
 		proj.angle = travelAngle;
-		const currentDir = k.Vec2.fromAngle(travelAngle - 90);
-		proj.move(
-			k
-				.vec2(currentDir.x * speed, currentDir.y * speed)
-				.scale(velocityScale())
-		);
+		const travelRadians = k.deg2rad(travelAngle - 90);
+		const directionX = Math.cos(travelRadians);
+		const directionY = Math.sin(travelRadians);
+		const distance = speed * velocityScale() * k.dt();
+		proj.pos.x += directionX * distance;
+		proj.pos.y += directionY * distance;
+		if (proj.dir) {
+			proj.dir.x = directionX;
+			proj.dir.y = directionY;
+		}
 		applySteeringLean(
 			proj,
 			proj.angle,
@@ -921,7 +930,11 @@ function updateCurve(proj: GameObj) {
 		velocityScale() *
 		proj.getTimescale();
 	proj.angle += angleChange;
-	proj.dir = k.Vec2.fromAngle(proj.angle - 90);
+	if (proj.dir) {
+		const radians = k.deg2rad(proj.angle - 90);
+		proj.dir.x = Math.cos(radians);
+		proj.dir.y = Math.sin(radians);
+	}
 }
 
 function updateProximityFuse(proj: GameObj) {
@@ -1514,13 +1527,15 @@ export function applyProjectileDamage(
 		projectile.piercesRemaining !== undefined &&
 		projectile.piercesRemaining > 0
 	) {
-		spawnFlash(
-			projectile.pos,
-			5,
-			projectile.didCrit
-				? k.RED
-				: projectile.projectileConfig?.effectTint ?? k.WHITE
-		);
+		if (!projectile.suppressImpactEffects) {
+			spawnFlash(
+				projectile.pos,
+				5,
+				projectile.didCrit
+					? k.RED
+					: projectile.projectileConfig?.effectTint ?? k.WHITE
+			);
+		}
 		projectile.hitTargets.add(target.id);
 		projectile.piercesRemaining--;
 		projectile.impactDamage *= projectile.pierceReduction;

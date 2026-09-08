@@ -19,11 +19,21 @@ import { tags } from "../tags"
 import { randomExplosion } from "../util"
 import { timescale } from "../comp/timescale"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
+import { DensePool } from "../services/densePool"
 
 const SHIELD_HOST_ACTION_SPEED_MULTIPLIER = 1.3
 const SHIELD_HOST_DAMAGE_MULTIPLIER = 1.4
 const SHIELD_RETARGET_INTERVAL = 6
 const SHIELD_RETARGET_RADIUS = 280
+
+interface ShieldLinkVisual {
+	id: number
+	drone: GameObj
+	target: () => GameObj
+}
+
+const shieldLinkVisuals = new DensePool<ShieldLinkVisual>((visual) => visual.id)
+let shieldLinkController: GameObj | undefined
 
 export function spawnShieldDrone(
 	pos: Vec2,
@@ -60,50 +70,14 @@ export function spawnShieldDrone(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
-	const shieldLink = k.add([
-		k.pos(0, 0),
-		k.layer(layers.gameEffects),
-		k.z(-1),
-		{
-			draw() {
-				if (!drone.exists() || !protectedTarget.exists()) return
-				const delta = protectedTarget.pos.sub(drone.pos)
-				if (delta.len() <= 0) return
-				const perpendicular = k.vec2(-delta.y, delta.x).unit()
-				const points = Array.from({ length: 11 }, (_, index) => {
-					const progress = index / 10
-					const envelope = Math.sin(progress * Math.PI)
-					const primaryWave = Math.sin(
-						progress * Math.PI * 4 + k.time() * 9
-					) * 3.4
-					const secondaryWave = Math.sin(
-						progress * Math.PI * 7 - k.time() * 5.5
-					) * 1.4
-					return drone.pos
-						.add(delta.scale(progress))
-						.add(perpendicular.scale((primaryWave + secondaryWave) * envelope))
-				})
-				k.drawLines({
-					pts: points,
-					width: 4,
-					color: k.rgb(255, 65, 65),
-					opacity: 0.2,
-				})
-				k.drawLines({
-					pts: points,
-					width: 1,
-					color: k.rgb(255, 205, 205),
-					opacity: k.wave(0.55, 0.95, k.time() * 8),
-				})
-			},
-		},
-		tags.gameLoop,
-		...(options.tags ?? []),
-	])
+	const unregisterShieldLink = registerShieldLink(
+		drone,
+		() => protectedTarget
+	)
 	attachToTarget(initialTarget)
 	drone.onDestroy(() => {
 		targetDestroyController?.cancel()
-		if (shieldLink.exists()) k.destroy(shieldLink)
+		unregisterShieldLink()
 	})
 	registerHitAnimation(drone)
 	registerBatchedEntityUpdate("enemies", drone, () => {
@@ -210,6 +184,71 @@ export function spawnShieldDrone(
 	}
 
 	return drone
+
+	function registerShieldLink(drone: GameObj, target: () => GameObj) {
+		const visual = { id: drone.id, drone, target }
+		shieldLinkVisuals.add(visual)
+		ensureShieldLinkController()
+		return () => shieldLinkVisuals.remove(visual.id)
+	}
+}
+
+function ensureShieldLinkController() {
+	if (shieldLinkController?.exists()) return
+	shieldLinkController = k.add([
+		k.pos(0, 0),
+		k.layer(layers.gameEffects),
+		k.z(-1),
+		{
+			draw() {
+				shieldLinkVisuals.forEach(drawShieldLink)
+			},
+		},
+		tags.props,
+		tags.gameLoop,
+	])
+	shieldLinkController.onDestroy(() => {
+		shieldLinkVisuals.clear()
+		shieldLinkController = undefined
+	})
+}
+
+function drawShieldLink(visual: ShieldLinkVisual) {
+	const { drone } = visual
+	const protectedTarget = visual.target()
+	if (
+		!drone.exists() ||
+		!protectedTarget.exists() ||
+		drone.runtimeVisibilityCulled === true
+	) return
+	const delta = protectedTarget.pos.sub(drone.pos)
+	if (delta.len() <= 0) return
+	const perpendicular = k.vec2(-delta.y, delta.x).unit()
+	const points = Array.from({ length: 11 }, (_, index) => {
+		const progress = index / 10
+		const envelope = Math.sin(progress * Math.PI)
+		const primaryWave = Math.sin(
+			progress * Math.PI * 4 + k.time() * 9
+		) * 3.4
+		const secondaryWave = Math.sin(
+			progress * Math.PI * 7 - k.time() * 5.5
+		) * 1.4
+		return drone.pos
+			.add(delta.scale(progress))
+			.add(perpendicular.scale((primaryWave + secondaryWave) * envelope))
+	})
+	k.drawLines({
+		pts: points,
+		width: 4,
+		color: k.rgb(255, 65, 65),
+		opacity: 0.2,
+	})
+	k.drawLines({
+		pts: points,
+		width: 1,
+		color: k.rgb(255, 205, 205),
+		opacity: k.wave(0.55, 0.95, k.time() * 8),
+	})
 }
 
 function getShieldHostThreat(target: GameObj, provider?: GameObj) {

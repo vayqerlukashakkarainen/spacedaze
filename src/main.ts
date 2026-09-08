@@ -135,6 +135,7 @@ import { resetPowerupRuntime } from "./powerups";
 import {
 	getDebugEnemyTypes,
 	isDebugEnemyType,
+	spawnAllDebugEnemies,
 	spawnDebugEnemies,
 } from "./services/debugEnemySpawnService";
 import {
@@ -145,12 +146,18 @@ import {
 	setFrameProfilerEnabled,
 } from "./services/frameProfilerService";
 import {
+	clearDebreeStressTest,
 	clearEnemyStressTest,
 	clearProjectileStressTest,
+	clearRocketStressTest,
+	countStressDebree,
 	countStressEnemies,
 	countStressProjectiles,
+	countStressRockets,
+	spawnDebreeStressTest,
 	spawnEnemyStressTest,
 	spawnProjectileStressTest,
+	spawnRocketStressTest,
 } from "./services/performanceStressService";
 import {
 	cancelPerformanceBenchmark,
@@ -172,7 +179,11 @@ import {
 } from "./services/drawCallProfilerService";
 import { updateProjectileBatch } from "./services/projectileService";
 import { updateBatchedEntities } from "./services/entityUpdateService";
-import { rebuildRuntimeSpatialIndex } from "./services/runtimeSpatialIndexService";
+import {
+	rebuildRuntimeSpatialIndex,
+	updateRuntimeSpatialIndex,
+} from "./services/runtimeSpatialIndexService";
+import { updateRuntimeVisibility } from "./services/runtimeVisibilityService";
 import { updateEnemySeparation } from "./services/enemySeparationService";
 import { updateBatchedUi } from "./services/uiUpdateService";
 import { updateUiPointerRegions } from "./services/uiPointerService";
@@ -553,7 +564,7 @@ function registerRunLoopSystems() {
 	runLoop.register({
 		id: "runtime:spatial-index",
 		phase: "spatialIndex",
-		update: rebuildRuntimeSpatialIndex,
+		update: updateRuntimeSpatialIndex,
 	});
 	runLoop.register({
 		id: "runtime:entities",
@@ -589,6 +600,12 @@ function registerRunLoopSystems() {
 			"gridVisibility",
 			() => gridRegistry.updateVisibleCells()
 		),
+	});
+	runLoop.register({
+		id: "runtime:visibility",
+		phase: "cleanup",
+		priority: 100,
+		update: updateRuntimeVisibility,
 	});
 }
 
@@ -657,6 +674,7 @@ function updateLegacyFrame(context: RunFrameContext) {
 	updateActiveGameState(context);
 	updateBatchedUi();
 	profileSection("gridVisibility", () => gridRegistry.updateVisibleCells());
+	updateRuntimeVisibility(context);
 	updateDebug();
 }
 
@@ -1046,29 +1064,45 @@ function registerDebugCommands() {
 
 	commandService.register(
 		"stress",
-		"stress projectiles|enemies|combined [count] - Run deterministic load tests",
+		"stress combat [enemies] [projectiles] [rockets] [debris] - Run deterministic load tests",
 		(args) => {
 			const mode = args[0]?.toLowerCase() ?? "projectiles";
 			if (mode === "clear") {
+				const rockets = clearRocketStressTest();
 				const projectiles = clearProjectileStressTest();
 				const enemies = clearEnemyStressTest();
-				return `Removed ${projectiles} stress projectiles and ${enemies} stress enemies`;
+				const debris = clearDebreeStressTest();
+				return `Removed ${projectiles} projectiles, ${rockets} rockets, ${enemies} enemies, and ${debris} debris`;
 			}
 			if (mode === "status") {
-				return `${countStressProjectiles()} stress projectiles and ${countStressEnemies()} stress enemies active`;
+				const rockets = countStressRockets();
+				const projectiles = countStressProjectiles() - rockets;
+				return `${projectiles} projectiles, ${rockets} rockets, ${countStressEnemies()} enemies, and ${countStressDebree()} debris active`;
 			}
-			if (!["projectiles", "enemies", "combined"].includes(mode)) {
-				return "Usage: stress projectiles|enemies|combined [count] [projectile-count] | stress clear";
+			if (![
+				"projectiles",
+				"rockets",
+				"enemies",
+				"debris",
+				"combined",
+				"combat",
+			].includes(mode)) {
+				return "Usage: stress combat [enemies] [projectiles] [rockets] [debris] | stress clear";
 			}
 			if (!playerObj || !playerObj.exists()) return "No active player";
 
-			const count = Number(args[1] ?? (mode === "enemies" ? 500 : 1000));
-			const projectileCount = Number(args[2] ?? count);
-			if (
-				!Number.isInteger(count) || count < 1 || count > 5000 ||
-				!Number.isInteger(projectileCount) ||
-				projectileCount < 1 || projectileCount > 5000
-			) {
+			const firstCount = Number(args[1] ?? (mode === "projectiles" ? 1000 : 500));
+			const projectileCount = Number(args[2] ?? firstCount);
+			const rocketCount = Number(args[3] ?? Math.max(1, Math.round(firstCount / 5)));
+			const debrisCount = Number(args[4] ?? firstCount);
+			const counts = mode === "combat"
+				? [firstCount, projectileCount, rocketCount, debrisCount]
+				: mode === "combined"
+					? [firstCount, projectileCount]
+					: [firstCount];
+			if (counts.some((count) =>
+				!Number.isInteger(count) || count < 1 || count > 5000
+			)) {
 				return "Stress counts must be integers between 1 and 5000";
 			}
 
@@ -1076,12 +1110,26 @@ function registerDebugCommands() {
 			setDebugVisible(true);
 			const paused = commandConsoleOpen();
 			const origin = playerObj.pos.clone();
-			const enemyResult = mode === "enemies" || mode === "combined"
-				? spawnEnemyStressTest(count, origin, paused)
+			const enemyResult = ["enemies", "combined", "combat"].includes(mode)
+				? spawnEnemyStressTest(firstCount, origin, paused)
 				: undefined;
-			const projectileResult = mode === "projectiles" || mode === "combined"
+			const projectileResult = ["projectiles", "combined", "combat"].includes(mode)
 				? spawnProjectileStressTest(
-					mode === "combined" ? projectileCount : count,
+					mode === "projectiles" ? firstCount : projectileCount,
+					origin,
+					paused
+				)
+				: undefined;
+			const rocketResult = ["rockets", "combat"].includes(mode)
+				? spawnRocketStressTest(
+					mode === "rockets" ? firstCount : rocketCount,
+					origin,
+					paused
+				)
+				: undefined;
+			const debrisResult = ["debris", "combat"].includes(mode)
+				? spawnDebreeStressTest(
+					mode === "debris" ? firstCount : debrisCount,
 					origin,
 					paused
 				)
@@ -1096,9 +1144,15 @@ function registerDebugCommands() {
 				projectileResult
 					? `${projectileResult.spawned} projectiles for ${projectileResult.lifetime}s`
 					: undefined,
+				rocketResult
+					? `${rocketResult.spawned} rockets for ${rocketResult.lifetime}s`
+					: undefined,
+				debrisResult ? `${debrisResult.spawned} debris` : undefined,
 			].filter(Boolean);
 			const replaced = (enemyResult?.removed ?? 0) +
-				(projectileResult?.removed ?? 0);
+				(projectileResult?.removed ?? 0) +
+				(rocketResult?.removed ?? 0) +
+				(debrisResult?.removed ?? 0);
 			const replacement = replaced > 0
 				? ` Replaced ${replaced} prior stress objects.`
 				: "";
@@ -1218,7 +1272,19 @@ function registerDebugCommands() {
 				.flatMap((arg) => arg.split(/[,+;]/))
 				.map((token) => token.trim().toLowerCase())
 				.filter((token) => token && token !== "spawn");
-			const usage = `Usage: spawn <count> <type> [count type...]. Types: ${availableTypes}`;
+			const usage = `Usage: spawn <count> <type> [count type...] | spawn all <count>. Types: ${availableTypes}`;
+			if (
+				tokens.length === 2 &&
+				(tokens[0] === "all" || tokens[1] === "all")
+			) {
+				const count = Number(tokens[0] === "all" ? tokens[1] : tokens[0]);
+				if (!Number.isInteger(count) || count < 1 || count > 1000) {
+					return `All-enemy count must be an integer from 1-1000. ${usage}`;
+				}
+				if (!playerObj || !playerObj.exists()) return "No active player";
+				const result = spawnAllDebugEnemies(count, playerObj.pos);
+				return `Spawned ${result.spawned} enemy objects across ${result.types} types (${result.requested} requested)`;
+			}
 			if (tokens.length === 0 || tokens.length % 2 !== 0) return usage;
 
 			const groups: Array<{

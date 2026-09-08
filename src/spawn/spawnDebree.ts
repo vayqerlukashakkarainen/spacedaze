@@ -28,6 +28,7 @@ export interface DebreeSpawnOptions {
 	minSpeed?: number;
 	maxSpeed?: number;
 	runLevelXp?: boolean;
+	tags?: string[];
 }
 
 const debreeTiers: Record<
@@ -94,6 +95,7 @@ export function spawnDebreeValues(
 			},
 			tags.debree,
 			tags.gameLoop,
+			...(options.tags ?? []),
 		]);
 		const rareGlow = salvageValue === 5
 			? addLocalLight(d, {

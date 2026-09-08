@@ -238,6 +238,8 @@ export interface ProjectileConfig {
 	visualWobble?: number;
 	visualScale?: number;
 	explosionDelay?: number;
+	persistOffscreen?: boolean;
+	ignoreWorldCollision?: boolean;
 	speed: number;
 	tags: string[];
 	speedMultiplier?: number;

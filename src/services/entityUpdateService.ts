@@ -10,6 +10,10 @@ import {
 	updateContinuousSystems,
 } from "./continuousSystemService"
 import { DensePool } from "./densePool"
+import {
+	registerEnemyVisual,
+	registerRuntimeSpriteVisual,
+} from "./enemyVisualBatchService"
 import { profileSection, setPerformanceCounter } from "./frameProfilerService"
 import { runLoop } from "./runLoopService"
 
@@ -32,6 +36,13 @@ interface EntityUpdateEntry {
 const pools = new Map<EntityUpdateGroup, DensePool<EntityUpdateEntry>>()
 let legacyController: GameObj | undefined
 let nextEntryId = 1
+let entityUpdateFrame = 0
+
+const OFFSCREEN_ENEMY_UPDATE_INTERVAL = 6
+const OFFSCREEN_DEBRIS_UPDATE_INTERVAL = 6
+const DENSE_ENEMY_THRESHOLD = 250
+const DENSE_ENEMY_UPDATE_INTERVAL = 2
+const DENSE_OFFSCREEN_ENEMY_UPDATE_INTERVAL = 10
 
 for (const group of ENTITY_UPDATE_GROUPS) {
 	pools.set(group, new DensePool<EntityUpdateEntry>((entry) => entry.id))
@@ -52,29 +63,71 @@ export function registerBatchedEntityUpdate(
 		pool.remove(entryId)
 	}
 	pool.add({ id: entryId, obj, update })
+	if (group === "enemies") registerEnemyVisual(obj)
+	if (group === "debris") registerRuntimeSpriteVisual(obj)
+	if (group === "effects" && obj.pos && !obj.is(tags.runtimeCullable)) {
+		obj.tag(tags.runtimeCullable)
+	}
 	obj.onDestroy(unregister)
 	ensureLegacyController()
 	return unregister
 }
 
 export function updateBatchedEntities() {
+	entityUpdateFrame++
 	profileSection("batch:cadenced", () => updateCadencedSystems(k.dt()))
 	profileSection("batch:continuous", updateContinuousSystems)
 	for (const group of ENTITY_UPDATE_GROUPS) {
 		const pool = pools.get(group)
 		if (!pool || pool.size === 0) continue
 		profileSection(`batch:${group}`, () => {
+			let skipped = 0
 			pool.forEach((entry) => {
 				if (!entry.obj.exists()) {
 					pool.remove(entry.id)
 					return
 				}
 				if (entry.obj.paused) return
-				entry.update()
+				const updateInterval = getUpdateInterval(group, entry.obj)
+				if (
+					updateInterval > 1 &&
+					(entityUpdateFrame + entry.obj.id) % updateInterval !== 0
+				) {
+					skipped++
+					return
+				}
+				entry.obj.runtimeUpdateScale = updateInterval
+				try {
+					entry.update()
+				} finally {
+					entry.obj.runtimeUpdateScale = 1
+				}
 			})
+			setPerformanceCounter(`batch:${group}:skipped`, skipped)
 		})
 		setPerformanceCounter(`batch:${group}:count`, pool.size)
 	}
+}
+
+function getUpdateInterval(group: EntityUpdateGroup, obj: GameObj) {
+	const denseEnemies = group === "enemies" &&
+		(pools.get("enemies")?.size ?? 0) >= DENSE_ENEMY_THRESHOLD
+	if (
+		group === "enemies" &&
+		obj.runtimeVisibilityCulled === true &&
+		obj.has("timescale")
+	) return denseEnemies
+		? DENSE_OFFSCREEN_ENEMY_UPDATE_INTERVAL
+		: OFFSCREEN_ENEMY_UPDATE_INTERVAL
+	if (denseEnemies && obj.has("timescale")) {
+		return DENSE_ENEMY_UPDATE_INTERVAL
+	}
+	if (
+		group === "debris" &&
+		obj.runtimeVisibilityCulled === true &&
+		obj.has("timescale")
+	) return OFFSCREEN_DEBRIS_UPDATE_INTERVAL
+	return 1
 }
 
 export function getBatchedEntityCounts() {

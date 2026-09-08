@@ -169,6 +169,11 @@ export function updateGameLoop() {
 		};
 
 		if (collectible.carriedBy !== undefined) continue
+		if (collectible.is(tags.stressDebree)) continue
+		if (
+			collectible.runtimeVisibilityCulled === true &&
+			!collectible.collection
+		) continue
 
 		if (collectible.collection) {
 			const completed = updateDebreeCollection(

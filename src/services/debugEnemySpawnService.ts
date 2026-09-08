@@ -23,6 +23,7 @@ import { spawnPhaseSkirmisher } from "../spawn/spawnPhaseSkirmisher"
 import { spawnSalvageScavenger } from "../spawn/spawnSalvageScavenger"
 import { spawnSuppressor } from "../spawn/spawnSuppressor"
 import { spawnBreachCrawler } from "../spawn/spawnBreachCrawler"
+import { tags } from "../tags"
 
 export type DebugEnemyType =
 	| "ship"
@@ -71,6 +72,10 @@ const DEBUG_ENEMY_TYPES: readonly DebugEnemyType[] = [
 	"mini-boss",
 ]
 
+const SCALABLE_DEBUG_ENEMY_TYPES = DEBUG_ENEMY_TYPES.filter((type) =>
+	type !== "boss" && type !== "mini-boss"
+)
+
 export function getDebugEnemyTypes() {
 	return [...DEBUG_ENEMY_TYPES, "random"]
 }
@@ -79,8 +84,12 @@ export function spawnDebugEnemies(
 	count: number,
 	type: DebugEnemyType | "random",
 	center: Vec2,
-	indexOffset: number = 0
+	indexOffset: number = 0,
+	extraTags: readonly string[] = []
 ) {
+	const existingEnemyIds = extraTags.length > 0
+		? new Set(k.get(tags.enemy).map((enemy) => enemy.id))
+		: undefined
 	for (let index = 0; index < count; index++) {
 		const enemyType = type === "random"
 			? DEBUG_ENEMY_TYPES[Math.floor(k.rand(DEBUG_ENEMY_TYPES.length))]
@@ -88,6 +97,36 @@ export function spawnDebugEnemies(
 		const pos = findSpawnPosition(center, index + indexOffset)
 		spawnDebugEnemy(enemyType, pos)
 	}
+	if (existingEnemyIds) {
+		for (const enemy of k.get(tags.enemy)) {
+			if (existingEnemyIds.has(enemy.id)) continue
+			enemy.tag([...extraTags])
+		}
+	}
+}
+
+export function spawnAllDebugEnemies(
+	count: number,
+	center: Vec2,
+	extraTags: readonly string[] = []
+) {
+	const existingEnemyIds = new Set(k.get(tags.enemy).map((enemy) => enemy.id))
+	const totalCount = Math.max(count, DEBUG_ENEMY_TYPES.length)
+	for (let index = 0; index < totalCount; index++) {
+		const enemyType = index < DEBUG_ENEMY_TYPES.length
+			? DEBUG_ENEMY_TYPES[index]
+			: SCALABLE_DEBUG_ENEMY_TYPES[
+				(index - DEBUG_ENEMY_TYPES.length) % SCALABLE_DEBUG_ENEMY_TYPES.length
+			]
+		spawnDebugEnemy(enemyType, findSpawnPosition(center, index))
+	}
+	let spawned = 0
+	for (const enemy of k.get(tags.enemy)) {
+		if (existingEnemyIds.has(enemy.id)) continue
+		enemy.tag([...extraTags])
+		spawned++
+	}
+	return { requested: count, spawned, types: DEBUG_ENEMY_TYPES.length }
 }
 
 export function isDebugEnemyType(

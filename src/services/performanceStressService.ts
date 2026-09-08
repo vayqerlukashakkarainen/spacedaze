@@ -1,6 +1,7 @@
 import type { GameObj, Vec2 } from "kaplay";
 import { k } from "../main";
-import { spawnSwarmEnemy } from "../spawn/spawnSwarm";
+import { spawnAllDebugEnemies } from "./debugEnemySpawnService";
+import { spawnDebreeValues } from "../spawn/spawnDebree";
 import { tags } from "../tags";
 import { spawnProjectile } from "./projectileService";
 
@@ -12,21 +13,9 @@ export function spawnEnemyStressTest(
 	paused: boolean
 ) {
 	const removed = clearEnemyStressTest();
-	for (let index = 0; index < count; index++) {
-		const angle = index * 137.5;
-		const radius = 150 + (index % 20) * 18;
-		const enemy = spawnSwarmEnemy(
-			origin.add(k.Vec2.fromAngle(angle).scale(radius)),
-			2,
-			{
-				disableThreatScaling: true,
-				persistOffscreen: true,
-				tags: [tags.stressEnemy],
-			}
-		);
-		enemy.paused = paused;
-	}
-	return { spawned: count, removed };
+	const result = spawnAllDebugEnemies(count, origin, [tags.stressEnemy]);
+	for (const enemy of k.get<GameObj>(tags.stressEnemy)) enemy.paused = paused;
+	return { ...result, removed };
 }
 
 export function clearEnemyStressTest() {
@@ -60,7 +49,10 @@ export function spawnProjectileStressTest(
 			speed: k.rand(25, 55),
 			tags: [tags.blaster, tags.friendly, tags.stressProjectile],
 			impact: { damage: 0 },
+			piercing: { maxPierces: 5000, damageReduction: 1 },
 			lifespan: { duration: STRESS_PROJECTILE_LIFETIME },
+			persistOffscreen: true,
+			ignoreWorldCollision: true,
 			curve: {
 				strength: k.rand(12, 32),
 				direction: clockwise ? "right" : "left",
@@ -70,6 +62,7 @@ export function spawnProjectileStressTest(
 		projectile.suppressDestroyFlash = true;
 		projectile.suppressOnDestroyEffects = true;
 		projectile.suppressDestroySound = true;
+		projectile.suppressImpactEffects = true;
 	}
 
 	return {
@@ -93,4 +86,91 @@ export function clearProjectileStressTest() {
 
 export function countStressProjectiles() {
 	return k.get(tags.stressProjectile).length;
+}
+
+export function spawnRocketStressTest(
+	count: number,
+	origin: Vec2,
+	paused: boolean
+) {
+	const removed = clearRocketStressTest();
+	for (let index = 0; index < count; index++) {
+		const angle = (index / count) * 360;
+		const projectile = spawnProjectile({
+			pos: origin.add(k.Vec2.fromAngle(angle).scale(80 + index % 20 * 9)),
+			dir: k.Vec2.fromAngle(angle),
+			rotation: angle + 90,
+			sprite: "rocket1",
+			speed: 115,
+			tags: [
+				tags.friendly,
+				tags.rocket,
+				tags.stressProjectile,
+				tags.stressRocket,
+			],
+			impact: { damage: 0 },
+			piercing: { maxPierces: 5000, damageReduction: 1 },
+			seek: {
+				enabled: true,
+				acquireDelay: 0.2,
+				seekDistance: 520,
+				turnSpeed: 0.065,
+				targetTags: [tags.enemy],
+			},
+			lifespan: { duration: STRESS_PROJECTILE_LIFETIME },
+			persistOffscreen: true,
+			ignoreWorldCollision: true,
+		});
+		projectile.paused = paused;
+		projectile.suppressDestroyFlash = true;
+		projectile.suppressOnDestroyEffects = true;
+		projectile.suppressDestroySound = true;
+		projectile.suppressImpactEffects = true;
+	}
+	return { spawned: count, removed, lifetime: STRESS_PROJECTILE_LIFETIME };
+}
+
+export function clearRocketStressTest() {
+	const rockets = k.get(tags.stressRocket) as GameObj[];
+	for (const rocket of rockets) {
+		if (!rocket.exists()) continue;
+		rocket.suppressDestroyFlash = true;
+		rocket.suppressOnDestroyEffects = true;
+		rocket.suppressDestroySound = true;
+		k.destroy(rocket);
+	}
+	return rockets.length;
+}
+
+export function countStressRockets() {
+	return k.get(tags.stressRocket).length;
+}
+
+export function spawnDebreeStressTest(
+	count: number,
+	origin: Vec2,
+	paused: boolean
+) {
+	const removed = clearDebreeStressTest();
+	const values = Array.from({ length: count }, () => 1 as const);
+	spawnDebreeValues(origin.add(420, 0), values, {
+		pattern: "radial",
+		minSpeed: 40,
+		maxSpeed: 60,
+		tags: [tags.stressDebree],
+	});
+	for (const debris of k.get<GameObj>(tags.stressDebree)) debris.paused = paused;
+	return { spawned: count, removed };
+}
+
+export function clearDebreeStressTest() {
+	const debris = k.get(tags.stressDebree) as GameObj[];
+	for (const item of debris) {
+		if (item.exists()) k.destroy(item);
+	}
+	return debris.length;
+}
+
+export function countStressDebree() {
+	return k.get(tags.stressDebree).length;
 }
