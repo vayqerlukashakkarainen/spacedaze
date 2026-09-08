@@ -1,4 +1,4 @@
-import type { Vec2 } from "kaplay"
+import type { GameObj, Vec2 } from "kaplay"
 import { playerObj } from "../game"
 import { k } from "../main"
 import { spawnAssasin } from "../spawn/spawnAssasin"
@@ -12,7 +12,7 @@ import { spawnShieldDrone } from "../spawn/spawnShieldDrone"
 import { spawnShip1 } from "../spawn/spawnShip1"
 import { spawnSniper } from "../spawn/spawnSniper"
 import { spawnSplitter } from "../spawn/spawnSplitter"
-import { spawnSwarmEnemy, spawnSwarmGroup } from "../spawn/spawnSwarm"
+import { spawnHiveMind, spawnSwarmEnemy, spawnSwarmGroup } from "../spawn/spawnSwarm"
 import { spawnTetherDrone } from "../spawn/spawnTetherDrone"
 import { spawnPhaseSkirmisher } from "../spawn/spawnPhaseSkirmisher"
 import { spawnSalvageScavenger } from "../spawn/spawnSalvageScavenger"
@@ -37,6 +37,45 @@ import {
 	selectEncounterDefinition,
 	type EncounterId,
 } from "./enemyEncounterCatalogService"
+
+export function spawnPlannedEnemy(
+	id: ProgressionEnemyId,
+	pos: Vec2,
+	options: EnemySpawnOptions = {}
+): GameObj | undefined {
+	switch (id) {
+		case "swarm-drone": return spawnSwarmEnemy(pos, 2, options)
+		case "fighter": return spawnShip1(
+			pos,
+			playerObj.pos.sub(pos).unit(),
+			2,
+			5,
+			1,
+			65,
+			options
+		)
+		case "assassin": return spawnAssasin(pos, 3, 5, 1, options)
+		case "rammer": return spawnRammer(pos, 4, options)
+		case "sniper": return spawnSniper(pos, 4, options)
+		case "hivemind": return spawnHiveMind(pos, options)
+		case "mine-layer": return spawnMineLayer(pos, 5, options)
+		case "shield-drone": {
+			const target = k.get<GameObj>(tags.enemy).find((enemy) => enemy.exists())
+			if (target) return spawnShieldDrone(pos, target, options)
+			return spawnShip1(pos, playerObj.pos.sub(pos).unit(), 2, 5, 1, 65, options)
+		}
+		case "orbit-lancer": return spawnOrbitLancer(pos, 3, options)
+		case "splitter": return spawnSplitter(pos, 7, options)
+		case "siege-barge": return spawnSiegeBarge(pos, 10, options)
+		case "tether-drone": return spawnTetherDrone(pos, 4, options)
+		case "repair-skiff": return spawnRepairSkiff(pos, 3, options)
+		case "gravity-warden": return spawnGravityWarden(pos, 6, options)
+		case "phase-skirmisher": return spawnPhaseSkirmisher(pos, 5, options)
+		case "salvage-scavenger": return spawnSalvageScavenger(pos, 4, options)
+		case "suppressor": return spawnSuppressor(pos, 6, options)
+		case "breach-crawler": return spawnBreachCrawler(pos, 8, options)
+	}
+}
 
 export function spawnThreatEncounter(
 	center: Vec2,

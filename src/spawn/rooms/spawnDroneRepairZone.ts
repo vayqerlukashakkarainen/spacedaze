@@ -20,6 +20,8 @@ interface DroneRepairZoneProps {
 	depth: number
 	hexSize: number
 	tags?: string[]
+	spawnDefenders?: boolean
+	onComplete?: () => void
 }
 
 const DRONE_REPAIR_DURATION = 0.9
@@ -34,6 +36,8 @@ export function spawnDroneRepairZone(props: DroneRepairZoneProps) {
 		defendRadius: props.hexSize * 2.3,
 		enemySpacing: props.hexSize,
 		tags: objectTags,
+		spawnDefenders: props.spawnDefenders,
+		onComplete: props.onComplete,
 	})
 	const wreckDistance = Math.max(44, props.hexSize * 1.25)
 	const wreckCount = 2

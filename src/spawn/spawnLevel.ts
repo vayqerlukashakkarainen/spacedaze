@@ -26,6 +26,7 @@ interface Props {
 		selectLevel: (levelKey: LevelKey) => void,
 		cancel: () => void
 	) => void;
+	tags?: string[];
 }
 
 interface DecorativeWormholeProps {
@@ -62,6 +63,7 @@ export function spawnLevel(props: Props) {
 		tags.props,
 		tags.unit,
 		tags.gameLoop,
+		...(props.tags ?? []),
 	];
 	if (props.visual !== "wormhole" && props.spriteName) {
 		components.splice(1, 0, k.sprite(props.spriteName));

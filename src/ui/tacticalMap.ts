@@ -15,6 +15,12 @@ import {
 } from "../levels/runMap"
 import { activeLevelKey } from "../levels/levels"
 import { k, layers } from "../main"
+import type {
+	RoomFloor,
+	RoomFloorKind,
+	RoomFloorRoom,
+	RoomFloorState,
+} from "../generation/rooms/roomFloorTypes"
 import {
 	getHubLevel,
 	HUB_FACILITIES,
@@ -29,6 +35,7 @@ import {
 } from "../services/hubLayoutService"
 import { getHubSettlementState } from "../services/hubSettlementService"
 import { loopService } from "../services/loopService"
+import { getRoomFloorSnapshot } from "../services/roomFloorService"
 import { tags } from "../tags"
 import { createUiScrollable, UiScrollableControl } from "./common/scrollable"
 import {
@@ -101,8 +108,11 @@ export function showTacticalMap() {
 	const hubSnapshot = activeLevelKey() === "hub"
 		? createHubMapSnapshot()
 		: undefined
-	const runSnapshot = hubSnapshot ? undefined : getGeneratedRunMapSnapshot()
-	if (!hubSnapshot && !runSnapshot) return false
+	const roomFloorSnapshot = hubSnapshot ? undefined : getRoomFloorSnapshot()
+	const runSnapshot = hubSnapshot || roomFloorSnapshot
+		? undefined
+		: getGeneratedRunMapSnapshot()
+	if (!hubSnapshot && !roomFloorSnapshot && !runSnapshot) return false
 
 	open = true
 	closing = false
@@ -159,8 +169,14 @@ export function showTacticalMap() {
 		eyebrow: "NAVIGATION COMPUTER",
 		title: hubSnapshot
 			? `HUB MAP  //  LEVEL ${hubSnapshot.level}`
-			: `SECTOR MAP  //  SEED ${runSnapshot!.seed}`,
-		action: hubSnapshot ? "LIVE STATION SURVEY" : "LIVE CARTOGRAPHY",
+			: roomFloorSnapshot
+				? `FLOOR ${roomFloorSnapshot.depth}  //  SEED ${roomFloorSnapshot.seed}`
+				: `SECTOR MAP  //  SEED ${runSnapshot!.seed}`,
+		action: hubSnapshot
+			? "LIVE STATION SURVEY"
+			: roomFloorSnapshot
+				? "DISCOVERED ROOM NETWORK"
+				: "LIVE CARTOGRAPHY",
 	})
 
 	const viewport = createUiSurface(contentRoot, {
@@ -173,7 +189,9 @@ export function showTacticalMap() {
 
 	const rasterizedMap = hubSnapshot
 		? rasterizeHubMap(hubSnapshot)
-		: rasterizeMap(
+		: roomFloorSnapshot
+			? rasterizeRoomFloorMap(roomFloorSnapshot)
+			: rasterizeMap(
 			createMapGeometry(runSnapshot!.cells),
 			runSnapshot!.playerPosition,
 			runSnapshot!.playerPath
@@ -182,7 +200,11 @@ export function showTacticalMap() {
 		(viewportSize.x - 30) / rasterizedMap.width,
 		(viewportSize.y - 30) / rasterizedMap.height
 	)
-	const mapKey = hubSnapshot ? "hub" : `run:${runSnapshot!.seed}`
+	const mapKey = hubSnapshot
+		? "hub"
+		: roomFloorSnapshot
+			? `floor:${roomFloorSnapshot.seed}:${roomFloorSnapshot.depth}`
+			: `run:${runSnapshot!.seed}`
 	if (rememberedMapKey !== mapKey) {
 		rememberedMapKey = mapKey
 		rememberedZoomMultiplier = 1
@@ -257,7 +279,16 @@ export function showTacticalMap() {
 		}
 	})
 
-	if (!hubSnapshot) {
+	if (roomFloorSnapshot) {
+		addRoomFloorSidebar(
+			contentRoot,
+			roomFloorSnapshot,
+			sidebarX,
+			viewportPos.y,
+			sidebarWidth,
+			viewportSize.y
+		)
+	} else if (!hubSnapshot) {
 		addZoneSidebar(
 			contentRoot,
 			runSnapshot!.cells,
@@ -382,6 +413,188 @@ interface RasterizedMap {
 	width: number
 	height: number
 	playerPosition: Vec2
+}
+
+const ROOM_MAP_NODE_RADIUS = 28
+const ROOM_MAP_HEX_SIZE = 76
+const ROOM_MAP_PADDING = 54
+
+function rasterizeRoomFloorMap(snapshot: RoomFloor): RasterizedMap {
+	const rooms = snapshot.rooms.filter((room) => room.state !== "unseen")
+	const centers = new Map<string, Vec2>()
+	for (const room of rooms) {
+		centers.set(room.id, hexToPixel(room.coord, ROOM_MAP_HEX_SIZE))
+	}
+	const allCenters = [...centers.values()]
+	const contentMin = k.vec2(
+		Math.min(...allCenters.map((center) => center.x)) - ROOM_MAP_PADDING,
+		Math.min(...allCenters.map((center) => center.y)) - ROOM_MAP_PADDING
+	)
+	const contentMax = k.vec2(
+		Math.max(...allCenters.map((center) => center.x)) + ROOM_MAP_PADDING,
+		Math.max(...allCenters.map((center) => center.y)) + ROOM_MAP_PADDING
+	)
+	const contentSize = contentMax.sub(contentMin)
+	const width = Math.max(520, Math.ceil(contentSize.x))
+	const height = Math.max(360, Math.ceil(contentSize.y))
+	const contentOffset = k.vec2(
+		(width - contentSize.x) / 2,
+		(height - contentSize.y) / 2
+	)
+	const canvas = document.createElement("canvas")
+	canvas.width = width
+	canvas.height = height
+	const context = canvas.getContext("2d")
+	if (!context) throw new Error("Unable to create room floor map canvas")
+	context.imageSmoothingEnabled = false
+	context.lineCap = "round"
+	context.lineJoin = "round"
+	const toRasterPosition = (position: Vec2) =>
+		position.sub(contentMin).add(contentOffset)
+
+	const renderedConnections = new Set<string>()
+	for (const room of rooms) {
+		const from = centers.get(room.id)
+		if (!from) continue
+		for (const connectionId of room.connections) {
+			const to = centers.get(connectionId)
+			if (!to) continue
+			const key = [room.id, connectionId].sort().join(":")
+			if (renderedConnections.has(key)) continue
+			renderedConnections.add(key)
+			const start = toRasterPosition(from)
+			const end = toRasterPosition(to)
+			context.beginPath()
+			context.moveTo(start.x, start.y)
+			context.lineTo(end.x, end.y)
+			context.lineWidth = 12
+			context.strokeStyle = canvasColor(k.rgb(...UI_COLORS.border), 0.5)
+			context.stroke()
+			context.lineWidth = 3
+			context.strokeStyle = canvasColor(k.rgb(...UI_COLORS.muted), 0.8)
+			context.stroke()
+		}
+	}
+
+	for (const room of rooms) {
+		const center = centers.get(room.id)
+		if (!center) continue
+		drawRoomMapNode(context, toRasterPosition(center), room)
+	}
+
+	const currentRoomCenter = centers.get(snapshot.currentRoomId)
+		?? allCenters[0]
+	const playerPosition = toRasterPosition(currentRoomCenter)
+	drawRoomMapPlayerMarker(context, playerPosition)
+
+	return {
+		sprite: k.loadSprite(null, canvas, { singular: true }),
+		width,
+		height,
+		playerPosition: k.vec2(width / 2, height / 2),
+	}
+}
+
+function drawRoomMapNode(
+	context: CanvasRenderingContext2D,
+	center: Vec2,
+	room: RoomFloorRoom
+) {
+	const color = getRoomFloorKindColor(room.kind)
+	const corners = Array.from({ length: 6 }, (_, index) => {
+		const angle = Math.PI / 3 * index - Math.PI / 2
+		return k.vec2(
+			center.x + Math.cos(angle) * ROOM_MAP_NODE_RADIUS,
+			center.y + Math.sin(angle) * ROOM_MAP_NODE_RADIUS
+		)
+	})
+	tracePolygon(context, corners)
+	context.fillStyle = canvasColor(
+		color,
+		room.state === "discovered" ? 0.18 : room.state === "cleared" ? 0.3 : 0.52
+	)
+	context.fill()
+	context.lineWidth = room.state === "active" ? 4 : 2
+	context.strokeStyle = canvasColor(
+		room.state === "active" ? k.rgb(...UI_COLORS.accent) : color,
+		room.state === "discovered" ? 0.75 : 1
+	)
+	context.stroke()
+
+	context.textAlign = "center"
+	context.textBaseline = "middle"
+	context.font = "bold 12px monospace"
+	context.fillStyle = canvasColor(
+		room.state === "active" ? k.WHITE : color,
+		room.state === "discovered" ? 0.8 : 1
+	)
+	context.fillText(getRoomFloorKindCode(room.kind), center.x, center.y + 1)
+}
+
+function drawRoomMapPlayerMarker(
+	context: CanvasRenderingContext2D,
+	center: Vec2
+) {
+	context.beginPath()
+	context.moveTo(center.x, center.y - 13)
+	context.lineTo(center.x + 7, center.y + 2)
+	context.lineTo(center.x, center.y - 1)
+	context.lineTo(center.x - 7, center.y + 2)
+	context.closePath()
+	context.fillStyle = canvasColor(k.WHITE)
+	context.fill()
+	context.lineWidth = 2
+	context.strokeStyle = canvasColor(k.BLACK)
+	context.stroke()
+}
+
+function getRoomFloorKindCode(kind: RoomFloorKind) {
+	return {
+		start: "S",
+		combat: "X",
+		reward: "$",
+		health: "+",
+		repair: "R",
+		shrine: "?",
+		gravity: "G",
+		event: "!",
+		boss: "B",
+		exit: "E",
+	}[kind]
+}
+
+function getRoomFloorKindLabel(kind: RoomFloorKind) {
+	return {
+		start: "ENTRY",
+		combat: "HOSTILE ROOM",
+		reward: "SALVAGE CACHE",
+		health: "HEALTH SHRINE",
+		repair: "REPAIR STATION",
+		shrine: "UPGRADE SHRINE",
+		gravity: "GRAVITY LINK",
+		event: "UNKNOWN SIGNAL",
+		boss: "COMMAND THREAT",
+		exit: "FLOOR EXIT",
+	}[kind]
+}
+
+function getRoomFloorKindColor(kind: RoomFloorKind) {
+	if (kind === "combat" || kind === "boss") return k.rgb(...UI_COLORS.danger)
+	if (kind === "health" || kind === "repair") return k.rgb(...UI_COLORS.success)
+	if (kind === "reward") return k.rgb(255, 190, 55)
+	if (kind === "gravity" || kind === "shrine") return k.rgb(185, 80, 255)
+	if (kind === "exit") return k.rgb(...UI_COLORS.accent)
+	if (kind === "event") return k.rgb(255, 145, 45)
+	return k.WHITE
+}
+
+function getRoomFloorStateLabel(state: RoomFloorState) {
+	return {
+		unseen: "UNKNOWN",
+		discovered: "DISCOVERED",
+		active: "CURRENT",
+		cleared: "CLEARED",
+	}[state]
 }
 
 function createMapGeometry(cells: GeneratedRunMapCell[]) {
@@ -770,6 +983,85 @@ function drawDebreeDepositMapMark(
 
 function canvasColor(color: Color, opacity = 1) {
 	return `rgba(${color.r}, ${color.g}, ${color.b}, ${opacity})`
+}
+
+function addRoomFloorSidebar(
+	parent: GameObj,
+	snapshot: RoomFloor,
+	x: number,
+	y: number,
+	width: number,
+	height: number
+) {
+	createUiSurface(parent, {
+		pos: k.vec2(x, y),
+		size: k.vec2(width, height),
+		tone: "default",
+	})
+	createUiSectionHeader(parent, {
+		pos: k.vec2(x, y),
+		width,
+		height: 48,
+		eyebrow: "FLOOR DIRECTORY",
+		title: "KNOWN ROOMS",
+	})
+
+	const rooms = snapshot.rooms
+		.filter((room) => room.state !== "unseen")
+		.sort((a, b) => {
+			if (a.id === snapshot.currentRoomId) return -1
+			if (b.id === snapshot.currentRoomId) return 1
+			return a.distanceFromStart - b.distanceFromStart || a.id.localeCompare(b.id)
+		})
+	const scrollY = y + 52
+	const scrollHeight = height - 56
+	const rowHeight = 46
+	zoneScroll = createUiScrollable({
+		parent,
+		pos: k.vec2(x, scrollY),
+		width,
+		height: scrollHeight,
+		contentHeight: Math.max(scrollHeight, rooms.length * rowHeight + 12),
+		scrollStep: rowHeight,
+		tags: [tags.tacticalMap],
+	})
+
+	rooms.forEach((room, index) => {
+		const yPos = 8 + index * rowHeight
+		const color = room.state === "active"
+			? k.rgb(...UI_COLORS.accent)
+			: getRoomFloorKindColor(room.kind)
+		zoneScroll!.content.add([
+			k.rect(6, 32),
+			k.pos(7, yPos),
+			k.color(color),
+			k.opacity(room.state === "discovered" ? 0.65 : 1),
+		])
+		zoneScroll!.content.add([
+			k.text(
+				`${getRoomFloorKindCode(room.kind)}  ${getRoomFloorKindLabel(room.kind)}`,
+				{
+					size: UI_FONT_SIZES.small,
+					font: "unscii",
+					width: width - 28,
+				}
+			),
+			k.pos(19, yPos),
+			k.color(room.state === "discovered" ? k.rgb(...UI_COLORS.muted) : color),
+		])
+		zoneScroll!.content.add([
+			k.text(
+				`${getRoomFloorStateLabel(room.state)}  //  DEPTH ${room.distanceFromStart}`,
+				{
+					size: UI_FONT_SIZES.tiny,
+					font: "unscii",
+					width: width - 28,
+				}
+			),
+			k.pos(19, yPos + 17),
+			k.color(...UI_COLORS.muted),
+		])
+	})
 }
 
 function addZoneSidebar(

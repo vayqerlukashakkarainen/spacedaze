@@ -142,6 +142,7 @@ import { updateQuestObjective } from "../services/questService";
 import { spawnDebreeDeposit } from "../spawn/spawnDebreeDeposit";
 import { planRunVillageZones } from "../services/runVillageService";
 import { spawnRunVillages } from "../spawn/spawnRunVillage";
+import { getRoomFloorSnapshot } from "../services/roomFloorService";
 
 export const RUN_GRID_KEY = ACTIVE_RUN_GRID_KEY;
 const RUN_RENDER_CHUNK_SIZE = 6;
@@ -336,6 +337,16 @@ export function teleportPlayerToNearestDebreeDeposit() {
 }
 
 export function getGeneratedRunSummary(): string {
+	const roomFloor = getRoomFloorSnapshot();
+	if (roomFloor) {
+		const current = roomFloor.rooms.find(
+			(room) => room.id === roomFloor.currentRoomId
+		);
+		const discovered = roomFloor.rooms.filter(
+			(room) => room.state !== "unseen"
+		).length;
+		return `Room floor ${roomFloor.seed} | Depth ${roomFloor.depth} | ${current?.kind ?? "unknown"} ${current?.id ?? ""} | ${discovered}/${roomFloor.rooms.length} discovered`;
+	}
 	if (!currentGeneratedMap || currentRunSeed === undefined) {
 		return "No generated run is active";
 	}
@@ -1674,7 +1685,10 @@ function selectGravityShrineDestinations(
 		.map((cell) => grid.hexToScreen(cell.coord));
 }
 
-function spawnFloorExit(pos: Vec2) {
+export function spawnFloorExit(
+	pos: Vec2,
+	objectTags: string[] = [tags.runMap]
+) {
 	currentFloorExitPosition = pos.clone();
 	let portalReady = false;
 	let previousPhase = getRunPhase();
@@ -1683,6 +1697,7 @@ function spawnFloorExit(pos: Vec2) {
 		pos,
 		falloff: 1,
 		visualizePull: true,
+		tags: objectTags,
 		targetTags: [
 			tags.unit,
 			tags.friendly,
@@ -1700,6 +1715,7 @@ function spawnFloorExit(pos: Vec2) {
 		visual: "wormhole",
 		label: "ACTIVATE EXIT",
 		portalState: "dormant",
+		tags: objectTags,
 		onEnter: (_portal, selectLevel, cancel) => {
 			if (narrativePrologueActive()) {
 				portal.setPortalState("dormant", "SIGNAL JAMMED");

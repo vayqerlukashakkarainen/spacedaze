@@ -23,6 +23,8 @@ interface RepairStationProps {
 	defendRadius: number
 	enemySpacing: number
 	tags?: string[]
+	spawnDefenders?: boolean
+	onComplete?: () => void
 }
 
 export function spawnRepairStation(props: RepairStationProps) {
@@ -90,6 +92,7 @@ export function spawnRepairStation(props: RepairStationProps) {
 			color: k.rgb(90, 255, 135),
 		})
 		audioService.playSound("powerup1", { volume: mainSoundVolume })
+		props.onComplete?.()
 	})
 
 	function beginRepair() {
@@ -109,11 +112,13 @@ export function spawnRepairStation(props: RepairStationProps) {
 		})
 		repairing = true
 		status.text = "REPAIRING"
-		addThreatTime(8)
-		spawnThreatEncounter(
-			station.pos.add(k.Vec2.fromAngle(k.rand(360)).scale(props.defendRadius + 90)),
-			props.enemySpacing
-		)
+		if (props.spawnDefenders !== false) {
+			addThreatTime(8)
+			spawnThreatEncounter(
+				station.pos.add(k.Vec2.fromAngle(k.rand(360)).scale(props.defendRadius + 90)),
+				props.enemySpacing
+			)
+		}
 	}
 
 	return station

@@ -28,6 +28,7 @@ interface SpawnBuildingOptions {
 	scale?: number;
 	interactPromptOffset?: Vec2;
 	interactionPrompt?: InteractionPromptSource | false;
+	tags?: string[];
 }
 
 export function spawnBuilding(
@@ -47,6 +48,7 @@ export function spawnBuilding(
 			title: "INTERACTION",
 			action: "INTERACT",
 		},
+		tags: objectTags = [],
 	} = options;
 
 	const building = k.add([
@@ -62,6 +64,7 @@ export function spawnBuilding(
 		tags.gameLoop,
 		tags.props,
 		tags.runtimeCullable,
+		...objectTags,
 	]);
 	addBuildingPlayerDepth(building);
 

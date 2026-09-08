@@ -36,6 +36,7 @@ interface ChestOptions {
 	debreeBurstCount?: number;
 	onPurchased?: () => void;
 	onOpened?: () => void;
+	tags?: string[];
 }
 
 export function spawnChest(
@@ -66,6 +67,7 @@ export function spawnChest(
 		interactRadius: 60,
 		scale: CHEST_SCALE,
 		interactionPrompt: false,
+		tags: options.tags,
 			onInteract: () => {
 			if (opened) return;
 			if (!purchased && requiresPurchase) {
