@@ -9,7 +9,7 @@ import {
 import { audioService } from "./audioService";
 import { gameSoundService } from "./gameSoundService"
 import { timescale } from "../comp/timescale";
-import { pickUnitInDistance, playerObj, projectiles } from "../game";
+import { playerObj, projectiles } from "../game";
 import { tags } from "../tags";
 import { applyPlayerStatusEffect } from "./playerStatusEffectService";
 import {
@@ -101,6 +101,7 @@ import { getTacticalUplinkHullThreshold } from "./tacticalUplinkService";
 import { recoverPlayerHealth } from "./playerHealthService";
 import { getPlayerTargetLock } from "./playerTargetLockService";
 import { PROJECTILE_VISUALS } from "../visuals/projectileVisualCatalog";
+import { updateRocketGuidance } from "./rocketGuidanceService"
 
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
 const PLAYER_PROJECTILE_SCALE = PROJECTILE_VISUALS.player.worldScale;
@@ -786,14 +787,17 @@ function updateSeeking(proj: GameObj) {
 		return;
 	}
 	if (proj.targetUnit == null) {
-		pickUnitInDistance(proj.pos, proj.seekDistance, proj.targetTags[0], (u) => {
-			setSeekingTarget(proj, u);
-		});
+		const target = findClosestSpatial(proj.pos, proj.seekDistance, {
+			allTags: [tags.unit],
+			anyTags: proj.targetTags,
+		})
+		if (target) setSeekingTarget(proj, target)
 	}
 }
 
 function setSeekingTarget(proj: GameObj, target: GameObj) {
 	proj.targetUnit = target;
+	proj.rocketGuidanceState = undefined
 	target.onDestroy(() => {
 		if (proj.exists() && proj.targetUnit?.id === target.id) {
 			proj.targetUnit = null;
@@ -802,15 +806,33 @@ function setSeekingTarget(proj: GameObj, target: GameObj) {
 }
 
 function updateMovement(proj: GameObj) {
-	const speed = proj.speed * proj.getTimescale();
+	let speed = proj.speed * proj.getTimescale();
 
 	if (proj.targetUnit) {
+		let targetPosition = proj.targetUnit.pos
+		const guidanceTimeScale = timeScale * proj.getTimescale()
+		let turnStrength = proj.turnSpeed * guidanceTimeScale
+		if (proj.is(tags.rocket)) {
+			const guidance = updateRocketGuidance({
+				rocketPosition: proj.pos,
+				heading: k.Vec2.fromAngle(proj.angle - 90),
+				targetId: proj.targetUnit.id,
+				targetPosition: proj.targetUnit.pos,
+				rocketSpeed: speed,
+				baseTurnStrength: proj.turnSpeed,
+				deltaTime: k.dt() * guidanceTimeScale,
+			}, proj.rocketGuidanceState)
+			proj.rocketGuidanceState = guidance.state
+			targetPosition = guidance.aimPosition
+			turnStrength = guidance.turnStrength * guidanceTimeScale
+			speed *= guidance.speedMultiplier
+		}
 		// Homing movement
 		const { lerp, correctedDesiredRot } = lerpAngleBetweenPos(
 			proj.angle,
 			proj.pos,
-			proj.targetUnit.pos,
-			proj.turnSpeed * timeScale * proj.getTimescale(),
+			targetPosition,
+			turnStrength,
 			-90
 		);
 		const wiggleAngle = getWiggleAngle(proj);
