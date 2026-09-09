@@ -4,13 +4,9 @@ import { interactable, type InteractableComp } from "../comp/interactable"
 import { k, layers, mainSoundVolume } from "../main"
 import { starsEmitter } from "../particles"
 import { gameSoundService } from "../services/gameSoundService"
-import {
-	getCarriedDebree,
-	getDepositedDebree,
-} from "../services/debreeEconomyService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { tags } from "../tags"
-import { createInteractionPrompt, UI_COLORS } from "../ui/common"
+import { createNpcInteractionPrompt } from "../ui/common"
 import { saveGame } from "../util"
 import { showDebreeDepositPanel } from "../ui/debreeDepositPanel"
 import { spawnCurrencyBurst } from "./spawnCurrencyBurst"
@@ -46,7 +42,11 @@ export function spawnDebreeDeposit(pos: Vec2) {
 
 	function playDepositEffect(deposited: number) {
 		saveGame("slot1")
-		const effectPos = station.pos.add(RECEIVER_X, ring.pos.y)
+		const floatOffset = Math.sin(k.time() * FLOAT_SPEED) * FLOAT_AMOUNT
+		const effectPos = station.pos.add(
+			RECEIVER_X,
+			RECEIVER_Y + floatOffset
+		)
 		starsEmitter.emitter.position = effectPos.clone()
 		starsEmitter.emit(Math.min(54, 16 + deposited))
 		spawnCurrencyBurst(effectPos, {
@@ -85,32 +85,9 @@ export function spawnDebreeDeposit(pos: Vec2) {
 		centerY: () => station.pos.y + house.pos.y,
 		renderedHeight: () => house.height * Math.abs(house.scale.y),
 	})
-	const ring = station.add([
-		k.pos(RECEIVER_X, RECEIVER_Y),
-		k.circle(16, { fill: false }),
-		k.anchor("center"),
-		k.outline(2, k.rgb(...UI_COLORS.success)),
-		k.opacity(0.7),
-		k.layer(layers.gameEffects),
-	])
-	const core = station.add([
-		k.pos(RECEIVER_X, RECEIVER_Y),
-		k.sprite("debree_part1", { width: 14, height: 14 }),
-		k.anchor("center"),
-		k.color(...UI_COLORS.success),
-		k.layer(layers.gameEffects),
-	])
-	const prompt = createInteractionPrompt({
+	const prompt = createNpcInteractionPrompt({
 		target: station,
 		offset: k.vec2(0, -92),
-		content: () => ({
-			title: "SALVAGE RELAY",
-			action: getCarriedDebree() > 0
-				? "MANAGE DEPOSIT"
-				: "NO SALVAGE TO DEPOSIT",
-			detailLeft: `${getCarriedDebree()} CARRIED`,
-			detailRight: `${getDepositedDebree()} SAFE`,
-		}),
 	})
 
 	registerBatchedEntityUpdate("world", station, () => {
@@ -118,12 +95,6 @@ export function spawnDebreeDeposit(pos: Vec2) {
 		const floatOffset = Math.sin(k.time() * FLOAT_SPEED) * FLOAT_AMOUNT
 		foundation.pos.y = FOUNDATION_Y + floatOffset
 		house.pos.y = HOUSE_Y + floatOffset
-		ring.pos.y = RECEIVER_Y + floatOffset
-		core.pos.y = RECEIVER_Y + floatOffset
-		const pulse = k.wave(0.88, 1.12, k.time() * 3.4)
-		core.scale = k.vec2(pulse)
-		ring.scale = k.vec2(k.wave(0.92, 1.08, k.time() * 2.6))
-		ring.opacity = k.wave(0.45, 0.85, k.time() * 2.8)
 	})
 
 	return station
