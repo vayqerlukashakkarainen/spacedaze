@@ -1,5 +1,45 @@
 # Audio Attributions
 
+## Enemy Blasters
+
+"Laser Gun" by VoiceBosch
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-laser-gun-174976/
+- License: Pixabay Content License
+- Original filename: `voicebosch-laser-gun-174976.mp3`
+- In-game assets: `enemy-blaster-01.wav` through `enemy-blaster-10.wav`
+- The ten shots were separated at the source recording's silent gaps, trimmed, converted to mono WAV, given short edge fades, and loudness-normalized for randomized enemy fleet fire.
+
+## Light Metal Hit
+
+"Metal Hit 95" by floraphonic
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-metal-hit-95-200424/
+- License: Pixabay Content License
+- Original filename: `floraphonic-metal-hit-95-200424.mp3`
+- In-game asset: `light-metal-hit.wav`
+- Trimmed to the 580 ms impact, converted to mono WAV, and faded at the tail for responsive playback.
+
+## Asteroid Impacts and Destruction
+
+"Rock Smash" by NeoSpica (Freesound), distributed through Pixabay.
+
+- Pixabay source: https://pixabay.com/sound-effects/nature-rock-smash-6304/
+- Original source: https://freesound.org/people/NeoSpica/sounds/512243/
+- License: Creative Commons Zero 1.0
+- In-game assets: `asteroid-impact-1.ogg`, `asteroid-impact-2.ogg`, `asteroid-impact-3.ogg`, `asteroid-destroyed.ogg`
+- The first three strikes are used as randomized asteroid impacts. The final breakup is used for asteroid destruction. Each segment was trimmed, converted to mono OGG, and faded at both edges.
+
+## Burt Strafe Module Ejection
+
+"fart" by MacKaffee (Freesound), distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/people-fart-83471/
+- License: Pixabay Content License
+- Original filename: `fart-83471.mp3`
+- In-game asset: `burt-strafe-module-eject.mp3`
+- Trimmed to the short audible transient, converted to mono, and faded at both edges.
+
 ## Low Health Warning
 
 "Warning Sound" by m_cel (Freesound), distributed through Pixabay.
@@ -199,6 +239,24 @@
 - License: Pixabay Content License
 - In-game asset: `run-level-up.mp3`
 
+## Room Cleared
+
+"Heavy Door Unlocking" by DRAGON-STUDIO
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-heavy-door-unlocking-515258/
+- License: Pixabay Content License
+- Original filename: `dragon-studio-heavy-door-unlocking-515258.mp3`
+- In-game asset: `room-cleared.mp3`
+
+## Hostile Phase Arrival
+
+"Sci-fi Portal Jump 04" by DRAGON-STUDIO
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-sci-fi-portal-jump-04-416161/
+- License: Pixabay Content License
+- In-game asset: `hostile-phase-arrival.mp3`
+- Playback is shared across a hostile fleet so simultaneous arrivals do not stack the sound.
+
 ## Thruster Overclock
 
 User-provided audio asset.
@@ -242,3 +300,12 @@ User-provided audio asset.
 - License: Pixabay Content License
 - Original filename: `freesound_community-blaster-2-81267.mp3`
 - In-game asset: `burst-driver.mp3`
+
+## Active Module Carrier Launch
+
+"Futuristic Grenade Launcher" by PedroGuyman (Freesound), distributed through Pixabay.
+
+- Pixabay source: https://pixabay.com/sound-effects/film-special-effects-futuristic-grenade-launcher-98474/
+- Original source: https://freesound.org/people/PedroGuyman/sounds/470709/
+- License: Creative Commons Zero 1.0
+- In-game asset: `active-module-carrier-launch.ogg`
