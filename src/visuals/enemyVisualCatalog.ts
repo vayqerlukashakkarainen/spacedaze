@@ -145,6 +145,10 @@ export const ENEMY_VISUALS: Record<EnemyVisualId, EnemyVisualRepresentation> = {
 		],
 		worldScale: 1,
 	},
+	"wake-scrap-raiser": {
+		parts: [{ sprite: "enemy_wake_scrap_raiser" }],
+		worldScale: 1,
+	},
 	"wake-boiler-hulk": {
 		parts: [
 			{ sprite: "enemy_wake_boiler_hulk_core" },

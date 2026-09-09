@@ -22,6 +22,7 @@ import { spawnScrapNipper } from "../spawn/wake/spawnScrapNipper"
 import { spawnRivetGunner } from "../spawn/wake/spawnRivetGunner"
 import { spawnTowhookRig } from "../spawn/wake/spawnTowhookRig"
 import { spawnPatchTender } from "../spawn/wake/spawnPatchTender"
+import { spawnScrapRaiser } from "../spawn/wake/spawnScrapRaiser"
 import { spawnBoilerHulk } from "../spawn/wake/spawnBoilerHulk"
 import { tags } from "../tags"
 import {
@@ -83,6 +84,7 @@ export function spawnPlannedEnemy(
 		case "wake-rivet-gunner": return spawnRivetGunner(pos, 5, options)
 		case "wake-towhook-rig": return spawnTowhookRig(pos, 6, options)
 		case "wake-patch-tender": return spawnPatchTender(pos, 4, options)
+		case "wake-scrap-raiser": return spawnScrapRaiser(pos, 5, options)
 		case "wake-boiler-hulk": return spawnBoilerHulk(pos, 20, options)
 	}
 }

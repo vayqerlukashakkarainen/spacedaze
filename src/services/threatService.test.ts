@@ -16,6 +16,11 @@ const inactiveProfile = createEnemySpawnProfile(10, 2, 1, {}, 0)
 assert.equal(inactiveProfile.hp, 10)
 assert.equal(inactiveProfile.damage, 2)
 assert.equal(inactiveProfile.elite, false)
+assert.equal(inactiveProfile.rewardMode, "normal")
+assert.equal(
+	createEnemySpawnProfile(2, 1, 1, { rewardMode: "reconstructed" }, 1).rewardMode,
+	"reconstructed"
+)
 
 startThreatLevel(1)
 assert.equal(getThreatSnapshot().tier, 1)

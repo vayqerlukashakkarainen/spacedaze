@@ -46,6 +46,7 @@ export const tags = {
 	stressEnemy: "stressEnemy",
 	stressRocket: "stressRocket",
 	stressDebree: "stressDebree",
+	reconstructedEnemy: "reconstructedEnemy",
 	runtimeCullable: "runtimeCullable",
 	debree: "debree",
 	debreeDeposit: "debreeDeposit",

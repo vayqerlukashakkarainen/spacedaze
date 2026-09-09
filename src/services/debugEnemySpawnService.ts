@@ -28,6 +28,7 @@ import { spawnBoilerHulk } from "../spawn/wake/spawnBoilerHulk"
 import { spawnPatchTender } from "../spawn/wake/spawnPatchTender"
 import { spawnRivetGunner } from "../spawn/wake/spawnRivetGunner"
 import { spawnScrapNipper } from "../spawn/wake/spawnScrapNipper"
+import { spawnScrapRaiser } from "../spawn/wake/spawnScrapRaiser"
 import { spawnTowhookRig } from "../spawn/wake/spawnTowhookRig"
 import { tags } from "../tags"
 
@@ -55,6 +56,7 @@ export type DebugEnemyType =
 	| "boss"
 	| "mini-boss"
 	| "scrap-nipper"
+	| "scrap-raiser"
 	| "rivet-gunner"
 	| "towhook-rig"
 	| "patch-tender"
@@ -84,6 +86,7 @@ const DEBUG_ENEMY_TYPES: readonly DebugEnemyType[] = [
 	"boss",
 	"mini-boss",
 	"scrap-nipper",
+	"scrap-raiser",
 	"rivet-gunner",
 	"towhook-rig",
 	"patch-tender",
@@ -251,6 +254,9 @@ function spawnDebugEnemy(type: DebugEnemyType, pos: Vec2) {
 			return
 		case "scrap-nipper":
 			spawnScrapNipper(pos, 2, persistOptions)
+			return
+		case "scrap-raiser":
+			spawnScrapRaiser(pos, 5, persistOptions)
 			return
 		case "rivet-gunner":
 			spawnRivetGunner(pos, 5, persistOptions)

@@ -6,7 +6,11 @@ import {
 
 const roster = getEnemyProgressionRoster()
 
-assert.equal(roster.length, 23)
+assert.equal(roster.length, 24)
+assert.equal(
+	isEnemyProgressionUnlocked("wake-scrap-raiser", { runDepth: 1, hubLevel: 1 }),
+	true
+)
 assert.equal(roster.filter((enemy) => enemy.id !== "orbit-lancer").every((enemy) =>
 	isEnemyProgressionUnlocked(enemy.id, { runDepth: 1, hubLevel: 1 })
 ), true)
