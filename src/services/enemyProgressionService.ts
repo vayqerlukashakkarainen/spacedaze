@@ -17,9 +17,22 @@ export const ENEMY_PROGRESSION = {
 	"salvage-scavenger": { name: "SALVAGE SCAVENGER", minRunDepth: 1, minHubLevel: 1 },
 	suppressor: { name: "SUPPRESSOR", minRunDepth: 1, minHubLevel: 1 },
 	"breach-crawler": { name: "BREACH CRAWLER", minRunDepth: 1, minHubLevel: 1 },
+	"wake-scrap-nipper": { name: "SCRAP NIPPER", minRunDepth: 1, minHubLevel: 1 },
+	"wake-rivet-gunner": { name: "RIVET GUNNER", minRunDepth: 1, minHubLevel: 1 },
+	"wake-towhook-rig": { name: "TOWHOOK RIG", minRunDepth: 1, minHubLevel: 1 },
+	"wake-patch-tender": { name: "PATCH TENDER", minRunDepth: 1, minHubLevel: 1 },
+	"wake-boiler-hulk": { name: "BOILER HULK", minRunDepth: 1, minHubLevel: 1 },
 } as const
 
 export type ProgressionEnemyId = keyof typeof ENEMY_PROGRESSION
+
+export type WakeEnemyId = Extract<ProgressionEnemyId,
+	| "wake-scrap-nipper"
+	| "wake-rivet-gunner"
+	| "wake-towhook-rig"
+	| "wake-patch-tender"
+	| "wake-boiler-hulk"
+>
 
 export interface EnemyProgressionContext {
 	runDepth: number

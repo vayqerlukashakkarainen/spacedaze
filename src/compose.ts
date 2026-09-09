@@ -22,6 +22,7 @@ interface Part {
 		HealthComp | AnimateComp | PosComp | SpriteComp | JitterComp | RotateComp
 	>;
 	hitbox: number;
+	hitboxOffset?: Vec2;
 	isBody: boolean;
 	scoreOnDestroy: number;
 }
@@ -56,9 +57,10 @@ export function compose(c: Compose): Component[] {
 		});
 
 		part.obj.onDeath(() => {
+			const localPos = part.hitboxOffset ?? part.obj.pos;
 			const pos = part.isBody
 				? part.obj.pos
-				: body!.obj.pos.add(part.obj.pos.rotate(body!.obj.angle));
+				: body!.obj.pos.add(localPos.rotate(body!.obj.angle));
 
 			spawnDebree(pos, part.scoreOnDestroy);
 			gameSoundService.play("enemy_explosion", { volume: mainSoundVolume });
@@ -88,7 +90,9 @@ export function compose(c: Compose): Component[] {
 
 		composed.push({
 			obj: part.obj,
-			localPos: part.isBody ? k.vec2(0, 0) : part.obj.pos,
+			localPos: part.isBody
+				? k.vec2(0, 0)
+				: part.hitboxOffset ?? part.obj.pos,
 			hitbox: part.hitbox,
 			isBody: part.isBody,
 		});

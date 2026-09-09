@@ -46,6 +46,7 @@ import { spawnChest } from "../spawn/spawnChest"
 import { spawnFlash } from "../spawn/spawnFlash"
 import { spawnGravityPull } from "../spawn/spawnGravityPull"
 import { spawnImpactAce } from "../spawn/spawnImpactAce"
+import { spawnBoilerHulk } from "../spawn/wake/spawnBoilerHulk"
 import { spawnRing } from "../spawn/spawnRing"
 import { spawnDecorativeWormhole } from "../spawn/spawnLevel"
 import { spawnRunUpgradeShop } from "../spawn/rooms/spawnRunUpgradeShop"
@@ -715,20 +716,32 @@ function spawnMiniBossRoom(
 	onCleared: () => void
 ) {
 	const center = grid.hexToScreen(template.center)
-	const depth = getActiveRoomFloor()?.depth ?? 1
-	spawnHostileArrival(center, 0, getEnemyVisual("impact-ace"), (
+	const floor = getActiveRoomFloor()
+	const depth = floor?.depth ?? 1
+	const wakeFloor = floor?.themeId === "wake-scrap-district"
+	const visual = wakeFloor
+		? getEnemyVisual("wake-boiler-hulk")
+		: getEnemyVisual("impact-ace")
+	spawnHostileArrival(center, 0, visual, (
 		arrivalAngle,
 		jumpDirection
 	) => {
-		const ace = spawnImpactAce(center, depth, {
-			persistOffscreen: true,
-			tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
-			onDefeated: () => {
-				markCurrentRoomContentCompleted()
-				onCleared()
-			},
-		})
-		applyHostileArrivalMomentum(ace, jumpDirection, arrivalAngle)
+		const onDefeated = () => {
+			markCurrentRoomContentCompleted()
+			onCleared()
+		}
+		const enemy = wakeFloor
+			? spawnBoilerHulk(center, 20 + depth * 2, {
+				persistOffscreen: true,
+				tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
+				onDefeated,
+			})
+			: spawnImpactAce(center, depth, {
+				persistOffscreen: true,
+				tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
+				onDefeated,
+			})
+		applyHostileArrivalMomentum(enemy, jumpDirection, arrivalAngle)
 	})
 }
 

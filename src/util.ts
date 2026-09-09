@@ -714,9 +714,25 @@ export async function init(k: KAPLAYCtx) {
 					`sprites/enemies/hunter/hunter-${chassis}-${part}.png`,
 				] as const)
 		),
+		["enemy_wake_scrap_nipper", "sprites/enemies/wake/scrap-nipper.png"],
+		["enemy_wake_rivet_gunner_core", "sprites/enemies/wake/rivet-gunner-core.png"],
+		["enemy_wake_rivet_gunner_weapon", "sprites/enemies/wake/rivet-gunner-weapon.png"],
+		["enemy_wake_towhook_rig_core", "sprites/enemies/wake/towhook-rig-core.png"],
+		["enemy_wake_towhook_rig_left_hook", "sprites/enemies/wake/towhook-rig-left-hook.png"],
+		["enemy_wake_towhook_rig_right_hook", "sprites/enemies/wake/towhook-rig-right-hook.png"],
+		["enemy_wake_patch_tender_core", "sprites/enemies/wake/patch-tender-core.png"],
+		["enemy_wake_patch_tender_welder", "sprites/enemies/wake/patch-tender-welder.png"],
 	] as const;
 	for (const [name, path] of modularEnemySprites) {
 		await k.loadSprite(name, path);
+	}
+	const heavyWakeEnemySprites = [
+		["enemy_wake_boiler_hulk_core", "sprites/enemies/wake/boiler-hulk-core.png"],
+		["enemy_wake_boiler_hulk_scoop", "sprites/enemies/wake/boiler-hulk-scoop.png"],
+		["enemy_wake_boiler_hulk_vent", "sprites/enemies/wake/boiler-hulk-vent.png"],
+	] as const
+	for (const [name, path] of heavyWakeEnemySprites) {
+		await k.loadSprite(name, path)
 	}
 	await k.loadSprite(
 		"run_rock_high",

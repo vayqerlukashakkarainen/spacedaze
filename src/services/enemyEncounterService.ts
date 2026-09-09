@@ -18,6 +18,11 @@ import { spawnPhaseSkirmisher } from "../spawn/spawnPhaseSkirmisher"
 import { spawnSalvageScavenger } from "../spawn/spawnSalvageScavenger"
 import { spawnSuppressor } from "../spawn/spawnSuppressor"
 import { spawnBreachCrawler } from "../spawn/spawnBreachCrawler"
+import { spawnScrapNipper } from "../spawn/wake/spawnScrapNipper"
+import { spawnRivetGunner } from "../spawn/wake/spawnRivetGunner"
+import { spawnTowhookRig } from "../spawn/wake/spawnTowhookRig"
+import { spawnPatchTender } from "../spawn/wake/spawnPatchTender"
+import { spawnBoilerHulk } from "../spawn/wake/spawnBoilerHulk"
 import { tags } from "../tags"
 import {
 	getThreatSnapshot,
@@ -74,6 +79,11 @@ export function spawnPlannedEnemy(
 		case "salvage-scavenger": return spawnSalvageScavenger(pos, 4, options)
 		case "suppressor": return spawnSuppressor(pos, 6, options)
 		case "breach-crawler": return spawnBreachCrawler(pos, 8, options)
+		case "wake-scrap-nipper": return spawnScrapNipper(pos, 2, options)
+		case "wake-rivet-gunner": return spawnRivetGunner(pos, 5, options)
+		case "wake-towhook-rig": return spawnTowhookRig(pos, 6, options)
+		case "wake-patch-tender": return spawnPatchTender(pos, 4, options)
+		case "wake-boiler-hulk": return spawnBoilerHulk(pos, 20, options)
 	}
 }
 

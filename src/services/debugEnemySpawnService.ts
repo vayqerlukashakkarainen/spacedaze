@@ -24,6 +24,11 @@ import { spawnSalvageScavenger } from "../spawn/spawnSalvageScavenger"
 import { spawnSuppressor } from "../spawn/spawnSuppressor"
 import { spawnBreachCrawler } from "../spawn/spawnBreachCrawler"
 import { spawnStationaryCannonPlatform } from "../spawn/spawnStationaryCannonPlatform"
+import { spawnBoilerHulk } from "../spawn/wake/spawnBoilerHulk"
+import { spawnPatchTender } from "../spawn/wake/spawnPatchTender"
+import { spawnRivetGunner } from "../spawn/wake/spawnRivetGunner"
+import { spawnScrapNipper } from "../spawn/wake/spawnScrapNipper"
+import { spawnTowhookRig } from "../spawn/wake/spawnTowhookRig"
 import { tags } from "../tags"
 
 export type DebugEnemyType =
@@ -49,6 +54,11 @@ export type DebugEnemyType =
 	| "asteroid"
 	| "boss"
 	| "mini-boss"
+	| "scrap-nipper"
+	| "rivet-gunner"
+	| "towhook-rig"
+	| "patch-tender"
+	| "boiler-hulk"
 
 const DEBUG_ENEMY_TYPES: readonly DebugEnemyType[] = [
 	"ship",
@@ -73,6 +83,11 @@ const DEBUG_ENEMY_TYPES: readonly DebugEnemyType[] = [
 	"asteroid",
 	"boss",
 	"mini-boss",
+	"scrap-nipper",
+	"rivet-gunner",
+	"towhook-rig",
+	"patch-tender",
+	"boiler-hulk",
 ]
 
 const SCALABLE_DEBUG_ENEMY_TYPES = DEBUG_ENEMY_TYPES.filter((type) =>
@@ -233,6 +248,21 @@ function spawnDebugEnemy(type: DebugEnemyType, pos: Vec2) {
 			return
 		case "mini-boss":
 			spawnImpactAce(pos, 2, { persistOffscreen: true })
+			return
+		case "scrap-nipper":
+			spawnScrapNipper(pos, 2, persistOptions)
+			return
+		case "rivet-gunner":
+			spawnRivetGunner(pos, 5, persistOptions)
+			return
+		case "towhook-rig":
+			spawnTowhookRig(pos, 6, persistOptions)
+			return
+		case "patch-tender":
+			spawnPatchTender(pos, 4, persistOptions)
+			return
+		case "boiler-hulk":
+			spawnBoilerHulk(pos, 20, persistOptions)
 	}
 }
 

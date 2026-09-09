@@ -49,9 +49,14 @@ export function spawnTetherDrone(
 			tetherActive: false,
 			draw() {
 				if (!this.tetherActive || !playerObj.exists()) return
+				const rotatedOffset = playerObj.pos.sub(this.pos).rotate(-this.angle)
+				const localPlayerOffset = k.vec2(
+					rotatedOffset.x / this.scale.x,
+					rotatedOffset.y / this.scale.y
+				)
 				drawLightning({
 					start: k.vec2(),
-					end: playerObj.pos.sub(this.pos),
+					end: localPlayerOffset,
 					width: 1,
 					color: k.WHITE,
 					opacity: k.wave(0.28, 0.8, k.time() * 7),

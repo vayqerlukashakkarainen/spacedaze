@@ -119,6 +119,40 @@ export const ENEMY_VISUALS: Record<EnemyVisualId, EnemyVisualRepresentation> = {
 		parts: [{ sprite: "enemy_breach_crawler" }],
 		worldScale: 1,
 	},
+	"wake-scrap-nipper": {
+		parts: [{ sprite: "enemy_wake_scrap_nipper" }],
+		worldScale: 0.75,
+	},
+	"wake-rivet-gunner": {
+		parts: [
+			{ sprite: "enemy_wake_rivet_gunner_core" },
+			{ sprite: "enemy_wake_rivet_gunner_weapon" },
+		],
+		worldScale: 1,
+	},
+	"wake-towhook-rig": {
+		parts: [
+			{ sprite: "enemy_wake_towhook_rig_core" },
+			{ sprite: "enemy_wake_towhook_rig_left_hook" },
+			{ sprite: "enemy_wake_towhook_rig_right_hook" },
+		],
+		worldScale: 1,
+	},
+	"wake-patch-tender": {
+		parts: [
+			{ sprite: "enemy_wake_patch_tender_core" },
+			{ sprite: "enemy_wake_patch_tender_welder" },
+		],
+		worldScale: 1,
+	},
+	"wake-boiler-hulk": {
+		parts: [
+			{ sprite: "enemy_wake_boiler_hulk_core" },
+			{ sprite: "enemy_wake_boiler_hulk_scoop" },
+			{ sprite: "enemy_wake_boiler_hulk_vent" },
+		],
+		worldScale: 1,
+	},
 	"impact-ace": {
 		parts: [{ sprite: "enemy_impact_ace" }],
 		worldScale: 1,

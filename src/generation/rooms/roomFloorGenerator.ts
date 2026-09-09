@@ -9,6 +9,8 @@ import {
 import { hexDistance, hexKey, hexNeighbors, type HexCoord } from "../hexUtils"
 import { SeededRNG } from "../seededRng"
 import { getFloorThemeIdForDepth } from "../../levels/floorThemes/floorThemeDirectory"
+import type { FloorThemeId } from "../../levels/floorThemes/floorThemeDirectory"
+import { createWakeEncounterEnemies } from "../../services/wakeEncounterService"
 import type {
 	RoomEncounterPlan,
 	RoomFloor,
@@ -47,6 +49,7 @@ export function generateRoomFloor(
 		rng
 	)
 	const maxDistance = Math.max(...distances)
+	const themeId = getFloorThemeIdForDepth(normalizedDepth)
 	const rooms = coords.map((coord, index): RoomFloorRoom => {
 		const id = roomId(coord)
 		const kind = kinds[index]
@@ -69,7 +72,8 @@ export function generateRoomFloor(
 					normalizedDepth,
 					distances[index],
 					maxDistance,
-					options.hubLevel ?? 1
+					options.hubLevel ?? 1,
+					themeId
 				)
 				: undefined,
 		}
@@ -78,7 +82,7 @@ export function generateRoomFloor(
 	return {
 		seed,
 		depth: normalizedDepth,
-		themeId: getFloorThemeIdForDepth(normalizedDepth),
+		themeId,
 		startRoomId: rooms[0].id,
 		exitRoomId: rooms[exitIndex].id,
 		currentRoomId: rooms[0].id,
@@ -256,7 +260,8 @@ function createEncounterPlan(
 	depth: number,
 	distance: number,
 	maxDistance: number,
-	hubLevel: number
+	hubLevel: number,
+	themeId: FloorThemeId
 ): RoomEncounterPlan {
 	const rng = new SeededRNG(seed)
 	const distanceTier = maxDistance <= 0 ? 0 : Math.floor(distance / maxDistance * 2)
@@ -266,10 +271,14 @@ function createEncounterPlan(
 		runDepth: depth,
 		hubLevel,
 	})
-	const definition = selectEncounterDefinition(tier, random, true, isAvailable)
-	const enemyIds = definition
-		? createSimulatedEncounterEnemies(definition, tier, random, isAvailable)
-		: ["fighter" as const]
+	const definition = themeId === "wake-scrap-district"
+		? undefined
+		: selectEncounterDefinition(tier, random, true, isAvailable)
+	const enemyIds = themeId === "wake-scrap-district"
+		? createWakeEncounterEnemies(tier, random)
+		: definition
+			? createSimulatedEncounterEnemies(definition, tier, random, isAvailable)
+			: ["fighter" as const]
 	const difficultyBudget = 5 + tier * 2
 	const maxWaveSize = tier >= 4 ? 5 : 4
 	return {

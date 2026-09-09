@@ -156,6 +156,7 @@ and its dedicated floor. It should not fill normal Wake encounters once this
 roster becomes playable.
 
 The selected PixelLab silhouette pass and its source object IDs are recorded in
-[the Wake enemy concept sheet](concepts/wake-enemies/README.md). These concepts
-remain outside the runtime sprite directory until their destructible layers and
-animation states are complete.
+[the Wake enemy concept sheet](concepts/wake-enemies/README.md). The first
+runtime pass uses aligned core and destructible-tool layers derived from those
+sources; code-driven anticipation and movement cover the initial animation
+needs.
