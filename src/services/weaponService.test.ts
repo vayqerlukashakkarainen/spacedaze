@@ -37,6 +37,9 @@ assert.equal(plasmaMortar.splash?.radius, 66)
 const scatterArray = getWeaponDefinition("scatterArray")
 assert.equal(scatterArray.lifesteal, 0.05)
 
+const twinNeedle = getWeaponDefinition("twinNeedle")
+assert.equal(twinNeedle.pattern?.wiggle?.frequency, 26)
+
 assert.equal(getWeaponRewardRarity("standardBlaster"), RewardRarity.Common)
 for (const weaponId of [
 	"pulseRepeater",

@@ -183,7 +183,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 			lateralSpacing: 5,
 			wiggle: {
 				amplitude: 5,
-				frequency: 13,
+				frequency: 26,
 			},
 		},
 		bounce: {
