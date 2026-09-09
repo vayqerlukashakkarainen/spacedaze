@@ -33,6 +33,7 @@ allies from whatever is nearby.
 | Rivet Gunner | Baseline ranged | Uses cover and recoils behind it | Read firing lanes and punish recovery |
 | Towhook Rig | Controller | Pulls the player or loose wreckage | Break the cable or change position |
 | Patch Tender | Support | Rebuilds armor with nearby scrap | Remove support before damage is undone |
+| Scrap Raiser | Support | Steals enemy debris and reconstructs destroyed attackers | Deny salvage or interrupt reconstruction |
 | Boiler Hulk | Artillery miniboss | Turns marked areas into dangerous scrap fields | Commit during its long vent window |
 
 ### Scrap Nipper
@@ -102,6 +103,23 @@ When no ally remains, it flees and scatters its carried scrap.
 - **Elite variant — Yard Tender:** Adds one plate to two nearby allies during a
   longer stationary weld.
 
+### Scrap Raiser
+
+An improvised reclamation drone that treats every destroyed machine as spare
+inventory. It races the player to enemy debris, stores six salvage value, then
+anchors in place for a two-second reconstruction. A completed reconstruction
+creates either a Scrap Nipper or Rivet Gunner.
+
+- **Silhouette:** 32x32 asymmetric support hull with a broad central hopper,
+  three short collector arms, and mismatched armor plates.
+- **Tell:** Stored fragments orbit the hull. During reconstruction they tighten
+  into a cyan ring and the Raiser stops moving.
+- **Counterplay:** Collect debris first or destroy the stationary Raiser before
+  the reconstruction completes. Its stored debris is released on death.
+- **Room use:** Reconstructed enemies count toward room clearance but cannot
+  drop salvage, keys, health, or rewards. A Raiser can complete at most two
+  reconstructions and can never create another Raiser or an elite.
+
 ### Boiler Hulk
 
 A heavy compactor built around a cracked pressure furnace. It scoops wreckage,
@@ -125,14 +143,16 @@ the Hulk must open its armor and vent.
 The floor introduces one interaction at a time before combining roles.
 
 1. **First combat room:** Four Scrap Nippers with obvious staggered lunges.
-2. **First ranged room:** Two Rivet Gunners and two Nippers around simple cover.
-3. **First control room:** One Towhook Rig, one Gunner, and loose wreckage placed
+2. **First reclamation room:** One Scrap Raiser and three Nippers. The Nippers
+   provide enough debris for one reconstruction if the player ignores it.
+3. **First ranged room:** Two Rivet Gunners and two Nippers around simple cover.
+4. **First control room:** One Towhook Rig, one Gunner, and loose wreckage placed
    away from the entry door.
-4. **First support room:** One Patch Tender with two Gunners. The Tender begins
+5. **First support room:** One Patch Tender with two Gunners. The Tender begins
    in clear view so the repair relationship is readable.
-5. **Late-floor formation:** Two Towhook Rigs, one Tender, two Gunners, and a
+6. **Late-floor formation:** Two Towhook Rigs, one Tender, two Gunners, and a
    delayed Nipper wave.
-6. **Miniboss room:** One Boiler Hulk with Nippers arriving after its first
+7. **Miniboss room:** One Boiler Hulk with Nippers arriving after its first
    vent. Later runs may add a Tender, but it must not repair the exposed boiler.
 
 Difficulty should add combinations and elite rules before increasing raw enemy
