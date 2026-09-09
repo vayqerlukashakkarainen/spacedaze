@@ -154,3 +154,8 @@ size before producing animation variants.
 The current Federation roster remains assigned to Federation Claim intrusions
 and its dedicated floor. It should not fill normal Wake encounters once this
 roster becomes playable.
+
+The selected PixelLab silhouette pass and its source object IDs are recorded in
+[the Wake enemy concept sheet](concepts/wake-enemies/README.md). These concepts
+remain outside the runtime sprite directory until their destructible layers and
+animation states are complete.
