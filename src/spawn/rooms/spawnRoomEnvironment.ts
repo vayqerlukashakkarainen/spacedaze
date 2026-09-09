@@ -6,6 +6,7 @@ import type { HexGrid } from "../../grid/hexGrid"
 import { ACTIVE_RUN_GRID_KEY } from "../../grid/gridKeys"
 import { checkProjectileIntersection, playerObj } from "../../game"
 import { k, layers, mainSoundVolume } from "../../main"
+import { explosionEmitter, sparkEmitter } from "../../particles"
 import { applyDamage } from "../../services/damageService"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 import { gameSoundService } from "../../services/gameSoundService"
@@ -23,7 +24,8 @@ import { registerHitAnimation } from "../../shared"
 import { tags } from "../../tags"
 import { ASTEROID_SPRITES } from "../../asteroidSprites"
 import { setHitSoundProfile } from "../../services/hitSoundService"
-import { spawnExplosionEffect } from "../spawnFlash"
+import { spawnExplosionEffect, spawnFlash } from "../spawnFlash"
+import { spawnRing } from "../spawnRing"
 import { getWorldVisual } from "../../visuals/worldVisualCatalog"
 import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 
@@ -32,6 +34,7 @@ const FUEL_CELL_RADIUS = 12
 const FUEL_EXPLOSION_RADIUS = 105
 const FUEL_EXPLOSION_DAMAGE = 14
 const FUEL_EXPLOSION_KNOCKBACK = 82
+const FUEL_EXPLOSION_VISUAL_RADIUS = 132
 const FUEL_BURN_HEALTH_THRESHOLD = 0.6
 const FUEL_SMOKE_INTERVAL = [0.42, 0.08] as const
 const FUEL_FLAME_INTERVAL = [0.3, 0.045] as const
@@ -345,16 +348,56 @@ function explodeFuelCell(
 			)
 		}
 	}
-	spawnExplosionEffect(position, FUEL_EXPLOSION_RADIUS, {
-		color: k.rgb(255, 78, 45),
-		ringIntensity: 0.75,
-		particleCount: 24,
-	})
+	spawnFuelCellExplosionEffect(position)
 	gameSoundService.playPositional("explosion4", position, {
-		volume: mainSoundVolume,
+		volume: mainSoundVolume * 1.1,
+		detune: -120,
 	})
-	k.shake(4)
+	gameSoundService.playPositional("hit2", position, {
+		volume: mainSoundVolume * 0.65,
+		detune: -360,
+	})
+	k.shake(7)
 	k.destroy(fuel)
+}
+
+function spawnFuelCellExplosionEffect(position: Vec2) {
+	const blastColor = k.rgb(255, 78, 45)
+	const hotColor = k.rgb(255, 220, 125)
+	spawnFlash(position, 38, k.WHITE)
+	spawnExplosionEffect(position, FUEL_EXPLOSION_VISUAL_RADIUS, {
+		color: blastColor,
+		ringIntensity: 1.1,
+		particleCount: 52,
+	})
+	spawnRing({
+		pos: position,
+		speed: 360,
+		intensity: 0.8,
+		maxRadius: 96,
+		visualize: true,
+		color: hotColor,
+		outlineWidth: 2,
+		visualOpacity: 0.9,
+	})
+
+	for (let direction = 0; direction < 360; direction += 45) {
+		sparkEmitter.emitter.position = position
+		sparkEmitter.emitter.direction = direction
+		sparkEmitter.emit(4)
+	}
+
+	for (let burstIndex = 0; burstIndex < 3; burstIndex++) {
+		k.wait(0.045 + burstIndex * 0.055, () => {
+			const direction = k.Vec2.fromAngle(k.rand(0, 360))
+			const burstPosition = position.add(
+				direction.scale(k.rand(12, 30))
+			)
+			explosionEmitter.emitter.position = burstPosition
+			explosionEmitter.emit(9 - burstIndex * 2)
+			spawnFlash(burstPosition, 18 - burstIndex * 3, hotColor)
+		})
+	}
 }
 
 function persistObjectState(
