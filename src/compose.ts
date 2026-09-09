@@ -51,7 +51,6 @@ export function compose(c: Compose): Component[] {
 		registerHitAnimation(part.obj);
 
 		part.obj.onHurt(() => {
-			audioService.playSound("hit1", { volume: mainSoundVolume });
 			c.parts[i].obj.animation.seek(0);
 		});
 

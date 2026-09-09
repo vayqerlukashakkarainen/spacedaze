@@ -25,6 +25,7 @@ import { randomExplosion } from "../util"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { DensePool } from "../services/densePool"
 import { spawnEnemyDeathEffect } from "./spawnEnemyDeathEffect"
+import { setHitSoundProfile } from "../services/hitSoundService"
 
 type SwarmPhase = "gather" | "stage" | "charge" | "regroup"
 
@@ -241,6 +242,7 @@ export function spawnSwarmEnemy(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
+	setHitSoundProfile(enemy, "lightMetal")
 	const visual = registerSwarmVisual(enemy)
 
 	registerHitAnimation(enemy)
@@ -274,7 +276,6 @@ export function spawnSwarmEnemy(
 		behavior.onDeath?.()
 	})
 	enemy.onHurt(() => {
-		audioService.playSound("hit1", { volume: mainSoundVolume * 0.75 })
 		enemy.animation.seek(0)
 	})
 
@@ -486,6 +487,7 @@ export function spawnHiveMind(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
+	setHitSoundProfile(hive, "heavyMetal")
 	hive.add([
 		k.circle(3 / spriteScale),
 		k.anchor("center"),
@@ -565,7 +567,6 @@ export function spawnHiveMind(
 	})
 	hive.onDestroy(releaseSwarm)
 	hive.onHurt(() => {
-		audioService.playSound("hit1", { volume: mainSoundVolume })
 		hive.animation.seek(0)
 		innerPulse.opacity = 1
 	})

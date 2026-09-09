@@ -591,6 +591,11 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSound("explosion4", "sounds/explosion4.wav");
 	await k.loadSound("hit1", "sounds/hit1.wav");
 	await k.loadSound("hit2", "sounds/hit2.wav");
+	await k.loadSound("hit_light_metal", "sounds/light-metal-hit.wav")
+	await k.loadSound("asteroid_impact_1", "sounds/asteroid-impact-1.ogg")
+	await k.loadSound("asteroid_impact_2", "sounds/asteroid-impact-2.ogg")
+	await k.loadSound("asteroid_impact_3", "sounds/asteroid-impact-3.ogg")
+	await k.loadSound("asteroid_destroyed", "sounds/asteroid-destroyed.ogg")
 	await k.loadSound("player_hit1", "sounds/player_hit1.wav");
 	await k.loadSound("player_game_over", "sounds/game-over-arcade.mp3");
 	await k.loadSound("low_health_warning", "sounds/low-health-warning.mp3");

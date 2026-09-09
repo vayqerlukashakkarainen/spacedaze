@@ -7,6 +7,7 @@ import { registerBossEncounter } from "../services/bossEncounterService"
 import { getBossDefinition, getBossHealth } from "../services/bossRegistry"
 import { applyDamage } from "../services/damageService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { setHitSoundProfile } from "../services/hitSoundService"
 import { hasEnemyLineOfSight } from "../services/enemyNavigationService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import { spawnEnemyBlaster } from "../services/projectileHelpers"
@@ -85,6 +86,7 @@ export function spawnImpactAce(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
+	setHitSoundProfile(ace, "heavyMetal")
 	const chargeLine = ace.add([
 		k.rect(2, 280),
 		k.pos(0, -150),
@@ -258,7 +260,6 @@ export function spawnImpactAce(
 		k.destroy(ace)
 	})
 	ace.onHurt(() => {
-		audioService.playSound("hit1", { volume: mainSoundVolume })
 		ace.animation.seek(0)
 	})
 

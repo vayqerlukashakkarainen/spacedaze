@@ -17,6 +17,7 @@ import { registerBossEncounter } from "../services/bossEncounterService"
 import { getBossDefinition } from "../services/bossRegistry"
 import { applyDamage } from "../services/damageService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { setHitSoundProfile } from "../services/hitSoundService"
 import { hasEnemyLineOfSight } from "../services/enemyNavigationService"
 import { spawnLineTelegraph } from "../services/enemyTelegraphService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
@@ -109,6 +110,7 @@ export function spawnBoss1(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
+	setHitSoundProfile(boss, "heavyMetal")
 
 	const leftBattery = boss.add([
 		k.pos(batteryOffset.scale(-1)),
@@ -326,7 +328,6 @@ export function spawnBoss1(
 	registerHitAnimation(crown)
 	for (const part of [leftBattery, rightBattery, crown]) {
 		part.onHurt(() => {
-			audioService.playSound("hit1", { volume: mainSoundVolume * 0.8 })
 			part.animation.seek(0)
 		})
 	}
@@ -529,7 +530,6 @@ export function spawnBoss1(
 		k.destroy(boss)
 	})
 	boss.onHurt(() => {
-		audioService.playSound("hit1", { volume: mainSoundVolume })
 		boss.animation.seek(0)
 	})
 	boss.onDestroy(() => {

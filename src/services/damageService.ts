@@ -14,6 +14,7 @@ import {
 import { runtimeDebug } from "./runtimeDebugService"
 import { showPlayerDamageDirection } from "./combatImpactService"
 import { LEGACY_PLAYER_DAMAGE_SCALE } from "./playerHealthBalance"
+import { playDamageHitSound } from "./hitSoundService"
 
 export interface DamageOptions {
 	critical?: boolean
@@ -80,6 +81,7 @@ export function applyDamage(
 		: damage
 	if (tryBlockPlayerDamage(target, appliedDamage)) return false
 	const healthBefore = target.hp
+	if (!damagesPlayer) playDamageHitSound(target, options.position)
 	target.hp -= appliedDamage
 	if (damagesPlayer) {
 		showPlayerDamageDirection(

@@ -1,6 +1,6 @@
 import { GameObj, Vec2 } from "kaplay";
 import { checkProjectileIntersection, playerObj } from "../game";
-import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main";
+import { k, subSoundVolume, velocityScale } from "../main";
 import { audioService } from "../services/audioService";
 import { starsEmitterDir } from "../particles";
 import { tags } from "../tags";
@@ -90,7 +90,6 @@ export function spawnGenericVehicle(
 	});
 
 	m.onHurt(() => {
-		audioService.playSound("hit1", { volume: mainSoundVolume });
 		m.animation.seek(0);
 	});
 }

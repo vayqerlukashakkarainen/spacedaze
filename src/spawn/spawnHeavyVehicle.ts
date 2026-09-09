@@ -14,6 +14,7 @@ import {
 import { applyDamage } from "../services/damageService";
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { setHitSoundProfile } from "../services/hitSoundService";
 
 export function spawnHeavyVehicle(
 	pos: Vec2,
@@ -49,6 +50,7 @@ export function spawnHeavyVehicle(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	]);
+	setHitSoundProfile(m, "heavyMetal");
 
 	registerHitAnimation(m);
 
@@ -85,7 +87,6 @@ export function spawnHeavyVehicle(
 	});
 
 	m.onHurt(() => {
-		audioService.playSound("hit1", { volume: mainSoundVolume });
 		m.animation.seek(0);
 	});
 }

@@ -1,6 +1,6 @@
 import type { Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
-import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
+import { k, subSoundVolume, velocityScale } from "../main"
 import { audioService } from "../services/audioService"
 import { applyDamage } from "../services/damageService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
@@ -179,7 +179,6 @@ export function spawnSniper(
 		k.destroy(sniper)
 	})
 	sniper.onHurt(() => {
-		audioService.playSound("hit1", { volume: mainSoundVolume })
 		sniper.animation.seek(0)
 	})
 

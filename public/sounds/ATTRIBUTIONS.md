@@ -1,5 +1,25 @@
 # Audio Attributions
 
+## Light Metal Hit
+
+"Metal Hit 95" by floraphonic
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-metal-hit-95-200424/
+- License: Pixabay Content License
+- Original filename: `floraphonic-metal-hit-95-200424.mp3`
+- In-game asset: `light-metal-hit.wav`
+- Trimmed to the 580 ms impact, converted to mono WAV, and faded at the tail for responsive playback.
+
+## Asteroid Impacts and Destruction
+
+"Rock Smash" by NeoSpica (Freesound), distributed through Pixabay.
+
+- Pixabay source: https://pixabay.com/sound-effects/nature-rock-smash-6304/
+- Original source: https://freesound.org/people/NeoSpica/sounds/512243/
+- License: Creative Commons Zero 1.0
+- In-game assets: `asteroid-impact-1.ogg`, `asteroid-impact-2.ogg`, `asteroid-impact-3.ogg`, `asteroid-destroyed.ogg`
+- The first three strikes are used as randomized asteroid impacts. The final breakup is used for asteroid destruction. Each segment was trimmed, converted to mono OGG, and faded at both edges.
+
 ## Burt Strafe Module Ejection
 
 "fart" by MacKaffee (Freesound), distributed through Pixabay.

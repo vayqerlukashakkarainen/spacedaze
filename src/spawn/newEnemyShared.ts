@@ -1,6 +1,6 @@
 import type { GameObj } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
-import { k, mainSoundVolume, subSoundVolume } from "../main"
+import { k, subSoundVolume } from "../main"
 import { audioService } from "../services/audioService"
 import { applyDamage } from "../services/damageService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
@@ -52,7 +52,6 @@ export function registerEnemyLifecycle(
 		k.destroy(enemy)
 	})
 	enemy.onHurt(() => {
-		audioService.playSound("hit1", { volume: mainSoundVolume })
 		enemy.animation.seek(0)
 	})
 }

@@ -4,7 +4,6 @@ import { dtScaled, k, subSoundVolume, velocityScale } from "../main";
 import { audioService } from "../services/audioService";
 import { registerHitAnimation } from "../shared";
 import { tags } from "../tags";
-import { randomExplosion } from "../util";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
 import { timescale } from "../comp/timescale";
 import { mass } from "../comp/mass";
@@ -18,6 +17,7 @@ import {
 } from "../services/threatService";
 import { gridRegistry } from "../grid/gridRegistry";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { setHitSoundProfile } from "../services/hitSoundService";
 
 interface Props {
 	pos: Vec2;
@@ -80,6 +80,7 @@ export function spawnMeteorite(props: Props) {
 		tags.gameLoop,
 		...(props.tags ?? []),
 	]);
+	setHitSoundProfile(m, "stone");
 
 	registerHitAnimation(m);
 
@@ -123,7 +124,13 @@ export function spawnMeteorite(props: Props) {
 					tier: profile.elite ? "elite" : "normal",
 				}
 			);
-		audioService.playSound(randomExplosion(), { volume: subSoundVolume });
+		audioService.playPositionalSound("asteroid_destroyed", deathPos, {
+			volume: subSoundVolume,
+			minDistance: 80,
+			maxDistance: 780,
+			panDistance: 460,
+			voiceLimit: 6,
+		});
 		k.destroy(m);
 		props.onDeath?.(deathPos);
 

@@ -316,7 +316,6 @@ export function spawnRammer(
 		k.destroy(rammer)
 	})
 	rammer.onHurt(() => {
-		audioService.playSound("hit1", { volume: mainSoundVolume })
 		rammer.animation.seek(0)
 	})
 

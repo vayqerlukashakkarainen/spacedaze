@@ -1,5 +1,5 @@
 import { checkProjectileIntersection, playerObj } from "../game";
-import { k, mainSoundVolume, subSoundVolume, timeScale } from "../main";
+import { k, subSoundVolume, timeScale } from "../main";
 import { audioService } from "../services/audioService";
 import { spawnEnemyBlaster } from "../services/projectileHelpers";
 import {
@@ -140,7 +140,6 @@ export function spawnAssasin(
 	});
 
 	m.onHurt(() => {
-		audioService.playSound("hit1", { volume: mainSoundVolume });
 		m.animation.seek(0);
 	});
 }

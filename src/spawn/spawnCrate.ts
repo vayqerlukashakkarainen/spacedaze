@@ -9,6 +9,7 @@ import { enemyOnDeath, onEnemyHit } from "./enemyShared";
 import { timescale } from "../comp/timescale";
 import { applyDamage } from "../services/damageService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { setHitSoundProfile } from "../services/hitSoundService";
 import {
 	addLocalLight,
 	updateLocalLight,
@@ -68,6 +69,7 @@ export function spawnCrate(props: Props) {
 		tags.gameLoop,
 		...(props.tags ?? []),
 	]);
+	setHitSoundProfile(m, "stone");
 	registerHitAnimation(m);
 	const rareGlow = golden
 		? addLocalLight(m, {
@@ -173,9 +175,6 @@ export function spawnCrate(props: Props) {
 	});
 
 	m.onHurt(() => {
-		audioService.playPositionalSound("hit2", m.pos.clone(), {
-			volume: mainSoundVolume,
-		});
 		m.animation.seek(0);
 	});
 }

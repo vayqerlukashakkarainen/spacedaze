@@ -143,7 +143,6 @@ export function spawnMineLayer(
 		k.destroy(mineLayer)
 	})
 	mineLayer.onHurt(() => {
-		audioService.playSound("hit1", { volume: mainSoundVolume })
 		mineLayer.animation.seek(0)
 	})
 

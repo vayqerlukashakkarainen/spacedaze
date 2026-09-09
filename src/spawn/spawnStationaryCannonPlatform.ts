@@ -15,6 +15,7 @@ import { randomExplosion } from "../util"
 import { timescale } from "../comp/timescale"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { spawnExplosionEffect } from "./spawnFlash"
+import { setHitSoundProfile } from "../services/hitSoundService"
 
 const ATTACK_RANGE = 700
 const VOLLEY_COOLDOWN = 4
@@ -70,6 +71,7 @@ export function spawnStationaryCannonPlatform(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
+	setHitSoundProfile(platform, "heavyMetal")
 
 	registerHitAnimation(platform)
 	registerBatchedEntityUpdate("enemies", platform, () => {
@@ -105,9 +107,6 @@ export function spawnStationaryCannonPlatform(
 
 	platform.onHurt(() => {
 		if (platform.deathAnimating) return
-		audioService.playPositionalSound("hit2", platform.pos, {
-			volume: mainSoundVolume,
-		})
 		platform.animation.seek(0)
 	})
 

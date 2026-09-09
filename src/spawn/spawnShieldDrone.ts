@@ -1,6 +1,6 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
-import { k, layers, mainSoundVolume, subSoundVolume } from "../main"
+import { k, layers, subSoundVolume } from "../main"
 import { audioService } from "../services/audioService"
 import { applyDamage } from "../services/damageService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
@@ -20,6 +20,7 @@ import { randomExplosion } from "../util"
 import { timescale } from "../comp/timescale"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { DensePool } from "../services/densePool"
+import { setHitSoundProfile } from "../services/hitSoundService"
 
 const SHIELD_HOST_ACTION_SPEED_MULTIPLIER = 1.3
 const SHIELD_HOST_DAMAGE_MULTIPLIER = 1.4
@@ -70,6 +71,7 @@ export function spawnShieldDrone(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
+	setHitSoundProfile(drone, "shield")
 	const unregisterShieldLink = registerShieldLink(
 		drone,
 		() => protectedTarget
@@ -144,7 +146,6 @@ export function spawnShieldDrone(
 	})
 	drone.onDestroy(() => clearShieldProvider(protectedTarget, drone))
 	drone.onHurt(() => {
-		audioService.playSound("hit1", { volume: mainSoundVolume })
 		drone.animation.seek(0)
 	})
 
