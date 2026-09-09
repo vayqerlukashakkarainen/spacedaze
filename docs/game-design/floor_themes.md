@@ -60,6 +60,99 @@ batched updates and shared sprite atlases.
 | Freebooter Exchange | Mixed-species outlaw flotilla | Orange | Traps, stolen technology, and volatile rewards |
 | Daze Scar | No stable culture | Purple and white | Unstable geometry and mixed phase echoes |
 
+## Floor assignment
+
+The first nine floors form the canonical introduction to the Daze. Theme
+selection is determined by run depth, not by the run seed. The seed may select
+room layouts, encounters, prop variants, and intrusion placement, but floor 4
+is always Oruun and floor 8 is always Federation.
+
+| Floor | Global theme | Purpose | Milestone boss |
+| ---: | --- | --- | --- |
+| 1 | Wake Scrap District | Establish the Wake, salvage, and improvised room language | No |
+| 2 | Freebooter Exchange | Introduce mixed-species crews, shops, traps, and contested loot | No |
+| 3 | Khelt Moltworks | Introduce armor, heavy machinery, and the first alien stronghold | Khelt shellmaster |
+| 4 | Oruun Pilgrim Array | Introduce gravity-driven layouts and displacement combat | No |
+| 5 | Naru Tide Ark | Introduce currents, support formations, and projectile redirection | No |
+| 6 | Silex Resonance Vault | Test precision against linked and resonating enemies | Silex chorus |
+| 7 | Vey Living Convoy | Introduce regrowth, swarms, and biological area denial | No |
+| 8 | Federation Claim Zone | Reveal an organized Federation incursion deep inside the Daze | No |
+| 9 | Daze Scar | Remix everything the player has learned into an unstable finale floor | Composite phase echo |
+
+This order moves from the familiar ruins of the Wake into increasingly alien
+places. The Federation appears as an intrusion before floor 8, but floor 8 is
+the first time its architecture and forces control an entire floor. Daze Scar
+is reserved for floor 9 so its combinations are recognizable rather than
+random noise.
+
+Floors 3, 6, and 9 follow the existing milestone rule and contain a boss room.
+The boss belongs to the floor's dominant theme. Federation bosses can appear
+through special contracts and later deep-run cycles instead of replacing the
+first alien milestone bosses.
+
+### Floors 10 and beyond
+
+After floor 9, the run enters the **deep cycle**. Wake Scrap District is removed
+from the normal rotation because it represents the safer edge of the Daze.
+Themes repeat in this fixed order:
+
+| Deep-cycle position | Theme |
+| ---: | --- |
+| 1 | Khelt Moltworks |
+| 2 | Naru Tide Ark |
+| 3 | Oruun Pilgrim Array |
+| 4 | Silex Resonance Vault |
+| 5 | Vey Living Convoy |
+| 6 | Federation Claim Zone |
+| 7 | Freebooter Exchange |
+| 8 | Daze Scar |
+
+Floor 10 uses deep-cycle position 1, floor 11 uses position 2, and so on. After
+position 8, the cycle starts again. In generator terms:
+
+```text
+deepThemeIndex = (floorDepth - 10) % 8
+```
+
+The milestone-boss rule remains based on absolute floor depth. For example,
+floor 12 is an Oruun boss floor, floor 15 is a Federation boss floor, and floor
+18 is a Khelt boss floor after the cycle wraps.
+
+Each completed deep cycle increases theme intensity:
+
+- Add one more advanced hazard pattern to eligible rooms.
+- Increase the share of theme-specific elite enemies.
+- Use more damaged or Void-corrupted prop variants.
+- Raise intrusion intensity without changing the dominant theme.
+- Upgrade the theme boss with one additional behavior or room interaction.
+
+### Intrusion schedule
+
+Intrusions use a seeded roll after the global theme is chosen. They never
+change the floor's map icon, tileset, landmark family, ambient system, or boss.
+
+| Floors | Intrusion rule |
+| --- | --- |
+| 1 | None |
+| 2-3 | 25% chance; one affected room |
+| 4-5 | 35% chance; one or two affected rooms |
+| 6-8 | 50% chance; two affected rooms |
+| 9 | Forced Void Bloom across two rooms |
+| 10+ | One guaranteed intrusion; two or three affected rooms |
+
+Do not select an intrusion identical to the dominant theme. Federation Claim
+is unavailable as an intrusion on a Federation floor, and Void Bloom is
+unavailable on a Daze Scar floor.
+
+### Generation contract
+
+Generated floor state should store a stable `themeId` and optional
+`intrusionId`. Every room reads those saved values. Revisiting a room, using
+map quick travel, or loading a saved run must never reroll its theme.
+
+The tactical map may reveal the floor's global theme after the first room is
+entered. It should continue hiding undiscovered room types as normal.
+
 ## Wake Scrap District
 
 The Wake theme reconstructs residential and industrial fragments of Drius
