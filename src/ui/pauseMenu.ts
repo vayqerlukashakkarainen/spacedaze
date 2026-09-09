@@ -17,6 +17,10 @@ import {
 	playShopMenuOpenSound,
 } from "../services/shopMenuSoundService"
 import { uiState } from "./uiState"
+import {
+	formatInputBinding,
+	getInputBinding,
+} from "../services/inputBindingService"
 
 interface PauseMenuActions {
 	onResume: () => void
@@ -80,7 +84,7 @@ export function showPauseMenu({
 		width: PAUSE_WIDTH,
 		eyebrow: "FLIGHT CONTROL",
 		title: "SIMULATION PAUSED",
-		action: "ESC  RESUME",
+		action: `${formatInputBinding(getInputBinding("pause"))}  RESUME`,
 	})
 
 	createUiSurface(root, {

@@ -21,6 +21,7 @@ import {
 	boostTrailEmitter,
 	debreeRocketEmitter,
 	dustTrailEmitter,
+	emitImpactChips,
 	sparkEmitter,
 	starsEmitter,
 	trailEmitter,
@@ -338,15 +339,6 @@ function updateProjectile(proj: GameObj) {
 		updateSeeking(proj);
 	}
 
-	if (
-		proj.splitConfig &&
-		proj.lifetime > proj.splitConfig.splitDelay &&
-		!proj.hasSplit
-	) {
-		updateSplit(proj, config);
-		if (!proj.exists()) return;
-	}
-
 	if (proj.spiralConfig) updateSpiral(proj);
 	if (
 		proj.duplicateConfig &&
@@ -361,6 +353,13 @@ function updateProjectile(proj: GameObj) {
 	if (proj.curveConfig) updateCurve(proj);
 
 	if (!proj.spiralConfig) updateMovement(proj);
+	if (proj.splitConfig && !proj.hasSplit) {
+		proj.splitTravelDistance += previousPos.dist(proj.pos);
+		if (shouldSplitProjectile(proj, activeGrid)) {
+			updateSplit(proj, config);
+			if (!proj.exists()) return;
+		}
+	}
 	if (proj.wiggleConfig?.trailPoints) updateWiggleTrail(proj);
 	const wallCollision = activeGrid
 		? findSolidCellCollision(activeGrid, previousPos, proj.pos)
@@ -537,10 +536,15 @@ function applySplitModifier(proj: GameObj, config?: SplitModifier) {
 	proj.splitConfig = {
 		splitCount: config.splitCount,
 		splitAngle: config.splitAngle,
-		splitDelay: config.splitDelay ?? 0.5,
+		maxDistance: config.maxDistance ??
+			proj.speed * (config.splitDelay ?? 0.5),
+		targetPosition: config.targetPosition?.clone(),
+		impactLeadDistance: config.impactLeadDistance ?? 50,
 		speedMultiplier: config.speedMultiplier ?? 0.8,
 		damageMultiplier: config.damageMultiplier ?? 0.6,
 	};
+	proj.splitOrigin = proj.pos.clone();
+	proj.splitTravelDistance = 0;
 	proj.hasSplit = false;
 }
 
@@ -913,6 +917,59 @@ function updateWiggleTrail(proj: GameObj) {
 	const points = proj.wiggleConfig.trailPoints as Vec2[];
 	points.push(proj.pos.clone());
 	while (points.length > proj.wiggleConfig.trailLength) points.shift();
+}
+
+function shouldSplitProjectile(
+	proj: GameObj,
+	activeGrid?: HexGrid
+) {
+	const split = proj.splitConfig;
+	if (proj.splitTravelDistance >= split.maxDistance) return true;
+
+	if (split.targetPosition && proj.splitOrigin) {
+		const targetDistance = proj.splitOrigin.dist(split.targetPosition);
+		if (proj.splitTravelDistance >= targetDistance) return true;
+	}
+
+	const leadDistance = split.impactLeadDistance;
+	const target = proj.targetUnit?.exists() ? proj.targetUnit : undefined;
+	if (target && isSplitImpactTarget(proj, target)) {
+		const targetRadius = typeof target.hb === "number" ? target.hb : 10;
+		if (proj.pos.dist(target.pos) <= leadDistance + targetRadius) return true;
+	}
+
+	const heading = k.Vec2.fromAngle(proj.angle - 90);
+	const targetTags = proj.is(tags.friendly)
+		? [tags.enemy, tags.roomVolatile]
+		: [tags.player];
+	for (const candidate of querySpatialNearby(
+		proj.pos,
+		leadDistance + 128,
+		{ anyTags: targetTags }
+	)) {
+		if (!isSplitImpactTarget(proj, candidate)) continue;
+		const offset = candidate.pos.sub(proj.pos);
+		const forwardDistance = offset.dot(heading);
+		if (forwardDistance < 0) continue;
+		const targetRadius = typeof candidate.hb === "number" ? candidate.hb : 10;
+		if (forwardDistance > leadDistance + targetRadius) continue;
+		const lateralDistance = Math.abs(
+			offset.x * heading.y - offset.y * heading.x
+		);
+		if (lateralDistance <= targetRadius + 4) return true;
+	}
+
+	if (!activeGrid) return false;
+	const lookAhead = proj.pos.add(heading.scale(leadDistance));
+	return findSolidCellCollision(activeGrid, proj.pos, lookAhead) !== undefined;
+}
+
+function isSplitImpactTarget(proj: GameObj, target: GameObj) {
+	if (!target.exists() || target.id === proj.id) return false;
+	if (typeof target.hp === "number" && target.hp <= 0) return false;
+	return proj.is(tags.friendly)
+		? target.is(tags.enemy) || target.is(tags.roomVolatile)
+		: target.is(tags.player);
 }
 
 function updateSplit(proj: GameObj, config: ProjectileConfig) {
@@ -1443,10 +1500,15 @@ function stripPlayerModifiersAfterBounce(projectile: GameObj) {
 		projectile.splitConfig = {
 			splitCount: fallback.split.splitCount,
 			splitAngle: fallback.split.splitAngle,
-			splitDelay: fallback.split.splitDelay ?? 0.5,
+			maxDistance: fallback.split.maxDistance ??
+				projectile.speed * (fallback.split.splitDelay ?? 0.5),
+			targetPosition: fallback.split.targetPosition?.clone(),
+			impactLeadDistance: fallback.split.impactLeadDistance ?? 50,
 			speedMultiplier: fallback.split.speedMultiplier ?? 0.8,
 			damageMultiplier: fallback.split.damageMultiplier ?? 0.6,
 		};
+		projectile.splitOrigin = projectile.pos.clone();
+		projectile.splitTravelDistance = 0;
 		projectile.hasSplit = false;
 	} else {
 		delete projectile.splitConfig;
@@ -1691,6 +1753,19 @@ export function applyProjectileDamage(
 			incomingDirection: projectile.dir,
 			source: projectile.projectileConfig?.damageSource,
 		});
+		if (
+			damageApplied &&
+			projectile.tags.includes(tags.friendly) &&
+			!projectile.suppressImpactEffects
+		) {
+			emitImpactChips(
+				projectile.pos.clone(),
+				target.worldPos?.clone() ?? target.pos.clone(),
+				projectile.dir,
+				projectile.speed ?? 0,
+				critical
+			);
+		}
 		if (damageApplied && target.tags.includes(tags.enemy)) {
 			triggerProjectileLifesteal(target, projectile, damage);
 			triggerResonanceCoil(target, projectile, damage);

@@ -63,6 +63,11 @@ import {
 	playShopMenuOpenSound,
 } from "../services/shopMenuSoundService"
 import { audioService } from "../services/audioService"
+import {
+	formatInputBinding,
+	getInputBinding,
+	isInputActionDown,
+} from "../services/inputBindingService"
 
 const MAP_MARGIN = 22
 const MAP_HEADER_HEIGHT = 48
@@ -375,8 +380,10 @@ export function showTacticalMap() {
 
 	registerBatchedUiUpdate("modal", mapCanvas, () => {
 		const panDirection = k.vec2(
-			(k.isKeyDown("d") ? 1 : 0) - (k.isKeyDown("a") ? 1 : 0),
-			(k.isKeyDown("s") ? 1 : 0) - (k.isKeyDown("w") ? 1 : 0)
+			(isInputActionDown("moveRight") ? 1 : 0) -
+				(isInputActionDown("moveLeft") ? 1 : 0),
+			(isInputActionDown("moveDown") ? 1 : 0) -
+				(isInputActionDown("moveUp") ? 1 : 0)
 		)
 		if (panDirection.len() !== 0) {
 			mapCanvas.pos = mapCanvas.pos.add(panDirection.unit().scale(260 * k.dt()))
@@ -412,8 +419,8 @@ export function showTacticalMap() {
 	}
 	addThemedText(contentRoot, {
 		text: roomFloorSnapshot
-			? "CLICK CLEARED ROOM  QUICK JUMP     DRAG / WASD  PAN     WHEEL  ZOOM     R  RESET     TAB / ESC  CLOSE"
-			: "DRAG / WASD  PAN     WHEEL  ZOOM     R  RESET     TAB / ESC  CLOSE",
+			? `CLICK CLEARED ROOM  QUICK JUMP     DRAG / ${movementBindingLabel()}  PAN     WHEEL  ZOOM     R  RESET     ${closeBindingLabel()}  CLOSE`
+			: `DRAG / ${movementBindingLabel()}  PAN     WHEEL  ZOOM     R  RESET     ${closeBindingLabel()}  CLOSE`,
 		pos: k.vec2(MAP_MARGIN, k.height() - 20),
 		variant: "muted",
 		width: k.width() - MAP_MARGIN * 2,
@@ -426,6 +433,16 @@ export function showTacticalMap() {
 	playShopMenuOpenSound()
 
 	return true
+}
+
+function movementBindingLabel() {
+	return (["moveUp", "moveLeft", "moveDown", "moveRight"] as const)
+		.map((action) => formatInputBinding(getInputBinding(action)))
+		.join(" / ")
+}
+
+function closeBindingLabel() {
+	return `${formatInputBinding(getInputBinding("tacticalMap"))} / ${formatInputBinding(getInputBinding("pause"))}`
 }
 
 export function hideTacticalMap(onClosed?: () => void) {

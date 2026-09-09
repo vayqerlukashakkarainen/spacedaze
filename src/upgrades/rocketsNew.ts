@@ -8,7 +8,7 @@ export const rocket: UpgradeDefinition = {
 	levels: [
 		{
 			name: "Level 1",
-			desc: "Install missile pods to the ship, right mouse to fire",
+			desc: "Install secondary missile pods on the ship",
 			sprite: "rocket_upg1",
 			price: 22,
 			effects: {

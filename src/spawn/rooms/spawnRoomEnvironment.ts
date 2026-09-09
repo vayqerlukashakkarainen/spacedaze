@@ -230,7 +230,7 @@ export function spawnExplodingFuelCell(
 	let flameEmitter: ReturnType<typeof createFuelFlameEmitter> | undefined
 	let smokeTimer = 0
 	let flameTimer = 0
-	setHitSoundProfile(fuel, "metal")
+	setHitSoundProfile(fuel, "lightMetal")
 	registerHitAnimation(fuel)
 	registerEnvironmentProjectileHits(fuel, false, () => {
 		warning.opacity = 0.22

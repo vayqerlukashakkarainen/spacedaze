@@ -11,6 +11,7 @@ import { getAbilityTierValues } from "./abilityTierService";
 const ROCKET_ACQUIRE_DELAY = 0.2;
 const ROCKET_TURN_SPEED = 0.065;
 const RAIL_LANCE_MIN_KNOCKBACK_MULTIPLIER = 0.04;
+const SPLIT_CHAMBER_MAX_DISTANCE = 520;
 
 export interface BasicBlasterOptions {
 	suppressHitRecoil?: boolean
@@ -57,6 +58,7 @@ export interface PlayerBlasterShotOptions {
 	chargeRatio?: number
 	critChanceBonus?: number
 	preferredTarget?: GameObj
+	splitTargetPosition?: Vec2
 	wigglePhase?: number
 }
 
@@ -242,7 +244,12 @@ export function spawnPlayerBlaster(
 			targetTags: [tags.enemy, tags.unit],
 		};
 	}
-	applyPlayerProjectileModifiers(config, true, Boolean(preferredTarget));
+	applyPlayerProjectileModifiers(
+		config,
+		true,
+		Boolean(preferredTarget),
+		shotOptions.splitTargetPosition
+	);
 	spawnFlash(
 		pos,
 		isFullyChargedWeapon ? 6 : 3,
@@ -434,7 +441,8 @@ export function spawnHomingRocket(
 function applyPlayerProjectileModifiers(
 	config: ProjectileConfig,
 	allowSplit: boolean,
-	targetModeActive = false
+	targetModeActive = false,
+	splitTargetPosition?: Vec2
 ) {
 	const projectileDamage = getConfiguredProjectileDamage(config)
 	const modifierFallbacks = {
@@ -531,7 +539,9 @@ function applyPlayerProjectileModifiers(
 		config.split = {
 			splitCount: player.projectileSplitCount,
 			splitAngle: 28,
-			splitDelay: 0.25,
+			maxDistance: SPLIT_CHAMBER_MAX_DISTANCE,
+			targetPosition: splitTargetPosition?.clone(),
+			impactLeadDistance: 50,
 			speedMultiplier: 0.9,
 			damageMultiplier:
 				totalDamageMultiplier / player.projectileSplitCount,

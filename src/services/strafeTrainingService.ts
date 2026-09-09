@@ -31,6 +31,10 @@ import {
 } from "./narrativeService"
 import { registerNpcDialogueIndicator } from "./npcDialogueIndicatorService"
 import { showPopover } from "./popoverService"
+import {
+	formatInputBinding,
+	getInputBinding,
+} from "./inputBindingService"
 
 const STRAFE_MODULE_TAG = "strafeTrainingModule"
 const STRAFE_OFFER_CUTSCENE_ID = "burt-strafe-training-offer"
@@ -273,6 +277,7 @@ function createTutorialCutscene(
 ): CutsceneDefinition {
 	const conversationTarget = burt.pos.lerp(player.pos, 0.5)
 	const firingRangePosition = k.center().add(...HUB_FIRING_RANGE_OFFSET)
+	const strafeBinding = formatInputBinding(getInputBinding("strafe"))
 	return {
 		id: STRAFE_TUTORIAL_CUTSCENE_ID,
 		speakerActors: { BURT: BURT_ACTOR },
@@ -301,7 +306,7 @@ function createTutorialCutscene(
 					},
 					{
 						speaker: "BURT",
-						text: "Hold SHIFT while moving. Your hull drifts, but your weapons stay on the cursor.",
+						text: `Hold ${strafeBinding} for strafe control. Your hull drifts, but your weapons stay on the cursor.`,
 					},
 					{
 						speaker: "BURT",
@@ -427,7 +432,7 @@ function spawnStrafeTrainingModule(burt: GameObj<PosComp>) {
 		showPopover({
 			title: "PERMANENT UPGRADE",
 			message: "STRAFE TRAINING UNLOCKED",
-			description: "Hold SHIFT while moving to decouple flight and aim.",
+			description: `Hold ${formatInputBinding(getInputBinding("strafe"))} for independent flight and aim.`,
 			sprite: "target_painter_upg1",
 			color: k.rgb(100, 220, 255),
 			duration: 4,

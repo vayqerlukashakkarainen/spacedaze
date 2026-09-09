@@ -1431,7 +1431,6 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			const abilityReward = isAbilityReward(reward);
 			spawnRewardPickup(chestWorldPosition, reward, {
 				stationary: true,
-				armWhenPlayerLeaves: !abilityReward,
 				interactionOnly: abilityReward,
 				interactionPromptStyle: abilityReward ? "key" : undefined,
 				telemetrySource: "chest",

@@ -9,13 +9,23 @@ import {
 	setScreenShakeIntensity,
 } from "../services/displaySettingsService"
 import {
+	beginInputBindingCapture,
+	cancelInputBindingCapture,
+	formatInputBinding,
+	getInputActionDefinition,
+	getInputBinding,
+	INPUT_ACTIONS,
+	resetInputBindings,
+	type InputActionId,
+	type InputController,
+} from "../services/inputBindingService"
+import {
 	addThemedText,
 	createUiActionButton,
 	createUiScrollable,
 	createUiSectionHeader,
 	createUiSlider,
 	createUiSurface,
-	UI_COLORS,
 } from "./common"
 import { createUiVolumeControls } from "./volumeControls"
 
@@ -25,7 +35,13 @@ interface UiOptionsPanelProps {
 	height: number
 }
 
-const CONTENT_HEIGHT = 566
+type OptionsTab = "Audio" | "Video" | "Bindings"
+
+const OPTIONS_TABS: readonly OptionsTab[] = ["Audio", "Video", "Bindings"]
+const TAB_GAP = 4
+const TAB_HEIGHT = 34
+const PANEL_PADDING = 8
+const CONTENT_TOP = 50
 
 export function createUiOptionsPanel(
 	parent: GameObj,
@@ -38,59 +54,133 @@ export function createUiOptionsPanel(
 		tone: "raised",
 		opacity: 0.98,
 	})
-	const scrollable = createUiScrollable({
-		parent: panel,
-		pos: k.vec2(8, 8),
-		width: width - 16,
-		height: height - 16,
-		contentHeight: CONTENT_HEIGHT,
-		captureWheel: true,
-		scrollStep: 34,
-	})
-	const contentWidth = width - 29
-	const handleVisible = (screenPosition: Vec2) => {
-		const topLeft = scrollable.obj.toScreen(k.vec2(0, 0))
-		const bottomRight = scrollable.obj.toScreen(
-			k.vec2(width - 16, height - 16)
-		)
-		return screenPosition.x >= topLeft.x &&
-			screenPosition.x <= bottomRight.x &&
-			screenPosition.y >= topLeft.y &&
-			screenPosition.y <= bottomRight.y
+
+	let activeTab: OptionsTab = "Audio"
+	let activeView: GameObj | undefined
+	let captureAction: InputActionId | undefined
+	let captureController: InputController | undefined
+	let bindingStatus = "CLICK A BINDING TO CHANGE IT"
+	let destroyed = false
+
+	const stopCapture = () => {
+		captureController?.cancel()
+		captureController = undefined
+		captureAction = undefined
 	}
-	createUiVolumeControls(scrollable.content, {
-		pos: k.vec2(0, 0),
-		width: contentWidth,
-		sliderHandleVisible: handleVisible,
+
+	const render = () => {
+		if (destroyed || !panel.exists()) return
+		if (activeView?.exists()) k.destroy(activeView)
+		activeView = panel.add([k.pos(0, 0)])
+		const view = activeView
+		const innerWidth = width - PANEL_PADDING * 2
+		const tabWidth = (innerWidth - TAB_GAP * (OPTIONS_TABS.length - 1)) /
+			OPTIONS_TABS.length
+		for (const [index, tab] of OPTIONS_TABS.entries()) {
+			createUiActionButton(view, {
+				pos: k.vec2(
+					PANEL_PADDING + index * (tabWidth + TAB_GAP),
+					PANEL_PADDING
+				),
+				size: k.vec2(tabWidth, TAB_HEIGHT),
+				text: tab.toUpperCase(),
+				selected: activeTab === tab,
+				onClick: () => {
+					if (activeTab === tab) return
+					stopCapture()
+					activeTab = tab
+					bindingStatus = "CLICK A BINDING TO CHANGE IT"
+					k.wait(0, render)
+				},
+			})
+		}
+
+		const contentPos = k.vec2(PANEL_PADDING, CONTENT_TOP)
+		const contentWidth = innerWidth
+		const contentHeight = height - CONTENT_TOP - PANEL_PADDING
+		if (activeTab === "Audio") {
+			addAudioTab(view, contentPos, contentWidth)
+			return
+		}
+		if (activeTab === "Video") {
+			addVideoTab(view, contentPos, contentWidth)
+			return
+		}
+		addBindingsTab(view, {
+			pos: contentPos,
+			width: contentWidth,
+			height: contentHeight,
+			captureAction,
+			status: bindingStatus,
+			onCapture: (action) => {
+				stopCapture()
+				captureAction = action
+				bindingStatus = "PRESS INPUT  //  ESC CANCELS"
+				render()
+				k.wait(0, () => {
+					if (!panel.exists() || captureAction !== action) return
+					captureController = beginInputBindingCapture(action, {
+						onBound: (change) => {
+							captureController = undefined
+							captureAction = undefined
+							bindingStatus = change.swappedAction
+								? `SWAPPED WITH ${getInputActionDefinition(change.swappedAction).label}`
+								: `${getInputActionDefinition(action).label} UPDATED`
+							render()
+						},
+						onCancel: () => {
+							captureController = undefined
+							captureAction = undefined
+							bindingStatus = "BINDING CHANGE CANCELLED"
+							render()
+						},
+					})
+				})
+			},
+			onReset: () => {
+				stopCapture()
+				resetInputBindings()
+				bindingStatus = "DEFAULT BINDINGS RESTORED"
+				render()
+			},
+		})
+	}
+
+	panel.onDestroy(() => {
+		destroyed = true
+		cancelInputBindingCapture()
+		captureController = undefined
 	})
-	addDisplayControls(scrollable.content, 190, contentWidth, handleVisible)
-	addControlReference(scrollable.content, 430, contentWidth)
-	scrollable.scrollToStart()
+	render()
 	return panel
 }
 
-function addDisplayControls(
-	parent: GameObj,
-	y: number,
-	width: number,
-	handleVisible: (screenPosition: Vec2) => boolean
-) {
-	createUiSectionHeader(parent, {
-		pos: k.vec2(0, y),
+function addAudioTab(parent: GameObj, pos: Vec2, width: number) {
+	const controls = parent.add([k.pos(pos)])
+	createUiVolumeControls(controls, {
+		pos: k.vec2(0, 0),
+		width,
+	})
+}
+
+function addVideoTab(parent: GameObj, pos: Vec2, width: number) {
+	const controls = parent.add([k.pos(pos)])
+	createUiSectionHeader(controls, {
+		pos: k.vec2(0, 0),
 		width,
 		eyebrow: "VIDEO / COMFORT",
 		title: "DISPLAY SYSTEMS",
 		action: "AUTO-SAVE",
 	})
-	const fullscreenStatus = addThemedText(parent, {
-		pos: k.vec2(0, y + 70),
+	const fullscreenStatus = addThemedText(controls, {
+		pos: k.vec2(0, 70),
 		text: fullscreenStatusText(),
 		variant: "caption",
 		width,
 		align: "right",
 	})
-	createUiActionButton(parent, {
-		pos: k.vec2(0, y + 58),
+	createUiActionButton(controls, {
+		pos: k.vec2(0, 58),
 		size: k.vec2(Math.min(190, width - 110), 32),
 		text: "TOGGLE FULLSCREEN",
 		onClick: () => {
@@ -104,49 +194,47 @@ function addDisplayControls(
 		},
 	})
 
-	const shakeLabel = addThemedText(parent, {
-		pos: k.vec2(0, y + 101),
+	const shakeLabel = addThemedText(controls, {
+		pos: k.vec2(0, 101),
 		text: intensityLabel("SCREEN SHAKE", getScreenShakeIntensity()),
 		variant: "muted",
 		width,
 	})
-	createUiSlider(parent, {
-		pos: k.vec2(0, y + 120),
+	createUiSlider(controls, {
+		pos: k.vec2(0, 120),
 		width,
 		value: getScreenShakeIntensity(),
-		handleVisible,
 		onChange: (value) => {
 			setScreenShakeIntensity(value)
 			shakeLabel.text = intensityLabel("SCREEN SHAKE", value)
 		},
 	})
 
-	const flashLabel = addThemedText(parent, {
-		pos: k.vec2(0, y + 142),
+	const flashLabel = addThemedText(controls, {
+		pos: k.vec2(0, 142),
 		text: intensityLabel("SCREEN FLASH", getScreenFlashIntensity()),
 		variant: "muted",
 		width,
 	})
-	createUiSlider(parent, {
-		pos: k.vec2(0, y + 161),
+	createUiSlider(controls, {
+		pos: k.vec2(0, 161),
 		width,
 		value: getScreenFlashIntensity(),
-		handleVisible,
 		onChange: (value) => {
 			setScreenFlashIntensity(value)
 			flashLabel.text = intensityLabel("SCREEN FLASH", value)
 		},
 	})
 
-	const postProcessingStatus = addThemedText(parent, {
-		pos: k.vec2(0, y + 211),
+	const postProcessingStatus = addThemedText(controls, {
+		pos: k.vec2(0, 211),
 		text: postProcessingStatusText(),
 		variant: "caption",
 		width,
 		align: "right",
 	})
-	createUiActionButton(parent, {
-		pos: k.vec2(0, y + 199),
+	createUiActionButton(controls, {
+		pos: k.vec2(0, 199),
 		size: k.vec2(Math.min(190, width - 140), 32),
 		text: "TOGGLE POST FX",
 		onClick: () => {
@@ -156,27 +244,91 @@ function addDisplayControls(
 	})
 }
 
-function addControlReference(parent: GameObj, y: number, width: number) {
-	createUiSectionHeader(parent, {
-		pos: k.vec2(0, y),
+interface BindingsTabProps {
+	pos: Vec2
+	width: number
+	height: number
+	captureAction?: InputActionId
+	status: string
+	onCapture: (action: InputActionId) => void
+	onReset: () => void
+}
+
+function addBindingsTab(
+	parent: GameObj,
+	{
+		pos,
 		width,
-		eyebrow: "INPUT REFERENCE",
-		title: "FLIGHT CONTROLS",
-	})
-	addThemedText(parent, {
-		pos: k.vec2(0, y + 61),
-		text: [
-			"MOVE  W A S D    DRIFT  SHIFT",
-			"FIRE  LEFT MOUSE    ARSENAL  Q / E",
-			"SECONDARY  RIGHT MOUSE    MOBILITY  SPACE",
-			"ULTIMATE  R",
-			"INTERACT  F    TACTICAL MAP  TAB",
-		].join("\n"),
-		variant: "body",
+		height,
+		captureAction,
+		status,
+		onCapture,
+		onReset,
+	}: BindingsTabProps
+) {
+	const scrollable = createUiScrollable({
+		parent,
+		pos,
 		width,
-		lineHeight: 1.5,
-		color: k.rgb(...UI_COLORS.text),
+		height,
+		contentHeight: 605,
+		scrollStep: 32,
 	})
+	const content = scrollable.content
+	const rowWidth = width - 8
+	createUiSectionHeader(content, {
+		pos: k.vec2(0, 0),
+		width: rowWidth,
+		eyebrow: "INPUT CONTROL",
+		title: "FLIGHT BINDINGS",
+		action: "AUTO-SAVE",
+	})
+	addThemedText(content, {
+		pos: k.vec2(10, 60),
+		text: status,
+		variant: captureAction ? "caption" : "muted",
+		width: rowWidth - 20,
+	})
+
+	let y = 88
+	let previousGroup = ""
+	for (const action of INPUT_ACTIONS) {
+		if (action.group !== previousGroup) {
+			if (previousGroup) y += 8
+			addThemedText(content, {
+				pos: k.vec2(10, y + 8),
+				text: action.group,
+				variant: "eyebrow",
+				width: rowWidth - 20,
+			})
+			y += 28
+			previousGroup = action.group
+		}
+		addThemedText(content, {
+			pos: k.vec2(10, y + 10),
+			text: action.label,
+			variant: "body",
+			width: rowWidth - 168,
+		})
+		createUiActionButton(content, {
+			pos: k.vec2(rowWidth - 150, y),
+			size: k.vec2(140, 32),
+			text: captureAction === action.id
+				? "PRESS INPUT..."
+				: formatInputBinding(getInputBinding(action.id)),
+			selected: captureAction === action.id,
+			onClick: () => onCapture(action.id),
+		})
+		y += 38
+	}
+	createUiActionButton(content, {
+		pos: k.vec2(10, y + 8),
+		size: k.vec2(rowWidth - 20, 34),
+		text: "RESET DEFAULT BINDINGS",
+		onClick: onReset,
+	})
+	scrollable.setContentHeight(y + 54)
+	scrollable.scrollToStart()
 }
 
 function intensityLabel(label: string, value: number) {

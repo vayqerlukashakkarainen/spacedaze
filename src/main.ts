@@ -284,6 +284,10 @@ import {
 	simulateSyntheticRuns,
 } from "./services/runSimulationService";
 import { installDisplaySettings } from "./services/displaySettingsService";
+import {
+	installInputBindingService,
+	onInputActionPress,
+} from "./services/inputBindingService";
 
 export const layers = {
 	bg: "bg",
@@ -366,6 +370,7 @@ document.addEventListener("auxclick", preventSecondaryMouseDefault, {
 k.canvas.addEventListener("dragstart", preventBrowserDefault);
 
 installDisplaySettings(k);
+installInputBindingService(k);
 
 installDrawCallProfiler(k.canvas);
 
@@ -471,7 +476,7 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 	});
 
 	// Pause toggle with Escape key
-	k.onKeyPress("escape", () => {
+	onInputActionPress("pause", () => {
 		if (k.get(tags.confirmationDialog).length > 0) return;
 		if (debreeDepositPanelOpen()) return;
 		if (dialogCapturesInput()) return;
@@ -496,7 +501,7 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 		togglePause();
 	});
 
-	k.onKeyPress("tab", () => {
+	onInputActionPress("tacticalMap", () => {
 		if (debreeDepositPanelOpen()) return;
 		if (dialogCapturesInput()) return;
 		if (commandService.isCapturingInput()) return;
@@ -529,7 +534,7 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 		submitCommand();
 	});
 
-	k.onKeyPress("f", () => {
+	onInputActionPress("interact", () => {
 		if (hubFacilityPanelOpen()) {
 			hideHubFacilityPanel();
 			return;

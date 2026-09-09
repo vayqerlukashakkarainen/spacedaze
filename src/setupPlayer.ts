@@ -2,7 +2,6 @@ import type {
 	AudioPlay,
 	Color,
 	GameObj,
-	KEventController,
 	PosComp,
 	RotateComp,
 	Vec2,
@@ -175,6 +174,12 @@ import {
 	setPlayerTargetLock,
 	updatePlayerTargetMotion,
 } from "./services/playerTargetLockService"
+import {
+	isInputActionDown,
+	onInputActionPress,
+	onInputActionRelease,
+	type InputController,
+} from "./services/inputBindingService"
 
 let blasters = 0;
 let bulletIndex = 1;
@@ -197,7 +202,10 @@ const weaponRecoilReturnSpeed = 20;
 const maxWeaponRecoilDistance = 8;
 const overclockShakeInterval = 0.12;
 const overclockShakeIntensity = 0.25;
-const lowHealthWarningThreshold = 0.3;
+const lowHealthSoundThreshold = 0.5;
+const lowHealthFullVolumeThreshold = 0.3;
+const lowHealthFlashThreshold = 0.3;
+const lowHealthWarningStartVolume = 0.18;
 const lowHealthFlashInterval = 1;
 const lowHealthFlashDuration = 0.16;
 const afterburnerWakeInterval = 0.14;
@@ -305,8 +313,10 @@ function getPlayerShipDirectionIndex(angle: number) {
 
 function getWasdDirection() {
 	return k.vec2(
-		(k.isKeyDown("d") ? 1 : 0) - (k.isKeyDown("a") ? 1 : 0),
-		(k.isKeyDown("s") ? 1 : 0) - (k.isKeyDown("w") ? 1 : 0)
+		(isInputActionDown("moveRight") ? 1 : 0) -
+			(isInputActionDown("moveLeft") ? 1 : 0),
+		(isInputActionDown("moveDown") ? 1 : 0) -
+			(isInputActionDown("moveUp") ? 1 : 0)
 	)
 }
 
@@ -446,6 +456,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	}
 	let lowHealthWarningSound: AudioPlay | null | undefined
 	let lowHealthWarningActive = false
+	let lowHealthFlashActive = false
 	let lowHealthFlashTimer = 0
 	let lowHealthFlashGeneration = 0
 	const stopLowHealthWarning = () => {
@@ -455,6 +466,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			lowHealthWarningSound = undefined
 		}
 		lowHealthWarningActive = false
+		lowHealthFlashActive = false
 		lowHealthFlashTimer = 0
 		lowHealthFlashGeneration++
 		playerObj.color = k.WHITE
@@ -464,18 +476,43 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			? playerObj.hp / playerObj.maxHP
 			: 0
 		const lowHealth = playerObj.hp > 0 &&
-			healthRatio <= lowHealthWarningThreshold
+			healthRatio < lowHealthSoundThreshold
 		if (!lowHealth) {
 			stopLowHealthWarning()
 			return
 		}
 		lowHealthWarningActive = true
+		const volumeProgress = k.clamp(
+			(lowHealthSoundThreshold - healthRatio) /
+				(lowHealthSoundThreshold - lowHealthFullVolumeThreshold),
+			0,
+			1
+		)
+		const warningVolume = k.lerp(
+			lowHealthWarningStartVolume,
+			1,
+			volumeProgress
+		)
 		if (!lowHealthWarningSound) {
 			lowHealthWarningSound = gameSoundService.play("low_health_warning", {
-				volume: mainSoundVolume * 0.55,
+				volume: warningVolume,
 				loop: true,
 			})
+		} else {
+			gameSoundService.update(lowHealthWarningSound, {
+				volume: warningVolume,
+			})
 		}
+		if (healthRatio > lowHealthFlashThreshold) {
+			if (lowHealthFlashActive) {
+				lowHealthFlashActive = false
+				lowHealthFlashTimer = 0
+				lowHealthFlashGeneration++
+				playerObj.color = k.WHITE
+			}
+			return
+		}
+		lowHealthFlashActive = true
 		lowHealthFlashTimer -= k.dt()
 		if (lowHealthFlashTimer > 0) return
 		lowHealthFlashTimer = lowHealthFlashInterval
@@ -488,7 +525,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			) playerObj.color = k.WHITE
 		})
 	}
-	const inputControllers: KEventController[] = [];
+	const inputControllers: InputController[] = [];
 	const readinessFlashQueue: ReturnType<typeof k.rgb>[] = [];
 	let readinessFlashActive = false;
 	let readinessStateInitialized = false;
@@ -601,6 +638,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	let strafeTarget: GameObj<PosComp> | undefined
 	let strafeTargetMarker: GameObj | undefined
 	let strafeAimPos = playerObj.pos.clone()
+	let strafeAimActive = false
 	let strafeTargetReleaseEaseRemaining = 0
 	let strafeModeWasActive = false
 	let strafeTargetCritActive = false
@@ -977,10 +1015,11 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		const driftModeActive =
 			!isMobilityMoving &&
 			isStrafeTrainingUnlocked() &&
-			k.isKeyDown("shift")
+			!combatInputBlocked() &&
+			isInputActionDown("strafe")
 		updatePlayerSteeringModeUi(driftModeActive)
 		const pointerWorldPos = k.toWorld(k.mousePos())
-		const strafeAimActive = driftModeActive && !combatInputBlocked()
+		strafeAimActive = driftModeActive && !combatInputBlocked()
 		setStrafeTarget(
 			strafeAimActive
 				? findHoveredStrafeTarget(pointerWorldPos, strafeTarget)
@@ -1069,9 +1108,8 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		const overdriveUpdate = updateThrusterOverdrive(
 			thrusterOverdriveState,
 			!isMobilityMoving &&
-				!driftModeActive &&
 				mobilityId === "thrusterOverdrive" &&
-				k.isKeyDown("space") &&
+				isInputActionDown("mobility") &&
 				wasdDir.len() > 0,
 			dt(),
 			overdriveTier.recovery
@@ -1474,6 +1512,10 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 						preferredTarget: strafeTarget?.exists()
 							? strafeTarget
 							: undefined,
+						splitTargetPosition:
+							strafeAimActive && !strafeTarget?.exists()
+								? strafeAimPos.clone()
+								: undefined,
 						wigglePhase: hasPatternWiggle
 							? index * Math.PI
 							: undefined,
@@ -1548,7 +1590,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	})
 
 	playerObj.onUpdate(() => profileSection("external:playerWeaponHold", () => {
-		if (!k.isMouseDown("left")) return;
+		if (!isInputActionDown("primary")) return;
 		const triggerModifier = getWeaponTriggerModifier(getEquippedWeapon());
 		if (triggerModifier.mode === "hold") {
 			firePrimaryWeapon();
@@ -1559,7 +1601,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		}
 	}));
 
-	inputControllers.push(k.onMousePress("left", () => {
+	inputControllers.push(onInputActionPress("primary", () => {
 		const weapon = getEquippedWeapon();
 		const mode = getWeaponTriggerModifier(weapon).mode;
 		if (mode === "press") {
@@ -1584,7 +1626,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		});
 	}));
 
-	inputControllers.push(k.onMouseRelease("left", () => {
+	inputControllers.push(onInputActionRelease("primary", () => {
 		if (primaryChargeStartedAt === undefined) return;
 		const weapon = getEquippedWeapon();
 		const chargeStartedAt = primaryChargeStartedAt;
@@ -1603,7 +1645,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		firePrimaryWeapon(chargeRatio);
 	}));
 
-	inputControllers.push(k.onMousePress("right", () => {
+	inputControllers.push(onInputActionPress("secondary", () => {
 		if (combatInputBlocked()) return;
 		if (!getEquippedActiveModule()) {
 			recordTelemetryAbilityFailure("secondary");
@@ -1628,9 +1670,8 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		);
 	}));
 
-	playerObj.onKeyPress("space", () => {
-		if (dialogCapturesInput()) return;
-		if (levelTransitionActive() || respawnTransitionActive) return;
+	inputControllers.push(onInputActionPress("mobility", () => {
+		if (combatInputBlocked()) return;
 		if (!getEquippedMobilityAbilityId()) {
 			recordTelemetryAbilityFailure("mobility");
 			flashEmptyMobilitySocket();
@@ -1671,10 +1712,9 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		}
 
 		const wasdDirection = getWasdDirection();
-		const phaseJumpDirection =
-			k.isKeyDown("shift") && wasdDirection.len() > 0
-				? wasdDirection.unit()
-				: k.Vec2.fromAngle(playerObj.angle - 90);
+		const phaseJumpDirection = wasdDirection.len() > 0
+			? wasdDirection.unit()
+			: k.Vec2.fromAngle(playerObj.angle - 90);
 		const jumpDirection = mobilityId === "retroBurst"
 			? k.Vec2.fromAngle(turretWorldAngle + 90)
 			: phaseJumpDirection;
@@ -1719,7 +1759,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		phaseJumpElapsed = 0;
 		phaseJumpHitTargets.clear();
 		spawnPhaseJumpEffect(startPos, destination, playerObj.angle);
-	});
+	}));
 
 	const cyclePrimary = (direction: -1 | 1) => {
 		if (combatInputBlocked()) return;
@@ -1737,10 +1777,14 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		});
 	};
 
-	playerObj.onKeyPress("q", () => cyclePrimary(-1));
-	playerObj.onKeyPress("e", () => cyclePrimary(1));
+	inputControllers.push(onInputActionPress("previousPrimary", () => {
+		cyclePrimary(-1)
+	}));
+	inputControllers.push(onInputActionPress("nextPrimary", () => {
+		cyclePrimary(1)
+	}));
 
-	playerObj.onKeyPress("r", () => {
+	inputControllers.push(onInputActionPress("ultimate", () => {
 		if (combatInputBlocked()) return;
 		const ultimateId = getEquippedUltimateAbilityId();
 		if (!ultimateId) {
@@ -1756,13 +1800,13 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		}
 		recordTelemetryAbilityUse("ultimate", ultimateId);
 		activatePhaseNova(playerObj);
-	});
+	}));
 
-	playerObj.onKeyPress("f", () => {
+	inputControllers.push(onInputActionPress("interact", () => {
 		if (dialogCapturesInput()) return;
 		if (levelTransitionActive() || respawnTransitionActive) return;
 		getPriorityInteraction()?.onInteract();
-	});
+	}));
 
 	return playerObj;
 }

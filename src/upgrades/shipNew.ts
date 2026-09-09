@@ -120,7 +120,7 @@ export const spaceJump: UpgradeDefinition = {
 	levels: [
 		{
 			name: "Space Jump",
-			desc: "Press SPACE to phase 75px through incoming fire. Recharges in 2.5 seconds",
+				desc: "Phase 75px through incoming fire. Recharges in 2.5 seconds",
 			sprite: "space_jump_upg1",
 			price: 32,
 			effects: {

@@ -93,6 +93,9 @@ export interface SplitModifier {
 	splitCount: number;
 	splitAngle: number;
 	splitDelay?: number;
+	maxDistance?: number;
+	targetPosition?: Vec2;
+	impactLeadDistance?: number;
 	speedMultiplier?: number;
 	damageMultiplier?: number;
 }

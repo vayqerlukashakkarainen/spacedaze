@@ -191,7 +191,7 @@ export function enterMainMenu() {
 		size: k.vec2(COMMAND_WIDTH, 36),
 		index: hasSavedProfile ? "03" : "02",
 		text: "OPTIONS",
-		trailingText: "AUDIO / VIDEO",
+		trailingText: "AUDIO / VIDEO / INPUT",
 		onClick: () => {
 			if (transitioning) return
 			creditsPanel.collapse()

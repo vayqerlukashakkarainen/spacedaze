@@ -1,7 +1,6 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { k, layers } from "../../main"
 import { tags } from "../../tags"
-import { createInputPromptRow } from "./inputPrompt"
 import { createUiSurface } from "./surface"
 import { addThemedText } from "./text"
 import { UI_COLORS, UI_FONT_SIZES } from "./theme"
@@ -10,6 +9,10 @@ import {
 	registerInteractionPromptHide,
 } from "../../services/interactionPromptVisibilityService"
 import type { InteractableComp } from "../../comp/interactable"
+import {
+	formatInputBindingCompact,
+	getInputBinding,
+} from "../../services/inputBindingService"
 
 export interface InteractionPromptContent {
 	title: string
@@ -93,11 +96,13 @@ export function createInteractionPrompt({
 		variant: "title",
 		width: promptWidth - 58,
 	})
-	const inputPrompt = createInputPromptRow(root, {
-		pos: k.vec2(promptWidth / 2 - 20, -6),
-		prompts: [{ action: "interact" }],
-		color: UI_COLORS.text,
-		iconHeight: 18,
+	const inputPrompt = addThemedText(root, {
+		text: formatInputBindingCompact(getInputBinding("interact")),
+		pos: k.vec2(promptWidth / 2 - 28, -12),
+		variant: "title",
+		width: 20,
+		align: "center",
+		color: k.rgb(...UI_COLORS.text),
 	})
 	const separators = [55, 59].map((offsetY) =>
 		root.add([
@@ -137,7 +142,10 @@ export function createInteractionPrompt({
 
 	function render() {
 		const next = resolveContent()
-		const signature = JSON.stringify(next)
+		const interactionBinding = formatInputBindingCompact(
+			getInputBinding("interact")
+		)
+		const signature = JSON.stringify([next, interactionBinding])
 		if (signature === renderedContent) return
 		renderedContent = signature
 		const titleText = next.title.toUpperCase()
@@ -166,6 +174,7 @@ export function createInteractionPrompt({
 		action.text = actionText
 		detailLeft.text = detailLeftText
 		detailRight.text = detailRightText
+		inputPrompt.text = interactionBinding
 		const requirementColor = next.requirementsMet === undefined
 			? undefined
 			: next.requirementsMet ? UI_COLORS.accent : UI_COLORS.danger
@@ -186,14 +195,14 @@ export function createInteractionPrompt({
 				-promptWidth / 2 + 10,
 				-action.formattedText().height / 2
 			)
-			inputPrompt.pos = k.vec2(promptWidth / 2 - 20, 0)
+			inputPrompt.pos = k.vec2(promptWidth / 2 - 30, -6)
 			notification.hidden = true
 			return
 		}
 		title.pos = k.vec2(-promptWidth / 2 + 10, promptTop + 8)
 		notification.pos = k.vec2(promptWidth / 2 - 10, promptTop + 8)
 		action.pos = k.vec2(-promptWidth / 2 + 10, promptTop + 26)
-		inputPrompt.pos = k.vec2(promptWidth / 2 - 20, promptTop + 32)
+		inputPrompt.pos = k.vec2(promptWidth / 2 - 30, promptTop + 26)
 		for (let index = 0; index < separators.length; index++) {
 			const separator = separators[index]
 			separator.pos = k.vec2(

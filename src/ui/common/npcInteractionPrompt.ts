@@ -5,6 +5,10 @@ import {
 	interactionPromptsSuppressed,
 	registerInteractionPromptHide,
 } from "../../services/interactionPromptVisibilityService"
+import {
+	formatInputBindingCompact,
+	getInputBinding,
+} from "../../services/inputBindingService"
 
 interface InteractionBubbleLabel {
 	text: string
@@ -97,6 +101,7 @@ export function createNpcInteractionPrompt({
 	}
 
 	function animatePrompt() {
+		key.text = formatInputBindingCompact(getInputBinding("interact"))
 		if (!requestedVisible && reveal === 0) {
 			bubble.opacity = 0
 			key.opacity = 0

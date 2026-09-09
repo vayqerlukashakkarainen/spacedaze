@@ -18,6 +18,18 @@ export let dustTrailEmitter: GameObj<PosComp | ParticlesComp>;
 export let sparkEmitter: GameObj<PosComp | ParticlesComp>;
 export let shineEmitter: GameObj<PosComp | ParticlesComp>;
 
+interface ImpactChip {
+	position: Vec2;
+	velocity: Vec2;
+	angle: number;
+	angularVelocity: number;
+	width: number;
+	height: number;
+	lifetime: number;
+	elapsed: number;
+	brightness: number;
+}
+
 interface UiEffects {
 	shineEmitter: GameObj<PosComp | ParticlesComp>;
 	explosionEmitter: GameObj<PosComp | ParticlesComp>;
@@ -27,6 +39,8 @@ let uiEffects: UiEffects | null = null;
 
 const MAX_ENEMY_TRAIL_EMISSIONS_PER_FRAME = 24;
 const ENEMY_EFFECT_VIEW_MARGIN = 72;
+const MAX_IMPACT_CHIPS = 180;
+const impactChips: ImpactChip[] = [];
 let enemyEffectFrame = -1;
 let enemyEffectCadence = 1;
 
@@ -73,6 +87,85 @@ function isNearViewport(position: Vec2) {
 		screenPosition.x <= k.width() + ENEMY_EFFECT_VIEW_MARGIN &&
 		screenPosition.y >= -ENEMY_EFFECT_VIEW_MARGIN &&
 		screenPosition.y <= k.height() + ENEMY_EFFECT_VIEW_MARGIN;
+}
+
+export function emitImpactChips(
+	position: Vec2,
+	targetPosition: Vec2,
+	direction: Vec2,
+	projectileSpeed: number,
+	critical = false
+) {
+	if (!isNearViewport(position)) return false;
+	const travelDirection = direction.len() > 0.001
+		? direction.unit()
+		: k.Vec2.fromAngle(k.rand(0, 360));
+	const impactOffset = position.sub(targetPosition);
+	const forwardOffset = travelDirection.scale(impactOffset.dot(travelDirection));
+	const lateralOffset = impactOffset.sub(forwardOffset);
+	const sideWeight = k.clamp(lateralOffset.len() / 8, 0, 1);
+	const chipDirectionBase = lateralOffset.len() > 0.001
+		? travelDirection.add(lateralOffset.unit().scale(sideWeight)).unit()
+		: travelDirection;
+	const spread = k.lerp(44, 28, sideWeight);
+	const speed = Math.max(0, Math.abs(projectileSpeed));
+	const count = critical ? 5 : 3;
+	for (let index = 0; index < count; index++) {
+		if (impactChips.length >= MAX_IMPACT_CHIPS) impactChips.shift();
+		const chipDirection = k.Vec2.fromAngle(
+			chipDirectionBase.angle() + k.rand(-spread, spread)
+		);
+		const launchSpeed = k.clamp(
+			speed * k.rand(0.45, 0.85),
+			110,
+			520
+		);
+		impactChips.push({
+			position: position.add(chipDirection.scale(k.rand(0, 2))),
+			velocity: chipDirection.scale(launchSpeed),
+			angle: k.rand(0, 360),
+			angularVelocity: k.rand(-760, 760),
+			width: k.rand() > 0.55 ? 2 : 1,
+			height: k.rand() > 0.65 ? 3 : 2,
+			lifetime: k.rand(0.2, critical ? 0.42 : 0.34),
+			elapsed: 0,
+			brightness: k.rand(0.58, 1),
+		});
+	}
+	return true;
+}
+
+function updateImpactChips() {
+	const delta = k.dt();
+	const damping = Math.exp(-2.6 * delta);
+	for (let index = impactChips.length - 1; index >= 0; index--) {
+		const chip = impactChips[index];
+		chip.elapsed += delta;
+		if (chip.elapsed >= chip.lifetime) {
+			impactChips.splice(index, 1);
+			continue;
+		}
+		chip.position = chip.position.add(chip.velocity.scale(delta));
+		chip.velocity = chip.velocity.scale(damping);
+		chip.angle += chip.angularVelocity * delta;
+	}
+}
+
+function drawImpactChips() {
+	for (const chip of impactChips) {
+		const progress = chip.elapsed / chip.lifetime;
+		const fade = progress < 0.62 ? 1 : 1 - (progress - 0.62) / 0.38;
+		const value = Math.round(255 * chip.brightness);
+		k.drawRect({
+			pos: chip.position,
+			width: chip.width,
+			height: chip.height,
+			anchor: "center",
+			angle: chip.angle,
+			color: k.rgb(value, value, value),
+			opacity: fade,
+		});
+	}
 }
 
 export function getUiEffects() {
@@ -138,6 +231,16 @@ export function initUiEffects() {
 }
 
 export function initParticles() {
+	k.add([
+		k.pos(),
+		{
+			update: updateImpactChips,
+			draw: drawImpactChips,
+		},
+		k.layer(layers.gameEffects),
+		k.z(8),
+	]);
+
 	trailEmitter = k.add([
 		k.pos(),
 		k.particles(

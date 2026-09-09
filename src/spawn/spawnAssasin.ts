@@ -22,6 +22,7 @@ import {
 	type EnemySpawnOptions,
 } from "../services/threatService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { setHitSoundProfile } from "../services/hitSoundService";
 import {
 	getEnemyNavigationTarget,
 	hasEnemyLineOfSight,
@@ -140,6 +141,7 @@ export function spawnAssasin(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	]);
+	setHitSoundProfile(m, "lightMetal");
 
 	const leftWing = m.add([
 		k.pos(k.vec2(...(leftWingVisual.offset ?? [0, 0]))),

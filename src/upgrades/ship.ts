@@ -67,7 +67,7 @@ export const spaceJump: Tool = {
 	upgrades: [
 		{
 			name: "Space Jump",
-			desc: "Press SPACE to phase a short distance through incoming fire",
+				desc: "Phase a short distance through incoming fire",
 			sprite: "space_jump_upg1",
 			price: 32,
 			value: 1,

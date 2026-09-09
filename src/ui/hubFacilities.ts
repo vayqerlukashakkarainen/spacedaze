@@ -100,6 +100,11 @@ import {
 	isDroidDiscovered,
 	type DroidId,
 } from "../npcs/droidRegistry"
+import {
+	formatInputBinding,
+	getInputBinding,
+	type InputActionId,
+} from "../services/inputBindingService"
 
 let panelOpen = false
 let panelClosing = false
@@ -128,11 +133,11 @@ type ConfigurableLoadoutSlot = Exclude<AbilitySlot, "primary">
 const LOADOUT_SLOT_DETAILS: ReadonlyArray<{
 	slot: ConfigurableLoadoutSlot
 	label: string
-	control: string
+	inputAction: InputActionId
 }> = [
-	{ slot: "secondary", label: "SECONDARY", control: "RIGHT MOUSE" },
-	{ slot: "mobility", label: "MOBILITY", control: "SPACE" },
-	{ slot: "ultimate", label: "ULTIMATE", control: "R" },
+	{ slot: "secondary", label: "SECONDARY", inputAction: "secondary" },
+	{ slot: "mobility", label: "MOBILITY", inputAction: "mobility" },
+	{ slot: "ultimate", label: "ULTIMATE", inputAction: "ultimate" },
 ]
 
 export function showRunPreparation(props: RunPreparationProps) {
@@ -314,7 +319,7 @@ function renderLoadoutSlots(
 			width: slotWidth,
 			height: rowHeight,
 			title: ability?.name ?? "EMPTY SLOT",
-			meta: `${details.label}  //  ${details.control}`,
+			meta: `${details.label}  //  ${formatInputBinding(getInputBinding(details.inputAction))}`,
 			description: ability?.description ?? "No system assigned to this slot.",
 			status: "CHANGE >",
 			statusColor: ability
@@ -396,7 +401,7 @@ function renderLoadoutSelection(
 		pos: k.vec2(left, top),
 		width,
 		height: 48,
-		eyebrow: `${details?.label ?? slot.toUpperCase()} SLOT  //  ${details?.control ?? ""}  //  ${abilities.length} AVAILABLE`,
+		eyebrow: `${details?.label ?? slot.toUpperCase()} SLOT  //  ${details ? formatInputBinding(getInputBinding(details.inputAction)) : ""}  //  ${abilities.length} AVAILABLE`,
 		title: "SELECT SYSTEM",
 	})
 	createUiActionButton(root, {
@@ -1242,8 +1247,14 @@ function renderMobilityAndUltimateAbilities(
 	newBlueprintKeys: ReadonlySet<string>
 ) {
 	const groups = [
-		{ slot: "mobility" as const, label: "MOBILITY  //  SPACE" },
-		{ slot: "ultimate" as const, label: "ULTIMATE  //  R" },
+		{
+			slot: "mobility" as const,
+			label: `MOBILITY  //  ${formatInputBinding(getInputBinding("mobility"))}`,
+		},
+		{
+			slot: "ultimate" as const,
+			label: `ULTIMATE  //  ${formatInputBinding(getInputBinding("ultimate"))}`,
+		},
 	]
 	const entries = groups.flatMap((group) =>
 		getAbilitiesForSlot(group.slot).map((ability) => ({ group, ability }))
