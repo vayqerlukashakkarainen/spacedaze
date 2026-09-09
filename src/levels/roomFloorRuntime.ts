@@ -465,7 +465,7 @@ function renderRoom(
 							pos: barricade.center,
 							anchor: "center",
 							angle: barricade.angle,
-							color: k.rgb(145, 162, 171),
+							color: k.WHITE,
 						})
 					}
 					staticRoomPicture = k.endPicture()
