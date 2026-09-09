@@ -37,6 +37,13 @@ const FUEL_SMOKE_INTERVAL = [0.42, 0.08] as const
 const FUEL_FLAME_INTERVAL = [0.3, 0.045] as const
 const FUEL_CELL_VISUAL = getWorldVisual("wake-fuel-cell")
 
+export interface ExplodingFuelCellOptions {
+	health?: number
+	orientation?: number
+	extraTags?: string[]
+	onExplode?: () => void
+}
+
 export function spawnRoomEnvironment(grid: HexGrid, room: RoomFloorRoom) {
 	clearRoomCoverSources()
 	for (const plan of room.environment?.objects ?? []) {
@@ -51,7 +58,7 @@ export function spawnRoomEnvironment(grid: HexGrid, room: RoomFloorRoom) {
 			continue
 		}
 		if (plan.archetypeId === "wake-fuel-cell") {
-			spawnFuelCell(grid, plan, position)
+			spawnGeneratedFuelCell(grid, plan, position)
 		}
 	}
 }
@@ -102,20 +109,34 @@ function spawnFloatingScrap(
 	return scrap
 }
 
-function spawnFuelCell(
+function spawnGeneratedFuelCell(
 	grid: HexGrid,
 	plan: RoomEnvironmentObjectPlan,
 	position: Vec2
+) {
+	const fuel = spawnExplodingFuelCell(position, {
+		health: plan.health ?? 9,
+		orientation: plan.orientation * 60,
+		extraTags: [tags.runMap, tags.runRoom],
+		onExplode: () => plan.destroyed = true,
+	})
+	persistObjectState(grid, plan, fuel)
+	return fuel
+}
+
+export function spawnExplodingFuelCell(
+	position: Vec2,
+	options: ExplodingFuelCellOptions = {}
 ) {
 	const fuel = k.add([
 		k.pos(position),
 		k.sprite(requirePrimaryVisualSprite(FUEL_CELL_VISUAL)),
 		k.anchor("center"),
-		k.rotate(plan.orientation * 60),
+		k.rotate(options.orientation ?? 0),
 		k.color(205, 215, 220),
 		k.scale(FUEL_CELL_VISUAL.worldScale),
 		k.opacity(0.95),
-		k.health(plan.health ?? 9),
+		k.health(options.health ?? 9),
 		k.animate(),
 		timescale(),
 		{
@@ -126,10 +147,9 @@ function spawnFuelCell(
 		tags.unit,
 		tags.roomEnvironment,
 		tags.roomVolatile,
-		tags.runMap,
-		tags.runRoom,
 		tags.gameLoop,
 		tags.runtimeCullable,
+		...(options.extraTags ?? []),
 	])
 	const warning = fuel.add([
 		k.circle(18),
@@ -149,7 +169,7 @@ function spawnFuelCell(
 		warning.opacity = 0.22
 	})
 	registerBatchedEntityUpdate("effects", fuel, () => {
-		const burnIntensity = getFuelBurnIntensity(fuel.hp(), fuel.maxHP())
+		const burnIntensity = getFuelBurnIntensity(fuel.hp, fuel.maxHP)
 		warning.opacity = k.wave(
 			0.05 + burnIntensity * 0.08,
 			0.15 + burnIntensity * 0.3,
@@ -182,8 +202,7 @@ function spawnFuelCell(
 			)
 		}
 	})
-	persistObjectState(grid, plan, fuel)
-	fuel.onDeath(() => explodeFuelCell(plan, fuel))
+	fuel.onDeath(() => explodeFuelCell(fuel, options.onExplode))
 	fuel.onDestroy(() => {
 		if (smokeEmitter?.exists()) k.destroy(smokeEmitter)
 		if (flameEmitter?.exists()) k.destroy(flameEmitter)
@@ -297,19 +316,19 @@ function registerEnvironmentProjectileHits(
 }
 
 function explodeFuelCell(
-	plan: RoomEnvironmentObjectPlan,
-	fuel: GameObj
+	fuel: GameObj,
+	onExplode?: () => void
 ) {
 	if (fuel.exploding) return
 	fuel.exploding = true
-	plan.destroyed = true
+	onExplode?.()
 	const position = fuel.pos.clone()
 	const targets = querySpatialNearby(position, FUEL_EXPLOSION_RADIUS, {
 		anyTags: [tags.player, tags.enemy, tags.roomEnvironment],
 		excludeIds: [fuel.id],
 	})
 	for (const target of targets) {
-		if (!target.exists() || typeof target.hp !== "function") continue
+		if (!target.exists() || typeof target.hp !== "number") continue
 		const offset = target.pos.sub(position)
 		const distance = offset.len()
 		const falloff = 1 - k.clamp(distance / FUEL_EXPLOSION_RADIUS, 0, 1) * 0.55
@@ -345,7 +364,7 @@ function persistObjectState(
 ) {
 	object.onDestroy(() => {
 		if (plan.destroyed) return
-		plan.health = typeof object.hp === "function" ? object.hp() : plan.health
+		plan.health = typeof object.hp === "number" ? object.hp : plan.health
 		const coord = grid.screenToHex(object.pos)
 		if (grid.inBounds(coord) && grid.isWalkable(coord)) plan.coord = { ...coord }
 	})

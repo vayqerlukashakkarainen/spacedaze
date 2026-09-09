@@ -11,6 +11,7 @@ import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { tags } from "../tags"
 import { UI_COLORS } from "../ui/common"
 import { spawnMeteorite } from "./spawnAsteroid"
+import { spawnExplodingFuelCell } from "./rooms/spawnRoomEnvironment"
 import { spawnHealthShrine } from "./shrine/spawnHealthShrine"
 import { spawnSwarmEnemy, type SwarmPatrol } from "./spawnSwarm"
 
@@ -20,6 +21,7 @@ const TARGET_RESPAWN_DELAY = 1.5
 const DISCOVERY_REFRESH_INTERVAL = 0.5
 const PICKUP_SPACING = 60
 const TRAINING_SWARM_COUNT = 5
+const TRAINING_FUEL_CELL_RESPAWN_DELAY = 3
 
 const SLOT_ROWS: readonly {
 	slot: AbilitySlot
@@ -64,6 +66,10 @@ export function spawnHubFiringRange(
 		pos: props.pos.add(-RANGE_WIDTH / 2 + 70, TARGET_OFFSET_Y),
 		respawnOrbs: true,
 	})
+	spawnTrainingFuelCell(
+		props.pos.add(RANGE_WIDTH / 2 - 70, TARGET_OFFSET_Y),
+		props.isHubSessionActive
+	)
 	let discoverySignature = ""
 	let refreshTimer = 0
 	let abilityPickups: GameObj[] = []
@@ -115,6 +121,20 @@ export function spawnHubFiringRange(
 			? primaryTarget
 			: undefined,
 	}
+}
+
+function spawnTrainingFuelCell(
+	pos: Vec2,
+	isHubSessionActive: () => boolean
+) {
+	return spawnExplodingFuelCell(pos, {
+		onExplode: () => {
+			k.wait(TRAINING_FUEL_CELL_RESPAWN_DELAY, () => {
+				if (!isHubSessionActive()) return
+				spawnTrainingFuelCell(pos, isHubSessionActive)
+			})
+		},
+	})
 }
 
 function spawnTrainingSwarm(
