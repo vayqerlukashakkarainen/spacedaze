@@ -3,6 +3,8 @@ import { k } from "../main"
 import type { Level } from "./levels"
 import { clearGeneratedRunMap } from "./runMap"
 import { RUN_ROCK_PROJECTION_Y_SCALE } from "./runRockTiles"
+import { getActiveRoomFloor } from "../services/roomFloorService"
+import { showFloorThemeTitle } from "../ui/floorThemeTitle"
 import {
 	clearGeneratedRoomFloor,
 	startGeneratedRoomFloor,
@@ -35,6 +37,8 @@ export const level2: Level = {
 			floor?.mapSeed ?? Math.floor(k.rand(1, 1000000)),
 			floor?.depth ?? 1
 		)
+		const roomFloor = getActiveRoomFloor()
+		if (roomFloor) showFloorThemeTitle(roomFloor.themeId, roomFloor.depth)
 	},
 	// Level-specific events will be authored after the base layout is tested.
 	lvlUpd: () => {},

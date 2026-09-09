@@ -8,6 +8,7 @@ import {
 } from "../../services/enemyProgressionService"
 import { hexDistance, hexKey, hexNeighbors, type HexCoord } from "../hexUtils"
 import { SeededRNG } from "../seededRng"
+import { getFloorThemeIdForDepth } from "../../levels/floorThemes/floorThemeDirectory"
 import type {
 	RoomEncounterPlan,
 	RoomFloor,
@@ -77,6 +78,7 @@ export function generateRoomFloor(
 	return {
 		seed,
 		depth: normalizedDepth,
+		themeId: getFloorThemeIdForDepth(normalizedDepth),
 		startRoomId: rooms[0].id,
 		exitRoomId: rooms[exitIndex].id,
 		currentRoomId: rooms[0].id,

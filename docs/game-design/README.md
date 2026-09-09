@@ -11,6 +11,8 @@ content plans for SpaceDaze.
   behavior, progression, and economy rules.
 - [Enemy roster](enemy-roster-phase-2.md) defines combat roles, enemy families,
   encounter combinations, and roster expansion.
+- [Wake Scrap District enemies](wake-scrap-district-enemies.md) defines the
+  first themed enemy family, its silhouettes, behaviors, and encounter order.
 
 Engineering documentation, asset production records, and testing guides live
 in the parent `docs` folder or beside the systems they describe.

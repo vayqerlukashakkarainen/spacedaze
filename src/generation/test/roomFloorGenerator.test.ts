@@ -1,5 +1,6 @@
 import { generateRoomFloor } from "../rooms/roomFloorGenerator"
 import { hexKey, hexNeighbors } from "../hexUtils"
+import { getFloorThemeIdForDepth } from "../../levels/floorThemes/floorThemeDirectory"
 
 function assert(condition: boolean, message: string) {
 	if (!condition) throw new Error(message)
@@ -18,11 +19,38 @@ assert(
 	"Different floor seeds should produce different floors"
 )
 
+const openingThemeIds = [
+	"wake-scrap-district",
+	"freebooter-exchange",
+	"khelt-moltworks",
+	"oruun-pilgrim-array",
+	"naru-tide-ark",
+	"silex-resonance-vault",
+	"vey-living-convoy",
+	"federation-claim-zone",
+	"daze-scar",
+] as const
+for (let depth = 1; depth <= openingThemeIds.length; depth++) {
+	assert(
+		getFloorThemeIdForDepth(depth) === openingThemeIds[depth - 1],
+		`Floor ${depth} has the wrong opening theme`
+	)
+}
+assert(
+	getFloorThemeIdForDepth(10) === "khelt-moltworks" &&
+	getFloorThemeIdForDepth(18) === "khelt-moltworks",
+	"Deep floor themes should follow the fixed eight-floor cycle"
+)
+
 for (let seed = 1; seed <= 200; seed++) {
 	const depth = seed % 8 + 1
 	const floor = generateRoomFloor(seed, depth, {
 		milestoneBoss: depth % 3 === 0,
 	})
+	assert(
+		floor.themeId === getFloorThemeIdForDepth(depth),
+		`Seed ${seed} did not preserve its floor theme`
+	)
 	assert(floor.rooms.length >= 10 && floor.rooms.length <= 16, `Seed ${seed} has invalid room count`)
 	const ids = new Set(floor.rooms.map((room) => room.id))
 	assert(ids.size === floor.rooms.length, `Seed ${seed} has duplicate room ids`)

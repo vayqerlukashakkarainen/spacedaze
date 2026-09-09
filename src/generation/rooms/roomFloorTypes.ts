@@ -1,6 +1,7 @@
 import type { HexCoord } from "../hexUtils"
 import type { ProgressionEnemyId } from "../../services/enemyProgressionService"
 import type { RewardRarity } from "../../types/rewardTypes"
+import type { FloorThemeId } from "../../levels/floorThemes/floorThemeDirectory"
 
 export type RoomFloorKind =
 	| "start"
@@ -69,6 +70,7 @@ export interface RoomFloorRoom {
 export interface RoomFloor {
 	seed: number
 	depth: number
+	themeId: FloorThemeId
 	startRoomId: string
 	exitRoomId: string
 	currentRoomId: string
