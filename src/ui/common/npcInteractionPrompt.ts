@@ -17,12 +17,12 @@ interface InteractionBubbleLabel {
 
 type InteractionBubbleLabelSource =
 	| InteractionBubbleLabel
-	| (() => InteractionBubbleLabel | undefined)
+	| (() => InteractionBubbleLabel)
 
 interface NpcInteractionPromptOptions {
 	target: GameObj
 	offset: Vec2
-	label?: InteractionBubbleLabelSource
+	label: InteractionBubbleLabelSource
 }
 
 const PROMPT_SCREEN_SIZE = 32

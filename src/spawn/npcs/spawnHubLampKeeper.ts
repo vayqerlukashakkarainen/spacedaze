@@ -48,6 +48,7 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 	const prompt = createNpcInteractionPrompt({
 		target: keeper,
 		offset: k.vec2(0, -48),
+		label: { text: "LAMP KEEPER" },
 	})
 	const unregisterDialogueTrigger = registerNpcDialogueTrigger(
 		"lamp-keeper",

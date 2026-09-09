@@ -81,10 +81,12 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 	const gloomPrompt = createNpcInteractionPrompt({
 		target: gloom,
 		offset: k.vec2(0, -42),
+		label: { text: "GLOOM" },
 	})
 	const jubileePrompt = createNpcInteractionPrompt({
 		target: jubilee,
 		offset: k.vec2(0, -42),
+		label: { text: "JUBILEE" },
 	})
 	const unregisterDialogueTriggers = [
 		registerNpcDialogueTrigger("birthday", startEncounter),
@@ -305,6 +307,7 @@ function spawnPostBirthdayGloom(pos: ReturnType<typeof k.vec2>) {
 	const prompt = createNpcInteractionPrompt({
 		target: gloom,
 		offset: k.vec2(0, -42),
+		label: { text: "GLOOM" },
 	})
 	const unregisterDialogueTrigger = registerNpcDialogueTrigger(
 		"gloom",

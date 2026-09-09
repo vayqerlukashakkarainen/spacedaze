@@ -110,6 +110,7 @@ function prepareStrafeTrainingOffer(burt: GameObj<PosComp>) {
 	const prompt = createNpcInteractionPrompt({
 		target: interactiveBurt,
 		offset: k.vec2(0, -48),
+		label: { text: "BURT" },
 	})
 	registerNpcDialogueIndicator({
 		actor: interactiveBurt,
@@ -392,7 +393,7 @@ function spawnStrafeTrainingModule(burt: GameObj<PosComp>) {
 	const prompt = createNpcInteractionPrompt({
 		target: pickup,
 		offset: k.vec2(0, -38),
-		label: { text: "STRAFE MODULE", color: k.rgb(150, 225, 255) },
+		label: { text: "TAKE STRAFE MODULE", color: k.rgb(150, 225, 255) },
 	})
 
 	pickup.onUpdate(() => {

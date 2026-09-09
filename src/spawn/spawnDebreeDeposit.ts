@@ -93,6 +93,7 @@ export function spawnDebreeDeposit(
 	const prompt = createNpcInteractionPrompt({
 		target: station,
 		offset: k.vec2(0, -92),
+		label: { text: "DEPOSIT DEBRIS" },
 	})
 
 	registerBatchedEntityUpdate("world", station, () => {

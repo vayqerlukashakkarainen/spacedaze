@@ -87,6 +87,7 @@ export function spawnHubAsteroidRunner(fieldCenter: ReturnType<typeof k.vec2>) {
 	const prompt = createNpcInteractionPrompt({
 		target: runner,
 		offset: k.vec2(0, -45),
+		label: { text: "RING RUNNER" },
 	})
 	const unregisterDialogueTrigger = registerNpcDialogueTrigger(
 		"ring-runner",

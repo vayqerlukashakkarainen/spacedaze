@@ -100,6 +100,7 @@ function spawnRunShopkeeper(pos: Vec2, objectTags: string[]) {
 	const prompt = createNpcInteractionPrompt({
 		target: shopkeeper,
 		offset: k.vec2(0, -44),
+		label: { text: "MARGIN" },
 	})
 	const unregisterDialogueTrigger = registerNpcDialogueTrigger(
 		"margin",
@@ -221,7 +222,7 @@ function spawnShopOffer(
 		persistent: true,
 		tags: objectTags,
 		interactionPromptLabel: () => ({
-			text: `${reward.name}  //  ${offer.price}`,
+			text: `BUY ${reward.name} FOR ${offer.price} DEBRIS`,
 			color: getOfferStatus(offer) === undefined
 				? k.rgb(...UI_COLORS.text)
 				: k.rgb(...UI_COLORS.danger),

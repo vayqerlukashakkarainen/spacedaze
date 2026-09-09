@@ -368,7 +368,7 @@ function spawnDoorController(
 			target: lock,
 			offset: k.vec2(0, -40),
 			label: () => ({
-				text: "1 KEY",
+				text: "UNLOCK // 1 KEY",
 				color: getFloorKeyCount() > 0
 					? k.rgb(...UI_COLORS.warning)
 					: k.rgb(...UI_COLORS.danger),
@@ -1087,7 +1087,7 @@ function spawnRoomGravityShrine(center: Vec2, room: RoomFloorRoom) {
 	const prompt = createNpcInteractionPrompt({
 		target: shrine,
 		offset: k.vec2(0, -50),
-		label: { text: "ENTER" },
+		label: { text: "ENTER SHRINE" },
 	})
 	const gravity = spawnGravityPull({
 		pos: center,

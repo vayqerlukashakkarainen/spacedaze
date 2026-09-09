@@ -110,12 +110,12 @@ export function spawnChest(
 		offset: k.vec2(0, -48),
 		label: () => requiresPurchase && !purchased
 			? {
-				text: `${getPurchaseCost()}`,
+				text: `OPEN FOR ${getPurchaseCost()} DEBRIS`,
 				color: getScore() >= getPurchaseCost()
 					? k.rgb(...UI_COLORS.text)
 					: k.rgb(...UI_COLORS.danger),
 			}
-			: undefined,
+			: { text: "OPEN" },
 	});
 	chest.use(k.opacity(
 		ghost || (options.ghostWhenUnavailable && !available) ? 0.38 : 1

@@ -145,6 +145,7 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 	const prompt = createNpcInteractionPrompt({
 		target: watcher,
 		offset: k.vec2(0, -52),
+		label: { text: "RANGE KEEPER" },
 	})
 	const unregisterDialogueTrigger = registerNpcDialogueTrigger(
 		"ring-watcher",

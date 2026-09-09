@@ -114,6 +114,7 @@ export function spawnLevel(props: Props) {
 		? createNpcInteractionPrompt({
 			target: m,
 			offset: k.vec2(0, -70),
+			label: { text: "ENTER WORMHOLE" },
 		})
 		: undefined;
 

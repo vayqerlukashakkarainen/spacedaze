@@ -119,7 +119,7 @@ interface RewardPickupOptions {
 	interactionPromptLabel?: {
 		text: string;
 		color?: Color;
-	} | (() => { text: string; color?: Color } | undefined);
+	} | (() => { text: string; color?: Color });
 	compactAura?: boolean;
 	persistent?: boolean;
 	suppressAcquisition?: boolean;
@@ -272,7 +272,9 @@ export function spawnRewardPickup(
 			? createNpcInteractionPrompt({
 				target: m,
 				offset: k.vec2(0, -34),
-				label: options.interactionPromptLabel,
+				label: options.interactionPromptLabel ?? {
+					text: `EQUIP ${reward.name}`,
+				},
 			})
 			: createInteractionPrompt({
 				target: m,
