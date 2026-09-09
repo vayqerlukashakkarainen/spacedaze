@@ -8,8 +8,8 @@ import type {
 
 let activeFloor: RoomFloor | undefined
 
-export const ROOM_ENEMY_KEY_DROP_CHANCE = 0.08
-export const ROOM_CLEAR_KEY_DROP_CHANCE = 0.3
+export const ROOM_ENEMY_KEY_DROP_CHANCE = 0.01
+export const ROOM_CLEAR_KEY_DROP_CHANCE = 0.1
 
 export function beginRoomFloor(
 	seed: number,
