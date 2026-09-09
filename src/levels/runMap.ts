@@ -1731,6 +1731,7 @@ export function spawnFloorExit(
 			if (getRunPhase() !== "exitReady") {
 				if (activateRunFinale()) {
 					options.onActivated?.();
+					portal.setPortalInteractionEnabled(false);
 					portal.setPortalState("charging", "");
 					k.flash(k.WHITE, 0.22);
 					explosionEmitter.emitter.position = portal.pos.clone();
@@ -1817,6 +1818,7 @@ export function spawnFloorExit(
 		}
 		if (phase === "exitReady") {
 			portal.setPortalProgress(1);
+			portal.setPortalInteractionEnabled(true);
 		}
 		previousPhase = phase;
 		if (portalReady || phase !== "exitReady") return;

@@ -14,6 +14,8 @@ import {
 	getPostProcessingEnabled,
 	onPostProcessingEnabledChange,
 } from "../services/displaySettingsService";
+import { interactable } from "../comp/interactable";
+import { createNpcInteractionPrompt } from "../ui/common";
 
 interface Props {
 	pos: Vec2;
@@ -22,6 +24,7 @@ interface Props {
 	label?: string;
 	visual?: "sprite" | "wormhole";
 	portalState?: "dormant" | "charging" | "active";
+	interactionEnabled?: boolean;
 	onEnter?: (
 		portal: any,
 		selectLevel: (levelKey: LevelKey) => void,
@@ -60,12 +63,16 @@ export function spawnLevel(props: Props) {
 			levelName: props.levelName,
 			portalState: props.portalState ?? "active",
 			portalProgress: props.portalState === "dormant" ? 0 : 1,
+			portalInteractionEnabled: props.interactionEnabled !== false,
 		},
 		tags.props,
 		tags.unit,
 		tags.gameLoop,
 		...(props.tags ?? []),
 	];
+	if (props.visual === "wormhole") {
+		components.push(interactable(64, () => collectPortal()));
+	}
 	if (props.visual !== "wormhole" && props.spriteName) {
 		components.splice(1, 0, k.sprite(props.spriteName));
 	}
@@ -100,10 +107,20 @@ export function spawnLevel(props: Props) {
 	m.setPortalProgress = (progress: number) => {
 		m.portalProgress = k.clamp(progress, 0, 1);
 	};
+	m.setPortalInteractionEnabled = (enabled: boolean) => {
+		m.portalInteractionEnabled = enabled;
+	};
+	const interactionPrompt = props.visual === "wormhole"
+		? createNpcInteractionPrompt({
+			target: m,
+			offset: k.vec2(0, -70),
+		})
+		: undefined;
 
 	// Helper function to collect the level portal
 	const collectPortal = () => {
 		if (collected || waitingForExit) return;
+		if (props.visual === "wormhole" && !m.portalInteractionEnabled) return;
 		collected = true;
 		if (props.onEnter) {
 			props.onEnter(
@@ -117,7 +134,7 @@ export function spawnLevel(props: Props) {
 				},
 				() => {
 					collected = false;
-					waitingForExit = true;
+					waitingForExit = props.visual !== "wormhole";
 				}
 			);
 			return;
@@ -130,6 +147,11 @@ export function spawnLevel(props: Props) {
 		});
 	};
 	registerBatchedEntityUpdate("world", m, () => {
+		if (props.visual === "wormhole") {
+			const interactionAvailable = m.portalInteractionEnabled && !collected;
+			m.setInteractRadius(interactionAvailable ? 64 : 0);
+			interactionPrompt?.update(interactionAvailable && m.isInRange);
+		}
 		if (props.visual !== "wormhole") {
 			checkProjectileIntersection(m.pos, 16, tags.friendly, () => {
 				collectPortal();
@@ -139,7 +161,7 @@ export function spawnLevel(props: Props) {
 		const dist = m.pos.dist(playerObj.pos);
 		if (dist >= 20) waitingForExit = false;
 
-		if (dist < 20) collectPortal();
+		if (props.visual !== "wormhole" && dist < 20) collectPortal();
 	});
 
 	return m;

@@ -238,6 +238,7 @@ export async function playBattlefieldRecovery() {
 		levelName: "hub",
 		visual: "wormhole",
 		portalState: "dormant",
+		interactionEnabled: false,
 		label: "",
 		onEnter: () => {},
 	})
