@@ -4,7 +4,7 @@ These are the approved source concepts for the playable Wake Scrap District
 roster. Runtime-ready body and component layers live in
 `public/sprites/enemies/wake`.
 
-All five concepts were generated as north-facing top-down objects using the
+All six concepts were generated as north-facing top-down objects using the
 existing SpaceDaze enemy sprites as style references.
 
 | Enemy | Native size | PixelLab object | Selected candidate | Destructible-layer plan |
@@ -13,6 +13,7 @@ existing SpaceDaze enemy sprites as style references.
 | Rivet Gunner | 32x32 | `f500313c-59bb-40b6-8602-b6772fa75887` | 7 | Separate forward rivet driver |
 | Towhook Rig | 32x32 | `d9379504-9812-4436-b706-18aef87eee03` | 4 | Separate left and right hook arms |
 | Patch Tender | 32x32 | `fb3aff08-342f-46ed-b06b-f8e3b74b427b` | 3 | Separate forward welding arm |
+| Scrap Raiser | 32x32 | `7be1a344-fd90-4a89-aa6f-63c3522107b6` | 3 | Single north-facing support hull |
 | Boiler Hulk | 64x64 | `92967acd-a359-4f07-bf71-95bd34e4f6f7` | 1 | Separate scoop and vent stack |
 
 ## Concepts
@@ -45,6 +46,14 @@ regions. The narrow engine body remains readable after either or both are lost.
 
 The round work platform and surrounding tool arms read as civilian machinery.
 The upper welding arm will become the functional destructible component.
+
+### Scrap Raiser
+
+![Scrap Raiser](scrap-raiser.png)
+
+The open central hopper, pointed sensor nose, and uneven collection arms make
+its salvage role readable without adding a destructible component to this
+first implementation.
 
 ### Boiler Hulk
 

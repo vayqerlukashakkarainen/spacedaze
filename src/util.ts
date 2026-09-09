@@ -733,6 +733,7 @@ export async function init(k: KAPLAYCtx) {
 		["enemy_wake_towhook_rig_right_hook", "sprites/enemies/wake/towhook-rig-right-hook.png"],
 		["enemy_wake_patch_tender_core", "sprites/enemies/wake/patch-tender-core.png"],
 		["enemy_wake_patch_tender_welder", "sprites/enemies/wake/patch-tender-welder.png"],
+		["enemy_wake_scrap_raiser", "sprites/enemies/wake/scrap-raiser.png"],
 	] as const;
 	for (const [name, path] of modularEnemySprites) {
 		await k.loadSprite(name, path);
