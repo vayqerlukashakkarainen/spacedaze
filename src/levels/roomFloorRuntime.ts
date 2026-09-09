@@ -51,6 +51,7 @@ import { spawnRing } from "../spawn/spawnRing"
 import { spawnDecorativeWormhole } from "../spawn/spawnLevel"
 import { spawnRunUpgradeShop } from "../spawn/rooms/spawnRunUpgradeShop"
 import { spawnRoomKeyPickup } from "../spawn/rooms/spawnRoomKey"
+import { spawnRoomEnvironment } from "../spawn/rooms/spawnRoomEnvironment"
 import { spawnRewardPickup } from "../spawn/spawnPowerup"
 import { spawnHealthShrine } from "../spawn/shrine/spawnHealthShrine"
 import { spawnShrine } from "../spawn/shrine/spawnShrine"
@@ -60,6 +61,7 @@ import { tags } from "../tags"
 import { createNpcInteractionPrompt, UI_COLORS } from "../ui/common"
 import { playRequirementErrorSound } from "../services/uiSoundService"
 import { rollMapEventReward } from "../services/rewardService"
+import { clearRoomCoverSources } from "../services/roomCoverService"
 import {
 	getEnemyVisual,
 } from "../visuals/enemyVisualCatalog"
@@ -115,6 +117,7 @@ export function startGeneratedRoomFloor(
 }
 
 export function clearGeneratedRoomFloor() {
+	clearRoomCoverSources()
 	if (playerObj?.has("gridCollision")) playerObj.unuse("gridCollision")
 	gridRegistry.unregister(ACTIVE_RUN_GRID_KEY)
 	destroyTaggedObjects(tags.runRoom)
@@ -235,6 +238,7 @@ function loadCurrentRoom(
 	}
 	syncDoorCells(grid, template, doorsLocked)
 	renderRoom(grid, template, room, () => doorsLocked)
+	spawnRoomEnvironment(grid, room)
 	spawnDoorController(
 		grid,
 		template,
@@ -412,7 +416,9 @@ function renderRoom(
 	doorsLocked: () => boolean
 ) {
 	const walls = template.map.getAllCells()
-		.filter((cell) => cell.solid)
+		.filter((cell) =>
+			cell.solid && !cell.tags.has("room_environment_structural")
+		)
 		.map((cell) => {
 			const connectionMask = hexNeighbors(cell.coord).reduce((mask, coord, index) => {
 				const neighbor = template.map.getCell(coord)
@@ -426,6 +432,12 @@ function renderRoom(
 				),
 			}
 		})
+	const barricades = room.environment?.objects.filter((object) =>
+		object.archetypeId === "wake-hull-barricade" && !object.destroyed
+	).map((object) => ({
+		center: grid.hexToScreen(object.coord),
+		angle: object.orientation * 60,
+	})) ?? []
 	const tileScale = grid.config.hexSize / RUN_ROCK_TILE_SOURCE_RADIUS
 	const tileScaleY = tileScale * (grid.config.projectionYScale ?? 1)
 	const tileCenterOffsetY =
@@ -445,6 +457,15 @@ function renderRoom(
 							pos: wall.center.add(0, tileCenterOffsetY),
 							anchor: "center",
 							scale: k.vec2(tileScale, tileScaleY),
+						})
+					}
+					for (const barricade of barricades) {
+						k.drawSprite({
+							sprite: "wake_hull_barricade",
+							pos: barricade.center,
+							anchor: "center",
+							angle: barricade.angle,
+							color: k.rgb(145, 162, 171),
 						})
 					}
 					staticRoomPicture = k.endPicture()

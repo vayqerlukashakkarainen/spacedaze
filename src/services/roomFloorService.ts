@@ -188,6 +188,14 @@ export function getRoomFloorSnapshot(): RoomFloor | undefined {
 			...room,
 			coord: { ...room.coord },
 			connections: [...room.connections],
+			environment: room.environment
+				? {
+					objects: room.environment.objects.map((object) => ({
+						...object,
+						coord: { ...object.coord },
+					})),
+				}
+				: undefined,
 			shopOffers: room.shopOffers?.map((offer) => ({ ...offer })),
 			shopPricing: room.shopPricing ? { ...room.shopPricing } : undefined,
 			encounter: room.encounter

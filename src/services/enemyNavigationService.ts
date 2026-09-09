@@ -1,5 +1,6 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { gridRegistry } from "../grid/gridRegistry"
+import { hasDynamicRoomCoverOnLine } from "./roomCoverService"
 import type { HexCoord } from "../grid/hexCoord"
 import { hexNeighbors, hexToString } from "../grid/hexCoord"
 import type { HexGrid } from "../grid/hexGrid"
@@ -73,7 +74,8 @@ export function getEnemyNavigationDirection(
 		state.lineGrid = grid
 		state.lineStartCellKey = startCellKey
 		state.lineTargetCellKey = targetCellKey
-		state.lineClear = lineIsWalkable(grid, enemy.pos, target)
+		state.lineClear = lineIsWalkable(grid, enemy.pos, target) &&
+			!hasDynamicRoomCoverOnLine(enemy.pos, target)
 		state.nextLineCheckAt = k.time() + 0.16 + (enemy.id % 5) * 0.012
 	}
 	if (

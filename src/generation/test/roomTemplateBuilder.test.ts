@@ -16,6 +16,25 @@ for (let seed = 1; seed <= 100; seed++) {
 		const template = buildRoomTemplate(room)
 		assert(template.doors.length === room.connections.length, `${room.id} lost a connection`)
 		assert(template.spawnSlots.length >= 4, `${room.id} needs at least four enemy sockets`)
+		for (const object of room.environment?.objects ?? []) {
+			const cell = template.map.getCell(object.coord)
+			assert(cell !== undefined, `${object.id} is outside the room map`)
+			assert(
+				cell!.tags.has("room_environment_object"),
+				`${object.id} was not applied to the room template`
+			)
+			assert(
+				!template.spawnSlots.some((slot) => hexKey(slot) === hexKey(object.coord)),
+				`${object.id} overlaps an enemy spawn slot`
+			)
+			assert(
+				!template.contentSlots.some((slot) => hexKey(slot) === hexKey(object.coord)),
+				`${object.id} overlaps a content spawn slot`
+			)
+			if (object.category !== "structural") {
+				assert(!cell!.solid, `${object.id} should remain traversable`)
+			}
+		}
 		for (const door of template.doors) {
 			const cell = template.map.getCell(door.coord)
 			assert(cell !== undefined && !cell.solid, `${room.id} door is blocked`)

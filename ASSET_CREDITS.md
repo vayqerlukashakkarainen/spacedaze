@@ -6,6 +6,8 @@
 
 - **Fighter and Hunter enemy ships** — Generated with PixelLab, then separated into destructible components and converted to pure black-and-white sprites with the local SpaceDaze art tools.
 
+- **Wake hull barricade and volatile fuel cell** — Generated with PixelLab for the room-environment system, then quantized against the existing asteroid palette with no dithering.
+
 ## Music
 
 - **Flirt Flirt Oh It Hurts** — Bossfight, from *Caps On, Hats Off* (2012). Prototype copy downloaded from the [artist's Newgrounds upload](https://www.newgrounds.com/audio/listen/504114).

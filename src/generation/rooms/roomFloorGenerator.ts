@@ -18,6 +18,7 @@ import type {
 	RoomFloorKind,
 	RoomFloorRoom,
 } from "./roomFloorTypes"
+import { planRoomEnvironment } from "./roomEnvironmentPlanner"
 
 const MIN_ROOMS = 10
 const MAX_ROOMS = 16
@@ -78,6 +79,10 @@ export function generateRoomFloor(
 				: undefined,
 		}
 	})
+
+	for (const room of rooms) {
+		room.environment = planRoomEnvironment(room, themeId)
+	}
 
 	return {
 		seed,

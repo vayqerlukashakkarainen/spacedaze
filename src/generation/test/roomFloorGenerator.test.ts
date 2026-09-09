@@ -91,6 +91,14 @@ for (let seed = 1; seed <= 200; seed++) {
 	)
 
 	for (const room of floor.rooms) {
+		assert(room.environment !== undefined, `${room.id} has no environment plan`)
+		const environmentIds = new Set(
+			room.environment!.objects.map((object) => object.id)
+		)
+		assert(
+			environmentIds.size === room.environment!.objects.length,
+			`${room.id} has duplicate environment object IDs`
+		)
 		for (const neighborCoord of hexNeighbors(room.coord)) {
 			const adjacentRoom = roomByCoord.get(hexKey(neighborCoord))
 			if (!adjacentRoom) continue
@@ -118,6 +126,19 @@ for (let seed = 1; seed <= 200; seed++) {
 
 const shallowFloor = generateRoomFloor(777, 1, { roomCount: 16 })
 const deepFloor = generateRoomFloor(777, 8, { roomCount: 16 })
+const wakeEnvironment = shallowFloor.rooms.flatMap(
+	(room) => room.environment?.objects ?? []
+)
+assert(
+	wakeEnvironment.some((object) => object.category === "structural") &&
+	wakeEnvironment.some((object) => object.category === "dynamic-cover") &&
+	wakeEnvironment.some((object) => object.category === "volatile"),
+	"Wake floors should generate structural, dynamic, and volatile objects"
+)
+assert(
+	deepFloor.rooms.every((room) => room.environment?.objects.length === 0),
+	"Themes without an environment catalog should not inherit Wake objects"
+)
 const averageTier = (floor: ReturnType<typeof generateRoomFloor>) => {
 	const encounters = floor.rooms.flatMap((room) => room.encounter ? [room.encounter] : [])
 	return encounters.reduce((total, encounter) => total + encounter.tier, 0) / encounters.length

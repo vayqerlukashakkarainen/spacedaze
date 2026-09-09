@@ -11,6 +11,8 @@ export type WorldVisualId =
 	| "minefield"
 	| "lost-convoy"
 	| "volatile-cargo"
+	| "wake-hull-barricade"
+	| "wake-fuel-cell"
 
 export const WORLD_VISUALS: Record<WorldVisualId, VisualRepresentation> = {
 	"capture-shrine": { parts: [{ sprite: "shrine_capture" }], worldScale: 1.5 },
@@ -32,6 +34,14 @@ export const WORLD_VISUALS: Record<WorldVisualId, VisualRepresentation> = {
 	minefield: { parts: [{ sprite: "room_proximity_mine" }], worldScale: 0.82 },
 	"lost-convoy": { parts: [{ sprite: "room_convoy_drone" }], worldScale: 1 },
 	"volatile-cargo": { parts: [{ sprite: "crate1" }], worldScale: 0.58 },
+	"wake-hull-barricade": {
+		parts: [{ sprite: "wake_hull_barricade" }],
+		worldScale: 1,
+	},
+	"wake-fuel-cell": {
+		parts: [{ sprite: "wake_fuel_cell" }],
+		worldScale: 1,
+	},
 }
 
 export interface RunVillageVisual extends VisualRepresentation {

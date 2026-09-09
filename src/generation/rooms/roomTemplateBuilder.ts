@@ -64,8 +64,11 @@ export function buildRoomTemplate(room: RoomFloorRoom): BuiltRoomTemplate {
 		doors.push({ direction, destinationRoomId, coord: doorCoord, insideCoord })
 	}
 
-	const protectedCells = createProtectedCells(center, doors)
-	placeRoomObstacles(map, room, protectedCells, rng)
+	const protectedCells = getRoomProtectedCellKeys(room, center)
+	applyRoomEnvironment(map, room)
+	if (!room.environment || room.environment.objects.length === 0) {
+		placeRoomObstacles(map, room, protectedCells, rng)
+	}
 	const spawnSlots = selectSlots(map, center, protectedCells, room.seed ^ 0x51f15e, 8, 2, false, 1)
 	const contentSlots = selectSlots(map, center, protectedCells, room.seed ^ 0xc012e, 5, 1)
 	map.getCell(center)?.tags.add("player_spawn")
@@ -114,11 +117,14 @@ function createCell(coord: HexCoord, solid: boolean): GenCell {
 	}
 }
 
-function createProtectedCells(center: HexCoord, doors: RoomDoor[]) {
+export function getRoomProtectedCellKeys(
+	room: RoomFloorRoom,
+	center: HexCoord
+) {
 	const protectedCells = new Set<string>()
 	protectedCells.add(hexKey(center))
-	for (const door of doors) {
-		const vector = DIRECTIONS[door.direction]
+	for (const [direction] of getConnectionDirections(room)) {
+		const vector = DIRECTIONS[direction]
 		for (let distance = 0; distance <= ROOM_CELL_RADIUS; distance++) {
 			const corridor = addScaled(center, vector, distance)
 			protectedCells.add(hexKey(corridor))
@@ -130,6 +136,21 @@ function createProtectedCells(center: HexCoord, doors: RoomDoor[]) {
 	return protectedCells
 }
 
+function applyRoomEnvironment(map: GenerationMap, room: RoomFloorRoom) {
+	for (const object of room.environment?.objects ?? []) {
+		if (object.destroyed) continue
+		const cell = map.getCell(object.coord)
+		if (!cell) continue
+		cell.tags.add("room_environment_object")
+		cell.tags.add(`room_environment_${object.archetypeId}`)
+		if (object.category !== "structural") continue
+		cell.solid = true
+		cell.hardness = 2
+		cell.density = 1
+		cell.tags.add("room_environment_structural")
+	}
+}
+
 function placeRoomObstacles(
 	map: GenerationMap,
 	room: RoomFloorRoom,
@@ -139,6 +160,7 @@ function placeRoomObstacles(
 	if (room.kind !== "combat" && room.kind !== "event") return
 	const candidates = map.getAllCells().filter((cell) =>
 		!cell.solid &&
+		!cell.tags.has("room_environment_object") &&
 		hexDistance(cell.coord, { q: ROOM_CELL_RADIUS, r: ROOM_CELL_RADIUS }) >= 2 &&
 		!protectedCells.has(hexKey(cell.coord))
 	)
@@ -166,6 +188,7 @@ function selectSlots(
 	const rng = new SeededRNG(seed)
 	const candidates = map.getAllCells().filter((cell) =>
 		!cell.solid &&
+		!cell.tags.has("room_environment_object") &&
 		hexDistance(cell.coord, center) >= minimumDistance &&
 		hexDistance(cell.coord, center) <= ROOM_CELL_RADIUS - 2 &&
 		(!excludeProtected || !protectedCells.has(hexKey(cell.coord)))

@@ -63,6 +63,16 @@ assert(
 const snapshot = getRoomFloorSnapshot()!
 snapshot.rooms[0].connections.length = 0
 assert(combatFloor.rooms[0].connections.length > 0, "Snapshots must not mutate runtime state")
+const environmentRoom = combatFloor.rooms.find(
+	(room) => (room.environment?.objects.length ?? 0) > 0
+)!
+const environmentSnapshot = getRoomFloorSnapshot()!
+environmentSnapshot.rooms.find((room) => room.id === environmentRoom.id)!
+	.environment!.objects[0].destroyed = true
+assert(
+	environmentRoom.environment!.objects[0].destroyed !== true,
+	"Environment state in snapshots must be isolated"
+)
 const shop = combatFloor.rooms.find((room) => room.kind === "shop")!
 shop.shopOffers = [{
 	rewardId: "upgrade:test:1",

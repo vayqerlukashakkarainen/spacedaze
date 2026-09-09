@@ -48,6 +48,33 @@ export interface RoomShopPricing {
 	difficulty: number
 }
 
+export type RoomEnvironmentArchetypeId =
+	| "wake-hull-barricade"
+	| "wake-floating-scrap"
+	| "wake-fuel-cell"
+	| "wake-salvage-cluster"
+
+export type RoomEnvironmentCategory =
+	| "structural"
+	| "dynamic-cover"
+	| "volatile"
+	| "resource"
+
+export interface RoomEnvironmentObjectPlan {
+	id: string
+	archetypeId: RoomEnvironmentArchetypeId
+	category: RoomEnvironmentCategory
+	coord: HexCoord
+	orientation: number
+	variant: number
+	health?: number
+	destroyed?: boolean
+}
+
+export interface RoomEnvironmentPlan {
+	objects: RoomEnvironmentObjectPlan[]
+}
+
 export interface RoomFloorRoom {
 	id: string
 	coord: HexCoord
@@ -62,6 +89,7 @@ export interface RoomFloorRoom {
 	keyRequired?: boolean
 	keyUnlocked?: boolean
 	keyRewardRolled?: boolean
+	environment?: RoomEnvironmentPlan
 	encounter?: RoomEncounterPlan
 	shopOffers?: RoomShopOffer[]
 	shopPricing?: RoomShopPricing

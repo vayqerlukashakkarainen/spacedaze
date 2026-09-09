@@ -553,6 +553,16 @@ export async function init(k: KAPLAYCtx) {
 		"crosshair_precision",
 		"sprites/crosshairs/crosshair-precision-16.png"
 	)
+	// Environment props use their native, non-16px canvases. Keep them after
+	// the established gameplay sprite groups to preserve atlas packing.
+	await k.loadSprite(
+		"wake_hull_barricade",
+		"sprites/rooms/environment/wake-hull-barricade.png"
+	)
+	await k.loadSprite(
+		"wake_fuel_cell",
+		"sprites/rooms/environment/wake-fuel-cell.png"
+	)
 	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
 
 	await loadAudioAssets(k)
