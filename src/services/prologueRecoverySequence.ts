@@ -164,12 +164,18 @@ export async function playBattlefieldRecovery() {
 
 	await scanBattlefield(burt, generation)
 	if (!isCurrent(generation)) return false
+	showEmotion(burt, "fear", {
+		duration: 2.2,
+		priority: "narrative",
+	})
+	await waitSeconds(0.34, generation)
+	if (!isCurrent(generation)) return false
 	tracePrologue("dialogue:burt-federation-open")
 	const federationDialogueResult = await showDialogue([
-		{ speaker: "BURT", text: "I really hope they are all gone." },
+		{ speaker: "BURT", text: "They are gone. They have to be gone." },
 		{
 			speaker: "BURT",
-			text: "Those Federation lads are really quite scary.",
+			text: "No Federation transponders. Not yet.",
 		},
 	], {
 		overlayOpacity: 0,
@@ -197,10 +203,10 @@ export async function playBattlefieldRecovery() {
 
 	tracePrologue("dialogue:burt-cleanup-open")
 	const cleanupDialogueResult = await showDialogue([
-		{ speaker: "BURT", text: "What a mess..." },
+		{ speaker: "BURT", text: "You are not Federation." },
 		{
 			speaker: "BURT",
-			text: "You really are a reckless pilot. Five pieces this time.",
+			text: "Good. I can repair you. Whether I should is a later problem.",
 		},
 	], {
 		overlayOpacity: 0,
@@ -254,7 +260,7 @@ export async function playBattlefieldRecovery() {
 	tracePrologue("dialogue:burt-wormhole-exit-open")
 	const wormholeExitDialogueResult = await showDialogue([{
 		speaker: "BURT",
-		text: "Time to git before the Federation comes back.",
+		text: "Wake Station still answers. Move before the Claimkeeper turns around.",
 	}], {
 		overlayOpacity: 0,
 		resolveSpeaker: () => burt,
@@ -347,7 +353,7 @@ export async function playHubRepairSequence(
 	await waitSeconds(0.32, generation)
 	const arrivalDialogueResult = await showDialogue([{
 		speaker: "BURT",
-		text: "Hopefully no one saw me.",
+		text: "No pursuit. Good. Good.",
 	}], {
 		gameplay: "live",
 		advance: "auto",
@@ -375,7 +381,7 @@ export async function playHubRepairSequence(
 
 	const hubDialogueResult = await showDialogue([{
 		speaker: "BURT",
-		text: "Alright, time to fix this mess.",
+		text: "Hold still. I can rebuild a ship from five pieces. I have had practice.",
 	}], {
 		gameplay: "live",
 		advance: "auto",

@@ -510,8 +510,9 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 		toggleTacticalMap();
 	});
 
-	for (const consoleKey of ["§", "`"]) {
+	for (const consoleKey of ["§", "`", "0"]) {
 		k.onKeyPress(consoleKey, () => {
+			if (consoleKey === "0" && commandConsoleOpen()) return;
 			if (debreeDepositPanelOpen()) return;
 			if (dialogCapturesInput()) return;
 			if (tacticalMapOpen()) return;

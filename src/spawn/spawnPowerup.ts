@@ -5,7 +5,7 @@ import { starsEmitter } from "../particles";
 import { player } from "../player";
 import { PowerupKey } from "../powerups";
 import { tags } from "../tags";
-import { Vec2 } from "kaplay";
+import { type Color, Vec2 } from "kaplay";
 import { timescale } from "../comp/timescale";
 import {
 	addCollectedPowerup,
@@ -115,9 +115,15 @@ interface RewardPickupOptions {
 	interactionOnly?: boolean;
 	interactionRadius?: number;
 	interactionPromptStyle?: "detail" | "key";
+	interactionPromptLabel?: {
+		text: string;
+		color?: Color;
+	} | (() => { text: string; color?: Color } | undefined);
 	compactAura?: boolean;
 	persistent?: boolean;
 	suppressAcquisition?: boolean;
+	beforeCollect?: () => boolean;
+	tags?: string[];
 	applyEffect?: (reward: Reward, pos: Vec2) => boolean;
 	onCollected?: (reward: Reward) => void;
 	telemetrySource?: RewardTelemetrySource;
@@ -181,6 +187,7 @@ export function spawnRewardPickup(
 		tags.unit,
 		tags.gameLoop,
 		tags.runtimeCullable,
+		...(options.tags ?? []),
 	];
 	if (options.interactionOnly) {
 		components.push(interactable(
@@ -264,6 +271,7 @@ export function spawnRewardPickup(
 			? createNpcInteractionPrompt({
 				target: m,
 				offset: k.vec2(0, -34),
+				label: options.interactionPromptLabel,
 			})
 			: createInteractionPrompt({
 				target: m,
@@ -294,6 +302,7 @@ export function spawnRewardPickup(
 	// Helper function to collect the powerup
 	const collectPowerup = () => {
 		if (collected || !armed) return;
+		if (options.beforeCollect && !options.beforeCollect()) return;
 		collected = true;
 		const powerupPos = m.pos.clone();
 		starsEmitter.emitter.position = powerupPos;

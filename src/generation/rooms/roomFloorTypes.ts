@@ -24,6 +24,7 @@ export interface RoomEnemyPlan {
 	spawnSlot: number
 	elite: boolean
 	defeated: boolean
+	keyDropRolled?: boolean
 }
 
 export interface RoomEncounterPlan {
@@ -57,6 +58,9 @@ export interface RoomFloorRoom {
 	state: RoomFloorState
 	mapIdentityRevealed?: boolean
 	contentCompleted: boolean
+	keyRequired?: boolean
+	keyUnlocked?: boolean
+	keyRewardRolled?: boolean
 	encounter?: RoomEncounterPlan
 	shopOffers?: RoomShopOffer[]
 	shopPricing?: RoomShopPricing
@@ -68,6 +72,7 @@ export interface RoomFloor {
 	startRoomId: string
 	exitRoomId: string
 	currentRoomId: string
+	keys: number
 	rooms: RoomFloorRoom[]
 }
 

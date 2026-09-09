@@ -1685,7 +1685,8 @@ function selectGravityShrineDestinations(
 
 export function spawnFloorExit(
 	pos: Vec2,
-	objectTags: string[] = [tags.runMap]
+	objectTags: string[] = [tags.runMap],
+	options: { onActivated?: () => void } = {}
 ) {
 	currentFloorExitPosition = pos.clone();
 	let portalReady = false;
@@ -1727,6 +1728,7 @@ export function spawnFloorExit(
 			}
 			if (getRunPhase() !== "exitReady") {
 				if (activateRunFinale()) {
+					options.onActivated?.();
 					portal.setPortalState("charging", "");
 					k.flash(k.WHITE, 0.22);
 					explosionEmitter.emitter.position = portal.pos.clone();

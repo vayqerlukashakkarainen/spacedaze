@@ -80,10 +80,17 @@ export function spawnPlannedEnemy(
 export function spawnThreatEncounter(
 	center: Vec2,
 	spacing: number,
-	options: { allowTerrainEnemies?: boolean } = {}
+	options: {
+		allowTerrainEnemies?: boolean
+		tags?: string[]
+		threatTier?: number
+	} = {}
 ) {
 	const threat = getThreatSnapshot()
-	const tier = threat.tier
+	const tier = Math.min(5, Math.max(
+		1,
+		Math.floor(options.threatTier ?? threat.tier)
+	))
 	const progressionContext = {
 		runDepth: threat.depth,
 		hubLevel: getHubLevel(),
@@ -99,7 +106,7 @@ export function spawnThreatEncounter(
 	if (!definition) return undefined
 	const normalOptions: EnemySpawnOptions = {
 		persistOffscreen: true,
-		tags: [tags.runMap, tags.threatEnemy],
+		tags: [...new Set([tags.runMap, tags.threatEnemy, ...(options.tags ?? [])])],
 	}
 	const eliteOptions: EnemySpawnOptions = {
 		...normalOptions,

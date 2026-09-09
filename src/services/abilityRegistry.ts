@@ -15,6 +15,7 @@ import {
 } from "./hubProgressService"
 import {
 	getWeaponTriggerModifier,
+	getWeaponRewardRarity,
 	type WeaponId,
 	unlockWeapon,
 	WEAPONS,
@@ -134,9 +135,7 @@ const PRIMARY_ABILITIES: readonly AbilityDefinition[] = WEAPONS.map((weapon) => 
 	description: weapon.description,
 	icon: weapon.icon,
 	minimumHubLevel: weapon.minimumHubLevel,
-	rarity: weapon.id === "standardBlaster"
-		? RewardRarity.Common
-		: RewardRarity.Rare,
+	rarity: getWeaponRewardRarity(weapon.id),
 	trigger: getWeaponTriggerModifier(weapon).mode,
 	resource: { type: "cooldown" as const, duration: weapon.fireCooldown },
 	tags: ["weapon", "primary"],

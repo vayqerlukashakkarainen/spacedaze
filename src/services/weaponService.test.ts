@@ -1,9 +1,11 @@
 import assert from "node:assert/strict"
+import { RewardRarity } from "../types/rewardTypes"
 import {
 	cycleEquippedWeapon,
 	equipWeapon,
 	getEquippedWeapon,
 	getWeaponDefinition,
+	getWeaponRewardRarity,
 	resetWeaponInventory,
 	unlockWeapon,
 } from "./weaponService"
@@ -34,5 +36,20 @@ assert.equal(plasmaMortar.splash?.radius, 66)
 
 const scatterArray = getWeaponDefinition("scatterArray")
 assert.equal(scatterArray.lifesteal, 0.05)
+
+assert.equal(getWeaponRewardRarity("standardBlaster"), RewardRarity.Common)
+for (const weaponId of [
+	"pulseRepeater",
+	"twinNeedle",
+	"impactDriver",
+	"breachCannon",
+	"arcCarbine",
+	"scatterArray",
+	"burstDriver",
+	"plasmaMortar",
+	"railLance",
+] as const) {
+	assert.equal(getWeaponRewardRarity(weaponId), RewardRarity.Legendary)
+}
 
 console.log("Weapon service tests passed")

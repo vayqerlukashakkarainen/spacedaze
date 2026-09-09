@@ -93,13 +93,13 @@ const INTRO_LINES: readonly DialogueLine[] = [
 	},
 	{
 		speaker: "UNKNOWN",
-		text: "...can you hear me?",
+		text: "...can you hear me? Keep moving. I cannot hold your pattern for long.",
 		disturbance: true,
 	},
 	{ speaker: "SHIP", text: "FOREIGN PHASE SIGNAL DETECTED." },
 	{
 		speaker: "UNKNOWN",
-		text: "Whatever happens, keep moving.",
+		text: "Follow the signal. Do not let the Federation lock onto you.",
 		disturbance: true,
 	},
 	{
@@ -116,19 +116,19 @@ const INTRO_LINES: readonly DialogueLine[] = [
 const LANDED_LINES: readonly DialogueLine[] = [
 	{
 		speaker: "UNKNOWN",
-		text: "Your hyperjump module has failed.",
+		text: "Your spacejump drive is caught in a phase collapse.",
 	},
 	{
 		speaker: "UNKNOWN",
-		text: "Find the wormhole and enter it.",
+		text: "Find the active gate. I can pull your pattern through from there.",
 	},
 	{
 		speaker: "UNKNOWN",
 		text: [
-			{ text: "But be cautious,", waitAfter: 0.4 },
-			{ text: " the " },
+			{ text: "Move carefully.", waitAfter: 0.4 },
+			{ text: " " },
 			{ text: "Federation", color: [255, 70, 70] },
-			{ text: " is still lurking around." },
+			{ text: " search craft are still inside the Daze." },
 		],
 	},
 ]
@@ -142,64 +142,56 @@ const HUB_LINES: readonly DialogueLine[] = [
 	},
 	{
 		speaker: "BURT",
-		text: "Wake Station captured your phase pattern before it disappeared.",
+		text: "Wake Station held your phase pattern together. I did the rest.",
+	},
+	{
+		speaker: "BURT",
+		text: "This was Drius Wake. Scavenger port. Pirate village. Home.",
 	},
 	{
 		speaker: "BURT",
 		text: [
-			{ text: "It seems your hyperjump module failed while trying to get to " },
-			{ text: "Galora", color: [0, 210, 255] },
-			{ text: "." },
-		],
-	},
-	{
-		speaker: "BURT",
-		text: [
-			{ text: "You have landed on the outpost of " },
-			{ text: "Drius", color: [0, 210, 255] },
-			{ text: ",", waitAfter: 0.4 },
-			{ text: " although planet " },
-			{ text: "Drius", color: [0, 210, 255] },
-			{ text: " is no more..." },
-		],
-	},
-	{
-		speaker: "BURT",
-		text: [
-			{ text: "It was destroyed by the " },
+			{ text: "The " },
 			{ text: "Federation", color: [255, 70, 70] },
-			{ text: "." },
-		],
-	},
-	{
-		speaker: "BURT",
-		text: "The outpost's phase bay is still active, and that's what picked your signal up.",
-	},
-	{
-		speaker: "BURT",
-		text: "As long as you are close to the outpost, you will respawn here.",
-	},
-	{
-		speaker: "BURT",
-		text: [
-			{ text: "Out there, death isn't the end.", waitAfter: 0.4 },
-			{ text: " But it isn't free either." },
+			{ text: " called it an illegal salvage field." },
 		],
 	},
 	{
 		speaker: "BURT",
 		text: [
-			{ text: "Bring back debris. We'll rebuild you stronger.", waitAfter: 0.6 },
-			{ text: " And finally repair your " },
-			{ text: "hyperdrive module", color: [90, 220, 145] },
-			{ text: "." },
+			{ text: "Then the " },
+			{ text: "Claimkeeper", color: [255, 70, 70] },
+			{ text: " salvaged it. Buildings, ships, droids—everyone." },
 		],
 	},
 	{
 		speaker: "BURT",
+		text: "What it could not tow, it pushed into the Phase Void. The Daze remembers pieces.",
+	},
+	{
+		speaker: "BURT",
+		text: "The Phase Crown can rebuild those echoes if we feed it debris.",
+	},
+	{
+		speaker: "BURT",
 		text: [
-			{ text: "Good luck,", waitAfter: 0.4 },
-			{ text: " you'll need it." },
+			{ text: "It anchors your pattern too.", waitAfter: 0.4 },
+			{ text: " Die in the Void and Wake Station pulls you back. Loose debris stays behind." },
+		],
+	},
+	{
+		speaker: "BURT",
+		text: "Your jump failure was not an accident. I bent your signal here. I needed a pilot.",
+	},
+	{
+		speaker: "BURT",
+		text: "Bring home what the Void remembers. I will rebuild the Wake—and your spacejump drive.",
+	},
+	{
+		speaker: "BURT",
+		text: [
+			{ text: "Be angry when we are safe.", waitAfter: 0.4 },
+			{ text: " Until then, fly." },
 		],
 	},
 ]
@@ -214,25 +206,25 @@ const HUB_LAMP_GUIDANCE_LINES: readonly DialogueLine[] = [
 	},
 	{
 		speaker: "BURT",
-		text: "Each one marks another part of Drius brought back online. Bring debris home, and we'll light the rest.",
+		text: "Each lamp stabilizes another district of Drius Wake. Bring debris home, and we can pull the rest out of the Daze.",
 	},
 ]
 const HUB_PHASE_VOID_GUIDANCE_LINES: readonly DialogueLine[] = [
 	{
 		speaker: "BURT",
 		text: [
-			{ text: "That wormhole leads into the " },
+			{ text: "That gate leads into the " },
 			{ text: "Phase Void", color: [180, 120, 255] },
-			{ text: "." },
+			{ text: ". Scavengers call it the Daze." },
 		],
 	},
 	{
 		speaker: "BURT",
-		text: "A skilled pilot can retrieve weapons, ship systems, and rare salvage from inside.",
+		text: "The Crown copied pieces of the Wake there during the Claim. Debris still carries their patterns.",
 	},
 	{
 		speaker: "BURT",
-		text: "Go as deep as you dare, then bring the haul back here.",
+		text: "Go as deep as you dare. Bring back whatever home still remembers.",
 	},
 ]
 
@@ -487,7 +479,7 @@ function createHubIntroductionCutscene(
 			{
 				type: "emotion",
 				actor: HUB_INTRODUCTION_BURT_ACTOR,
-				emotion: "happy",
+				emotion: "alert",
 				options: { duration: 2.2, priority: "narrative" },
 			},
 			{ type: "wait", duration: 0.32 },
@@ -517,7 +509,7 @@ function createHubIntroductionCutscene(
 			{ type: "wait", duration: 0.35 },
 			{
 				type: "dialogue",
-				lines: HUB_LINES.slice(4, 5),
+				lines: HUB_LINES.slice(4, 6),
 				options: dialogueOptions,
 			},
 			{
@@ -529,13 +521,13 @@ function createHubIntroductionCutscene(
 			{ type: "wait", duration: 0.42 },
 			{
 				type: "dialogue",
-				lines: HUB_LINES.slice(5, 8),
+				lines: HUB_LINES.slice(6, 8),
 				options: dialogueOptions,
 			},
 			{
 				type: "emotion",
 				actor: HUB_INTRODUCTION_BURT_ACTOR,
-				emotion: "idea",
+				emotion: "fear",
 				options: { duration: 2.4, priority: "narrative" },
 			},
 			{ type: "wait", duration: 0.35 },
@@ -544,6 +536,20 @@ function createHubIntroductionCutscene(
 				lines: HUB_LINES.slice(8, 9),
 				options: dialogueOptions,
 			},
+			{
+				type: "emotion",
+				actor: HUB_INTRODUCTION_PLAYER_ACTOR,
+				emotion: "angry",
+				options: { duration: 2.2, priority: "narrative" },
+			},
+			{ type: "wait", duration: 0.38 },
+			{
+				type: "emotion",
+				actor: HUB_INTRODUCTION_BURT_ACTOR,
+				emotion: "angry",
+				options: { duration: 2.2, priority: "narrative" },
+			},
+			{ type: "wait", duration: 0.34 },
 			{
 				type: "camera",
 				target: hubCenter,

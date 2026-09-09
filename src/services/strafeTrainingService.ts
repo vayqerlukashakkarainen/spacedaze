@@ -100,14 +100,13 @@ function prepareStrafeTrainingOffer(burt: GameObj<PosComp>) {
 	burt.use(interactable(
 		STRAFE_DIALOGUE_INTERACTION_RADIUS,
 		() => void showStrafeTrainingOfferIfNeeded(),
-		INTERACTION_PRIORITY.dialogue
+		INTERACTION_PRIORITY.progressionDialogue
 	))
 	const interactiveBurt = burt as GameObj<PosComp | InteractableComp>
 	const progressionColor = k.rgb(...PROGRESSION_COLOR)
 	const prompt = createNpcInteractionPrompt({
 		target: interactiveBurt,
 		offset: k.vec2(0, -48),
-		label: { text: "STRAFE TRAINING", color: progressionColor },
 	})
 	registerNpcDialogueIndicator({
 		actor: interactiveBurt,
@@ -121,11 +120,11 @@ function prepareStrafeTrainingOffer(burt: GameObj<PosComp>) {
 		color: progressionColor,
 	})
 	registerBatchedEntityUpdate("world", interactiveBurt, () => {
-		prompt.update(
-			shouldOfferStrafeTraining() &&
-			!offerStarting &&
-			interactiveBurt.isInRange
+		const offerAvailable = shouldOfferStrafeTraining() && !offerStarting
+		interactiveBurt.setInteractRadius(
+			offerAvailable ? STRAFE_DIALOGUE_INTERACTION_RADIUS : 0
 		)
+		prompt.update(offerAvailable && interactiveBurt.isInRange)
 	})
 }
 
@@ -183,11 +182,11 @@ function createOfferCutscene(
 				lines: [
 					{
 						speaker: "BURT",
-						text: "Back already? The phase void does not forgive sloppy flying.",
+						text: "Back already? The Daze does not forgive sloppy flying.",
 					},
 					{
 						speaker: "BURT",
-						text: "Out there, debris moves, hostiles swarm, and even the dark cheats.",
+						text: "Federation patrol echoes know your old flight pattern now.",
 					},
 				],
 				options: dialogueOptions,
@@ -205,11 +204,11 @@ function createOfferCutscene(
 				lines: [
 					{
 						speaker: "BURT",
-						text: "No pilot survives there for long without proper strafe training.",
+						text: "No pilot survives the Void for long without proper strafe control.",
 					},
 					{
 						speaker: "BURT",
-						text: "I was saving this module for someone with promise.",
+						text: "I rebuilt this from a Wake courier stabilizer.",
 					},
 				],
 				options: dialogueOptions,
@@ -307,7 +306,7 @@ function createTutorialCutscene(
 					},
 					{
 						speaker: "BURT",
-						text: "Fly one direction. Fire in another. That is how you stay alive.",
+						text: "Fly one direction. Fire in another. Federation targeting routines hate that.",
 					},
 				],
 				options: dialogueOptions,
@@ -335,7 +334,7 @@ function createTutorialCutscene(
 				type: "dialogue",
 				lines: [{
 					speaker: "BURT",
-					text: "The live-fire lane is south of the phase station. Train there before the void teaches you again.",
+					text: "The live-fire lane is south of Wake Station. Train there before the Daze teaches you again.",
 				}],
 				options: dialogueOptions,
 				skippable: true,

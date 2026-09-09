@@ -7,6 +7,7 @@ export interface InteractableComp extends Comp {
 	isInRange: boolean
 	isInteractionTarget: boolean
 	setInteractRadius(radius: number): void
+	setInteractionPriority(priority: number): void
 	setOnInteract(callback: () => void): void
 }
 
@@ -25,6 +26,10 @@ export function interactable(
 
 		setInteractRadius(newRadius: number) {
 			this.interactRadius = newRadius
+		},
+
+		setInteractionPriority(newPriority: number) {
+			this.interactionPriority = newPriority
 		},
 
 		setOnInteract(newCallback: () => void) {
@@ -82,4 +87,5 @@ export function getPriorityInteraction() {
 export const INTERACTION_PRIORITY = {
 	dialogue: 0,
 	default: 1,
+	progressionDialogue: 2,
 } as const

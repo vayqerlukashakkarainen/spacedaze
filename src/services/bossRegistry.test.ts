@@ -7,9 +7,9 @@ import {
 
 const impactAce = getBossDefinition("impact-ace")
 
-assert.equal(getBossHealth("impact-ace", 1), 26)
-assert.equal(getBossHealth("impact-ace", 2), 26)
-assert.equal(getBossHealth("impact-ace", 4), 34)
+assert.equal(getBossHealth("impact-ace", 1), 40)
+assert.equal(getBossHealth("impact-ace", 2), 40)
+assert.equal(getBossHealth("impact-ace", 4), 52)
 assert.equal(getBossPhaseIndex(impactAce, 1), 0)
 assert.equal(getBossPhaseIndex(impactAce, 0.66), 1)
 assert.equal(getBossPhaseIndex(impactAce, 0.32), 2)

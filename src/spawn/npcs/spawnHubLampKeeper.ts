@@ -213,11 +213,11 @@ function getLampDialogue(): NpcDialogueVariant {
 			lines: [
 				{
 					speaker: "LAMP KEEPER",
-					text: "All eight are burning. I had forgotten how bright home could be.",
+					text: "All eight are burning. I had forgotten how bright Drius Wake could be.",
 				},
 				{
 					speaker: "LAMP KEEPER",
-					text: "The phase crown is awake. The hub can guide lost ships home again.",
+					text: "The Phase Crown is awake. Lost ships can find us again. So can the Federation.",
 				},
 			],
 		}
@@ -227,15 +227,15 @@ function getLampDialogue(): NpcDialogueVariant {
 		lines: [
 			{
 				speaker: "LAMP KEEPER",
-				text: `${litLamps} of ${HUB_RESTORATION_LAMP_COUNT} lamps are lit. Each one marks a piece of the hub we have reclaimed.`,
+				text: `${litLamps} of ${HUB_RESTORATION_LAMP_COUNT} lamps are lit. Each one holds another district of Drius Wake outside the Daze.`,
 			},
 			{
 				speaker: "LAMP KEEPER",
-				text: "They are not decoration. Light means another part of this station is stable enough to live in again.",
+				text: "They are not decoration. Light means another piece of home is stable enough to live in again.",
 			},
 			{
 				speaker: "LAMP KEEPER",
-				text: "When all eight are lit, the phase crown will wake. The hub will be able to guide lost ships home again.",
+				text: "When all eight burn, the Phase Crown can guide our people home.",
 			},
 		],
 	}

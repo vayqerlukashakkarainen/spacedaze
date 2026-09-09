@@ -8,6 +8,9 @@ import type {
 
 let activeFloor: RoomFloor | undefined
 
+export const ROOM_ENEMY_KEY_DROP_CHANCE = 0.08
+export const ROOM_CLEAR_KEY_DROP_CHANCE = 0.3
+
 export function beginRoomFloor(
 	seed: number,
 	depth: number,
@@ -35,6 +38,7 @@ export function enterFloorRoom(roomId: string) {
 	const destination = findRoom(roomId)
 	if (!current || !destination || !current.connections.includes(roomId)) return undefined
 	if (current.state !== "cleared") return undefined
+	if (roomRequiresKey(destination) && destination.keyUnlocked !== true) return undefined
 	destination.state = destination.state === "cleared" ? "cleared" : "active"
 	activeFloor.currentRoomId = destination.id
 	revealConnectedRooms(destination)
@@ -70,6 +74,78 @@ export function markFloorEnemyDefeated(enemyPlanId: string) {
 	if (!enemy || enemy.defeated) return false
 	enemy.defeated = true
 	return true
+}
+
+export function getFloorKeyCount() {
+	return activeFloor?.keys ?? 0
+}
+
+export function addFloorKeys(amount = 1) {
+	if (!activeFloor) return 0
+	const added = Math.max(0, Math.floor(amount))
+	activeFloor.keys += added
+	return activeFloor.keys
+}
+
+export function isFloorRoomKeyLocked(roomId: string) {
+	const room = findRoom(roomId)
+	return room !== undefined &&
+		roomRequiresKey(room) &&
+		room.keyUnlocked !== true
+}
+
+export function unlockFloorRoomWithKey(roomId: string) {
+	if (!activeFloor || activeFloor.keys <= 0) return false
+	const current = getCurrentFloorRoom()
+	const room = findRoom(roomId)
+	if (
+		!current ||
+		current.state !== "cleared" ||
+		!current.connections.includes(roomId) ||
+		!room ||
+		!roomRequiresKey(room) ||
+		room.keyUnlocked === true
+	) return false
+	activeFloor.keys--
+	room.keyUnlocked = true
+	return true
+}
+
+export function rollFloorEnemyKeyDrop(enemyPlanId: string) {
+	const room = getCurrentFloorRoom()
+	const enemy = room?.encounter?.enemies.find(
+		(candidate) => candidate.id === enemyPlanId
+	)
+	if (!room || !enemy || enemy.keyDropRolled === true) return false
+	enemy.keyDropRolled = true
+	return deterministicChance(
+		room.seed,
+		`enemy-key:${enemy.id}`,
+		ROOM_ENEMY_KEY_DROP_CHANCE
+	)
+}
+
+export function rollCurrentRoomClearKeyDrop() {
+	const room = getCurrentFloorRoom()
+	if (
+		!room ||
+		room.keyRewardRolled === true ||
+		![
+			"combat",
+			"reward",
+			"shrine",
+			"gravity",
+			"event",
+			"miniBoss",
+			"boss",
+		].includes(room.kind)
+	) return false
+	room.keyRewardRolled = true
+	return deterministicChance(
+		room.seed,
+		"room-clear-key",
+		ROOM_CLEAR_KEY_DROP_CHANCE
+	)
 }
 
 export function setFloorRoomState(roomId: string, state: RoomFloorState) {
@@ -134,4 +210,17 @@ function revealConnectedRooms(room: RoomFloorRoom) {
 
 function findRoom(roomId: string) {
 	return activeFloor?.rooms.find((room) => room.id === roomId)
+}
+
+function roomRequiresKey(room: RoomFloorRoom) {
+	return room.keyRequired === true || room.kind === "reward" || room.kind === "shop"
+}
+
+function deterministicChance(seed: number, salt: string, chance: number) {
+	let hash = seed | 0
+	for (let index = 0; index < salt.length; index++) {
+		hash ^= salt.charCodeAt(index)
+		hash = Math.imul(hash, 16777619)
+	}
+	return (hash >>> 0) / 0x100000000 < chance
 }

@@ -1,3 +1,4 @@
+import { RewardRarity } from "../types/rewardTypes"
 import {
 	equipAbility,
 	getEquippedPrimaryAbilityId,
@@ -410,6 +411,12 @@ let ownedWeaponIds: WeaponId[] = [DEFAULT_WEAPON_ID]
 
 export function getWeaponDefinition(id: WeaponId) {
 	return WEAPONS.find((weapon) => weapon.id === id) ?? WEAPONS[0]
+}
+
+export function getWeaponRewardRarity(id: WeaponId) {
+	return id === DEFAULT_WEAPON_ID
+		? RewardRarity.Common
+		: RewardRarity.Legendary
 }
 
 export function getEquippedWeapon() {

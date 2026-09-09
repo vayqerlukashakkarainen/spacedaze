@@ -31,6 +31,7 @@ import {
 } from "../upgrades/upgradeRegistry"
 import {
 	getWeaponTriggerModifier,
+	getWeaponRewardRarity,
 	type WeaponDefinition,
 	type WeaponId,
 	WEAPONS,
@@ -701,6 +702,7 @@ function isRocketDependentReward(definition: RewardDefinition) {
 
 function buildWeaponReward(weapon: WeaponDefinition): RewardDefinition {
 	const triggerModifier = getWeaponTriggerModifier(weapon)
+	const rarity = getWeaponRewardRarity(weapon.id)
 	const fireRate = triggerModifier.usesCooldown
 		? `${(1 / weapon.fireCooldown).toFixed(1)}/S`
 		: "PER CLICK"
@@ -733,13 +735,9 @@ function buildWeaponReward(weapon: WeaponDefinition): RewardDefinition {
 			PRESET: preset,
 		},
 		sprite: weapon.icon,
-		rarity: weapon.id === "standardBlaster"
-			? RewardRarity.Common
-			: RewardRarity.Rare,
+		rarity,
 		progression: fixedProgression(
-			weapon.id === "standardBlaster"
-				? RewardRarity.Common
-				: RewardRarity.Rare,
+			rarity,
 			"once",
 			"permanent"
 		),

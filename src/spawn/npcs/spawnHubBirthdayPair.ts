@@ -46,7 +46,7 @@ const INTRO_LINES: readonly DialogueLine[] = [
 	{
 		speaker: "JUBILEE",
 		text: [
-			{ text: "I love birthdays.", waitAfter: 0.34 },
+			{ text: "A village that stops celebrating is just wreckage with power.", waitAfter: 0.34 },
 			{ text: " I have exactly the song for this." },
 		],
 	},
@@ -63,8 +63,20 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 	let encounterStarted = false
 	let jubileeAlive = true
 	let birthdaySong: AudioPlay | null = null
-	const gloom = spawnBirthdayDroid(gloomPos, "hub_ship_gloom", 90, startEncounter)
-	const jubilee = spawnBirthdayDroid(jubileePos, "hub_ship_jubilee", -90, startEncounter)
+	const gloom = spawnBirthdayDroid(
+		gloomPos,
+		"hub_ship_gloom",
+		90,
+		startEncounter,
+		INTERACTION_PRIORITY.progressionDialogue
+	)
+	const jubilee = spawnBirthdayDroid(
+		jubileePos,
+		"hub_ship_jubilee",
+		-90,
+		startEncounter,
+		INTERACTION_PRIORITY.progressionDialogue
+	)
 	const gloomPrompt = createNpcInteractionPrompt({
 		target: gloom,
 		offset: k.vec2(0, -42),
@@ -360,7 +372,8 @@ function spawnBirthdayDroid(
 	pos: ReturnType<typeof k.vec2>,
 	sprite: string,
 	angle: number,
-	onInteract: () => void
+	onInteract: () => void,
+	interactionPriority = INTERACTION_PRIORITY.dialogue
 ) {
 	return k.add([
 		k.pos(pos),
@@ -374,7 +387,7 @@ function spawnBirthdayDroid(
 		interactable(
 			INTERACT_RADIUS,
 			onInteract,
-			INTERACTION_PRIORITY.dialogue
+			interactionPriority
 		),
 		tags.props,
 		tags.gameLoop,

@@ -60,6 +60,8 @@ export function generateRoomFloor(
 			connections: connections[index].map((neighborIndex) => roomId(coords[neighborIndex])),
 			state: index === 0 ? "active" : connections[index].includes(0) ? "discovered" : "unseen",
 			contentCompleted: false,
+			keyRequired: kind === "reward" || kind === "shop",
+			keyUnlocked: false,
 			encounter: roomUsesStandardEncounter(kind)
 				? createEncounterPlan(
 					roomSeed,
@@ -78,6 +80,7 @@ export function generateRoomFloor(
 		startRoomId: rooms[0].id,
 		exitRoomId: rooms[exitIndex].id,
 		currentRoomId: rooms[0].id,
+		keys: 0,
 		rooms,
 	}
 }
@@ -176,18 +179,32 @@ function assignRoomKinds(
 		.filter((index) => connections[index].length === 1)
 		.sort((a, b) => distances[b] - distances[a])
 	const used = new Set([0, exitIndex])
-	const takeRoom = (preferDeadEnd: boolean) => {
-		const preferred = (preferDeadEnd ? deadEnds : candidates).filter((index) => !used.has(index))
+	const optionalLockedRooms = candidates.filter((index) =>
+		hasPathAvoidingRooms(connections, 0, exitIndex, [index])
+	)
+	const takeRoom = (
+		preferDeadEnd: boolean,
+		allowed: readonly number[] = candidates
+	) => {
+		const allowedSet = new Set(allowed)
+		const preferred = (preferDeadEnd ? deadEnds : allowed)
+			.filter((index) => allowedSet.has(index) && !used.has(index))
 		const pool = preferred.length > 0
 			? preferred
-			: candidates.filter((index) => !used.has(index))
+			: allowed.filter((index) => !used.has(index))
 		if (pool.length === 0) return undefined
 		const index = preferDeadEnd ? pool[0] : rng.choice(pool)
 		used.add(index)
 		return index
 	}
-	const reward = takeRoom(true)
+	const reward = takeRoom(true, optionalLockedRooms)
 	if (reward !== undefined) kinds[reward] = "reward"
+	const shopCandidates = optionalLockedRooms.filter((index) =>
+		reward === undefined ||
+		hasPathAvoidingRooms(connections, 0, exitIndex, [reward, index])
+	)
+	const shop = takeRoom(true, shopCandidates)
+	if (shop !== undefined) kinds[shop] = "shop"
 	const support = takeRoom(false)
 	if (support !== undefined) kinds[support] = rng.choice(["health", "shrine"])
 	const gravityA = takeRoom(true)
@@ -196,8 +213,6 @@ function assignRoomKinds(
 		kinds[gravityA] = "gravity"
 		kinds[gravityB] = "gravity"
 	}
-	const shop = takeRoom(false)
-	if (shop !== undefined) kinds[shop] = "shop"
 	const miniBoss = takeRoom(true)
 	if (miniBoss !== undefined) kinds[miniBoss] = "miniBoss"
 	if (coords.length >= 13) {
@@ -207,10 +222,29 @@ function assignRoomKinds(
 	return kinds
 }
 
+function hasPathAvoidingRooms(
+	connections: readonly number[][],
+	startIndex: number,
+	exitIndex: number,
+	blockedIndices: readonly number[]
+) {
+	const visited = new Set<number>([...blockedIndices, startIndex])
+	const queue = [startIndex]
+	while (queue.length > 0) {
+		const current = queue.shift()!
+		if (current === exitIndex) return true
+		for (const neighbor of connections[current]) {
+			if (visited.has(neighbor)) continue
+			visited.add(neighbor)
+			queue.push(neighbor)
+		}
+	}
+	return false
+}
+
 function roomUsesStandardEncounter(kind: RoomFloorKind) {
 	return kind === "combat" ||
 		kind === "reward" ||
-		kind === "shrine" ||
 		kind === "gravity" ||
 		kind === "event"
 }

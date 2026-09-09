@@ -27,6 +27,7 @@ interface CachedFlowField {
 }
 
 const navigationByEnemy = new Map<number, EnemyNavigationState>()
+const gridMovementGuardedEnemies = new WeakSet<GameObj>()
 const flowFieldsByGrid = new WeakMap<HexGrid, Map<string, CachedFlowField>>()
 const REPATH_INTERVAL = 0.4
 const RECOVERY_SEARCH_RADIUS = 8
@@ -44,6 +45,7 @@ export function getEnemyNavigationDirection(
 	const preferred = normalizedOrZero(preferredDirection)
 	const grid = gridRegistry.get(ACTIVE_RUN_GRID_KEY)
 	if (!grid || !enemy.exists()) return preferred
+	guardEnemyMovementAgainstGrid(enemy, grid)
 
 	let start = grid.screenToHex(enemy.pos)
 	if (!grid.isWalkable(start)) {
@@ -294,4 +296,23 @@ function getSafeLocalDirection(
 
 function normalizedOrZero(direction: Vec2) {
 	return direction.len() > 0.001 ? direction.unit() : k.vec2(0)
+}
+
+function guardEnemyMovementAgainstGrid(enemy: GameObj, grid: HexGrid) {
+	if (gridMovementGuardedEnemies.has(enemy)) return
+	gridMovementGuardedEnemies.add(enemy)
+	const originalMove = enemy.move.bind(enemy)
+	enemy.move = (x: number | Vec2, y?: number) => {
+		let velocity: Vec2
+		if (typeof x === "number" && y !== undefined) {
+			velocity = k.vec2(x, y)
+		} else if (typeof x === "object") {
+			velocity = x
+		} else {
+			return
+		}
+		const nextPos = enemy.pos.add(velocity.scale(k.dt()))
+		if (!lineIsWalkable(grid, enemy.pos, nextPos)) return
+		originalMove(velocity)
+	}
 }

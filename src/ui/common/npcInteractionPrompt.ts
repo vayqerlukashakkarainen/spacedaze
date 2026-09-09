@@ -1,6 +1,10 @@
 import type { Color, GameObj, Vec2 } from "kaplay"
 import { k, layers } from "../../main"
 import type { InteractableComp } from "../../comp/interactable"
+import {
+	interactionPromptsSuppressed,
+	registerInteractionPromptHide,
+} from "../../services/interactionPromptVisibilityService"
 
 interface InteractionBubbleLabel {
 	text: string
@@ -60,6 +64,16 @@ export function createNpcInteractionPrompt({
 		k.opacity(0),
 	])
 	labelText.hidden = true
+	const hidePrompt = () => {
+		requestedVisible = false
+		reveal = 0
+		bubble.opacity = 0
+		key.opacity = 0
+		labelText.opacity = 0
+		root.hidden = true
+	}
+	const unregisterPromptHide = registerInteractionPromptHide(hidePrompt)
+	root.onDestroy(unregisterPromptHide)
 
 	target.onDestroy(() => {
 		if (root.exists()) k.destroy(root)
@@ -75,7 +89,9 @@ export function createNpcInteractionPrompt({
 	return {
 		update(visible: boolean) {
 			const interactable = target as GameObj<InteractableComp>
-			requestedVisible = visible && interactable.isInteractionTarget
+			requestedVisible = visible &&
+				interactable.isInteractionTarget &&
+				!interactionPromptsSuppressed()
 			if (requestedVisible) root.hidden = false
 		},
 	}

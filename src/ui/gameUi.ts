@@ -49,6 +49,10 @@ import {
 	getStackingRewardFeedbackSnapshot,
 	type StackingRewardFeedbackSnapshot,
 } from "../services/passiveUpgradeRuntimeService";
+import {
+	getActiveRoomFloor,
+	getFloorKeyCount,
+} from "../services/roomFloorService";
 
 let healthBarBaseFill: GameObj<RectComp> | null = null;
 let healthBarBonusFill: GameObj<RectComp> | null = null;
@@ -73,6 +77,7 @@ let ultimateWarning: GameObj<OpacityComp> | null = null;
 let shipStatusPanel: GameObj | null = null;
 let salvageDisplay: GameObj | null = null;
 let rerollDisplay: GameObj | null = null;
+let roomKeyDisplay: GameObj | null = null;
 let systemsPanel: GameObj | null = null;
 let runLoadoutPanel: GameObj | null = null;
 let loadoutIconsContainer: GameObj | null = null;
@@ -92,7 +97,7 @@ const collectedItems = new Map<
 
 const rewardTooltipTag = "rewardTooltip";
 
-const statusPanelWidth = 228;
+const statusPanelWidth = 264;
 const statusPanelHeight = 30;
 const systemsPanelWidth = 286;
 const systemsPanelHeight = 32;
@@ -117,6 +122,7 @@ const LOW_HEALTH_COLOR = [255, 70, 70] as const;
 let displayedSalvage = Number.NaN;
 let displayedDebreeMode = "";
 let displayedRerollTokens = Number.NaN;
+let displayedRoomKeys = Number.NaN;
 let displayedSpecialWidth = Number.NaN;
 let displayedMissileVisibility: boolean | undefined;
 let displayedActiveModuleId = "";
@@ -154,6 +160,11 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		k.rect(1, 20),
 		k.color(...UI_COLORS.border),
 	]);
+	const roomKeySeparator = shipStatusPanel.add([
+		k.pos(228, 5),
+		k.rect(1, 20),
+		k.color(...UI_COLORS.border),
+	]);
 	salvageDisplay = shipStatusPanel.add([
 		k.pos(172, 15),
 		k.scale(1),
@@ -180,7 +191,7 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		k.color(...UI_COLORS.muted),
 	]);
 	rerollDisplay = shipStatusPanel.add([
-		k.pos(statusPanelWidth - 5, 15),
+		k.pos(223, 15),
 		k.scale(1),
 		{
 			pulseScale: 1,
@@ -197,6 +208,25 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		k.pos(0, 0),
 		k.anchor("right"),
 		k.color(190, 75, 255),
+	]);
+	roomKeyDisplay = shipStatusPanel.add([
+		k.pos(statusPanelWidth - 5, 15),
+		k.scale(1),
+		{
+			pulseScale: 1,
+		},
+	]);
+	const roomKeyIcon = roomKeyDisplay.add([
+		k.sprite("room_phase_key", { width: 16, height: 16 }),
+		k.pos(-25, 0),
+		k.anchor("center"),
+		k.color(...UI_COLORS.warning),
+	]);
+	const roomKeyLabel = roomKeyDisplay.add([
+		k.text("", { size: UI_FONT_SIZES.small, font: "unscii" }),
+		k.pos(0, 0),
+		k.anchor("right"),
+		k.color(...UI_COLORS.warning),
 	]);
 	registerBatchedUiUpdate("hud", salvageDisplay, () => {
 		const score = getScore();
@@ -235,6 +265,30 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 			k.clamp(14 * k.dt(), 0, 1)
 		);
 		rerollDisplay!.scale = k.vec2(rerollDisplay!.pulseScale);
+	});
+	registerBatchedUiUpdate("hud", roomKeyDisplay, () => {
+		const visible = getActiveRoomFloor() !== undefined;
+		roomKeyDisplay!.hidden = !visible;
+		roomKeySeparator.hidden = !visible;
+		if (!visible) return;
+		const keys = getFloorKeyCount();
+		if (keys !== displayedRoomKeys) {
+			if (!Number.isNaN(displayedRoomKeys)) {
+				roomKeyDisplay!.pulseScale = Math.min(
+					1.45,
+					roomKeyDisplay!.pulseScale + 0.3
+				);
+			}
+			displayedRoomKeys = keys;
+			roomKeyLabel.text = `${keys}`;
+			roomKeyIcon.pos.x = roomKeyLabel.pos.x - roomKeyLabel.width - 11;
+		}
+		roomKeyDisplay!.pulseScale = k.lerp(
+			roomKeyDisplay!.pulseScale,
+			1,
+			k.clamp(14 * k.dt(), 0, 1)
+		);
+		roomKeyDisplay!.scale = k.vec2(roomKeyDisplay!.pulseScale);
 	});
 
 	systemsPanel = createUiPanel({
@@ -1025,6 +1079,7 @@ export function clearGameLoopUi() {
 	shipStatusPanel = null;
 	salvageDisplay = null;
 	rerollDisplay = null;
+	roomKeyDisplay = null;
 	systemsPanel = null;
 	runLoadoutPanel = null;
 	loadoutIconsContainer = null;
@@ -1032,6 +1087,7 @@ export function clearGameLoopUi() {
 	displayedSalvage = Number.NaN;
 	displayedDebreeMode = "";
 	displayedRerollTokens = Number.NaN;
+	displayedRoomKeys = Number.NaN;
 	displayedSpecialWidth = Number.NaN;
 	displayedMissileVisibility = undefined;
 	displayedActiveModuleId = "";

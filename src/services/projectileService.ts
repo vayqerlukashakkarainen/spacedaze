@@ -98,6 +98,7 @@ import {
 } from "./passiveUpgradeRuntimeService";
 import { getTacticalUplinkHullThreshold } from "./tacticalUplinkService";
 import { recoverPlayerHealth } from "./playerHealthService";
+import { getPlayerTargetLock } from "./playerTargetLockService";
 
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
 const PLAYER_PROJECTILE_SCALE = 0.7;
@@ -769,14 +770,33 @@ function updateTrail(proj: GameObj) {
 }
 
 function updateSeeking(proj: GameObj) {
+	const directedTarget = proj.tags.includes(tags.friendly)
+		? getPlayerTargetLock()
+		: undefined;
+	if (
+		directedTarget &&
+		directedTarget.id !== proj.targetUnit?.id &&
+		directedTarget.tags.includes(tags.unit) &&
+		proj.targetTags.some((tag: string) => directedTarget.tags.includes(tag)) &&
+		proj.pos.dist(directedTarget.pos) <= proj.seekDistance
+	) {
+		setSeekingTarget(proj, directedTarget);
+		return;
+	}
 	if (proj.targetUnit == null) {
 		pickUnitInDistance(proj.pos, proj.seekDistance, proj.targetTags[0], (u) => {
-			proj.targetUnit = u;
-			proj.targetUnit?.onDestroy(() => {
-				proj.targetUnit = null;
-			});
+			setSeekingTarget(proj, u);
 		});
 	}
+}
+
+function setSeekingTarget(proj: GameObj, target: GameObj) {
+	proj.targetUnit = target;
+	target.onDestroy(() => {
+		if (proj.exists() && proj.targetUnit?.id === target.id) {
+			proj.targetUnit = null;
+		}
+	});
 }
 
 function updateMovement(proj: GameObj) {

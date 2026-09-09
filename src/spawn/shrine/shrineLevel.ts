@@ -24,7 +24,7 @@ export function getShrineLevelConfig(
 	return {
 		level,
 		radius,
-		captureTime: 5 + (level - 1) * 2,
+		captureTime: 10 + (level - 1) * 2,
 		enemySpawnDelay: 1.5,
 		enemySpawnInterval: lerp(5, 3.5, levelProgress),
 		enemySpawnDistance: radius + hexSize * 2.5,

@@ -22,9 +22,14 @@ import {
 } from "../services/threatService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import {
+	getEnemyNavigationDirection,
 	hasEnemyLineOfSight,
 	pickRandomWalkableEnemyRoute,
 } from "../services/enemyNavigationService";
+import {
+	applyDirectionalSteeringLean,
+	easeDirection,
+} from "../shared";
 
 const wingOffset = [6, 2];
 export const unitComponents: Record<number, Component[]> = {};
@@ -114,6 +119,7 @@ export function spawnShip1(
 	});
 
 	registerBatchedEntityUpdate("enemies", m, () => {
+		const delta = k.dt() * m.getTimescale();
 		if (m.routeIndex >= m.route.length && k.time() >= m.nextRouteAt) {
 			const route = pickRandomWalkableEnemyRoute(m);
 			if (route !== undefined) {
@@ -131,9 +137,26 @@ export function spawnShip1(
 				m.pos = waypoint.clone();
 				m.routeIndex++;
 			} else {
-				m.vel = offset.unit();
+				const desiredDirection = offset.unit();
+				const easedDirection = easeDirection(
+					m.vel,
+					desiredDirection,
+					4.6,
+					delta
+				);
+				m.vel = getEnemyNavigationDirection(
+					m,
+					easedDirection,
+					waypoint
+				);
 				m.angle = m.vel.angle() + 90;
 				m.move(m.vel.scale(m.speed * velocityScale() * m.getTimescale()));
+				applyDirectionalSteeringLean(
+					m,
+					m.vel,
+					desiredDirection,
+					profile.scale
+				);
 			}
 		} else if (!m.usesGridNavigation) {
 			m.move(m.vel.scale(m.speed * velocityScale() * m.getTimescale()));

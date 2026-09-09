@@ -52,7 +52,7 @@ const DIALOGUES: readonly NpcDialogueVariant[] = [
 		lines: [
 			{
 				speaker: "RANGE KEEPER",
-				text: "Contract traffic is active. The firing lane is now officially a safety concern.",
+				text: "Contract traffic is active. The Wake once again contains enough pilots to create a safety concern.",
 			},
 			{
 				speaker: "RANGE KEEPER",
@@ -66,11 +66,11 @@ const DIALOGUES: readonly NpcDialogueVariant[] = [
 		lines: [
 			{
 				speaker: "RANGE KEEPER",
-				text: "The salvage forge is operational. At last, a machine here understands precision.",
+				text: "The salvage forge reconstructed my final targeting log from the Claim.",
 			},
 			{
 				speaker: "RANGE KEEPER",
-				text: "I submitted the asteroid as calibration material. The forge rejected it as infrastructure.",
+				text: "It reads: CLAIMKEEPER — MISSED. The asteroid has agreed to represent it.",
 			},
 		],
 	},
@@ -84,7 +84,7 @@ const DIALOGUES: readonly NpcDialogueVariant[] = [
 			},
 			{
 				speaker: "RANGE KEEPER",
-				text: "The asteroid has responded by remaining exactly where it was. Provocative.",
+				text: "Next time the Federation arrives, I intend to use all of them.",
 			},
 		],
 	},
@@ -94,11 +94,11 @@ const DIALOGUES: readonly NpcDialogueVariant[] = [
 		lines: [
 			{
 				speaker: "RANGE KEEPER",
-				text: "The station is restored. Every system reports nominal operation.",
+				text: "Drius Wake is restored. Defensive systems report nominal operation.",
 			},
 			{
 				speaker: "RANGE KEEPER",
-				text: "The asteroid remains. I have filed this as a personal disagreement.",
+				text: "If the Claimkeeper returns, it will find my calibration complete.",
 			},
 		],
 	},

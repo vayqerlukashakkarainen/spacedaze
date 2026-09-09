@@ -14,7 +14,6 @@ import {
 	getRewardDefinition,
 	getRewardDefinitions,
 	getRewardLockReason,
-	REWARD_RARITY_COLORS,
 } from "../../services/rewardService"
 import { addAvailableDebree } from "../../services/debreeEconomyService"
 import { getActiveRoomFloor } from "../../services/roomFloorService"
@@ -24,6 +23,7 @@ import { audioService } from "../../services/audioService"
 import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 import {
+	hasSeenNpcDialogue,
 	markNpcDialogueSeen,
 	registerNpcDialogueTrigger,
 } from "../../services/npcDialogueService"
@@ -33,25 +33,24 @@ import {
 	purchaseBurstParticleCount,
 	spawnCurrencyBurst,
 } from "../spawnCurrencyBurst"
-import { addCollectedPowerup } from "../../ui/gameUi"
 import { createNpcInteractionPrompt, UI_COLORS } from "../../ui/common"
 import { tags } from "../../tags"
-import { spawnBuilding } from "../spawnBuilding"
+import { spawnRewardPickup } from "../spawnPowerup"
 
 const SHOPKEEPER_DIALOGUE_ID = "void-profit"
 const SHOPKEEPER_INTERACT_RADIUS = 86
 const SHOPKEEPER_LINES = [
 	{
 		speaker: "MARGIN",
-		text: "Lost souls leave the finest stock. I merely rescue it from becoming waste.",
+		text: "The Daze remembers the Wake. I remember where it kept the expensive parts.",
 	},
 	{
 		speaker: "MARGIN",
-		text: "Even Federation crews stop by sometimes. Credits make everyone less curious.",
+		text: "Federation crews declared this stock theirs during the Claim. I found their paperwork unconvincing.",
 	},
 	{
 		speaker: "MARGIN",
-		text: "In the phase void, tragedy is temporary. Profit compounds.",
+		text: "You recover Drius Wake. I recover a reasonable margin. Community requires specialization.",
 	},
 ] as const
 
@@ -88,7 +87,7 @@ function spawnRunShopkeeper(pos: Vec2, objectTags: string[]) {
 		interactable(
 			SHOPKEEPER_INTERACT_RADIUS,
 			startConversation,
-			INTERACTION_PRIORITY.dialogue
+			INTERACTION_PRIORITY.progressionDialogue
 		),
 		tags.props,
 		tags.gameLoop,
@@ -113,6 +112,11 @@ function spawnRunShopkeeper(pos: Vec2, objectTags: string[]) {
 	})
 
 	registerBatchedEntityUpdate("world", shopkeeper, () => {
+		shopkeeper.setInteractionPriority(
+			hasSeenNpcDialogue("margin", SHOPKEEPER_DIALOGUE_ID)
+				? INTERACTION_PRIORITY.dialogue
+				: INTERACTION_PRIORITY.progressionDialogue
+		)
 		prompt.update(!talking && shopkeeper.isInRange)
 		const player = k.get<GameObj<PosComp>>(tags.player)[0]
 		if (!player?.exists()) return
@@ -203,37 +207,37 @@ function spawnShopOffer(
 ) {
 	const definition = getRewardDefinition(offer.rewardId)
 	if (!definition) return
-	const rarityColor = REWARD_RARITY_COLORS[offer.rarity]
-	let pickup: ReturnType<typeof spawnBuilding>
-	pickup = spawnBuilding({
-		pos,
-		sprite: definition.sprite,
-		spriteSize: k.vec2(28, 28),
-		interactRadius: 72,
-		interactionPrompt: false,
+	const reward = createReward(offer.rewardId, offer.rarity)
+	if (!reward) return
+	let pickup: NonNullable<ReturnType<typeof spawnRewardPickup>>
+	pickup = spawnRewardPickup(pos, reward, {
+		stationary: true,
+		interactionOnly: true,
+		interactionRadius: 72,
+		interactionPromptStyle: "key",
+		persistent: true,
 		tags: objectTags,
-		onInteract: () => purchaseOffer(pickup, offer),
-	})
-	const interactionPrompt = createNpcInteractionPrompt({
-		target: pickup,
-		offset: k.vec2(0, -48),
-		label: () => ({
-			text: `${offer.price}`,
+		interactionPromptLabel: () => ({
+			text: `${reward.name}  //  ${offer.price}`,
 			color: getOfferStatus(offer) === undefined
 				? k.rgb(...UI_COLORS.text)
 				: k.rgb(...UI_COLORS.danger),
 		}),
-	})
-	pickup.use(k.color(...rarityColor))
-	pickup.add([
-		k.circle(27),
-		k.anchor("center"),
-		k.color(4, 12, 18),
-		k.outline(2, k.rgb(...rarityColor)),
-		k.z(-1),
-	])
-	registerBatchedEntityUpdate("world", pickup, () => {
-		interactionPrompt.update(pickup.isInRange)
+		beforeCollect: () => beginPurchase(offer),
+		applyEffect: (purchasedReward, pickupPos) => {
+			if (applyReward(purchasedReward, pickupPos)) return true
+			addAvailableDebree(offer.price)
+			playRequirementErrorSound()
+			return false
+		},
+		onCollected: () => {
+			offer.purchased = true
+			spawnCurrencyBurst(pos, {
+				particleCount: purchaseBurstParticleCount(offer.price),
+			})
+			audioService.playSound("purchase1", { volume: mainSoundVolume })
+			if (pickup.exists()) k.destroy(pickup)
+		},
 	})
 }
 
@@ -249,29 +253,16 @@ function getOfferStatus(
 	return undefined
 }
 
-function purchaseOffer(
-	pickup: ReturnType<typeof spawnBuilding>,
+function beginPurchase(
 	offer: NonNullable<RoomFloorRoom["shopOffers"]>[number]
 ) {
 	if (getOfferStatus(offer)) {
 		playRequirementErrorSound()
-		return
+		return false
 	}
-	const reward = createReward(offer.rewardId, offer.rarity)
-	if (!reward || !spendScore(offer.price)) {
+	if (!spendScore(offer.price)) {
 		playRequirementErrorSound()
-		return
+		return false
 	}
-	if (!applyReward(reward, pickup.pos)) {
-		addAvailableDebree(offer.price)
-		playRequirementErrorSound()
-		return
-	}
-	offer.purchased = true
-	addCollectedPowerup(reward)
-	spawnCurrencyBurst(pickup.pos, {
-		particleCount: purchaseBurstParticleCount(offer.price),
-	})
-	audioService.playSound("purchase1", { volume: mainSoundVolume })
-	k.destroy(pickup)
+	return true
 }

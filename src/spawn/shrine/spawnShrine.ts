@@ -25,7 +25,9 @@ interface ShrineProps {
 	enemySpawnDistance?: number;
 	enemySpawnSpacing?: number;
 	enemyWaveMultiplier?: number;
+	timeLimit?: number;
 	onComplete?: (pos: Vec2) => void;
+	onExpired?: (pos: Vec2) => void;
 	tags?: string[];
 }
 
@@ -43,6 +45,8 @@ export function spawnShrine(props: ShrineProps) {
 			maxTimer: props.captureTime,
 			isPlayerInside: false,
 			completed: false,
+			deactivated: false,
+			remainingTime: props.timeLimit,
 			enemySpawnTimer: props.enemySpawnDelay ?? 1.5,
 			wavesSpawned: 0,
 		},
@@ -82,11 +86,24 @@ export function spawnShrine(props: ShrineProps) {
 		k.opacity(0.9),
 		k.layer(layers.gameEffects),
 	]);
+	const windowLabel = props.timeLimit === undefined
+		? undefined
+		: shrine.add([
+			k.text(`${Math.ceil(props.timeLimit)}`, {
+				size: 6,
+				font: "unscii",
+			}),
+			k.pos(0, -62),
+			k.anchor("center"),
+			k.color(240, 184, 75),
+			k.layer(layers.gameEffects),
+		]);
 	const chargeFeedback = createChargeZoneFeedback();
 	let completedLight: ReturnType<typeof addLocalLight> | undefined;
 	let completedCore: ReturnType<typeof shrine.add> | undefined;
 
 	registerBatchedEntityUpdate("world", shrine, () => {
+		if (shrine.deactivated) return;
 		if (shrine.completed) {
 			if (completedLight) updateLocalLight(completedLight);
 			if (completedCore) {
@@ -99,6 +116,23 @@ export function spawnShrine(props: ShrineProps) {
 		// Check if player is inside radius
 		const distToPlayer = playerObj.pos.dist(shrine.pos);
 		shrine.isPlayerInside = distToPlayer < props.radius;
+		if (shrine.remainingTime !== undefined) {
+			if (!shrine.isPlayerInside) {
+				shrine.remainingTime = Math.max(0, shrine.remainingTime - dt());
+			}
+			if (windowLabel) {
+				windowLabel.text = `${Math.ceil(shrine.remainingTime)}`;
+				windowLabel.color = shrine.isPlayerInside
+					? k.rgb(0, 207, 255)
+					: shrine.remainingTime <= 5
+						? k.rgb(255, 90, 90)
+						: k.rgb(240, 184, 75);
+			}
+			if (shrine.remainingTime <= 0) {
+				deactivateShrine();
+				return;
+			}
+		}
 
 		if (shrine.isPlayerInside) {
 			// Player inside: increase timer
@@ -134,6 +168,7 @@ export function spawnShrine(props: ShrineProps) {
 			k.destroy(circle);
 			k.destroy(barBg);
 			k.destroy(barFill);
+			if (windowLabel) k.destroy(windowLabel);
 			shrine.color = k.rgb(175, 225, 255);
 
 			// Spawn particles
@@ -203,8 +238,38 @@ export function spawnShrine(props: ShrineProps) {
 				tags.gameLoop,
 				...(props.tags ?? []),
 			]);
-			spawnThreatEncounter(spawnPos, props.enemySpawnSpacing ?? 48);
+			spawnThreatEncounter(spawnPos, props.enemySpawnSpacing ?? 48, {
+				tags: props.tags,
+				threatTier: props.level,
+			});
 		}
+	}
+
+	function deactivateShrine() {
+		if (shrine.deactivated || shrine.completed) return;
+		shrine.deactivated = true;
+		shrine.isPlayerInside = false;
+		chargeFeedback.stop("charge-zone-expired");
+		if (circle.exists()) k.destroy(circle);
+		if (barBg.exists()) k.destroy(barBg);
+		if (barFill.exists()) k.destroy(barFill);
+		shrine.color = k.rgb(88, 114, 125);
+		shrine.opacity = 0.48;
+		if (windowLabel) {
+			windowLabel.text = "0";
+			windowLabel.color = k.rgb(255, 90, 90);
+		}
+		spawnRing({
+			pos: shrine.pos,
+			speed: 170,
+			intensity: 0.32,
+			maxRadius: Math.max(120, props.radius),
+			color: k.rgb(255, 90, 90),
+			visualOpacity: 0.72,
+			outlineWidth: 3,
+		});
+		audioService.playSound("error", { volume: mainSoundVolume * 0.45 });
+		props.onExpired?.(shrine.pos.clone());
 	}
 
 	return shrine;

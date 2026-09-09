@@ -300,6 +300,7 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("room_proximity_mine", "sprites/rooms/proximity-mine.png");
 	await k.loadSprite("room_convoy_drone", "sprites/rooms/convoy-drone.png");
 	await k.loadSprite("room_signal_relay", "sprites/rooms/signal-relay.png");
+	await k.loadSprite("room_phase_key", "sprites/pickups/phase-key.png")
 
 	await k.loadSprite(
 		"weapon_standard_blaster",

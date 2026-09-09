@@ -230,6 +230,22 @@ export function showTacticalMap() {
 		k.pos(focusedMapPos(zoom)),
 		k.scale(zoom),
 	])
+	for (const position of rasterizedMap.lockedLinks ?? []) {
+		const marker = mapCanvas.add([
+			k.pos(position),
+			k.circle(11),
+			k.anchor("center"),
+			k.color(...UI_COLORS.background),
+			k.opacity(0.96),
+			k.outline(2, k.rgb(...UI_COLORS.warning)),
+			k.z(20),
+		])
+		marker.add([
+			k.sprite("room_phase_key", { width: 16, height: 16 }),
+			k.anchor("center"),
+			k.color(...UI_COLORS.warning),
+		])
+	}
 	mapCanvas.onDestroy(() => rasterizedMap.sprite.data?.tex?.free())
 	const roomNodes = rasterizedMap.roomNodes ?? []
 	const currentRoom = roomFloorSnapshot?.rooms.find(
@@ -481,6 +497,7 @@ interface RasterizedMap {
 	height: number
 	playerPosition: Vec2
 	roomNodes?: RoomMapNode[]
+	lockedLinks?: Vec2[]
 }
 
 interface RoomMapNode {
@@ -527,12 +544,15 @@ function rasterizeRoomFloorMap(snapshot: RoomFloor): RasterizedMap {
 		position.sub(contentMin).add(contentOffset)
 
 	const renderedConnections = new Set<string>()
+	const lockedLinks: Vec2[] = []
+	const roomById = new Map(rooms.map((room) => [room.id, room]))
 	for (const room of rooms) {
 		const from = centers.get(room.id)
 		if (!from) continue
 		for (const connectionId of room.connections) {
 			const to = centers.get(connectionId)
-			if (!to) continue
+			const connectedRoom = roomById.get(connectionId)
+			if (!to || !connectedRoom) continue
 			const key = [room.id, connectionId].sort().join(":")
 			if (renderedConnections.has(key)) continue
 			renderedConnections.add(key)
@@ -547,6 +567,9 @@ function rasterizeRoomFloorMap(snapshot: RoomFloor): RasterizedMap {
 			context.lineWidth = 3
 			context.strokeStyle = canvasColor(k.rgb(...UI_COLORS.muted), 0.8)
 			context.stroke()
+			if (roomMapRoomIsKeyLocked(room) || roomMapRoomIsKeyLocked(connectedRoom)) {
+				lockedLinks.push(start.add(end).scale(0.5))
+			}
 		}
 	}
 
@@ -566,12 +589,20 @@ function rasterizeRoomFloorMap(snapshot: RoomFloor): RasterizedMap {
 		width,
 		height,
 		playerPosition: k.vec2(width / 2, height / 2),
+		lockedLinks,
 		roomNodes: rooms.map((room) => ({
 			roomId: room.id,
 			position: toRasterPosition(centers.get(room.id)!),
 			state: room.state,
 		})),
 	}
+}
+
+function roomMapRoomIsKeyLocked(room: RoomFloorRoom) {
+	const keyRequired = room.keyRequired === true ||
+		room.kind === "reward" ||
+		room.kind === "shop"
+	return keyRequired && room.keyUnlocked !== true
 }
 
 function drawRoomMapNode(

@@ -182,14 +182,18 @@ export function gridCollision(gridKey: string): GridCollisionComp {
 
 		canMoveTo(nextPos: Vec2): boolean {
 			if (!this.enabled || !this.grid) return true
-
-			const nextCell = this.grid.screenToHex(nextPos)
-			
-			// Check if cell is in bounds
-			if (!this.grid.inBounds(nextCell)) return false
-
-			// Check if cell is walkable
-			return this.grid.isWalkable(nextCell)
+			const distance = this.pos.dist(nextPos)
+			const sampleSpacing = Math.max(1, this.grid.config.hexSize * 0.3)
+			const samples = Math.max(1, Math.ceil(distance / sampleSpacing))
+			for (let index = 1; index <= samples; index++) {
+				const sample = this.pos.lerp(nextPos, index / samples)
+				const nextCell = this.grid.screenToHex(sample)
+				if (
+					!this.grid.inBounds(nextCell) ||
+					!this.grid.isWalkable(nextCell)
+				) return false
+			}
+			return true
 		},
 
 		isOnWalkableCell(): boolean {

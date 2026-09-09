@@ -138,6 +138,10 @@ interface CameraSnapshot {
 	scale: Vec2
 }
 
+const CAMERA_RESTORE_DURATION = 0.55
+const CAMERA_RESTORE_POSITION_EPSILON = 0.1
+const CAMERA_RESTORE_SCALE_EPSILON = 0.001
+
 class CutsceneRuntime implements CutsceneContext {
 	readonly id: string
 	readonly initialCamera: CameraSnapshot
@@ -298,12 +302,6 @@ export async function playCutscene(
 	activeCutscene = runtime
 	const releaseInteractionPromptSuppression =
 		acquireInteractionPromptSuppression()
-	if (definition.restoreCameraOnEnd !== false) {
-		runtime.defer(() => {
-			k.setCamPos(runtime.initialCamera.pos)
-			k.setCamScale(runtime.initialCamera.scale)
-		})
-	}
 	if (definition.restoreActorRotationsOnEnd !== false) {
 		runtime.defer(() => runtime.restoreActorRotations())
 	}
@@ -320,7 +318,11 @@ export async function playCutscene(
 		await runSteps(definition.steps, runtime)
 		result = runtime.result ?? "completed"
 	} finally {
-		if (activeCutscene === runtime) hideDialogue()
+		const ownsCamera = activeCutscene === runtime
+		if (ownsCamera) hideDialogue()
+		if (ownsCamera && definition.restoreCameraOnEnd !== false) {
+			await smoothlyRestoreCamera(runtime)
+		}
 		runtime.cleanup()
 		releaseInteractionPromptSuppression()
 		if (activeCutscene === runtime) activeCutscene = undefined
@@ -333,6 +335,48 @@ export async function playCutscene(
 		result,
 	})
 	return result
+}
+
+function smoothlyRestoreCamera(runtime: CutsceneRuntime) {
+	const startPos = k.getCamPos().clone()
+	const startScale = k.getCamScale().clone()
+	const target = runtime.initialCamera
+	if (
+		startPos.dist(target.pos) <= CAMERA_RESTORE_POSITION_EPSILON &&
+		startScale.dist(target.scale) <= CAMERA_RESTORE_SCALE_EPSILON
+	) return Promise.resolve()
+
+	return new Promise<void>((resolve) => {
+		let elapsed = 0
+		let settled = false
+		let controller: ReturnType<typeof k.onUpdate> | undefined
+		const finish = (applyTarget: boolean) => {
+			if (settled) return
+			settled = true
+			controller?.cancel()
+			if (applyTarget) {
+				k.setCamPos(target.pos)
+				k.setCamScale(target.scale)
+			}
+			resolve()
+		}
+		controller = k.onUpdate(() => {
+			if (activeCutscene !== runtime) {
+				finish(false)
+				return
+			}
+			elapsed += k.dt()
+			const progress = k.clamp(
+				elapsed / CAMERA_RESTORE_DURATION,
+				0,
+				1
+			)
+			const eased = ease(progress, "easeInOutCubic")
+			k.setCamPos(startPos.lerp(target.pos, eased))
+			k.setCamScale(startScale.lerp(target.scale, eased))
+			if (progress >= 1) finish(true)
+		})
+	})
 }
 
 function getGameplayObjects(pauseVisualEffects: boolean) {

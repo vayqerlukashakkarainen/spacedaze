@@ -26,8 +26,8 @@ export const BOSS_REGISTRY: Readonly<Record<BossId, BossDefinition>> = {
 		name: "IMPACT ACE",
 		subtitle: "FEDERATION RAMMING COMMANDER",
 		kind: "miniBoss",
-		baseHealth: 26,
-		healthPerRunDepth: 4,
+		baseHealth: 40,
+		healthPerRunDepth: 6,
 		minRunDepth: 2,
 		rewardMultiplier: 2.5,
 		phases: [

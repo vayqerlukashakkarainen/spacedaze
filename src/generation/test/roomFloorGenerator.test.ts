@@ -28,6 +28,18 @@ for (let seed = 1; seed <= 200; seed++) {
 	assert(ids.size === floor.rooms.length, `Seed ${seed} has duplicate room ids`)
 	assert(floor.rooms.some((room) => room.kind === "reward"), `Seed ${seed} has no reward room`)
 	assert(floor.rooms.filter((room) => room.kind === "shop").length === 1, `Seed ${seed} needs one shop room`)
+	const lockedRooms = floor.rooms.filter((room) => room.keyRequired)
+	assert(lockedRooms.length === 2, `Seed ${seed} needs two locked rooms`)
+	assert(
+		lockedRooms.every((room) => room.kind === "reward" || room.kind === "shop"),
+		`Seed ${seed} locks a non-treasure room`
+	)
+	assert(
+		hasRouteAvoidingRooms(floor.startRoomId, floor.exitRoomId, floor.rooms, new Set(
+			lockedRooms.map((room) => room.id)
+		)),
+		`Seed ${seed} requires a key to reach its exit`
+	)
 	assert(floor.rooms.filter((room) => room.kind === "miniBoss").length === 1, `Seed ${seed} needs one mini-boss room`)
 	assert(!floor.rooms.some((room) => String(room.kind) === "repair"), `Seed ${seed} contains a removed repair room`)
 	assert(floor.rooms.filter((room) => room.kind === "gravity").length === 2, `Seed ${seed} needs two gravity rooms`)
@@ -64,7 +76,11 @@ for (let seed = 1; seed <= 200; seed++) {
 			assert(neighbor !== undefined, `${room.id} links to missing room ${neighborId}`)
 			assert(neighbor!.connections.includes(room.id), `${room.id} connection is not bidirectional`)
 		}
-		if (!["combat", "reward", "shrine", "gravity", "event"].includes(room.kind)) continue
+		if (room.kind === "shrine") {
+			assert(room.encounter === undefined, `${room.id} should activate its shrine directly`)
+			continue
+		}
+		if (!["combat", "reward", "gravity", "event"].includes(room.kind)) continue
 		assert(room.encounter !== undefined, `${room.id} has no encounter plan`)
 		assert(room.encounter!.enemies.length > 0, `${room.id} has no planned enemies`)
 		const enemyIds = new Set(room.encounter!.enemies.map((enemy) => enemy.id))
@@ -82,5 +98,26 @@ assert(
 	averageTier(deepFloor) > averageTier(shallowFloor),
 	"Deeper floors should pre-generate harder encounters"
 )
+
+function hasRouteAvoidingRooms(
+	startId: string,
+	targetId: string,
+	rooms: Array<{ id: string; connections: string[] }>,
+	blocked: Set<string>
+) {
+	const visited = new Set<string>([...blocked, startId])
+	const queue = [startId]
+	while (queue.length > 0) {
+		const roomId = queue.shift()!
+		if (roomId === targetId) return true
+		const room = rooms.find((candidate) => candidate.id === roomId)!
+		for (const neighborId of room.connections) {
+			if (visited.has(neighborId)) continue
+			visited.add(neighborId)
+			queue.push(neighborId)
+		}
+	}
+	return false
+}
 
 console.log("Room floor generator tests passed")

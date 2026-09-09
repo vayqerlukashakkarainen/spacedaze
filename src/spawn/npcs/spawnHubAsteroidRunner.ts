@@ -34,25 +34,25 @@ const DIALOGUE_ID = "asteroid-ring-attempt"
 const INTRO_LINES: readonly DialogueLine[] = [
 	{
 		speaker: "RING RUNNER",
-		text: "Those asteroid rings have always been there.",
+		text: "Those asteroid rings shielded Drius Wake before the Claim.",
 	},
 	{
 		speaker: "RING RUNNER",
-		text: "Older than this station. Maybe older than Drius.",
+		text: "The mapped gaps died with the village.",
 	},
 	{
 		speaker: "RING RUNNER",
-		text: "No one has ever dared to pass through them.",
+		text: "No one has crossed them since the Federation left.",
 	},
 ]
 const LAUNCH_LINES: readonly DialogueLine[] = [
 	{
 		speaker: "RING RUNNER",
-		text: "But everyone keeps trying to find a way around.",
+		text: "Everyone keeps searching for the old safe lane.",
 	},
 	{
 		speaker: "RING RUNNER",
-		text: "No one has tried going straight through.",
+		text: "The Wake needs a new one.",
 	},
 	{
 		speaker: "RING RUNNER",
@@ -79,7 +79,7 @@ export function spawnHubAsteroidRunner(fieldCenter: ReturnType<typeof k.vec2>) {
 		interactable(
 			INTERACT_RADIUS,
 			startEncounter,
-			INTERACTION_PRIORITY.dialogue
+			INTERACTION_PRIORITY.progressionDialogue
 		),
 		tags.props,
 		tags.gameLoop,

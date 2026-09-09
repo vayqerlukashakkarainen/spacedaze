@@ -1,13 +1,19 @@
 import {
+	addFloorKeys,
 	beginRoomFloor,
 	clearRoomFloor,
 	discoverAllFloorRooms,
 	enterFloorRoom,
 	getCurrentFloorRoom,
+	getFloorKeyCount,
 	getRoomFloorSnapshot,
+	isFloorRoomKeyLocked,
 	markCurrentFloorRoomCleared,
 	markFloorEnemyDefeated,
+	rollCurrentRoomClearKeyDrop,
+	rollFloorEnemyKeyDrop,
 	teleportToFloorRoom,
+	unlockFloorRoomWithKey,
 } from "./roomFloorService"
 import { RewardRarity } from "../types/rewardTypes"
 
@@ -105,6 +111,48 @@ assert(
 assert(
 	jumpOrigin.state === "active",
 	"Leaving an active gravity encounter should preserve its combat state"
+)
+
+const keyFloor = beginRoomFloor(47912, 3, { roomCount: 12 })
+const lockedRoom = keyFloor.rooms.find((room) => room.keyRequired)!
+const lockNeighbor = keyFloor.rooms.find(
+	(room) => lockedRoom.connections.includes(room.id)
+)!
+keyFloor.currentRoomId = lockNeighbor.id
+lockNeighbor.state = "cleared"
+assert(isFloorRoomKeyLocked(lockedRoom.id), "Treasure and shop rooms should begin locked")
+assert(
+	enterFloorRoom(lockedRoom.id) === undefined,
+	"A locked room should block entry"
+)
+assert(
+	unlockFloorRoomWithKey(lockedRoom.id) === false,
+	"A locked room should require a key"
+)
+assert(addFloorKeys(1) === 1, "Picking up a key should increase the floor key count")
+assert(unlockFloorRoomWithKey(lockedRoom.id), "A key should unlock an adjacent room")
+assert(getFloorKeyCount() === 0, "Unlocking a room should consume one key")
+assert(!isFloorRoomKeyLocked(lockedRoom.id), "An unlocked room should stay unlocked")
+assert(
+	enterFloorRoom(lockedRoom.id)?.id === lockedRoom.id,
+	"An unlocked room should be enterable"
+)
+
+const dropFloor = beginRoomFloor(68144, 2, { roomCount: 12 })
+const dropRoom = dropFloor.rooms.find((room) => room.encounter)!
+const dropEnemy = dropRoom.encounter!.enemies[0]
+dropFloor.currentRoomId = dropRoom.id
+rollFloorEnemyKeyDrop(dropEnemy.id)
+assert(dropEnemy.keyDropRolled === true, "Enemy key drops should be rolled once")
+assert(
+	rollFloorEnemyKeyDrop(dropEnemy.id) === false,
+	"An enemy should not roll a second key drop"
+)
+rollCurrentRoomClearKeyDrop()
+assert(dropRoom.keyRewardRolled === true, "Room-clear key drops should be rolled once")
+assert(
+	rollCurrentRoomClearKeyDrop() === false,
+	"A cleared room should not roll a second key drop"
 )
 
 clearRoomFloor()
