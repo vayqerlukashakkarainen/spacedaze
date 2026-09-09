@@ -15,6 +15,7 @@ const projectileObjects: Array<GameObj & { pos: Vec2 }> = []
 const enemyUnitObjects: Array<GameObj & { pos: Vec2 }> = []
 const spatialObjectIndices = new Map<number, number>()
 let registryInitialized = false
+let maxProjectileSweepDistance = 0
 
 const DENSE_INDEX_THRESHOLD = 750
 
@@ -41,9 +42,21 @@ export function rebuildRuntimeSpatialIndex() {
 	ensureSpatialObjectRegistry()
 	projectileObjects.length = 0
 	enemyUnitObjects.length = 0
+	maxProjectileSweepDistance = 0
 	for (let index = 0; index < spatialObjects.length; index++) {
 		const obj = spatialObjects[index]
-		if (obj.is(tags.projectile)) projectileObjects.push(obj)
+		if (obj.is(tags.projectile)) {
+			projectileObjects.push(obj)
+			const previousPos = (obj as GameObj & {
+				previousPos?: Vec2
+			}).previousPos
+			if (previousPos) {
+				maxProjectileSweepDistance = Math.max(
+					maxProjectileSweepDistance,
+					previousPos.dist(obj.pos)
+				)
+			}
+		}
 		if (obj.is(tags.enemy) && obj.is(tags.unit)) enemyUnitObjects.push(obj)
 	}
 	spatialHash.rebuild(spatialObjects)
@@ -53,6 +66,14 @@ export function rebuildRuntimeSpatialIndex() {
 	setPerformanceCounter("spatialCells", spatialHash.activeCellCount)
 	setPerformanceCounter("spatialProjectiles", projectileSpatialHash.size)
 	setPerformanceCounter("spatialEnemyUnits", enemyUnitSpatialHash.size)
+	setPerformanceCounter(
+		"projectileSweepDistance",
+		Math.ceil(maxProjectileSweepDistance)
+	)
+}
+
+export function getMaxProjectileSweepDistance() {
+	return maxProjectileSweepDistance
 }
 
 export function getRuntimeEnemyUnits(): readonly GameObj[] {

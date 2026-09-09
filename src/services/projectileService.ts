@@ -156,6 +156,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 			speed: finalSpeed,
 			dir: config.dir,
 			lifetime: 0,
+			previousPos: config.pos.clone(),
 		},
 		...[...config.tags, tags.projectile, tags.gameLoop],
 	];
@@ -286,7 +287,8 @@ function updateProjectile(proj: GameObj) {
 	const activeGrid = config.ignoreWorldCollision
 		? undefined
 		: gridRegistry.get(ACTIVE_RUN_GRID_KEY);
-	const previousPos = activeGrid ? proj.pos.clone() : undefined;
+	const previousPos = proj.pos.clone();
+	proj.previousPos = previousPos;
 	proj.lifetime += k.dt() * proj.getTimescale();
 	if (config.flashLikeThruster) {
 		proj.opacity = getShipThrusterFlash(k.time())
@@ -347,7 +349,7 @@ function updateProjectile(proj: GameObj) {
 
 	if (!proj.spiralConfig) updateMovement(proj);
 	if (proj.wiggleConfig?.trailPoints) updateWiggleTrail(proj);
-	const wallCollision = activeGrid && previousPos
+	const wallCollision = activeGrid
 		? findSolidCellCollision(activeGrid, previousPos, proj.pos)
 		: undefined;
 	if (wallCollision) {

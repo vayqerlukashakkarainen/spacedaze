@@ -66,7 +66,12 @@ import type { DebreeCollectionState } from "./spawn/spawnDebree";
 import {
 	findSpatialNearby,
 	forEachSpatialNearby,
+	getMaxProjectileSweepDistance,
 } from "./services/runtimeSpatialIndexService";
+import {
+	findSegmentCircleIntersection,
+	type SegmentCircleIntersection,
+} from "./services/projectileCollisionService";
 import {
 	hasEquippedActiveModule,
 	resetActiveModuleCooldown,
@@ -518,13 +523,71 @@ export function checkProjectileIntersection(
 	projectilesWithTag: string,
 	onHit: (p: GameObj<PosComp | RotateComp | any>) => void
 ) {
+	const queryRadius = dist + getMaxProjectileSweepDistance();
 	forEachSpatialNearby(
 		pos,
-		dist,
+		queryRadius,
 		{ allTags: [tags.projectile, projectilesWithTag] },
-		(p) => onHit(p as GameObj<PosComp | RotateComp | any>)
+		(projectile) => {
+			const p = projectile as GameObj<PosComp | RotateComp | any>;
+			const intersection = getProjectileSweepIntersection(p, pos, dist);
+			if (!intersection) return;
+			resolveProjectileSweepHit(p, intersection, () => onHit(p));
+		}
 	);
 }
+
+export function getProjectileSweepIntersection(
+	projectile: GameObj<PosComp | any>,
+	pos: Vec2,
+	dist: number
+) {
+	const start = projectile.activeSweepStartPos ??
+		projectile.previousPos ?? projectile.pos;
+	const end = projectile.activeSweepEndPos ?? projectile.pos;
+	return findSegmentCircleIntersection(start, end, pos, dist);
+}
+
+export function resolveProjectileSweepHit(
+	projectile: GameObj<PosComp | any>,
+	intersection: SegmentCircleIntersection,
+	onHit: () => void
+) {
+	const ownsSweep = !projectile.activeSweepStartPos;
+	if (ownsSweep) {
+		projectile.activeSweepStartPos = (
+			projectile.previousPos ?? projectile.pos
+		).clone();
+		projectile.activeSweepEndPos = projectile.pos.clone();
+	}
+	const positionBeforeHit = projectile.pos.clone();
+	const impactPosition = k.vec2(
+		intersection.point.x,
+		intersection.point.y
+	);
+	const directionBeforeHit = projectile.dir?.clone();
+	const bouncesBeforeHit = projectile.bouncesRemaining;
+	projectile.pos = impactPosition;
+	onHit();
+	if (projectile.exists()) {
+		const directionUnchanged = !directionBeforeHit ||
+			projectile.dir?.dist(directionBeforeHit) < 0.001;
+		const bounceStateUnchanged = projectile.bouncesRemaining ===
+			bouncesBeforeHit;
+		if (
+			projectile.pos.dist(impactPosition) < 0.001 &&
+			directionUnchanged &&
+			bounceStateUnchanged
+		) {
+			projectile.pos = positionBeforeHit;
+		}
+	}
+	if (ownsSweep) {
+		projectile.activeSweepStartPos = undefined;
+		projectile.activeSweepEndPos = undefined;
+	}
+}
+
 export function checkProjectileComponentIntersection(
 	pos: Vec2,
 	dist: number,
@@ -532,22 +595,38 @@ export function checkProjectileComponentIntersection(
 	components: Component[],
 	onHit: (p: GameObj<PosComp | RotateComp | any>, index: number) => void
 ) {
+	const queryRadius = dist + getMaxProjectileSweepDistance();
 	forEachSpatialNearby(
 		pos,
-		dist,
+		queryRadius,
 		{ allTags: [tags.projectile, projectilesWithTag] },
 		(projectile) => {
 			const p = projectile as GameObj<PosComp | RotateComp | any>;
+			let closestIntersection: SegmentCircleIntersection | undefined;
+			let closestComponentIndex = -1;
 			for (let i = 0; i < components.length; i++) {
 				if (components[i].obj.hidden) continue;
 				const componentPos = pos.add(
 					components[i].localPos.rotate(components[i].obj.parent?.angle ?? 0)
 				);
-				if (p.pos.dist(componentPos) < components[i].hitbox) {
-					onHit(p, i);
-					return false;
-				}
+				const intersection = getProjectileSweepIntersection(
+					p,
+					componentPos,
+					components[i].hitbox
+				);
+				if (!intersection) continue;
+				if (
+					closestIntersection &&
+					intersection.progress >= closestIntersection.progress
+				) continue;
+				closestIntersection = intersection;
+				closestComponentIndex = i;
 			}
+			if (!closestIntersection) return;
+			resolveProjectileSweepHit(p, closestIntersection, () => {
+				onHit(p, closestComponentIndex);
+			});
+			return false;
 		}
 	);
 }

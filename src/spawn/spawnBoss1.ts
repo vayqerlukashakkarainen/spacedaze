@@ -2,7 +2,12 @@ import type { GameObj, Vec2 } from "kaplay"
 import { detach } from "../compose"
 import { jitter } from "../comp/jitter"
 import { timescale } from "../comp/timescale"
-import { checkProjectileIntersection, playerObj } from "../game"
+import {
+	checkProjectileIntersection,
+	getProjectileSweepIntersection,
+	playerObj,
+	resolveProjectileSweepHit,
+} from "../game"
 import {
 	BULLET_SPEED,
 	k,
@@ -698,12 +703,26 @@ function resolveBossProjectileHits(
 	checkProjectileIntersection(boss.pos, boss.hb, tags.friendly, (projectile) => {
 		for (const part of parts) {
 			if (!part.isAlive() || !part.obj.exists() || part.obj.hidden) continue
-			if (projectile.pos.dist(part.obj.worldPos) > part.hitbox) continue
-			onEnemyHit(part.obj, projectile)
+			const intersection = getProjectileSweepIntersection(
+				projectile,
+				part.obj.worldPos,
+				part.hitbox
+			)
+			if (!intersection) continue
+			resolveProjectileSweepHit(projectile, intersection, () => {
+				onEnemyHit(part.obj, projectile)
+			})
 			return
 		}
-		if (projectile.pos.dist(boss.pos) <= BODY_HITBOX * boss.baseScale) {
-			onEnemyHit(boss, projectile)
+		const bodyIntersection = getProjectileSweepIntersection(
+			projectile,
+			boss.pos,
+			BODY_HITBOX * boss.baseScale
+		)
+		if (bodyIntersection) {
+			resolveProjectileSweepHit(projectile, bodyIntersection, () => {
+				onEnemyHit(boss, projectile)
+			})
 		}
 	})
 }
