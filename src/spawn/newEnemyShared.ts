@@ -1,13 +1,12 @@
 import type { GameObj } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, subSoundVolume } from "../main"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import { applyDamage } from "../services/damageService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import type { EnemySpawnProfile } from "../services/threatService"
 import { registerHitAnimation } from "../shared"
 import { tags } from "../tags"
-import { randomExplosion } from "../util"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 
 export function handleEnemyCombat(
@@ -48,7 +47,7 @@ export function registerEnemyLifecycle(
 			true,
 			{ tier: profile.elite ? "elite" : "normal" }
 		)
-		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
+		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(enemy)
 	})
 	enemy.onHurt(() => {

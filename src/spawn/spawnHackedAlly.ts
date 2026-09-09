@@ -9,9 +9,12 @@ import { tags } from "../tags"
 import { target } from "../comp/target"
 import { timescale } from "../comp/timescale"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { getCompanionVisual } from "../visuals/companionVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 
 const HACKED_ALLY_LIMIT = 3
 const HACKED_ALLY_DURATION = 12
+const HACKED_ALLY_VISUAL = getCompanionVisual("hacked-ally")
 
 export function trySpawnHackedAlly(pos: Vec2) {
 	if (player.enemyHacker === undefined) return false
@@ -25,10 +28,10 @@ function spawnHackedAlly(pos: Vec2) {
 	const orbitSeed = k.rand(0, 360)
 	const ally = k.add([
 		k.pos(pos),
-		k.sprite("enemy_ship1_body"),
+		k.sprite(requirePrimaryVisualSprite(HACKED_ALLY_VISUAL)),
 		k.anchor("center"),
 		k.rotate(0),
-		k.scale(0.85),
+		k.scale(HACKED_ALLY_VISUAL.worldScale),
 		k.color(80, 210, 255),
 		k.opacity(1),
 		k.health(4),

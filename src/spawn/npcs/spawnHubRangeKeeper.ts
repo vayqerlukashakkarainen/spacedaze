@@ -29,6 +29,8 @@ import { createEnemySpawnProfile } from "../../services/threatService"
 import { jitter } from "../../comp/jitter"
 import { tags } from "../../tags"
 import { createNpcInteractionPrompt } from "../../ui/common"
+import { getEnemyVisual } from "../../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 import { handleEnemyCombat, registerEnemyLifecycle } from "../newEnemyShared"
 import type { HubFiringRange } from "../spawnHubFiringRange"
 
@@ -306,12 +308,13 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 }
 
 function spawnHostileRangeKeeper(pos: ReturnType<typeof k.vec2>, angle: number) {
-	const profile = createEnemySpawnProfile(9, 1, 0.86, {
+	const visual = getEnemyVisual("range-keeper")
+	const profile = createEnemySpawnProfile(9, 1, visual.worldScale, {
 		persistOffscreen: true,
 	})
 	const hostile = k.add([
 		k.pos(pos),
-		k.sprite("hub_ship_range_keeper", { width: 32, height: 32 }),
+		k.sprite(requirePrimaryVisualSprite(visual), { width: 32, height: 32 }),
 		k.anchor("center"),
 		k.rotate(angle),
 		k.scale(profile.scale),

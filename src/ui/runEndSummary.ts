@@ -1,5 +1,5 @@
 import { k, layers, mainSoundVolume } from "../main"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import {
 	getHubLevelDefinition,
 	HUB_FACILITIES,
@@ -362,7 +362,7 @@ function showHubLevelUpSummary(summary: RunEndSummary) {
 	})
 
 	playUiModalOpen(backdrop, panel, { panelPos, backdropOpacity: 0.86 })
-	audioService.playSound("reward_shine_legendary", {
+	gameSoundService.play("reward_shine_legendary", {
 		volume: mainSoundVolume * 0.7,
 	})
 	k.shake(3)

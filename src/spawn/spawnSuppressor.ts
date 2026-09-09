@@ -11,13 +11,17 @@ import { spawnEnemyBlaster } from "../services/projectileHelpers"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
 
+const SUPPRESSOR_VISUAL = getEnemyVisual("suppressor")
+
 export function spawnSuppressor(pos: Vec2, hp = 6, options: EnemySpawnOptions = {}) {
-	const profile = createEnemySpawnProfile(hp, 1, 0.92, options)
+	const profile = createEnemySpawnProfile(hp, 1, SUPPRESSOR_VISUAL.worldScale, options)
 	const suppressor = k.add([
-		k.pos(pos), k.sprite("enemy_suppressor"), k.color(k.WHITE), k.rotate(0),
+		k.pos(pos), k.sprite(requirePrimaryVisualSprite(SUPPRESSOR_VISUAL)), k.color(k.WHITE), k.rotate(0),
 		k.anchor("center"), k.health(profile.hp), k.animate(), k.scale(profile.scale), timescale(),
 		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{ hb: 14 * profile.scale, damage: profile.damage, moveDirection: k.vec2(0, 1), facingDirection: k.vec2(0, 1), fireTimer: k.rand(0.7, 1.4), wideFan: false },

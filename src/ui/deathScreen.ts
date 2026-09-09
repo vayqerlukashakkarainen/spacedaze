@@ -6,7 +6,7 @@ import {
 	HUB_LEVELS,
 } from "../services/hubProgressService"
 import type { RunEndSummary } from "../services/runCompletionService"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import { tags } from "../tags"
 import { uiState } from "./uiState"
 import {
@@ -353,7 +353,7 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 			depositValue.scale = k.vec2(1.1)
 			if (elapsed - lastTickAt >= 0.075 && rawProgress < 1) {
 				lastTickAt = elapsed
-				audioService.playSound("collect1", {
+				gameSoundService.play("collect1", {
 					volume: mainSoundVolume * 0.12,
 					detune: Math.round(k.lerp(-250, 550, rawProgress)),
 				})
@@ -371,7 +371,7 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 			!finished
 		) {
 			finished = true
-			audioService.playSound("purchase1", {
+			gameSoundService.play("purchase1", {
 				volume: mainSoundVolume * 0.7,
 			})
 			if (summary.hub.currentLevel > summary.hub.previousLevel) {
@@ -439,7 +439,7 @@ function playLevelCelebration(
 	burst?.emit(LEVEL_CELEBRATION_PARTICLES)
 
 	k.shake(4)
-	audioService.playSound("high_rarity_reveal", {
+	gameSoundService.play("high_rarity_reveal", {
 		volume: mainSoundVolume * 0.55,
 		detune: level * 80,
 	})

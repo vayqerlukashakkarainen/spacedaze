@@ -12,7 +12,7 @@ import { BURT_TAG } from "../spawn/npcs/spawnHubBurt"
 import { tags } from "../tags"
 import { createNpcInteractionPrompt } from "../ui/common"
 import { HUB_FIRING_RANGE_OFFSET } from "./hubLayoutService"
-import { audioService } from "./audioService"
+import { gameSoundService } from "./gameSoundService"
 import { registerBatchedEntityUpdate } from "./entityUpdateService"
 import {
 	cutsceneActive,
@@ -53,7 +53,6 @@ const dialogueOptions = {
 	advance: "manual" as const,
 	input: "capture" as const,
 	overlayOpacity: 0,
-	accentColor: PROGRESSION_COLOR,
 }
 
 export async function showStrafeTrainingOfferIfNeeded() {
@@ -419,7 +418,7 @@ function spawnStrafeTrainingModule(burt: GameObj<PosComp>) {
 		starsEmitter.emitter.position = collectedAt
 		starsEmitter.emit(36)
 		spawnFlash(collectedAt, 12, k.rgb(100, 220, 255))
-		audioService.playSound("powerup1", {
+		gameSoundService.play("powerup1", {
 			volume: mainSoundVolume * 0.9,
 			detune: 250,
 		})
@@ -487,7 +486,7 @@ function animateBurtEjection(
 			}
 			if (!ejected && progress >= 0.48) {
 				ejected = true
-				audioService.playPositionalSound(
+				gameSoundService.playPositional(
 					"burt_strafe_module_eject",
 					() => burt.exists() ? burt.pos : undefined,
 					{ volume: mainSoundVolume * 0.9, maxDistance: 700 }

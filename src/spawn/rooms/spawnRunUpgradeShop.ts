@@ -19,7 +19,7 @@ import { addAvailableDebree } from "../../services/debreeEconomyService"
 import { getActiveRoomFloor } from "../../services/roomFloorService"
 import { selectRunUpgradeShopOffers } from "../../services/runUpgradeShopService"
 import { getThreatSnapshot } from "../../services/threatService"
-import { audioService } from "../../services/audioService"
+import { gameSoundService } from "../../services/gameSoundService"
 import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 import {
@@ -35,6 +35,8 @@ import {
 } from "../spawnCurrencyBurst"
 import { createNpcInteractionPrompt, UI_COLORS } from "../../ui/common"
 import { tags } from "../../tags"
+import { getCompanionVisual } from "../../visuals/companionVisualCatalog"
+import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 import { spawnRewardPickup } from "../spawnPowerup"
 
 const SHOPKEEPER_DIALOGUE_ID = "void-profit"
@@ -75,10 +77,11 @@ export function spawnRunUpgradeShop(
 }
 
 function spawnRunShopkeeper(pos: Vec2, objectTags: string[]) {
+	const visual = getCompanionVisual("salvager")
 	let talking = false
 	const shopkeeper = k.add([
 		k.pos(pos),
-		k.sprite("drone_salvager", { width: 24, height: 24 }),
+		k.sprite(requirePrimaryVisualSprite(visual), { width: 24, height: 24 }),
 		k.anchor("center"),
 		k.rotate(0),
 		k.color(k.WHITE),
@@ -235,7 +238,7 @@ function spawnShopOffer(
 			spawnCurrencyBurst(pos, {
 				particleCount: purchaseBurstParticleCount(offer.price),
 			})
-			audioService.playSound("purchase1", { volume: mainSoundVolume })
+			gameSoundService.play("purchase1", { volume: mainSoundVolume })
 			if (pickup.exists()) k.destroy(pickup)
 		},
 	})

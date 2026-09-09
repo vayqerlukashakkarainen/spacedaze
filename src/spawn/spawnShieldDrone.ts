@@ -1,7 +1,7 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, layers, subSoundVolume } from "../main"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import { applyDamage } from "../services/damageService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
@@ -16,7 +16,8 @@ import {
 	registerHitAnimation,
 } from "../shared"
 import { tags } from "../tags"
-import { randomExplosion } from "../util"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { DensePool } from "../services/densePool"
@@ -26,6 +27,7 @@ const SHIELD_HOST_ACTION_SPEED_MULTIPLIER = 1.3
 const SHIELD_HOST_DAMAGE_MULTIPLIER = 1.4
 const SHIELD_RETARGET_INTERVAL = 6
 const SHIELD_RETARGET_RADIUS = 280
+const SHIELD_DRONE_VISUAL = getEnemyVisual("shield-drone")
 
 interface ShieldLinkVisual {
 	id: number
@@ -45,10 +47,10 @@ export function spawnShieldDrone(
 	let protectedTarget = initialTarget
 	let targetDestroyController: ReturnType<GameObj["onDestroy"]> | undefined
 	let retargetTimer = SHIELD_RETARGET_INTERVAL
-	const profile = createEnemySpawnProfile(4, 1, 0.72, options)
+	const profile = createEnemySpawnProfile(4, 1, SHIELD_DRONE_VISUAL.worldScale, options)
 	const drone = k.add([
 		k.pos(pos),
-		k.sprite("enemy_shield_drone"),
+		k.sprite(requirePrimaryVisualSprite(SHIELD_DRONE_VISUAL)),
 		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),
@@ -141,7 +143,7 @@ export function spawnShieldDrone(
 			true,
 			{ tier: profile.elite ? "elite" : "normal" }
 		)
-		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
+		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(drone)
 	})
 	drone.onDestroy(() => clearShieldProvider(protectedTarget, drone))

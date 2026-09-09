@@ -9,18 +9,22 @@ import {
 } from "../services/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
+
+const REPAIR_SKIFF_VISUAL = getEnemyVisual("repair-skiff")
 
 export function spawnRepairSkiff(
 	pos: Vec2,
 	hp = 3,
 	options: EnemySpawnOptions = {}
 ) {
-	const profile = createEnemySpawnProfile(hp, 1, 0.72, options)
+	const profile = createEnemySpawnProfile(hp, 1, REPAIR_SKIFF_VISUAL.worldScale, options)
 	const skiff = k.add([
 		k.pos(pos),
-		k.sprite("enemy_repair_skiff"),
+		k.sprite(requirePrimaryVisualSprite(REPAIR_SKIFF_VISUAL)),
 		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),

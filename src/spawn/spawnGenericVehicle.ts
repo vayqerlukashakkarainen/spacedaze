@@ -1,10 +1,9 @@
 import { GameObj, Vec2 } from "kaplay";
 import { checkProjectileIntersection, playerObj } from "../game";
 import { k, subSoundVolume, velocityScale } from "../main";
-import { audioService } from "../services/audioService";
+import { gameSoundService } from "../services/gameSoundService"
 import { starsEmitterDir } from "../particles";
 import { tags } from "../tags";
-import { randomExplosion } from "../util";
 import { registerHitAnimation } from "../shared";
 import { onEnemyHit } from "./enemyShared";
 import { timescale } from "../comp/timescale";
@@ -16,6 +15,9 @@ import {
 	type EnemySpawnOptions,
 } from "../services/threatService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog";
+
+const GENERIC_VEHICLE_VISUAL = getEnemyVisual("generic-vehicle");
 
 export function spawnGenericVehicle(
 	addTo: GameObj<{ killed: number }>,
@@ -25,7 +27,12 @@ export function spawnGenericVehicle(
 	sprite: string,
 	options: EnemySpawnOptions = {}
 ) {
-	const profile = createEnemySpawnProfile(hp, 1, 1, options);
+	const profile = createEnemySpawnProfile(
+		hp,
+		1,
+		GENERIC_VEHICLE_VISUAL.worldScale,
+		options
+	);
 	const hb = 12 * profile.scale;
 	const m = k.add([
 		k.pos(pos),
@@ -83,7 +90,7 @@ export function spawnGenericVehicle(
 		starsEmitterDir.emitter.direction = m.angle + 90;
 
 		starsEmitterDir.emit(20);
-		audioService.playSound(randomExplosion(), { volume: subSoundVolume });
+		gameSoundService.play("enemy_explosion", { volume: subSoundVolume });
 		k.destroy(m);
 
 		addTo.killed += 1;

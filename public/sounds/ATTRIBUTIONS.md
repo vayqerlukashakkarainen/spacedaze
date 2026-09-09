@@ -1,5 +1,15 @@
 # Audio Attributions
 
+## Enemy Blasters
+
+"Laser Gun" by VoiceBosch
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-laser-gun-174976/
+- License: Pixabay Content License
+- Original filename: `voicebosch-laser-gun-174976.mp3`
+- In-game assets: `enemy-blaster-01.wav` through `enemy-blaster-10.wav`
+- The ten shots were separated at the source recording's silent gaps, trimmed, converted to mono WAV, given short edge fades, and loudness-normalized for randomized enemy fleet fire.
+
 ## Light Metal Hit
 
 "Metal Hit 95" by floraphonic
@@ -237,6 +247,15 @@
 - License: Pixabay Content License
 - Original filename: `dragon-studio-heavy-door-unlocking-515258.mp3`
 - In-game asset: `room-cleared.mp3`
+
+## Hostile Phase Arrival
+
+"Sci-fi Portal Jump 04" by DRAGON-STUDIO
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-sci-fi-portal-jump-04-416161/
+- License: Pixabay Content License
+- In-game asset: `hostile-phase-arrival.mp3`
+- Playback is shared across a hostile fleet so simultaneous arrivals do not stack the sound.
 
 ## Thruster Overclock
 

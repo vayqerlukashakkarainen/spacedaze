@@ -6,7 +6,7 @@ import { spawnRing } from "../spawn/spawnRing"
 import { tags } from "../tags"
 import { applyDamage } from "./damageService"
 import { forEachSpatialNearby } from "./runtimeSpatialIndexService"
-import { audioService } from "./audioService"
+import { gameSoundService } from "./gameSoundService"
 
 const SAW_ORBIT_RADIUS = 42
 const SAW_DAMAGE = 3
@@ -157,7 +157,7 @@ function updateNearMissCapacitor(playerObj: GameObj<PosComp>) {
 					maxRadius: 24,
 					color: k.rgb(80, 180, 255),
 				})
-				audioService.playSound("rail_lance_ready", {
+				gameSoundService.play("rail_lance_ready", {
 					volume: mainSoundVolume * 0.28,
 					detune: phaseCounterCharge * 45,
 				})
@@ -196,7 +196,7 @@ export function consumePhaseCounterMultiplier(projectile: GameObj) {
 		color: k.rgb(90, 200, 255),
 	})
 	spawnFlash(projectile.pos.clone(), 7, k.rgb(90, 200, 255))
-	audioService.playSound("powerup1", {
+	gameSoundService.play("powerup1", {
 		volume: mainSoundVolume * 0.32,
 		detune: 160,
 	})
@@ -215,7 +215,7 @@ export function triggerTacticalUplinkFeedback(position: Vec2) {
 		color: k.WHITE,
 	})
 	spawnFlash(position.clone(), 6, k.WHITE)
-	audioService.playSound("hit2", {
+	gameSoundService.play("hit2", {
 		volume: mainSoundVolume * 0.22,
 		detune: 220,
 	})
@@ -254,7 +254,7 @@ export function triggerResonanceCoil(
 		color: k.WHITE,
 	})
 	spawnFlash(projectile.pos.clone(), 12, k.WHITE)
-	audioService.playSound("crit1", {
+	gameSoundService.play("crit1", {
 		volume: mainSoundVolume * 0.55,
 		detune: -120,
 	})
@@ -272,7 +272,7 @@ export function triggerWreckHarvesterFeedback(position: Vec2) {
 		maxRadius: 26,
 		color: k.rgb(100, 200, 255),
 	})
-	audioService.playSound("powerup1", {
+	gameSoundService.play("powerup1", {
 		volume: mainSoundVolume * 0.24,
 		detune: -80,
 	})

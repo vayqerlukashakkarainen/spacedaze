@@ -2,7 +2,7 @@ import { Vec2 } from "kaplay";
 import { ASTEROID_SPRITES } from "../asteroidSprites";
 import { checkProjectileIntersection, playerObj } from "../game";
 import { dtScaled, k, mainSoundVolume, velocityScale } from "../main";
-import { audioService } from "../services/audioService";
+import { gameSoundService } from "../services/gameSoundService"
 import { registerHitAnimation } from "../shared";
 import { tags } from "../tags";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
@@ -17,6 +17,7 @@ import {
 import { spawnDebree } from "./spawnDebree";
 import { spawnExplosionEffect } from "./spawnFlash";
 import { spawnRerollTokenPickup } from "./spawnPowerup";
+import { getPickupVisual } from "../visuals/pickupVisualCatalog";
 
 export type CrateTier = "normal" | "golden";
 
@@ -39,6 +40,7 @@ const GOLDEN_DEBREE_MAX_SPEED = 100;
 export function spawnCrate(props: Props) {
 	const tier = props.tier ?? "normal";
 	const golden = tier === "golden";
+	const visual = getPickupVisual(golden ? "golden-crate" : "crate");
 	const spriteName = ASTEROID_SPRITES[
 		Math.floor(k.rand(0, ASTEROID_SPRITES.length))
 	];
@@ -48,7 +50,7 @@ export function spawnCrate(props: Props) {
 			width: 24,
 			height: 24,
 		}),
-		k.scale(golden ? 1.2 : 1),
+		k.scale(visual.worldScale),
 		k.rotate(0),
 		k.anchor("center"),
 		k.health(props.hp),
@@ -156,7 +158,7 @@ export function spawnCrate(props: Props) {
 				particleCount: 28,
 			});
 			k.shake(5);
-			audioService.playPositionalSound("golden_crate_destroyed", deathPos, {
+			gameSoundService.playPositional("golden_crate_destroyed", deathPos, {
 				volume: mainSoundVolume,
 			});
 		} else {
@@ -167,7 +169,7 @@ export function spawnCrate(props: Props) {
 				"enemy",
 				false
 			);
-			audioService.playPositionalSound("explosion4", deathPos, {
+			gameSoundService.playPositional("explosion4", deathPos, {
 				volume: mainSoundVolume,
 			});
 		}

@@ -13,6 +13,7 @@ import {
 	splitSalvageValue,
 	type SalvagePickupValue,
 } from "../services/salvagePickupService";
+import { SALVAGE_PICKUP_VISUALS } from "../visuals/pickupVisualCatalog";
 
 export interface DebreeCollectionState {
 	elapsed: number;
@@ -32,32 +33,6 @@ export interface DebreeSpawnOptions {
 	maxSpeed?: number;
 	tags?: string[];
 }
-
-const debreeTiers: Record<
-	DebreeValue,
-	{ sprite: string; color: [number, number, number]; scale: number }
-> = {
-	1: {
-		sprite: "salvage_shard",
-		color: [255, 255, 255],
-		scale: 0.6,
-	},
-	3: {
-		sprite: "salvage_plate",
-		color: [70, 180, 255],
-		scale: 0.7,
-	},
-	5: {
-		sprite: "salvage_core",
-		color: [255, 225, 70],
-		scale: 0.8,
-	},
-	10: {
-		sprite: "salvage_reactor_fragment",
-		color: [190, 75, 255],
-		scale: 0.95,
-	},
-};
 
 export function spawnDebree(
 	pos: Vec2,
@@ -82,7 +57,7 @@ export function spawnDebreeValues(
 	const angleStep = values.length > 0 ? 360 / values.length : 0;
 	for (let index = 0; index < values.length; index++) {
 		const salvageValue = values[index];
-		const tier = debreeTiers[salvageValue];
+		const tier = SALVAGE_PICKUP_VISUALS[salvageValue];
 		const dir = options.pattern === "radial"
 			? k.Vec2.fromAngle(
 				radialStartAngle + angleStep * index + k.rand(-angleStep * 0.18, angleStep * 0.18)
@@ -90,11 +65,11 @@ export function spawnDebreeValues(
 			: k.rand(k.vec2(-1, -1), k.vec2(1, 1));
 		const d = k.add([
 			k.pos(pos.add(dir.scale(options.pattern === "radial" ? k.rand(2, 8) : 0))),
-			k.sprite(tier.sprite),
+			k.sprite(tier.parts[0].sprite),
 			k.anchor("center"),
 			k.animate({ relative: true }),
 			k.rotate(k.rand(360)),
-			k.scale(tier.scale),
+			k.scale(tier.worldScale),
 			k.color(...tier.color),
 			k.opacity(1),
 			{

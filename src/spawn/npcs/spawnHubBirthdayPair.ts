@@ -7,6 +7,7 @@ import {
 	type DroidId,
 } from "../../npcs/droidRegistry"
 import { audioService } from "../../services/audioService"
+import { gameSoundService } from "../../services/gameSoundService"
 import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
 import type { DialogueLine } from "../../services/dialogService"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
@@ -238,7 +239,7 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 				{
 					type: "action",
 					run() {
-						birthdaySong = audioService.playPositionalSound(
+						birthdaySong = gameSoundService.playPositional(
 							"birthday_upbeat",
 							() => jubilee.exists() ? jubilee.pos : undefined,
 							{

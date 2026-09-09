@@ -1,9 +1,8 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileIntersection, playerObj } from "../game";
 import { k, mainSoundVolume, velocityScale } from "../main";
-import { audioService } from "../services/audioService";
+import { gameSoundService } from "../services/gameSoundService"
 import { tags } from "../tags";
-import { randomExplosion } from "../util";
 import { registerHitAnimation } from "../shared";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
 import {
@@ -15,6 +14,9 @@ import { applyDamage } from "../services/damageService";
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import { setHitSoundProfile } from "../services/hitSoundService";
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog";
+
+const HEAVY_VEHICLE_VISUAL = getEnemyVisual("heavy-vehicle");
 
 export function spawnHeavyVehicle(
 	pos: Vec2,
@@ -23,7 +25,12 @@ export function spawnHeavyVehicle(
 	sprite: string,
 	options: EnemySpawnOptions = {}
 ) {
-	const profile = createEnemySpawnProfile(hp, 1, 1, options);
+	const profile = createEnemySpawnProfile(
+		hp,
+		1,
+		HEAVY_VEHICLE_VISUAL.worldScale,
+		options
+	);
 	const hb = 12 * profile.scale;
 	const m = k.add([
 		k.pos(pos),
@@ -82,7 +89,7 @@ export function spawnHeavyVehicle(
 			true,
 			{ tier: profile.elite ? "elite" : "normal" }
 		);
-		audioService.playSound(randomExplosion(), { volume: mainSoundVolume });
+		gameSoundService.play("enemy_explosion", { volume: mainSoundVolume });
 		k.destroy(m);
 	});
 

@@ -1,7 +1,7 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileIntersection } from "../../game";
 import { dt, k, layers, mainSoundVolume } from "../../main";
-import { audioService } from "../../services/audioService";
+import { gameSoundService } from "../../services/gameSoundService"
 import { explosionEmitter } from "../../particles";
 import { tags } from "../../tags";
 import { registerHitAnimation } from "../../shared";
@@ -9,6 +9,10 @@ import { showDamageNumber } from "../../services/damageService";
 import { tryBounceProjectile } from "../../services/projectileService";
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService";
 import { spawnThreatEncounter } from "../../services/enemyEncounterService";
+import { getWorldVisual } from "../../visuals/worldVisualCatalog";
+import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation";
+
+const DAMAGE_SHRINE_VISUAL = getWorldVisual("damage-shrine");
 
 interface DamageShrineProps {
 	pos: Vec2;
@@ -24,9 +28,9 @@ export function spawnDamageShrine(props: DamageShrineProps) {
 	let activated = false;
 	const shrine = k.add([
 		k.pos(props.pos),
-		k.sprite("shrine_damage"),
+		k.sprite(requirePrimaryVisualSprite(DAMAGE_SHRINE_VISUAL)),
 		k.anchor("center"),
-		k.scale(1.5),
+		k.scale(DAMAGE_SHRINE_VISUAL.worldScale),
 		k.opacity(1),
 		k.animate(),
 		{
@@ -91,7 +95,7 @@ export function spawnDamageShrine(props: DamageShrineProps) {
 			}
 
 			// Play hit sound
-			audioService.playSound("hit1", { volume: mainSoundVolume });
+			gameSoundService.play("hit1", { volume: mainSoundVolume });
 
 			if (!tryBounceProjectile(p, shrine)) k.destroy(p);
 		});
@@ -107,7 +111,7 @@ export function spawnDamageShrine(props: DamageShrineProps) {
 			explosionEmitter.emit(30);
 
 			// Play sound
-			audioService.playSound("powerup1", { volume: mainSoundVolume });
+			gameSoundService.play("powerup1", { volume: mainSoundVolume });
 			props.onComplete?.(shrine.pos.clone());
 
 			// Destroy shrine

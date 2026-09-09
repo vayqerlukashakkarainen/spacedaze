@@ -7,6 +7,7 @@ import {
 	velocityScale,
 } from "../main";
 import { audioService } from "./audioService";
+import { gameSoundService } from "./gameSoundService"
 import { timescale } from "../comp/timescale";
 import { pickUnitInDistance, playerObj, projectiles } from "../game";
 import { tags } from "../tags";
@@ -99,9 +100,10 @@ import {
 import { getTacticalUplinkHullThreshold } from "./tacticalUplinkService";
 import { recoverPlayerHealth } from "./playerHealthService";
 import { getPlayerTargetLock } from "./playerTargetLockService";
+import { PROJECTILE_VISUALS } from "../visuals/projectileVisualCatalog";
 
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
-const PLAYER_PROJECTILE_SCALE = 0.7;
+const PLAYER_PROJECTILE_SCALE = PROJECTILE_VISUALS.player.worldScale;
 const KNOCKBACK_PUSH_DURATION = 0.32;
 const KNOCKBACK_FULL_STEER_STRENGTH = 60;
 let projectileUpdateController: GameObj | undefined;
@@ -125,7 +127,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	const damagesDestructibleWalls = config.tags.includes(tags.friendly);
 	const projectileScale = damagesDestructibleWalls
 		? PLAYER_PROJECTILE_SCALE * (config.visualScale ?? 1)
-		: 1;
+		: PROJECTILE_VISUALS.enemy.worldScale * (config.visualScale ?? 1);
 
 	// Build component list
 	const components: any[] = [
@@ -199,7 +201,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 
 	// Play fire sound
 	if (config.fireSound) {
-		audioService.playPositionalSound(config.fireSound, proj.pos, {
+		gameSoundService.playPositional(config.fireSound, proj.pos, {
 			volume: mainSoundVolume * (config.fireSoundVolume ?? 1),
 			detune: config.fireSoundDetune,
 		});

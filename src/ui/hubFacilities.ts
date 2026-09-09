@@ -1238,6 +1238,7 @@ function renderMobilityAndUltimateAbilities(
 	bottom: number,
 	requestedPage: number,
 	onPageChange: (page: number) => void,
+	render: () => void,
 	newBlueprintKeys: ReadonlySet<string>
 ) {
 	const groups = [
@@ -1464,7 +1465,6 @@ function renderArsenal(
 	bottom: number,
 	requestedPage: number,
 	onPageChange: (page: number) => void,
-	render: () => void,
 	newBlueprintKeys: ReadonlySet<string>
 ) {
 	const pageSize = 6

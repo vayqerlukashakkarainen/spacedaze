@@ -16,21 +16,24 @@ import {
 } from "../services/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
 import { drawLightning } from "../services/lightningVisualService"
 
 const TETHER_RANGE = 230
+const TETHER_DRONE_VISUAL = getEnemyVisual("tether-drone")
 
 export function spawnTetherDrone(
 	pos: Vec2,
 	hp = 4,
 	options: EnemySpawnOptions = {}
 ) {
-	const profile = createEnemySpawnProfile(hp, 1, 0.78, options)
+	const profile = createEnemySpawnProfile(hp, 1, TETHER_DRONE_VISUAL.worldScale, options)
 	const drone = k.add([
 		k.pos(pos),
-		k.sprite("enemy_tether_drone"),
+		k.sprite(requirePrimaryVisualSprite(TETHER_DRONE_VISUAL)),
 		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),

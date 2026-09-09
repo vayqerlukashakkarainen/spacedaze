@@ -1,4 +1,5 @@
 import { RewardRarity } from "../types/rewardTypes"
+import type { SoundCueId } from "../audio/soundCueCatalog"
 import {
 	equipAbility,
 	getEquippedPrimaryAbilityId,
@@ -65,7 +66,7 @@ export interface WeaponDefinition {
 	name: string
 	description: string
 	icon: string
-	fireSound?: string
+	fireSound?: SoundCueId
 	fireSoundVolume?: number
 	fireSoundDetune?: number
 	explosionSoundPool?: ExplosionSoundPoolId

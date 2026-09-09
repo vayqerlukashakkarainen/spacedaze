@@ -29,6 +29,7 @@ import {
 	randomExplosionSound,
 	type ExplosionSoundPoolId,
 } from "./services/explosionSoundPoolService";
+import { loadAudioAssets } from "./audio/soundCatalog"
 
 const SAVE_VERSION = 2;
 const LEGACY_SAVE_KEYS = [
@@ -233,7 +234,6 @@ export async function init(k: KAPLAYCtx) {
 		"foliage_crystal_grass",
 		"sprites/bg/foliage/foliage-crystal-grass.png"
 	);
-	await k.loadSprite("enemy_ship1", "sprites/enemy_ship1.png");
 	await k.loadSprite("bike1", "sprites/bike1.png");
 	await k.loadSprite("enemy_rammer", "sprites/enemies/rammer.png");
 	await k.loadSprite("enemy_sniper", "sprites/enemies/sniper.png");
@@ -555,144 +555,7 @@ export async function init(k: KAPLAYCtx) {
 	)
 	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
 
-	await k.loadSound("shoot1", "sounds/shoot1.wav");
-	await k.loadSound(
-		"weapon_standard_blaster_fire",
-		"sounds/standard-blaster.wav"
-	);
-	await k.loadSound("weapon_twin_needle_fire", "sounds/twin-needle.wav")
-	await k.loadSound("weapon_plasma_mortar_fire", "sounds/plasma-mortar-fire.wav")
-	await k.loadSound(
-		"weapon_plasma_mortar_explosion",
-		"sounds/plasma-mortar-explosion.mp3"
-	)
-	await k.loadSound(
-		"weapon_plasma_explosion_gearpile",
-		"sounds/plasma-explosion-gearpile.mp3"
-	)
-	await k.loadSound(
-		"weapon_plasma_explosion_flashtrauma",
-		"sounds/plasma-explosion-flashtrauma.mp3"
-	)
-	await k.loadSound("weapon_scatter_array", "sounds/laser-shoot-2.wav");
-	await k.loadSound("weapon_burst_driver", "sounds/burst-driver.mp3");
-	await k.loadSound("rammer_launch", "sounds/rammer-launch.wav");
-	await k.loadSound("lay_mine", "sounds/lay-mine.wav");
-	await k.loadSound(
-		"active_module_carrier_launch",
-		"sounds/active-module-carrier-launch.ogg"
-	)
-	await k.loadSound("target_lock", "sounds/target-lock.wav")
-	await k.loadSound("fire_rocket1", "sounds/rocket_fire1.wav");
-
-	await k.loadSound("explosion1", "sounds/explosion1.wav");
-	await k.loadSound("explosion2", "sounds/explosion2.wav");
-	await k.loadSound("explosion3", "sounds/explosion3.wav");
-	await k.loadSound("explosion4", "sounds/explosion4.wav");
-	await k.loadSound("hit1", "sounds/hit1.wav");
-	await k.loadSound("hit2", "sounds/hit2.wav");
-	await k.loadSound("hit_light_metal", "sounds/light-metal-hit.wav")
-	await k.loadSound("asteroid_impact_1", "sounds/asteroid-impact-1.ogg")
-	await k.loadSound("asteroid_impact_2", "sounds/asteroid-impact-2.ogg")
-	await k.loadSound("asteroid_impact_3", "sounds/asteroid-impact-3.ogg")
-	await k.loadSound("asteroid_destroyed", "sounds/asteroid-destroyed.ogg")
-	await k.loadSound("player_hit1", "sounds/player_hit1.wav");
-	await k.loadSound("player_game_over", "sounds/game-over-arcade.mp3");
-	await k.loadSound("low_health_warning", "sounds/low-health-warning.mp3");
-	await k.loadSound("collect1", "sounds/collect1.wav");
-	await k.loadSound("salvage_pickup", "sounds/salvage-pickup.mp3");
-	await k.loadSound("click1", "sounds/click.wav");
-	await k.loadSound("ui_hover", "sounds/ui-hover.wav");
-	await k.loadSound("ui_click", "sounds/ui-click.wav");
-	await k.loadSound("text_print", "sounds/text-print.wav");
-	await k.loadSound("system_error", "sounds/system-error.mp3");
-	await k.loadSound(
-		"dialogue_scramble",
-		"sounds/scrambled-telecommunications.mp3"
-	);
-	await k.loadSound("purchase", "sounds/purchase.wav");
-	await k.loadSound("error", "sounds/error.wav");
-	await k.loadSound(
-		"empty_secondary_error",
-		"sounds/empty-secondary-error.mp3"
-	);
-	await k.loadSound("purchase1", "sounds/purchase1.wav");
-	await k.loadSound("powerup1", "sounds/powerup1.wav");
-	await k.loadSound("rail_lance_charge", "sounds/rail-lance-charge.wav")
-	await k.loadSound("rail_lance_ready", "sounds/rail-lance-ready.wav")
-	await k.loadSound("primary_weapon_charge", "sounds/primary-weapon-charge.wav")
-	await k.loadSound("weapon_rail_lance_fire", "sounds/rail-lance-fire.wav")
-	await k.loadSound("run_level_up", "sounds/run-level-up.mp3")
-	await k.loadSound("room_cleared", "sounds/room-cleared.mp3")
-	await k.loadSound("crit1", "sounds/crit1.wav");
-	await k.loadSound("slowdown", "sounds/slowdown.wav");
-	await k.loadSound("going_fast", "sounds/going-fast.wav")
-	await k.loadSound("mobility_phase_jump", "sounds/phase-jump.wav")
-	await k.loadSound("swap_level", "sounds/swap_level.wav");
-	await k.loadSound(
-		"menu_spacejump_warp",
-		"sounds/menu-spacejump-warp.mp3"
-	);
-	await k.loadSound(
-		"player_arrival_impact",
-		"sounds/player-arrival-impact.mp3"
-	);
-	await k.loadSound("warp_landing_bass", "sounds/extreme-bass.wav")
-	await k.loadSound(
-		"hyperspeed_jump_start",
-		"sounds/hyperspeed-jump-start.mp3"
-	);
-	await k.loadSound(
-		"hyperspeed_travel",
-		"sounds/hyperspeed-travel.mp3"
-	);
-	await k.loadSound("wormhole_rampup", "sounds/wormhole-rampup.mp3");
-	await k.loadSound("wormhole_ambience", "sounds/wormhole-ambience.mp3");
-	await k.loadSound("burt_repair_hammer", "sounds/burt-repair-hammer.mp3")
-	await k.loadSound("burt_repair_tool", "sounds/burt-repair-tool.mp3")
-	await k.loadSound(
-		"burt_strafe_module_eject",
-		"sounds/burt-strafe-module-eject.mp3"
-	)
-	await k.loadSound(
-		"secret_cavern_reveal",
-		"sounds/secret-cavern-reveal.mp3"
-	);
-	await k.loadSound("reward_riser_epic", "sounds/reward-riser-epic.mp3");
-	await k.loadSound(
-		"reward_riser_legendary",
-		"sounds/reward-riser-legendary.mp3"
-	);
-	await k.loadSound(
-		"reward_shine_legendary",
-		"sounds/reward-shine-legendary.mp3"
-	);
-	await k.loadSound(
-		"high_rarity_reveal",
-		"sounds/high-rarity-reveal.mp3"
-	);
-	await k.loadSound(
-		"perfect_chest_open",
-		"sounds/perfect-chest-open.mp3"
-	);
-	await k.loadSound("shop_menu_open", "sounds/shop-menu-open.mp3");
-	await k.loadSound("shop_menu_close", "sounds/shop-menu-close.mp3");
-	await k.loadSound(
-		"golden_crate_destroyed",
-		"sounds/golden-crate-destroyed.mp3"
-	);
-	await k.loadSound(
-		"birthday_upbeat",
-		"sounds/birthday-upbeat-preview.mp3"
-	)
-
-	await k.loadMusic("arcadia", "songs/arcadia.mp3");
-	await k.loadMusic(
-		"flirtFlirtOhItHurts",
-		"songs/flirt-flirt-oh-it-hurts.mp3"
-	);
-	await k.loadMusic("hub", "songs/hub.mp3");
-	await k.loadMusic("burts_recovery", "songs/burts-recovery.mp3")
+	await loadAudioAssets(k)
 
 	k.loadShader(
 		"wormholeLighting",
@@ -840,18 +703,21 @@ export async function init(k: KAPLAYCtx) {
 		`
 	);
 
-	await k.loadSprite(
-		"enemy_ship1_left_wing",
-		"sprites/ships/enemy1/enemy_ship1_left_wing.png"
-	);
-	await k.loadSprite(
-		"enemy_ship1_right_wing",
-		"sprites/ships/enemy1/enemy_ship1_right_wing.png"
-	);
-	await k.loadSprite(
-		"enemy_ship1_body",
-		"sprites/ships/enemy1/enemy_ship1_body.png"
-	);
+	const modularEnemySprites = [
+		["enemy_fighter_core", "sprites/enemies/fighter/fighter-core.png"],
+		["enemy_fighter_left_wing", "sprites/enemies/fighter/fighter-left-wing.png"],
+		["enemy_fighter_right_wing", "sprites/enemies/fighter/fighter-right-wing.png"],
+		...(["standard", "talon", "carapace", "needle"] as const).flatMap(
+			(chassis) => (["core", "left-wing", "right-wing", "weapon"] as const)
+				.map((part) => [
+					`enemy_hunter_${chassis}_${part.replace("-", "_")}`,
+					`sprites/enemies/hunter/hunter-${chassis}-${part}.png`,
+				] as const)
+		),
+	] as const;
+	for (const [name, path] of modularEnemySprites) {
+		await k.loadSprite(name, path);
+	}
 	await k.loadSprite(
 		"run_rock_high",
 		"sprites/terrain/run-rock-high-atlas.png",

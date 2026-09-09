@@ -13,8 +13,11 @@ import {
 } from "../main"
 import { tags } from "../tags"
 import { audioService } from "./audioService"
+import { gameSoundService } from "./gameSoundService"
 import { showDialogue } from "./dialogService"
 import { showEmotion } from "./emotionService"
+import { getCompanionVisual } from "../visuals/companionVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import {
 	clearPrologueTrace,
 	tracePrologue,
@@ -41,9 +44,9 @@ const HUB_REPAIR_PART_OFFSETS = [
 ] as const
 const HUB_REPAIR_SMOKE_OFFSETS = [-8, 0, 8] as const
 const PART_SPRITES = [
-	"enemy_ship1_left_wing",
-	"enemy_ship1_right_wing",
-	"enemy_ship1_body",
+	"enemy_fighter_left_wing",
+	"enemy_fighter_right_wing",
+	"enemy_fighter_core",
 	"particle3",
 	"particle4",
 ] as const
@@ -247,7 +250,7 @@ export async function playBattlefieldRecovery() {
 	tracePrologue("portal:charge-start", {
 		duration: WORMHOLE_CHARGE_DURATION,
 	})
-	audioService.playSound("wormhole_rampup", {
+	gameSoundService.play("wormhole_rampup", {
 		volume: mainSoundVolume * 0.9,
 	})
 	await animatePortalCharge(portal, WORMHOLE_CHARGE_DURATION, generation)
@@ -417,9 +420,10 @@ export function cancelPrologueRecoverySequence() {
 }
 
 function spawnBurt(pos: Vec2) {
+	const visual = getCompanionVisual("burt")
 	return k.add([
 		k.pos(pos),
-		k.sprite("companion_burt"),
+		k.sprite(requirePrimaryVisualSprite(visual)),
 		k.anchor("center"),
 		k.rotate(0),
 		horizontalDirectionalVisual({
@@ -427,7 +431,7 @@ function spawnBurt(pos: Vec2) {
 			initialFacing: "left",
 			maxLean: 8,
 		}),
-		k.scale(1),
+		k.scale(visual.worldScale),
 		k.opacity(1),
 		k.color(k.WHITE),
 		k.layer(layers.game),
@@ -487,7 +491,7 @@ async function installShipParts(
 	if (!isCurrent(generation)) return
 
 	const smoke = spawnRepairSmoke(repairPosition)
-	const hammer = audioService.playSound("burt_repair_hammer", {
+	const hammer = gameSoundService.play("burt_repair_hammer", {
 		volume: mainSoundVolume,
 		loop: true,
 	})
@@ -503,7 +507,7 @@ async function installShipParts(
 			if (toolPlayed || progress < 0.38) return
 			toolPlayed = true
 			tracePrologue("hub:repair-tool-play")
-			audioService.playSound("burt_repair_tool", {
+			gameSoundService.play("burt_repair_tool", {
 				volume: mainSoundVolume * 0.9,
 			})
 		})

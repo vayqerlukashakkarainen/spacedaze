@@ -51,7 +51,7 @@ export function spawnHighway(props: Props) {
 	});
 }
 
-const sprites = ["enemy_ship1", "bike1"];
+const sprites = ["enemy_hunter_standard_core", "bike1"];
 function randomVehicle() {
 	return sprites[Math.floor(k.rand(0, sprites.length))];
 }

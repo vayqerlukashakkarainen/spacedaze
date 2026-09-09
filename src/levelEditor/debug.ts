@@ -7,6 +7,7 @@ import {
 } from "../services/frameProfilerService";
 import { getPerformanceBenchmarkStatus } from "../services/performanceBenchmarkService";
 import { UI_FONT_SIZES } from "../ui/common";
+import { audioService } from "../services/audioService"
 
 let debugVisible = false;
 let debugLabels: {
@@ -96,6 +97,10 @@ export function updateDebug() {
 		const measuredUpdateCpu = rootUpdate + externalUpdateCpu;
 		const frameRemainder = Math.max(0, snapshot.frameAverage - measuredUpdateCpu);
 		const benchmark = getPerformanceBenchmarkStatus();
+		const audioVoices = audioService.getVoiceStats()
+		const busiestAudio = audioVoices.busiestActive
+			.map((sound) => `${sound.id}:${sound.voices}`)
+			.join(" ") || "none"
 		debugLabels.performance.text = [
 			`FPS ${Math.round(k.debug.fps())}  Draws ${k.debug.drawCalls()}  Objects ${k.debug.numObjects()}`,
 			`Frame avg ${formatMs(snapshot.frameAverage)}  p95 ${formatMs(snapshot.frameP95)}`,
@@ -106,6 +111,7 @@ export function updateDebug() {
 			`Phases move ${formatMs(snapshot.sections["phase:movement"] ?? 0)}  spatial ${formatMs(snapshot.sections["phase:spatialIndex"] ?? 0)}  collision ${formatMs(snapshot.sections["phase:collision"] ?? 0)}`,
 			`Spatial objects ${snapshot.counters.spatialObjects ?? 0}  cells ${snapshot.counters.spatialCells ?? 0}`,
 			`Enemy FX ${snapshot.counters.enemyFxEmitted ?? 0}/${snapshot.counters.enemyFxRequested ?? 0}  culled ${snapshot.counters.enemyFxCulled ?? 0}  cadence ${snapshot.counters.enemyFxCadence ?? 1}`,
+			`Audio voices ${audioVoices.active} current / ${audioVoices.peak} peak  positional ${audioVoices.activePositional}/${audioVoices.peakPositional}  active ${busiestAudio}`,
 			`Enemies ${objectStats.enemies}  Projectiles ${objectStats.projectiles}`,
 			`Debris ${objectStats.debris}  Run map ${objectStats.runMap}`,
 			`UI objects ${objectStats.ui}  Areas ${objectStats.areas}  Hit regions ${snapshot.counters.uiPointerRegions ?? 0}  Masks ${objectStats.masks}`,

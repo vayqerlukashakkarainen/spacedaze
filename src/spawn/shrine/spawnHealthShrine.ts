@@ -7,8 +7,11 @@ import {
 } from "../../services/localLightService"
 import { tags } from "../../tags"
 import { spawnHealthOrb } from "../spawnHealthOrb"
+import { getWorldVisual } from "../../visuals/worldVisualCatalog"
+import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 
-const HEALTH_SHRINE_SCALE = 1.5
+const HEALTH_SHRINE_VISUAL = getWorldVisual("health-shrine")
+const HEALTH_SHRINE_SCALE = HEALTH_SHRINE_VISUAL.worldScale
 const HEALTH_ORB_COUNT = 3
 const HEALTH_ORB_RADIUS = 46
 const TRAINING_ORB_RESPAWN_DELAY = 1.4
@@ -24,7 +27,7 @@ interface HealthShrineProps {
 export function spawnHealthShrine(props: HealthShrineProps) {
 	const shrine = k.add([
 		k.pos(props.pos),
-		k.sprite("shrine_health"),
+		k.sprite(requirePrimaryVisualSprite(HEALTH_SHRINE_VISUAL)),
 		k.anchor("center"),
 		k.scale(HEALTH_SHRINE_SCALE),
 		k.color(k.WHITE),

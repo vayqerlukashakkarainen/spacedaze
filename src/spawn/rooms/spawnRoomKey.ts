@@ -7,12 +7,14 @@ import {
 	addLocalLight,
 	updateLocalLight,
 } from "../../services/localLightService"
-import { audioService } from "../../services/audioService"
+import { gameSoundService } from "../../services/gameSoundService"
 import { tags } from "../../tags"
 import { UI_COLORS } from "../../ui/common"
 import { showPopover } from "../../services/popoverService"
 import { spawnFlash } from "../spawnFlash"
 import { spawnRing } from "../spawnRing"
+import { getPickupVisual } from "../../visuals/pickupVisualCatalog"
+import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 
 const KEY_LAUNCH_DURATION = 0.5
 const KEY_PICKUP_RADIUS = 24
@@ -21,6 +23,7 @@ export function spawnRoomKeyPickup(
 	pos: Vec2,
 	objectTags: string[] = [tags.runMap, tags.runRoom]
 ) {
+	const visual = getPickupVisual("room-key")
 	const start = pos.clone()
 	const direction = k.Vec2.fromAngle(k.rand(205, 335))
 	const end = start.add(direction.scale(k.rand(28, 44)))
@@ -28,10 +31,10 @@ export function spawnRoomKeyPickup(
 	let collected = false
 	const pickup = k.add([
 		k.pos(start),
-		k.sprite("room_phase_key", { width: 24, height: 24 }),
+		k.sprite(requirePrimaryVisualSprite(visual), { width: 24, height: 24 }),
 		k.anchor("center"),
 		k.rotate(k.rand(360)),
-		k.scale(0.45),
+		k.scale(visual.worldScale),
 		k.color(k.WHITE),
 		k.outline(1, k.rgb(...UI_COLORS.warning)),
 		k.layer(layers.game),
@@ -98,7 +101,7 @@ export function spawnRoomKeyPickup(
 			visualize: true,
 			color: k.rgb(...UI_COLORS.warning),
 		})
-		audioService.playSound("powerup1", {
+		gameSoundService.play("powerup1", {
 			volume: mainSoundVolume * 0.7,
 			detune: 220,
 		})

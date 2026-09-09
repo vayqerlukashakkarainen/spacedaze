@@ -44,7 +44,7 @@ export interface PositionalSoundOptions extends SoundOptions {
 	voiceLimit?: number | false;
 }
 
-type PositionProvider = Vec2 | (() => Vec2 | undefined);
+export type PositionProvider = Vec2 | (() => Vec2 | undefined);
 
 interface SpatialSound {
 	source: () => Vec2 | undefined;
@@ -61,6 +61,15 @@ interface AudioSettings {
 	muted: boolean;
 }
 
+export interface AudioVoiceStats {
+	active: number
+	activePositional: number
+	peak: number
+	peakPositional: number
+	busiestActive: { id: string; voices: number }[]
+	busiestPeak: { id: string; voices: number }[]
+}
+
 const AUDIO_SETTINGS_KEY = "spacedaze_audio_settings";
 const playingSounds: PlayingSound[] = [];
 let currentMusic: AudioPlay | null = null;
@@ -74,6 +83,9 @@ let pendingMusic: PendingMusic | null = null;
 let audioUnlockListening = false;
 let audioUnlocked = false;
 let positionalAudioElapsed = 0;
+let peakSoundVoices = 0
+let peakPositionalSoundVoices = 0
+const peakVoicesBySound = new Map<string, number>()
 
 const AUDIO_UNLOCK_EVENTS = ["pointerdown", "keydown", "touchstart"] as const;
 const POSITIONAL_AUDIO_UPDATE_INTERVAL = 1 / 30;
@@ -272,6 +284,7 @@ function playTrackedSound(
 	sound.audio.speed = baseSpeed * audioPlaybackSpeed();
 	updatePlayingSound(sound, true);
 	playingSounds.push(sound);
+	recordVoicePeaks(soundId)
 	if (spatial) ensurePositionalAudioUpdate();
 
 	audio.onEnd(() => {
@@ -283,6 +296,29 @@ function playTrackedSound(
 	});
 
 	return audio;
+}
+
+function recordVoicePeaks(soundId: string) {
+	peakSoundVoices = Math.max(peakSoundVoices, playingSounds.length)
+	peakPositionalSoundVoices = Math.max(
+		peakPositionalSoundVoices,
+		playingSounds.filter((sound) => sound.spatial).length
+	)
+	const activeForSound = playingSounds.filter((sound) => sound.id === soundId).length
+	peakVoicesBySound.set(
+		soundId,
+		Math.max(peakVoicesBySound.get(soundId) ?? 0, activeForSound)
+	)
+}
+
+function soundVoiceCounts() {
+	const counts = new Map<string, number>()
+	for (const sound of playingSounds) {
+		counts.set(sound.id, (counts.get(sound.id) ?? 0) + 1)
+	}
+	return [...counts.entries()]
+		.map(([id, voices]) => ({ id, voices }))
+		.sort((a, b) => b.voices - a.voices || a.id.localeCompare(b.id))
 }
 
 function createSpatialSound(
@@ -637,6 +673,27 @@ export const audioService = {
 
 	getCurrentMusic(): AudioPlay | null {
 		return currentMusic;
+	},
+
+	getVoiceStats(): AudioVoiceStats {
+		return {
+			active: playingSounds.length,
+			activePositional: playingSounds.filter((sound) => sound.spatial).length,
+			peak: peakSoundVoices,
+			peakPositional: peakPositionalSoundVoices,
+			busiestActive: soundVoiceCounts().slice(0, 3),
+			busiestPeak: [...peakVoicesBySound.entries()]
+				.map(([id, voices]) => ({ id, voices }))
+				.sort((a, b) => b.voices - a.voices || a.id.localeCompare(b.id))
+				.slice(0, 3),
+		}
+	},
+
+	resetVoicePeaks() {
+		peakSoundVoices = playingSounds.length
+		peakPositionalSoundVoices = playingSounds.filter((sound) => sound.spatial).length
+		peakVoicesBySound.clear()
+		for (const sound of playingSounds) recordVoicePeaks(sound.id)
 	},
 };
 

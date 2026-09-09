@@ -20,7 +20,7 @@ import {
 	getRecoveryOffers,
 	RecoveryOffer,
 } from "../services/runInventoryService"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import {
 	playShopMenuCloseSound,
 	playShopMenuOpenSound,
@@ -264,7 +264,7 @@ function purchaseOffer(offer: RecoveryOffer) {
 	})
 
 	consumeRecoveryOffer(offer.id)
-	audioService.playSound("purchase1", { volume: mainSoundVolume })
+	gameSoundService.play("purchase1", { volume: mainSoundVolume })
 	renderRecoveryShop(false)
 }
 

@@ -78,6 +78,32 @@ darker sprite or lower it for a brighter one.
 
 ## Conversion
 
+### Palette simplification
+
+Use the local palette simplifier when the generated sprite already has the right
+canvas, scale, and silhouette. It removes hue without cropping or resizing, uses
+binary transparency to remove antialiased edge pixels, and quantizes luminance to
+eight gray shades by default:
+
+```sh
+npm run art:simplify -- input.png output.png
+```
+
+The optional final arguments select the number of gray levels and the alpha cutoff:
+
+```sh
+npm run art:simplify -- input.png output.png 2 128
+npm run art:simplify -- input.png output.png 8 128
+npm run art:simplify -- input.png output.png 256 128
+```
+
+Use two levels for strict black and white, eight for a restrained shaded source,
+or 256 for literal 8-bit grayscale. The converter is deterministic and preserves
+the input dimensions. Use `art:prepare` below when the source also needs fitting
+onto a new logical pixel grid.
+
+### Grid preparation
+
 The deterministic converter may also be run directly without ML:
 
 ```sh

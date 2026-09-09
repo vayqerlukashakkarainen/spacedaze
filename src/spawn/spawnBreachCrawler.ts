@@ -9,13 +9,17 @@ import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
 
+const BREACH_CRAWLER_VISUAL = getEnemyVisual("breach-crawler")
+
 export function spawnBreachCrawler(pos: Vec2, hp = 8, options: EnemySpawnOptions = {}) {
-	const profile = createEnemySpawnProfile(hp, 1, 0.92, options)
+	const profile = createEnemySpawnProfile(hp, 1, BREACH_CRAWLER_VISUAL.worldScale, options)
 	const crawler = k.add([
-		k.pos(pos), k.sprite("enemy_breach_crawler"), k.color(k.WHITE), k.rotate(0),
+		k.pos(pos), k.sprite(requirePrimaryVisualSprite(BREACH_CRAWLER_VISUAL)), k.color(k.WHITE), k.rotate(0),
 		k.anchor("center"), k.health(profile.hp), k.animate(), k.scale(profile.scale), timescale(),
 		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{

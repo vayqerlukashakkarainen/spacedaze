@@ -1,6 +1,6 @@
 import { playerObj, checkProjectileIntersection } from "../game";
 import { dt, k, layers, mainSoundVolume, velocityScale } from "../main";
-import { audioService } from "../services/audioService";
+import { gameSoundService } from "../services/gameSoundService"
 import { starsEmitter } from "../particles";
 import { player } from "../player";
 import { PowerupKey } from "../powerups";
@@ -33,6 +33,7 @@ import {
 	addLocalLight,
 	updateLocalLight,
 } from "../services/localLightService";
+import { getPickupVisual } from "../visuals/pickupVisualCatalog";
 
 interface RarityFeedback {
 	tier: number;
@@ -45,7 +46,7 @@ interface RarityFeedback {
 	soundDetune: number;
 }
 
-const REWARD_PICKUP_SCALE = 0.7;
+const REWARD_PICKUP_SCALE = getPickupVisual("reward").worldScale;
 const REWARD_PICKUP_LABEL_SIZE = 7;
 const POWERUP_PICKUP_VOLUME = 0.8;
 
@@ -307,7 +308,7 @@ export function spawnRewardPickup(
 		const powerupPos = m.pos.clone();
 		starsEmitter.emitter.position = powerupPos;
 		starsEmitter.emit(feedback.pickupParticles);
-		audioService.playSound("powerup1", {
+		gameSoundService.play("powerup1", {
 			volume: mainSoundVolume * POWERUP_PICKUP_VOLUME,
 			detune: feedback.soundDetune,
 		});

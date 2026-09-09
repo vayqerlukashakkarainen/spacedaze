@@ -8,12 +8,10 @@ import {
 	Vec2,
 } from "kaplay";
 import { k, mainSoundVolume } from "./main";
-import { audioService } from "./services/audioService";
+import { gameSoundService } from "./services/gameSoundService";
 import { registerHitAnimation } from "./shared";
 import { starsEmitter } from "./particles";
 import { spawnDebree } from "./spawn/spawnDebree";
-import { randomExplosion } from "./util";
-import { unitComponents } from "./spawn/spawnShip1";
 import { JitterComp } from "./comp/jitter";
 import { enemyOnDeath } from "./spawn/enemyShared";
 import { RewardSource } from "./services/rewardService";
@@ -32,6 +30,7 @@ interface Compose {
 	parts: Part[];
 	rewardSource?: Exclude<RewardSource, "crate">;
 	rewardMultiplier?: number;
+	skipDefaultBodyDeath?: boolean;
 	onBodyDeath?: () => void;
 }
 
@@ -41,6 +40,8 @@ export interface Component {
 	hitbox: number;
 	isBody: boolean;
 }
+
+export const unitComponents: Record<number, Component[]> = {};
 
 export function compose(c: Compose): Component[] {
 	const composed: Component[] = [];
@@ -55,20 +56,24 @@ export function compose(c: Compose): Component[] {
 		});
 
 		part.obj.onDeath(() => {
-			const pos = part.isBody ? part.obj.pos : body!.obj.pos.sub(part.obj.pos);
+			const pos = part.isBody
+				? part.obj.pos
+				: body!.obj.pos.add(part.obj.pos.rotate(body!.obj.angle));
 
 			spawnDebree(pos, part.scoreOnDestroy);
-			audioService.playSound(randomExplosion(), { volume: mainSoundVolume });
+			gameSoundService.play("enemy_explosion", { volume: mainSoundVolume });
 
 			if (part.isBody) {
 				delete unitComponents[part.obj.id!];
 				k.destroy(part.obj);
-				enemyOnDeath(
-					part.obj.pos,
-					10 * (c.rewardMultiplier ?? 1),
-					c.rewardMultiplier ?? 1,
-					c.rewardSource
-				);
+				if (!c.skipDefaultBodyDeath) {
+					enemyOnDeath(
+						part.obj.pos,
+						10 * (c.rewardMultiplier ?? 1),
+						c.rewardMultiplier ?? 1,
+						c.rewardSource
+					);
+				}
 				c.onBodyDeath?.();
 				return;
 			}

@@ -3,7 +3,7 @@ import { timescale } from "../comp/timescale"
 import { getShipThrusterFlash } from "../comp/shipThruster"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, layers, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import { applyDamage } from "../services/damageService"
 import { createCadencedSystem } from "../services/cadencedSystemService"
 import { createContinuousSystem } from "../services/continuousSystemService"
@@ -21,7 +21,8 @@ import {
 	registerHitAnimation,
 } from "../shared"
 import { tags } from "../tags"
-import { randomExplosion } from "../util"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { DensePool } from "../services/densePool"
 import { spawnEnemyDeathEffect } from "./spawnEnemyDeathEffect"
@@ -53,8 +54,8 @@ export interface SwarmEnemyBehavior {
 const MINIMUM_COORDINATED_SWARM = 5
 const RECRUIT_RADIUS = 640
 const STAGING_DISTANCE = 185
-const SWARM_DRONE_BASE_SCALE = 0.5
-const SWARM_HIVEMIND_BASE_SCALE = 0.72
+const SWARM_DRONE_VISUAL = getEnemyVisual("swarm-drone")
+const SWARM_HIVEMIND_VISUAL = getEnemyVisual("hivemind")
 const SWARM_TURN_RESPONSE = 4.5
 const SWARM_CHARGE_TURN_RESPONSE = 9
 const HIVEMIND_TURN_RESPONSE = 3.5
@@ -192,15 +193,20 @@ export function spawnSwarmEnemy(
 	hiveMind?: GameObj,
 	behavior: SwarmEnemyBehavior = {}
 ) {
-	const profile = createEnemySpawnProfile(hp, 1, 1, options)
-	const spriteScale = profile.scale * SWARM_DRONE_BASE_SCALE
+	const profile = createEnemySpawnProfile(
+		hp,
+		1,
+		SWARM_DRONE_VISUAL.worldScale,
+		options
+	)
+	const spriteScale = profile.scale
 	const initialTarget = playerObj.pos.sub(pos)
 	const initialDirection = initialTarget.len() > 0
 		? initialTarget.unit()
 		: k.vec2(0, -1)
 	const enemy = k.add([
 		k.pos(pos),
-		k.sprite("enemy_swarm_drone"),
+		k.sprite(requirePrimaryVisualSprite(SWARM_DRONE_VISUAL)),
 		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),
@@ -271,7 +277,7 @@ export function spawnSwarmEnemy(
 				particleScale: 0.35,
 			}
 		)
-		audioService.playSound(randomExplosion(), { volume: subSoundVolume * 0.25 })
+		gameSoundService.play("enemy_explosion", { volume: subSoundVolume * 0.25 })
 		k.destroy(enemy)
 		behavior.onDeath?.()
 	})
@@ -452,11 +458,16 @@ export function spawnHiveMind(
 	pos: Vec2,
 	options: EnemySpawnOptions = {}
 ) {
-	const profile = createEnemySpawnProfile(9, 1, 1, options)
-	const spriteScale = profile.scale * SWARM_HIVEMIND_BASE_SCALE
+	const profile = createEnemySpawnProfile(
+		9,
+		1,
+		SWARM_HIVEMIND_VISUAL.worldScale,
+		options
+	)
+	const spriteScale = profile.scale
 	const hive = k.add([
 		k.pos(pos),
-		k.sprite("enemy_swarm_hivemind"),
+		k.sprite(requirePrimaryVisualSprite(SWARM_HIVEMIND_VISUAL)),
 		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),
@@ -562,7 +573,7 @@ export function spawnHiveMind(
 			true,
 			{ tier: profile.elite ? "elite" : "normal" }
 		)
-		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
+		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(hive)
 	})
 	hive.onDestroy(releaseSwarm)
@@ -628,7 +639,7 @@ function updateHivePhase(hive: GameObj) {
 				.add(hive.chargeDirection.scale(165))
 				.add(perpendicular.scale(lane))
 		})
-		audioService.playSound("shoot1", { volume: mainSoundVolume * 0.7 })
+		gameSoundService.play("shoot1", { volume: mainSoundVolume * 0.7 })
 		return
 	}
 	if (hive.phase === "charge" && hive.phaseTimer >= 1.35) {

@@ -9,21 +9,24 @@ import {
 } from "../services/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
 import { spawnGravityPull } from "./spawnGravityPull"
 
 const FIELD_RADIUS = 165
+const GRAVITY_WARDEN_VISUAL = getEnemyVisual("gravity-warden")
 
 export function spawnGravityWarden(
 	pos: Vec2,
 	hp = 6,
 	options: EnemySpawnOptions = {}
 ) {
-	const profile = createEnemySpawnProfile(hp, 1, 0.9, options)
+	const profile = createEnemySpawnProfile(hp, 1, GRAVITY_WARDEN_VISUAL.worldScale, options)
 	const warden = k.add([
 		k.pos(pos),
-		k.sprite("enemy_gravity_warden"),
+		k.sprite(requirePrimaryVisualSprite(GRAVITY_WARDEN_VISUAL)),
 		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),

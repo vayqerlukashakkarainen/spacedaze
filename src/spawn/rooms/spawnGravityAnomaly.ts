@@ -4,10 +4,13 @@ import { tags } from "../../tags"
 import { spawnGravityPull } from "../spawnGravityPull"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 import { spawnDecorativeWormhole } from "../spawnLevel"
+import { getWorldVisual } from "../../visuals/worldVisualCatalog"
+import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 
 const GRAVITY_PURPLE = [174, 112, 255] as const
 const SHRINE_OFFSET_Y = -6
 const WORMHOLE_OFFSET_Y = -18
+const GRAVITY_ANOMALY_VISUAL = getWorldVisual("gravity-anomaly-shrine")
 
 interface GravityAnomalyProps {
 	pos: Vec2
@@ -70,9 +73,9 @@ export function spawnGravityAnomaly(props: GravityAnomalyProps) {
 	])
 	const core = k.add([
 		k.pos(props.pos.add(0, SHRINE_OFFSET_Y)),
-		k.sprite("shrine_gravity"),
+		k.sprite(requirePrimaryVisualSprite(GRAVITY_ANOMALY_VISUAL)),
 		k.anchor("center"),
-		k.scale(1.5),
+		k.scale(GRAVITY_ANOMALY_VISUAL.worldScale),
 		k.color(195, 175, 255),
 		k.layer(layers.buildings),
 		tags.props,

@@ -12,7 +12,7 @@ import {
 	velocityScale,
 } from "../main"
 import { starsEmitter } from "../particles"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import { registerBossEncounter } from "../services/bossEncounterService"
 import { getBossDefinition } from "../services/bossRegistry"
 import { applyDamage } from "../services/damageService"
@@ -25,7 +25,7 @@ import { spawnProjectile } from "../services/projectileService"
 import { ENEMY_THREAT_RANK } from "../services/threatService"
 import { registerHitAnimation } from "../shared"
 import { tags } from "../tags"
-import { randomExplosion } from "../util"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { spawnGravityPull } from "./spawnGravityPull"
 
@@ -33,11 +33,9 @@ const BODY_HITBOX = 62
 const BATTERY_HITBOX = 19
 const CROWN_HITBOX = 17
 const CLAIMKEEPER_ATTACK_TAG = "claimkeeperAttack"
-const CLAIMKEEPER_BODY_SPRITES = [
-	"boss1_body",
-	"boss1_body_phase2",
-	"boss1_body_phase3",
-] as const
+const DREADNOUGHT_VISUAL = getEnemyVisual("federation-dreadnought")
+const CLAIMKEEPER_BODY_SPRITES = DREADNOUGHT_VISUAL.phaseSprites ??
+	DREADNOUGHT_VISUAL.parts.map((part) => part.sprite)
 
 type DreadnoughtState =
 	| "entry"
@@ -70,6 +68,7 @@ export function spawnBoss1(
 	options: BossOptions = {}
 ) {
 	const definition = getBossDefinition("federation-dreadnought")
+	const worldScale = DREADNOUGHT_VISUAL.worldScale * scale
 	const batteryOffset = k.vec2(43, 2)
 	const crownOffset = k.vec2(0, -34)
 	const muzzleOffset = k.vec2(0, -22)
@@ -84,13 +83,13 @@ export function spawnBoss1(
 		k.health(hp),
 		k.animate(),
 		k.opacity(options.skipEntry ? 1 : 0),
-		k.scale(scale),
+		k.scale(worldScale),
 		jitter(),
 		timescale(),
 		{
-			hb: BODY_HITBOX * scale,
+			hb: BODY_HITBOX * worldScale,
 			threatRank: ENEMY_THREAT_RANK.boss,
-			baseScale: scale,
+			baseScale: worldScale,
 			combatState: (options.skipEntry ? "recover" : "entry") as DreadnoughtState,
 			stateTimer: 0,
 			recoveryDuration: options.skipEntry ? 1.5 : 1.2,
@@ -186,17 +185,17 @@ export function spawnBoss1(
 	const targetableParts: TargetableBossPart[] = [
 		{
 			obj: leftBattery,
-			hitbox: BATTERY_HITBOX * scale,
+			hitbox: BATTERY_HITBOX * worldScale,
 			isAlive: () => leftBatteryAlive,
 		},
 		{
 			obj: rightBattery,
-			hitbox: BATTERY_HITBOX * scale,
+			hitbox: BATTERY_HITBOX * worldScale,
 			isAlive: () => rightBatteryAlive,
 		},
 		{
 			obj: crown,
-			hitbox: CROWN_HITBOX * scale,
+			hitbox: CROWN_HITBOX * worldScale,
 			isAlive: () => crownAlive,
 		},
 	]
@@ -244,7 +243,7 @@ export function spawnBoss1(
 				},
 			}
 		)
-		audioService.playPositionalSound(
+		gameSoundService.playPositional(
 			"wormhole_rampup",
 			() => boss.exists() ? boss.pos : undefined,
 			{ volume: mainSoundVolume * 0.28, voiceLimit: 1 }
@@ -273,7 +272,7 @@ export function spawnBoss1(
 		attackRing.pos = crownOffset.clone()
 		attackRing.scale = k.vec2(0.2)
 		attackRing.opacity = 0.85
-		audioService.playPositionalSound(
+		gameSoundService.playPositional(
 			"wormhole_ambience",
 			() => crown.exists() ? crown.worldPos : undefined,
 			{ volume: mainSoundVolume * 0.22, voiceLimit: 1 }
@@ -288,7 +287,7 @@ export function spawnBoss1(
 		attackRing.pos = k.vec2(0, 0)
 		attackRing.scale = k.vec2(0.12)
 		attackRing.opacity = 0.95
-		audioService.playPositionalSound(
+		gameSoundService.playPositional(
 			"wormhole_rampup",
 			() => boss.exists() ? boss.pos : undefined,
 			{ volume: mainSoundVolume * 0.36, detune: 220, voiceLimit: 1 }
@@ -338,7 +337,7 @@ export function spawnBoss1(
 			boss.use(k.sprite(CLAIMKEEPER_BODY_SPRITES[phaseIndex]))
 			boss.attackCycle = 0
 			if (phaseIndex === 0 || boss.combatState === "entry") return
-			spawnBossPhasePulse(boss.pos, scale, phaseIndex)
+			spawnBossPhasePulse(boss.pos, worldScale, phaseIndex)
 			boss.jitter(7 + phaseIndex * 3)
 			k.shake(3 + phaseIndex * 2)
 			enterRecovery(0.9)
@@ -349,17 +348,17 @@ export function spawnBoss1(
 	leftBattery.onDeath(() => {
 		if (!leftBatteryAlive) return
 		leftBatteryAlive = false
-		destroyBossPart(leftBattery, "boss1_blaster", boss, hp, scale)
+		destroyBossPart(leftBattery, "boss1_blaster", boss, hp, worldScale)
 	})
 	rightBattery.onDeath(() => {
 		if (!rightBatteryAlive) return
 		rightBatteryAlive = false
-		destroyBossPart(rightBattery, "boss1_blaster", boss, hp, scale)
+		destroyBossPart(rightBattery, "boss1_blaster", boss, hp, worldScale)
 	})
 	crown.onDeath(() => {
 		if (!crownAlive) return
 		crownAlive = false
-		destroyBossPart(crown, "boss1_head", boss, hp, scale)
+		destroyBossPart(crown, "boss1_head", boss, hp, worldScale)
 		if (
 			boss.combatState === "tractorCharge" ||
 			boss.combatState === "tractorPull"
@@ -430,7 +429,7 @@ export function spawnBoss1(
 						boss.lockedDirection.angle() + spread
 					)
 					spawnClaimkeeperProjectile(
-						boss.pos.add(direction.scale(30 * scale)),
+						boss.pos.add(direction.scale(30 * worldScale)),
 						direction,
 						boss.damage,
 						0.92,
@@ -526,7 +525,7 @@ export function spawnBoss1(
 			false,
 			{ intensity: 4.5, starCount: 90 }
 		)
-		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
+		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(boss)
 	})
 	boss.onHurt(() => {
@@ -722,7 +721,7 @@ function destroyBossPart(
 	detach(worldPos, sprite, 75 * scale)
 	starsEmitter.emitter.position = worldPos
 	starsEmitter.emit(28)
-	audioService.playSound(randomExplosion(), { volume: subSoundVolume * 0.9 })
+	gameSoundService.play("enemy_explosion", { volume: subSoundVolume * 0.9 })
 	boss.jitter(10)
 	k.shake(5)
 	if (boss.exists() && boss.hp > 0) {

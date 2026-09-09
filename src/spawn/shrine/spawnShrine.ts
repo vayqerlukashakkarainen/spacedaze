@@ -1,7 +1,7 @@
 import { Vec2 } from "kaplay";
 import { playerObj } from "../../game";
 import { dt, k, layers, mainSoundVolume } from "../../main";
-import { audioService } from "../../services/audioService";
+import { gameSoundService } from "../../services/gameSoundService"
 import { explosionEmitter } from "../../particles";
 import { tags } from "../../tags";
 import { spawnThreatEncounter } from "../../services/enemyEncounterService";
@@ -12,8 +12,11 @@ import {
 	updateLocalLight,
 } from "../../services/localLightService";
 import { spawnRing } from "../spawnRing";
+import { getWorldVisual } from "../../visuals/worldVisualCatalog";
+import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation";
 
-const SHRINE_VISUAL_SCALE = 1.5;
+const SHRINE_VISUAL = getWorldVisual("capture-shrine");
+const SHRINE_VISUAL_SCALE = SHRINE_VISUAL.worldScale;
 
 interface ShrineProps {
 	pos: Vec2;
@@ -34,7 +37,7 @@ interface ShrineProps {
 export function spawnShrine(props: ShrineProps) {
 	const shrine = k.add([
 		k.pos(props.pos),
-		k.sprite("shrine_capture"),
+		k.sprite(requirePrimaryVisualSprite(SHRINE_VISUAL)),
 		k.anchor("center"),
 		k.layer(layers.buildings),
 		k.scale(SHRINE_VISUAL_SCALE),
@@ -209,7 +212,7 @@ export function spawnShrine(props: ShrineProps) {
 			]);
 
 			// Play sound
-			audioService.playSound("powerup1", { volume: mainSoundVolume });
+			gameSoundService.play("powerup1", { volume: mainSoundVolume });
 			props.onComplete?.(shrine.pos.clone());
 		}
 	});
@@ -268,7 +271,7 @@ export function spawnShrine(props: ShrineProps) {
 			visualOpacity: 0.72,
 			outlineWidth: 3,
 		});
-		audioService.playSound("error", { volume: mainSoundVolume * 0.45 });
+		gameSoundService.play("error", { volume: mainSoundVolume * 0.45 });
 		props.onExpired?.(shrine.pos.clone());
 	}
 

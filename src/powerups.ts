@@ -13,7 +13,7 @@ import {
 	spawnFollower,
 } from "./spawn/spawnFollower";
 import { spawnRing } from "./spawn/spawnRing";
-import { audioService } from "./services/audioService";
+import { gameSoundService } from "./services/gameSoundService"
 import { upgradeService } from "./services/upgradeService";
 import { tags } from "./tags";
 
@@ -64,7 +64,7 @@ export const powerups = {
 		setTimescale(0.3, 0.3);
 
 		// Play slowdown sound (3A: Audio cue)
-		audioService.playSound("slowdown", { volume: mainSoundVolume });
+		gameSoundService.play("slowdown", { volume: mainSoundVolume });
 
 		// Spawn ring from powerup position (3A & 4A)
 		spawnRing({

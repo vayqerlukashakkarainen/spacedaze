@@ -90,6 +90,7 @@ import {
 	starsEmitter,
 } from "../particles";
 import { audioService } from "../services/audioService";
+import { gameSoundService } from "../services/gameSoundService"
 import { randomExplosion, saveGame } from "../util";
 import { spawnThreatEncounter } from "../services/enemyEncounterService";
 import { spawnGravityPull } from "../spawn/spawnGravityPull";
@@ -627,7 +628,7 @@ function setupDestructibleWalls(
 				grid.setCell(cavern.entrance, CellType.Empty);
 				refreshRunMapWallTopology?.(cavern.entrance);
 				spawnDestructibleWallBreakEffects(grid, cavern.entrance, seed);
-				audioService.playPositionalSound(
+				gameSoundService.playPositional(
 					"secret_cavern_reveal",
 					grid.hexToScreen(cavern.entrance),
 					{

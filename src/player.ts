@@ -12,6 +12,7 @@ import {
 	BASE_PLAYER_HEALTH,
 	GLASS_REACTOR_HEALTH,
 } from "./services/playerHealthBalance";
+import { PLAYER_VISUAL } from "./visuals/playerVisualCatalog";
 
 interface Ship {
 	speed: number;
@@ -139,7 +140,7 @@ interface Session {
 	rerollTokens: number;
 }
 
-export const PLAYER_SCALE = 1;
+export const PLAYER_SCALE = PLAYER_VISUAL.worldScale;
 
 export function getPlayerMaxHealth() {
 	return player.glassReactor !== undefined

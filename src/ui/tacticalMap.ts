@@ -16,6 +16,8 @@ import {
 import { quickJumpToClearedRoom } from "../levels/roomFloorRuntime"
 import { activeLevelKey } from "../levels/levels"
 import { k, layers } from "../main"
+import { getPickupVisual } from "../visuals/pickupVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import type {
 	RoomFloor,
 	RoomFloorKind,
@@ -241,7 +243,7 @@ export function showTacticalMap() {
 			k.z(20),
 		])
 		marker.add([
-			k.sprite("room_phase_key", { width: 16, height: 16 }),
+			k.sprite(requirePrimaryVisualSprite(getPickupVisual("room-key")), { width: 16, height: 16 }),
 			k.anchor("center"),
 			k.color(...UI_COLORS.warning),
 		])

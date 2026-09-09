@@ -48,6 +48,7 @@ import {
 } from "./shared";
 import { tags } from "./tags";
 import { audioService } from "./services/audioService";
+import { gameSoundService } from "./services/gameSoundService"
 import { loopService } from "./services/loopService";
 import { profileSection } from "./services/frameProfilerService";
 import {
@@ -86,6 +87,11 @@ import { spawnAfterburnerWake } from "./spawn/spawnAfterburnerWake";
 import { spawnEnemyDeathEffect } from "./spawn/spawnEnemyDeathEffect";
 import { spawnFlash } from "./spawn/spawnFlash";
 import { spawnRing } from "./spawn/spawnRing";
+import {
+	PLAYER_DIRECTIONAL_SPRITES,
+	PLAYER_VISUAL,
+} from "./visuals/playerVisualCatalog";
+import { requirePrimaryVisualSprite } from "./visuals/visualRepresentation";
 import { spawnEmpDischarge } from "./spawn/spawnEmpDischarge"
 import {
 	resetPlayerDamageState,
@@ -208,16 +214,6 @@ const weaponSwitchLabelOffset = 25
 const weaponSwitchLabelFadeInDuration = 0.06
 const weaponSwitchLabelHoldDuration = 0.18
 const weaponSwitchLabelFadeOutDuration = 0.24
-const PLAYER_SHIP_DIRECTION_SPRITES = [
-	"ship",
-	"ship_north_east",
-	"ship_east",
-	"ship_south_east",
-	"ship_south",
-	"ship_south_west",
-	"ship_west",
-	"ship_north_west",
-] as const
 let currentMoveSpeed = 0;
 let currentCameraScale = 1;
 let currentCameraPos: Vec2 | undefined;
@@ -335,7 +331,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 					? respawnStart
 					: respawnTarget
 		),
-		k.sprite("ship_root"),
+		k.sprite(requirePrimaryVisualSprite(PLAYER_VISUAL)),
 		k.color(k.WHITE),
 		k.rotate(respawnTransitionActive ? respawnAngle : 0),
 		k.scale(
@@ -361,7 +357,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	]);
 	let playerHullDirection = getPlayerShipDirectionIndex(playerObj.angle)
 	const playerHullObj = playerObj.add([
-		k.sprite(PLAYER_SHIP_DIRECTION_SPRITES[playerHullDirection]),
+		k.sprite(PLAYER_DIRECTIONAL_SPRITES[playerHullDirection]),
 		k.anchor("center"),
 		k.rotate(-playerHullDirection * 45),
 		k.color(k.WHITE),
@@ -372,7 +368,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	playerHullObj.onUpdate(() => {
 		const nextDirection = getPlayerShipDirectionIndex(playerObj.angle)
 		if (nextDirection !== playerHullDirection) {
-			playerHullObj.use(k.sprite(PLAYER_SHIP_DIRECTION_SPRITES[nextDirection]))
+			playerHullObj.use(k.sprite(PLAYER_DIRECTIONAL_SPRITES[nextDirection]))
 			playerHullDirection = nextDirection
 		}
 		// Cancel only the selected frame's baked angle. The parent keeps the
@@ -432,13 +428,13 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	const thruster = addShipThruster(playerObj, playerObj.height / 2 - 2)
 	let overclockWasActive = false
 	const thrusterOverdriveState = createThrusterOverdriveState()
-	let overclockSound: AudioPlay | undefined
+	let overclockSound: AudioPlay | null | undefined
 	const stopOverclockSound = () => {
 		if (!overclockSound) return
 		audioService.stopSound(overclockSound, "overclock-ended")
 		overclockSound = undefined
 	}
-	let lowHealthWarningSound: AudioPlay | undefined
+	let lowHealthWarningSound: AudioPlay | null | undefined
 	let lowHealthWarningActive = false
 	let lowHealthFlashTimer = 0
 	let lowHealthFlashGeneration = 0
@@ -465,7 +461,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		}
 		lowHealthWarningActive = true
 		if (!lowHealthWarningSound) {
-			lowHealthWarningSound = audioService.playSound("low_health_warning", {
+			lowHealthWarningSound = gameSoundService.play("low_health_warning", {
 				volume: mainSoundVolume * 0.55,
 				loop: true,
 			})
@@ -543,7 +539,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	let primaryChargeWeaponId = "";
 	let nextPrimaryChargeParticleAt = 0;
 	let primaryChargeReadySoundPlayed = false;
-	let primaryChargeSound: AudioPlay | undefined;
+	let primaryChargeSound: AudioPlay | null | undefined;
 	let primaryChargeSoundSpeed = 0;
 	const stopPrimaryChargeSound = () => {
 		if (!primaryChargeSound) return;
@@ -602,7 +598,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		strafeTargetMarker = undefined
 		if (!nextTarget) return
 		strafeTargetMarker = spawnStrafeTargetMarker(nextTarget.pos)
-		audioService.playSound("target_lock", {
+		gameSoundService.play("target_lock", {
 			volume: mainSoundVolume * 0.7,
 		})
 	}
@@ -672,7 +668,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			getCarriedDebree(),
 			narrativePrologueActive()
 		);
-		audioService.playSound("explosion1", { volume: mainSoundVolume });
+		gameSoundService.play("explosion1", { volume: mainSoundVolume });
 		beginPlayerDeathSequence();
 	});
 	playerObj.onDestroy(() => {
@@ -781,7 +777,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 				);
 				spawnFlash(muzzlePos, 5, chargeColor);
 				spawnPlayerReadinessFlash(playerObj, chargeColor);
-				audioService.playSound("rail_lance_ready", {
+				gameSoundService.play("rail_lance_ready", {
 					volume: mainSoundVolume,
 					detune: 200,
 				});
@@ -1122,7 +1118,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		if (isBoosting !== overclockWasActive) {
 			thruster.setColor(isBoosting ? k.rgb(80, 180, 255) : k.WHITE)
 			if (isBoosting) {
-				overclockSound = audioService.playSound("going_fast", {
+				overclockSound = gameSoundService.play("going_fast", {
 					volume: mainSoundVolume * 0.5,
 					loop: true,
 				})
@@ -1278,7 +1274,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	playerObj.onHurt(() => {
 		repairPulseGeneration++;
 		triggerReactivePlating(playerObj);
-		audioService.playSound("hit2", { volume: mainSoundVolume });
+		gameSoundService.play("hit2", { volume: mainSoundVolume });
 		playerObj.animation.seek(0);
 		k.shake(20);
 		updatePlayerHealthBar(playerObj.hp);
@@ -1477,7 +1473,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		nextPrimaryChargeParticleAt = k.time();
 		primaryChargeReadySoundPlayed = false;
 		primaryChargeSoundSpeed = 0.75;
-		primaryChargeSound = audioService.playSound("primary_weapon_charge", {
+		primaryChargeSound = gameSoundService.play("player_primary_charge", {
 			volume: mainSoundVolume * 0.45,
 			loop: true,
 			speed: primaryChargeSoundSpeed,
@@ -1588,7 +1584,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		if (gridCollision && !gridCollision.canMoveTo(destination)) {
 			recordTelemetryAbilityFailure("mobility", mobilityId);
 			spawnFlash(destination, 6, k.rgb(255, 70, 70));
-			audioService.playSound("error", { volume: mainSoundVolume * 0.35 });
+			gameSoundService.play("error", { volume: mainSoundVolume * 0.35 });
 			return;
 		}
 		recordTelemetryAbilityUse("mobility", mobilityId);
@@ -1631,7 +1627,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		if (weapon.id === previousWeaponId) return;
 		spawnFlash(playerObj.pos.clone(), 5, k.rgb(75, 205, 255));
 		showWeaponSwitchLabel(weapon)
-		audioService.playSound("click1", {
+		gameSoundService.play("click1", {
 			volume: mainSoundVolume * 0.65,
 			detune: direction > 0 ? 100 : -100,
 		});
@@ -1671,11 +1667,11 @@ function spawnPlayerArrivalImpact(
 	playerObj: GameObj<PosComp>,
 	playWarpLandingBass: boolean
 ) {
-	audioService.playSound("player_arrival_impact", {
+	gameSoundService.play("player_arrival_impact", {
 		volume: mainSoundVolume,
 	});
 	if (playWarpLandingBass) {
-		audioService.playSound("warp_landing_bass", {
+		gameSoundService.play("warp_landing_bass", {
 			volume: mainSoundVolume,
 		})
 	}
@@ -1706,7 +1702,7 @@ function spawnPlayerReadinessFlash(
 		if (playerObj.exists()) playerObj.color = k.WHITE;
 	});
 	const pulse = playerObj.add([
-		k.sprite("ship"),
+		k.sprite(PLAYER_DIRECTIONAL_SPRITES[0]),
 		k.anchor("center"),
 		k.color(color),
 		k.opacity(0),
@@ -2082,7 +2078,7 @@ function activateModule(
 				color: k.rgb(100, 220, 255),
 			});
 			spawnFlash(origin, 9, k.rgb(100, 220, 255));
-			audioService.playSound("swap_level", {
+			gameSoundService.play("swap_level", {
 				volume: mainSoundVolume * 0.65,
 				detune: -280,
 			});
@@ -2127,7 +2123,7 @@ function activateModule(
 						maxRadius: 46,
 						color: decoyColor,
 					})
-					audioService.playSound("click1", {
+					gameSoundService.play("click1", {
 						volume: mainSoundVolume * 0.55,
 						detune: 420,
 					})
@@ -2182,12 +2178,12 @@ function activateModule(
 					visualIntensity: 0.55,
 					visualParticleCount: 20,
 				});
-				audioService.playPositionalSound("explosion2", explosionPos, {
+				gameSoundService.playPositional("explosion2", explosionPos, {
 					volume: mainSoundVolume * 0.65,
 				});
 				k.shake(2);
 			});
-			audioService.playSound("click1", {
+			gameSoundService.play("click1", {
 				volume: mainSoundVolume * 0.5,
 			});
 			return;
@@ -2216,7 +2212,7 @@ function activateModule(
 				maxRadius: 36,
 				color: k.rgb(90, 200, 255),
 			});
-			audioService.playSound("swap_level", {
+			gameSoundService.play("swap_level", {
 				volume: mainSoundVolume * 0.6,
 				detune: 650,
 			});
@@ -2305,7 +2301,7 @@ function activateModule(
 							visualIntensity: 0.75,
 							visualParticleCount: 30,
 						})
-						audioService.playPositionalSound("explosion1", deploymentPos, {
+						gameSoundService.playPositional("explosion1", deploymentPos, {
 							volume: mainSoundVolume,
 						})
 						k.shake(4)
@@ -2336,7 +2332,7 @@ function activateModule(
 					charge.onUpdate(() => {
 						charge.opacity = k.wave(0.25, 1, k.time() * 18)
 					})
-					audioService.playSound("click1", {
+					gameSoundService.play("click1", {
 						volume: mainSoundVolume * 0.6,
 					})
 					k.wait(0.7, () => {
@@ -2353,7 +2349,7 @@ function activateModule(
 							72 * tier.speed,
 							28 * tier.power
 						)
-						audioService.playPositionalSound("explosion1", deploymentPos, {
+						gameSoundService.playPositional("explosion1", deploymentPos, {
 							volume: mainSoundVolume,
 						})
 						k.shake(7)
@@ -2388,7 +2384,7 @@ function activateModule(
 							if (!drone.exists()) return
 							const despawnPos = drone.pos.clone()
 							spawnEnemyDeathEffect(despawnPos, 0.5)
-							audioService.playPositionalSound("explosion1", despawnPos, {
+							gameSoundService.playPositional("explosion1", despawnPos, {
 								volume: mainSoundVolume * 0.35,
 							})
 							k.destroy(drone)
@@ -2448,7 +2444,7 @@ function activateModule(
 					Math.round(REPAIR_PULSE_RECOVERY * tier.power)
 				);
 				spawnFlash(playerObj.pos, 10, k.rgb(80, 255, 175));
-				audioService.playSound("collect1", {
+				gameSoundService.play("collect1", {
 					volume: mainSoundVolume * 0.65,
 					detune: 420,
 				});
@@ -2474,7 +2470,7 @@ function activateModule(
 				});
 			});
 			spawnEmpDischarge({ pos: origin, radius, targets: affectedTargets });
-			audioService.playSound("swap_level", {
+			gameSoundService.play("swap_level", {
 				volume: mainSoundVolume * 0.75,
 				detune: -520,
 			});
@@ -2518,7 +2514,7 @@ function spawnPhaseEcho(pos: Vec2, angle: number) {
 	});
 	const echo = k.add([
 		k.pos(pos),
-		k.sprite("ship"),
+		k.sprite(PLAYER_DIRECTIONAL_SPRITES[0]),
 		k.anchor("center"),
 		k.rotate(angle),
 		k.scale(PLAYER_SCALE),
@@ -2544,7 +2540,7 @@ function spawnPhaseEcho(pos: Vec2, angle: number) {
 			visualIntensity: 0.45,
 			visualParticleCount: 22,
 		});
-		audioService.playPositionalSound("explosion1", pos, {
+		gameSoundService.playPositional("explosion1", pos, {
 			volume: mainSoundVolume * 0.55,
 		});
 	});
@@ -2572,11 +2568,11 @@ function activatePhaseNova(playerObj: GameObj<PosComp>) {
 		damageFalloff: 0.35,
 		falloffDistance: 120,
 	});
-	audioService.playSound("high_rarity_reveal", {
+	gameSoundService.play("high_rarity_reveal", {
 		volume: mainSoundVolume,
 		detune: 520,
 	});
-	audioService.playSound("explosion2", {
+	gameSoundService.play("explosion2", {
 		volume: mainSoundVolume,
 		detune: -120,
 	});
@@ -2620,7 +2616,7 @@ function spawnPhaseJumpEffect(start: Vec2, end: Vec2, angle: number) {
 	for (const pos of [start, end]) {
 		k.add([
 			k.pos(pos),
-			k.sprite("ship"),
+			k.sprite(PLAYER_DIRECTIONAL_SPRITES[0]),
 			k.anchor("center"),
 			k.rotate(angle),
 			k.scale(PLAYER_SCALE),
@@ -2632,7 +2628,7 @@ function spawnPhaseJumpEffect(start: Vec2, end: Vec2, angle: number) {
 	}
 
 	k.shake(2);
-	audioService.playSound("mobility_phase_jump", {
+	gameSoundService.play("mobility_phase_jump", {
 		volume: mainSoundVolume * 0.65,
 	});
 }
@@ -2666,7 +2662,7 @@ function spawnRetroBurstEffect(start: Vec2, end: Vec2, angle: number) {
 		},
 		tags.gameLoop,
 	]);
-	audioService.playSound("mobility_phase_jump", {
+	gameSoundService.play("mobility_phase_jump", {
 		volume: mainSoundVolume * 0.65,
 	});
 	k.shake(2);
@@ -2702,7 +2698,7 @@ function spawnRespawnJumpEffect(start: Vec2, end: Vec2, angle: number) {
 		const progress = (index + 1) / (afterimageCount + 1);
 		k.add([
 			k.pos(start.lerp(end, progress)),
-			k.sprite("ship"),
+			k.sprite(PLAYER_DIRECTIONAL_SPRITES[0]),
 			k.anchor("center"),
 			k.rotate(angle),
 			k.scale(PLAYER_SCALE * k.lerp(0.7, 1, progress)),
@@ -2713,7 +2709,7 @@ function spawnRespawnJumpEffect(start: Vec2, end: Vec2, angle: number) {
 		]);
 	}
 
-	audioService.playSound("swap_level", {
+	gameSoundService.play("swap_level", {
 		volume: 0.45,
 		detune: 350,
 	});
@@ -2788,7 +2784,7 @@ function beginGravitySling(
 		speedMultiplier: tier.speed,
 		hitTargets: new Set<number>(),
 	};
-	audioService.playSound("mobility_phase_jump", {
+	gameSoundService.play("mobility_phase_jump", {
 		volume: mainSoundVolume * 0.48,
 		detune: -520,
 	});
@@ -2891,9 +2887,19 @@ function updateGravitySling(playerObj: GameObj<PosComp>) {
 		32,
 		state.slingStart.dist(state.anchorPos) * 0.14
 	) * state.arcSide;
-	playerObj.pos = state.slingStart
+	const nextPos = state.slingStart
 		.lerp(state.slingEnd, acceleratedProgress)
 		.add(perpendicular.scale(Math.sin(progress * Math.PI) * arcHeight));
+	const gridCollision = playerObj.has("gridCollision")
+		? playerObj.c("gridCollision") as GridCollisionComp
+		: undefined;
+	if (gridCollision && !gridCollision.canMoveTo(nextPos)) {
+		gravitySlingReleaseVelocity = k.vec2(0);
+		spawnFlash(previousPos, 6, k.rgb(120, 210, 255));
+		clearGravitySlingState();
+		return true;
+	}
+	playerObj.pos = nextPos;
 	state.tetherVisual.pos = playerObj.pos.clone();
 	const movement = playerObj.pos.sub(previousPos);
 	if (movement.len() > 0.001) playerObj.angle = k.Vec2.toAngle(movement) + 90;
@@ -2925,7 +2931,7 @@ function updateGravitySling(playerObj: GameObj<PosComp>) {
 		color: k.rgb(120, 210, 255),
 	});
 	spawnFlash(playerObj.pos.clone(), 8, k.rgb(120, 210, 255));
-	audioService.playSound("mobility_phase_jump", {
+	gameSoundService.play("mobility_phase_jump", {
 		volume: mainSoundVolume * 0.65,
 		detune: 180,
 	});
@@ -2944,11 +2950,13 @@ function resolveGravitySlingEnd(
 		? playerObj.c("gridCollision") as GridCollisionComp
 		: undefined;
 	if (!gridCollision) return anchorPos.add(direction.scale(desiredDistance));
-	for (let distance = desiredDistance; distance >= 24; distance -= 12) {
-		const candidate = anchorPos.add(direction.scale(distance));
+	const startPos = playerObj.pos.clone();
+	const fullDistance = startPos.dist(anchorPos) + desiredDistance;
+	for (let distance = fullDistance; distance >= 0; distance -= 12) {
+		const candidate = startPos.add(direction.scale(distance));
 		if (gridCollision.canMoveTo(candidate)) return candidate;
 	}
-	return anchorPos.clone();
+	return startPos;
 }
 
 function applyGravitySlingDamage(

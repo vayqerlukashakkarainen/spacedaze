@@ -3,7 +3,7 @@ import { checkProjectileIntersection, playerObj } from "../../game"
 import { k, mainSoundVolume } from "../../main"
 import { applyProjectileDamage } from "../../services/projectileService"
 import { spawnThreatEncounter } from "../../services/enemyEncounterService"
-import { audioService } from "../../services/audioService"
+import { gameSoundService } from "../../services/gameSoundService"
 import { tags } from "../../tags"
 import { timescale } from "../../comp/timescale"
 import { spawnExplosionEffect } from "../spawnFlash"
@@ -13,6 +13,8 @@ import {
 	steerMoveRotateAndLean,
 } from "../../shared"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { getWorldVisual } from "../../visuals/worldVisualCatalog"
+import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 
 interface LostConvoyProps {
 	pos: Vec2
@@ -25,6 +27,7 @@ interface LostConvoyProps {
 }
 
 const DELIVERY_COMPLETION_RADIUS = 400
+const LOST_CONVOY_VISUAL = getWorldVisual("lost-convoy")
 
 export function spawnLostConvoy(props: LostConvoyProps) {
 	let active = false
@@ -32,10 +35,10 @@ export function spawnLostConvoy(props: LostConvoyProps) {
 	let waveTimer = 2.5
 	const drone = k.add([
 		k.pos(props.pos),
-		k.sprite("room_convoy_drone"),
+		k.sprite(requirePrimaryVisualSprite(LOST_CONVOY_VISUAL)),
 		k.anchor("center"),
 		k.rotate(0),
-		k.scale(1),
+		k.scale(LOST_CONVOY_VISUAL.worldScale),
 		k.color(220, 235, 255),
 		k.health(props.health),
 		timescale(),
@@ -110,14 +113,14 @@ export function spawnLostConvoy(props: LostConvoyProps) {
 			color: k.rgb(100, 255, 150),
 		})
 		props.onComplete?.(drone.pos.clone())
-		audioService.playSound("powerup1", { volume: mainSoundVolume })
+		gameSoundService.play("powerup1", { volume: mainSoundVolume })
 		k.destroy(drone)
 	})
 
 	drone.onDeath(() => {
 		if (completed) return
 		spawnExplosionEffect(drone.pos, 38)
-		audioService.playSound("explosion2", { volume: mainSoundVolume })
+		gameSoundService.play("explosion2", { volume: mainSoundVolume })
 		k.destroy(drone)
 	})
 	return drone

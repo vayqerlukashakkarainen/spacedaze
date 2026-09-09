@@ -38,6 +38,7 @@ import {
 } from "./ui/gameUi";
 import { Component } from "./compose";
 import { audioService } from "./services/audioService";
+import { gameSoundService } from "./services/gameSoundService"
 import { loopService } from "./services/loopService";
 import { updatePriorityInteraction } from "./comp/interactable";
 import {
@@ -216,7 +217,7 @@ export function collectDebreeImmediately(
 	const color = debris.color ?? k.WHITE;
 	k.destroy(debris);
 	recordDebreeCollected();
-	audioService.playSound("salvage_pickup", {
+	gameSoundService.play("salvage_pickup", {
 		volume: mainSoundVolume * k.clamp(0.72 + salvageValue * 0.028, 0.72, 1),
 		detune: salvagePickupDetune(salvageValue),
 	});
@@ -310,7 +311,7 @@ export function beginPlayerDeathSequence() {
 	if (isPlayerDying) return;
 	isPlayerDying = true;
 	audioService.pauseMusic();
-	audioService.playSound("player_game_over", {
+	gameSoundService.play("player_game_over", {
 		volume: mainSoundVolume,
 	});
 	recordPlayerDeath();
@@ -539,9 +540,10 @@ export function checkProjectileComponentIntersection(
 			const p = projectile as GameObj<PosComp | RotateComp | any>;
 			for (let i = 0; i < components.length; i++) {
 				if (components[i].obj.hidden) continue;
-				if (
-					p.pos.dist(pos.sub(components[i].localPos)) < components[i].hitbox
-				) {
+				const componentPos = pos.add(
+					components[i].localPos.rotate(components[i].obj.parent?.angle ?? 0)
+				);
+				if (p.pos.dist(componentPos) < components[i].hitbox) {
 					onHit(p, i);
 					return false;
 				}

@@ -12,21 +12,24 @@ import {
 } from "../services/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
 import { spawnExplosionEffect } from "./spawnFlash"
 
 const IMPACT_RADIUS = 54
+const SIEGE_BARGE_VISUAL = getEnemyVisual("siege-barge")
 
 export function spawnSiegeBarge(
 	pos: Vec2,
 	hp = 10,
 	options: EnemySpawnOptions = {}
 ) {
-	const profile = createEnemySpawnProfile(hp, 2, 1.15, options)
+	const profile = createEnemySpawnProfile(hp, 2, SIEGE_BARGE_VISUAL.worldScale, options)
 	const barge = k.add([
 		k.pos(pos),
-		k.sprite("enemy_siege_barge"),
+		k.sprite(requirePrimaryVisualSprite(SIEGE_BARGE_VISUAL)),
 		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),

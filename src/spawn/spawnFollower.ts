@@ -11,14 +11,13 @@ import {
 	timeScale,
 	velocityScale,
 } from "../main";
-import { audioService } from "../services/audioService";
+import { gameSoundService } from "../services/gameSoundService"
 import { starsEmitter } from "../particles";
 import {
 	applySteeringLean,
 	lerpAngleBetweenPos,
 } from "../shared";
 import { tags } from "../tags";
-import { randomExplosion } from "../util";
 import { player } from "../player";
 import {
 	spawnBasicBlaster,
@@ -38,6 +37,11 @@ import { isDebreeAvailable, SalvagerCargo } from "../services/salvagerCargoServi
 import { recoverPlayerHealth } from "../services/playerHealthService"
 import { MEDIC_DRONE_RECOVERY } from "../services/playerHealthBalance"
 import { getPlayerTargetLock } from "../services/playerTargetLockService"
+import { getCompanionVisual } from "../visuals/companionVisualCatalog"
+import {
+	requirePrimaryVisualSprite,
+	type VisualRepresentation,
+} from "../visuals/visualRepresentation"
 
 interface Props {
 	hp: number;
@@ -89,46 +93,39 @@ let configuredDroneSlots = "";
 const droneProfiles: Record<
 	DroneType,
 	{
-		sprite: string;
+		visual: VisualRepresentation;
 		movementType: DroneMovementType;
-		scale: number;
 		speedMultiplier: number;
 	}
 > = {
 	combat: {
-		sprite: "drone_combat",
+		visual: getCompanionVisual("combat"),
 		movementType: "swarm",
-		scale: 1,
 		speedMultiplier: 1,
 	},
 	missile: {
-		sprite: "drone_missile",
+		visual: getCompanionVisual("missile"),
 		movementType: "swarm",
-		scale: 1,
 		speedMultiplier: 1.25,
 	},
 	interceptor: {
-		sprite: "drone_interceptor",
+		visual: getCompanionVisual("interceptor"),
 		movementType: "intercept",
-		scale: 1,
 		speedMultiplier: 2,
 	},
 	gunship: {
-		sprite: "drone_gunship",
+		visual: getCompanionVisual("gunship"),
 		movementType: "swarm",
-		scale: 1.12,
 		speedMultiplier: 0.68,
 	},
 	medic: {
-		sprite: "drone_medic",
+		visual: getCompanionVisual("medic"),
 		movementType: "rearGuard",
-		scale: 0.95,
 		speedMultiplier: 1.15,
 	},
 	salvager: {
-		sprite: "drone_salvager",
+		visual: getCompanionVisual("salvager"),
 		movementType: "salvage",
-		scale: 0.95,
 		speedMultiplier: 1.45,
 	},
 };
@@ -160,7 +157,7 @@ export function spawnFollower(props: Props) {
 	const deploymentFacingAngle = k.Vec2.toAngle(deploymentDirection) + 90;
 	const m = k.add([
 		k.pos(deploymentStart),
-		k.sprite(droneProfiles.combat.sprite, { width: 16, height: 16 }),
+		k.sprite(requirePrimaryVisualSprite(droneProfiles.combat.visual), { width: 16, height: 16 }),
 		k.rotate(deploymentFacingAngle),
 		k.anchor("center"),
 		k.scale(1.35, 0.72),
@@ -192,7 +189,7 @@ export function spawnFollower(props: Props) {
 			medicKillCharge: 0,
 			droneType: "combat" as DroneType,
 			movementType: "swarm" as DroneMovementType,
-			droneScale: droneProfiles.combat.scale,
+			droneScale: droneProfiles.combat.visual.worldScale,
 		},
 		tags.friendly,
 		tags.follower,
@@ -203,7 +200,7 @@ export function spawnFollower(props: Props) {
 	m.use({ salvageCargo: new SalvagerCargo<CarriedDebree>(m.id) })
 	m.onDestroy(() => releaseSalvagerCargo(m, false))
 
-	audioService.playSound("collect1", { volume: mainSoundVolume });
+	gameSoundService.play("collect1", { volume: mainSoundVolume });
 	refreshFollowerTypes();
 
 	registerBatchedEntityUpdate("followers", m, () => {
@@ -363,13 +360,13 @@ export function spawnFollower(props: Props) {
 		starsEmitter.emitter.position = m.pos;
 		starsEmitter.emit(20);
 
-		audioService.playSound(randomExplosion(), { volume: subSoundVolume });
+		gameSoundService.play("enemy_explosion", { volume: subSoundVolume });
 		k.destroy(m);
 		k.wait(0, refreshFollowerTypes);
 	});
 
 	m.onHurt(() => {
-		audioService.playSound("hit1", { volume: mainSoundVolume });
+		gameSoundService.play("hit1", { volume: mainSoundVolume });
 		m.animate("opacity", [0, 1, 0, 1], {
 			duration: 0.14,
 			loops: 1,
@@ -432,9 +429,9 @@ export function refreshFollowerTypes() {
 		releaseSalvagerCargo(follower, false)
 		follower.droneType = droneType;
 		follower.movementType = profile.movementType;
-		follower.droneScale = profile.scale;
-		follower.use(k.sprite(profile.sprite, { width: 16, height: 16 }));
-		follower.scale = k.vec2(profile.scale);
+		follower.droneScale = profile.visual.worldScale;
+		follower.use(k.sprite(requirePrimaryVisualSprite(profile.visual), { width: 16, height: 16 }));
+		follower.scale = k.vec2(profile.visual.worldScale);
 		follower.color = k.WHITE;
 		starsEmitter.emitter.position = follower.pos;
 		starsEmitter.emit(8);
@@ -478,11 +475,11 @@ function tryFuseFollowers() {
 	leader.fusedDroneTypes = group.map((drone) => drone.droneType);
 	leader.droneType = fusedType;
 	leader.movementType = profile.movementType;
-	leader.droneScale = profile.scale * fusionScale;
+	leader.droneScale = profile.visual.worldScale * fusionScale;
 	leader.hb = 18;
 	leader.maxHP = totalHealth;
 	leader.hp = totalHealth;
-	leader.use(k.sprite(profile.sprite, { width: 16, height: 16 }));
+	leader.use(k.sprite(requirePrimaryVisualSprite(profile.visual), { width: 16, height: 16 }));
 	leader.scale = k.vec2(leader.droneScale);
 	leader.add([
 		k.circle(12, { fill: false }),
@@ -751,7 +748,7 @@ function updateMedicBehavior(medic: GameObj) {
 	medic.medicKillCharge = 0;
 	recoverPlayerHealth(playerObj, MEDIC_DRONE_RECOVERY);
 	spawnFlash(playerObj.pos.clone(), 10, k.WHITE);
-	audioService.playSound("collect1", { volume: subSoundVolume });
+	gameSoundService.play("collect1", { volume: subSoundVolume });
 }
 
 function findClosestDebree(pos: Vec2, range: number) {

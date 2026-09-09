@@ -1,7 +1,7 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, layers, mainSoundVolume, subSoundVolume } from "../main"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { spawnProjectile } from "../services/projectileService"
 import {
@@ -11,7 +11,8 @@ import {
 } from "../services/threatService"
 import { registerHitAnimation } from "../shared"
 import { tags } from "../tags"
-import { randomExplosion } from "../util"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { spawnExplosionEffect } from "./spawnFlash"
@@ -23,7 +24,8 @@ const CANNONBALL_SPEED = 165
 const CANNONBALL_SPREAD = 9
 const DEATH_DURATION = 1
 const DEATH_BURST_INTERVAL = 0.17
-const PLATFORM_SCALE = 0.72
+const PLATFORM_VISUAL = getEnemyVisual("stationary-cannon-platform")
+const PLATFORM_SCALE = PLATFORM_VISUAL.worldScale
 
 const CANNONS: readonly (readonly [number, number, number])[] = [
 	[-36, 13, 135],
@@ -44,7 +46,7 @@ export function spawnStationaryCannonPlatform(
 	)
 	const platform = k.add([
 		k.pos(pos),
-		k.sprite("enemy_stationary_cannon_platform"),
+		k.sprite(requirePrimaryVisualSprite(PLATFORM_VISUAL)),
 		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),
@@ -144,7 +146,7 @@ function fireVolley(
 			})
 		}
 	}
-	audioService.playPositionalSound("fire_rocket1", platform.pos, {
+	gameSoundService.playPositional("fire_rocket1", platform.pos, {
 		volume: mainSoundVolume * 0.7,
 		detune: -180,
 	})
@@ -175,7 +177,7 @@ function updateDeathAnimation(
 			particleCount: 5 + Math.floor(progress * 5),
 			ringIntensity: 0.25 + progress * 0.35,
 		})
-		audioService.playPositionalSound(randomExplosion(), burstPos, {
+		gameSoundService.playPositional("enemy_explosion", burstPos, {
 			volume: subSoundVolume * 0.42,
 			detune: k.rand(-180, 140),
 		})
@@ -189,7 +191,7 @@ function updateDeathAnimation(
 		particleCount: 38,
 		ringIntensity: 1,
 	})
-	audioService.playPositionalSound(randomExplosion(), deathPos, {
+	gameSoundService.playPositional("enemy_explosion", deathPos, {
 		volume: subSoundVolume,
 	})
 	k.shake(9)
@@ -211,7 +213,7 @@ function spawnDestroyedPlatform(
 ) {
 	return k.add([
 		k.pos(pos),
-		k.sprite("enemy_stationary_cannon_platform_destroyed"),
+		k.sprite(PLATFORM_VISUAL.destroyedSprite ?? requirePrimaryVisualSprite(PLATFORM_VISUAL)),
 		k.anchor("center"),
 		k.scale(scale),
 		k.color(126, 134, 138),

@@ -7,9 +7,9 @@ const BASE_PLAYER_DEATH_DEBRIS_COUNT = 18
 const MAX_PLAYER_DEATH_DEBRIS_COUNT = 84
 const PROLOGUE_SHIP_PART_COUNT = 5
 const PROLOGUE_PART_SPRITES = [
-	"enemy_ship1_left_wing",
-	"enemy_ship1_right_wing",
-	"enemy_ship1_body",
+	"enemy_fighter_left_wing",
+	"enemy_fighter_right_wing",
+	"enemy_fighter_core",
 	"particle3",
 	"particle4",
 ] as const

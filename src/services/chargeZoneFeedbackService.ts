@@ -1,11 +1,12 @@
 import type { AudioPlay } from "kaplay"
 import { k, mainSoundVolume } from "../main"
 import { audioService } from "./audioService"
+import { gameSoundService } from "./gameSoundService"
 
 const CHARGE_SOUND_UPDATE_STEP = 0.04
 
 export function createChargeZoneFeedback() {
-	let chargeSound: AudioPlay | undefined
+	let chargeSound: AudioPlay | null | undefined
 	let lastSoundProgress = -1
 
 	function stop(reason = "charge-zone-left") {
@@ -23,7 +24,7 @@ export function createChargeZoneFeedback() {
 
 		const clampedProgress = k.clamp(progress, 0, 1)
 		if (!chargeSound) {
-			chargeSound = audioService.playSound("primary_weapon_charge", {
+			chargeSound = gameSoundService.play("charge_zone_charge", {
 				volume: mainSoundVolume * 0.2,
 				loop: true,
 				speed: 0.72,

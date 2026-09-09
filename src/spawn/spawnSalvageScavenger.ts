@@ -6,14 +6,18 @@ import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
 import { spawnDebree } from "./spawnDebree"
 
+const SALVAGE_SCAVENGER_VISUAL = getEnemyVisual("salvage-scavenger")
+
 export function spawnSalvageScavenger(pos: Vec2, hp = 4, options: EnemySpawnOptions = {}) {
-	const profile = createEnemySpawnProfile(hp, 1, 0.76, options)
+	const profile = createEnemySpawnProfile(hp, 1, SALVAGE_SCAVENGER_VISUAL.worldScale, options)
 	const scavenger = k.add([
-		k.pos(pos), k.sprite("enemy_salvage_scavenger"), k.color(k.WHITE), k.rotate(0),
+		k.pos(pos), k.sprite(requirePrimaryVisualSprite(SALVAGE_SCAVENGER_VISUAL)), k.color(k.WHITE), k.rotate(0),
 		k.anchor("center"), k.health(profile.hp), k.animate(), k.scale(profile.scale), timescale(),
 		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{ hb: 11 * profile.scale, damage: profile.damage, moveDirection: k.vec2(0, 1), haul: 0, targetDebris: undefined as GameObj | undefined, retreating: false },

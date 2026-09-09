@@ -11,6 +11,7 @@ import {
 import { tags } from "../tags"
 import { BURT_TAG } from "../spawn/npcs/spawnHubBurt"
 import { audioService } from "./audioService"
+import { gameSoundService } from "./gameSoundService"
 import {
 	cancelActiveCutscene,
 	playCutscene,
@@ -285,7 +286,7 @@ const PROLOGUE_LANDED_COMMS: CutsceneDefinition = {
 let controller: GameObj | undefined
 let introOverlay: GameObj | undefined
 let spaceJumpBackdrop: SpaceJumpBackdrop | undefined
-let hyperspeedLoop: AudioPlay | undefined
+let hyperspeedLoop: AudioPlay | null | undefined
 let hiddenGameplayUi: { object: GameObj; wasHidden: boolean }[] = []
 
 export function beginPrologueExperience(onSkip: () => void) {
@@ -352,10 +353,10 @@ function clearPrologueSpaceJump() {
 
 function startPrologueCutsceneVisuals() {
 	audioService.stopMusic()
-	audioService.playSound("hyperspeed_jump_start", {
+	gameSoundService.play("hyperspeed_jump_start", {
 		volume: mainSoundVolume * 0.8,
 	})
-	hyperspeedLoop = audioService.playSound("hyperspeed_travel", {
+	hyperspeedLoop = gameSoundService.play("hyperspeed_travel", {
 		volume: mainSoundVolume * 0.55,
 		detune: 220,
 		speed: 1.22,
@@ -660,7 +661,7 @@ function startPrologueCombat() {
 		tags.prologue,
 		tags.gameLoop,
 	])
-	audioService.playSound("swap_level", { volume: mainSoundVolume * 0.65 })
+	gameSoundService.play("swap_level", { volume: mainSoundVolume * 0.65 })
 }
 
 function hideGameplayUi() {

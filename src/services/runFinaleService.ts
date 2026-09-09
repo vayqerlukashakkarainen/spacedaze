@@ -3,6 +3,7 @@ import { k, mainSoundVolume } from "../main"
 import { getFinaleDefinition, type FinaleId } from "../finales/finaleRegistry"
 import type { FinaleDefinition, FinaleEvent, RunPhase } from "../finales/finaleTypes"
 import { audioService } from "./audioService"
+import { gameSoundService } from "./gameSoundService"
 import {
 	captureRunFinaleBattleZone,
 	clearRunFinaleBattleZone,
@@ -15,7 +16,7 @@ let elapsedMilliseconds = 0
 let nextEventIndex = 0
 let transitionDurationMilliseconds = 0
 let transitionElapsedMilliseconds = 0
-let transitionRampSound: AudioPlay | undefined
+let transitionRampSound: AudioPlay | null | undefined
 
 const WORMHOLE_RAMP_SOUND_DURATION_MILLISECONDS = 3341
 
@@ -157,7 +158,7 @@ function startTransitionRampSoundWhenReady() {
 	const remainingMilliseconds =
 		transitionDurationMilliseconds - transitionElapsedMilliseconds
 	if (remainingMilliseconds > WORMHOLE_RAMP_SOUND_DURATION_MILLISECONDS) return
-	transitionRampSound = audioService.playSound("wormhole_rampup", {
+	transitionRampSound = gameSoundService.play("wormhole_rampup", {
 		volume: mainSoundVolume,
 	})
 }

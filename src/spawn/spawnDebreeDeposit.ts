@@ -3,7 +3,7 @@ import { addBuildingPlayerDepth } from "../comp/buildingPlayerDepth"
 import { interactable, type InteractableComp } from "../comp/interactable"
 import { k, layers, mainSoundVolume } from "../main"
 import { starsEmitter } from "../particles"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import {
 	getCarriedDebree,
 	getDepositedDebree,
@@ -15,10 +15,12 @@ import { saveGame } from "../util"
 import { showDebreeDepositPanel } from "../ui/debreeDepositPanel"
 import { spawnCurrencyBurst } from "./spawnCurrencyBurst"
 import { spawnRing } from "./spawnRing"
+import { getWorldVisual } from "../visuals/worldVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 
 const DEPOSIT_RADIUS = 88
-const FOUNDATION_SCALE = 0.56
-const HOUSE_SCALE = 0.95
+const FOUNDATION_VISUAL = getWorldVisual("debris-foundation")
+const HOUSE_VISUAL = getWorldVisual("debris-house")
 const FOUNDATION_Y = 8
 const HOUSE_Y = -24
 const RECEIVER_X = 34
@@ -58,23 +60,23 @@ export function spawnDebreeDeposit(pos: Vec2) {
 			maxRadius: 100,
 			color: k.rgb(...UI_COLORS.success),
 		})
-		audioService.playSound("purchase1", { volume: mainSoundVolume })
+		gameSoundService.play("purchase1", { volume: mainSoundVolume })
 	}
 
 	const foundation = station.add([
 		k.pos(0, FOUNDATION_Y),
-		k.sprite("hub_ground_scrap_sorter_rocks"),
+		k.sprite(requirePrimaryVisualSprite(FOUNDATION_VISUAL)),
 		k.anchor("center"),
-		k.scale(FOUNDATION_SCALE),
+		k.scale(FOUNDATION_VISUAL.worldScale),
 		k.shader("rockFoundationPalette"),
 		k.layer(layers.buildings),
 		k.z(-12),
 	])
 	const house = station.add([
 		k.pos(0, HOUSE_Y),
-		k.sprite("hub_building_service_kiosk"),
+		k.sprite(requirePrimaryVisualSprite(HOUSE_VISUAL)),
 		k.anchor("center"),
-		k.scale(HOUSE_SCALE),
+		k.scale(HOUSE_VISUAL.worldScale),
 		k.color(170, 184, 192),
 		k.layer(layers.game),
 		k.z(-20),

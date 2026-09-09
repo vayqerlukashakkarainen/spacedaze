@@ -3,11 +3,13 @@ import { playerObj } from "../game"
 import { k, layers, mainSoundVolume } from "../main"
 import { starsEmitter } from "../particles"
 import { collectVolatileCargo } from "../services/shipUpgradeService"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import { tags } from "../tags"
 import { spawnRing } from "./spawnRing"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { UI_FONT_SIZES } from "../ui/common"
+import { getWorldVisual } from "../visuals/worldVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 
 interface VolatileCargoObjectiveProps {
 	pos: Vec2
@@ -15,16 +17,18 @@ interface VolatileCargoObjectiveProps {
 	tags?: string[]
 }
 
+const VOLATILE_CARGO_VISUAL = getWorldVisual("volatile-cargo")
+
 export function spawnVolatileCargoObjective(
 	props: VolatileCargoObjectiveProps
 ) {
 	let collected = false
 	const cargo = k.add([
 		k.pos(props.pos),
-		k.sprite("crate1"),
+		k.sprite(requirePrimaryVisualSprite(VOLATILE_CARGO_VISUAL)),
 		k.anchor("center"),
 		k.rotate(0),
-		k.scale(0.58),
+		k.scale(VOLATILE_CARGO_VISUAL.worldScale),
 		k.color(255, 145, 45),
 		k.opacity(0.95),
 		tags.props,
@@ -67,7 +71,7 @@ export function spawnVolatileCargoObjective(
 			color: k.rgb(255, 145, 45),
 		})
 		spawnCollectionMessage(cargo.pos)
-		audioService.playSound("powerup1", {
+		gameSoundService.play("powerup1", {
 			volume: mainSoundVolume,
 			detune: -160,
 		})

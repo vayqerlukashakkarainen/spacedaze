@@ -3,7 +3,7 @@ import { playerObj } from "../../game"
 import { k, layers, mainSoundVolume } from "../../main"
 import { addThreatTime } from "../../services/threatService"
 import { spawnThreatEncounter } from "../../services/enemyEncounterService"
-import { audioService } from "../../services/audioService"
+import { gameSoundService } from "../../services/gameSoundService"
 import { tags } from "../../tags"
 import { spawnBuilding } from "../spawnBuilding"
 import { spawnRing } from "../spawnRing"
@@ -112,7 +112,7 @@ export function spawnSignalRelay(props: SignalRelayProps) {
 			color: k.rgb(110, 205, 255),
 		})
 		props.onComplete?.(relay.pos.clone())
-		audioService.playSound("powerup1", { volume: mainSoundVolume })
+		gameSoundService.play("powerup1", { volume: mainSoundVolume })
 	})
 
 	relay.onDestroy(() => chargeFeedback.stop("charge-zone-destroyed"))

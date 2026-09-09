@@ -2,19 +2,20 @@ import type { Vec2 } from "kaplay"
 import { playerObj } from "../game"
 import { dt, k, layers, mainSoundVolume, velocityScale } from "../main"
 import { player } from "../player"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import { tags } from "../tags"
 import { timescale } from "../comp/timescale"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { runSessionActive } from "../services/runDirectorService"
 import { recoverPlayerHealth } from "../services/playerHealthService"
 import { HEALTH_ORB_RECOVERY } from "../services/playerHealthBalance"
+import { getPickupVisual } from "../visuals/pickupVisualCatalog"
 
 export const HEALTH_ORB_DROP_CHANCE = 0.05
 
 const ORB_COLOR = [70, 255, 120] as const
 const ORB_HIGHLIGHT = [190, 255, 205] as const
-const HEALTH_ORB_SCALE = 0.3
+const HEALTH_ORB_SCALE = getPickupVisual("health-orb").worldScale
 const HEALTH_ORB_COLLECTION_DURATION = 0.48
 
 interface HealthOrbCollectionState {
@@ -149,7 +150,7 @@ export function spawnHealthOrb(pos: Vec2, options: HealthOrbOptions = {}) {
 			return
 		}
 		collected = true
-		audioService.playSound("powerup1", {
+		gameSoundService.play("powerup1", {
 			volume: mainSoundVolume,
 			detune: -200,
 		})

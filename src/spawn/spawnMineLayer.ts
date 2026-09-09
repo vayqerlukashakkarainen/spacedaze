@@ -1,7 +1,7 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, layers, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import { applyDamage } from "../services/damageService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
@@ -17,23 +17,26 @@ import {
 	registerHitAnimation,
 } from "../shared"
 import { tags } from "../tags"
-import { randomExplosion } from "../util"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { spawnExplosionEffect } from "./spawnFlash"
 
 const ENEMY_MINE_WARNING_RADIUS = 96
 const ENEMY_MINE_TRIGGER_RADIUS = 34
+const MINE_LAYER_VISUAL = getEnemyVisual("mine-layer")
+const ENEMY_MINE_VISUAL = getEnemyVisual("enemy-proximity-mine")
 
 export function spawnMineLayer(
 	pos: Vec2,
 	hp = 5,
 	options: EnemySpawnOptions = {}
 ) {
-	const profile = createEnemySpawnProfile(hp, 1, 1, options)
+	const profile = createEnemySpawnProfile(hp, 1, MINE_LAYER_VISUAL.worldScale, options)
 	const mineLayer = k.add([
 		k.pos(pos),
-		k.sprite("enemy_mine_layer"),
+		k.sprite(requirePrimaryVisualSprite(MINE_LAYER_VISUAL)),
 		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),
@@ -105,7 +108,7 @@ export function spawnMineLayer(
 				mineLayer.damage,
 				options.tags
 			)
-			audioService.playPositionalSound("lay_mine", mineLayer.pos.clone(), {
+			gameSoundService.playPositional("lay_mine", mineLayer.pos.clone(), {
 				volume: mainSoundVolume * 0.7,
 				detune: k.rand(-35, 35),
 				minDistance: 45,
@@ -139,7 +142,7 @@ export function spawnMineLayer(
 			true,
 			{ tier: profile.elite ? "elite" : "normal" }
 		)
-		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
+		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(mineLayer)
 	})
 	mineLayer.onHurt(() => {
@@ -153,11 +156,11 @@ function spawnEnemyMine(pos: Vec2, damage: number, extraTags?: string[]) {
 	let triggered = false
 	const mine = k.add([
 		k.pos(pos),
-		k.sprite("room_proximity_mine"),
+		k.sprite(requirePrimaryVisualSprite(ENEMY_MINE_VISUAL)),
 		k.anchor("center"),
 		k.layer(layers.gameEffects),
 		k.rotate(k.rand(360)),
-		k.scale(0.72),
+		k.scale(ENEMY_MINE_VISUAL.worldScale),
 		k.color(k.WHITE),
 		k.opacity(0.9),
 		{
@@ -228,7 +231,7 @@ function detonateEnemyMine(mine: GameObj, damage: number) {
 		})
 	}
 	spawnExplosionEffect(explosionPos, 52)
-	audioService.playPositionalSound("explosion2", explosionPos, {
+	gameSoundService.playPositional("explosion2", explosionPos, {
 		volume: mainSoundVolume * 0.8,
 		maxDistance: 650,
 	})

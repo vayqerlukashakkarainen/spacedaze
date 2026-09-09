@@ -3,6 +3,8 @@ import { horizontalDirectionalVisual } from "../../comp/horizontalDirectionalVis
 import { k, layers } from "../../main"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 import { tags } from "../../tags"
+import { getCompanionVisual } from "../../visuals/companionVisualCatalog"
+import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 
 export const BURT_TAG = "burt"
 
@@ -20,6 +22,7 @@ export function spawnHubBurt(
 	homePosition: ReturnType<typeof k.vec2>,
 	options: HubBurtOptions = {}
 ) {
+	const visual = getCompanionVisual("burt")
 	const house = k.add([
 		k.pos(homePosition),
 		k.sprite("companion_burt_house"),
@@ -35,10 +38,10 @@ export function spawnHubBurt(
 			options.initialPosition ??
 				homePosition.add(BURT_HOME_OFFSET_X, BURT_HOME_OFFSET_Y)
 		),
-		k.sprite("companion_burt"),
+		k.sprite(requirePrimaryVisualSprite(visual)),
 		k.anchor("center"),
 		k.rotate(0),
-		k.scale(1),
+		k.scale(visual.worldScale),
 		horizontalDirectionalVisual({
 			nativeFacing: "left",
 			initialFacing: "left",

@@ -8,13 +8,17 @@ import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
 
+const PHASE_SKIRMISHER_VISUAL = getEnemyVisual("phase-skirmisher")
+
 export function spawnPhaseSkirmisher(pos: Vec2, hp = 5, options: EnemySpawnOptions = {}) {
-	const profile = createEnemySpawnProfile(hp, 1, 0.82, options)
+	const profile = createEnemySpawnProfile(hp, 1, PHASE_SKIRMISHER_VISUAL.worldScale, options)
 	const skirmisher = k.add([
-		k.pos(pos), k.sprite("enemy_phase_skirmisher"), k.color(k.WHITE), k.rotate(0),
+		k.pos(pos), k.sprite(requirePrimaryVisualSprite(PHASE_SKIRMISHER_VISUAL)), k.color(k.WHITE), k.rotate(0),
 		k.anchor("center"), k.health(profile.hp), k.animate(), k.scale(profile.scale), timescale(),
 		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{ hb: 12 * profile.scale, damage: profile.damage, moveDirection: k.vec2(0, 1), blinkTimer: k.rand(1.2, 2.1), blinking: false },

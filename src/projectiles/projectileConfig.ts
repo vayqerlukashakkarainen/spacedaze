@@ -1,5 +1,6 @@
 import { Color, Vec2 } from "kaplay";
 import type { ExplosionSoundPoolId } from "../services/explosionSoundPoolService";
+import type { SoundCueId } from "../audio/soundCueCatalog"
 
 // Core Modifiers
 
@@ -301,7 +302,7 @@ export interface ProjectileConfig {
 	procState?: ProjectileProcState;
 
 	// Audio
-	fireSound?: string;
+	fireSound?: SoundCueId;
 	fireSoundVolume?: number;
 	fireSoundDetune?: number;
 	destroySound?: string;

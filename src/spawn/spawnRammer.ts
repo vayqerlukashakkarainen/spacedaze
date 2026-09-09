@@ -2,7 +2,7 @@ import type { GameObj, Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
 import { emitEnemyTrail, starsEmitterDir, trailEmitter } from "../particles"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import { applyDamage } from "../services/damageService"
 import { createCadencedSystem } from "../services/cadencedSystemService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
@@ -22,7 +22,8 @@ import {
 	registerHitAnimation,
 } from "../shared"
 import { tags } from "../tags"
-import { randomExplosion } from "../util"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { addShipThruster, getShipThrusterFlash } from "../comp/shipThruster"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
@@ -39,6 +40,7 @@ const RAMMER_WINDUP_Y_SCALE = 0.8
 const RAMMER_WINDUP_X_SCALE = 1.08
 const RAMMER_THRUSTER_WEIGHT = 1.25
 const RAMMER_WINDUP_FLAME_LENGTH = 6
+const RAMMER_VISUAL = getEnemyVisual("rammer")
 
 interface RammerDecisionEntry {
 	owner: GameObj
@@ -67,7 +69,7 @@ export function spawnRammer(
 	hp = 4,
 	options: EnemySpawnOptions = {}
 ) {
-	const profile = createEnemySpawnProfile(hp, 1, 0.9, options)
+	const profile = createEnemySpawnProfile(hp, 1, RAMMER_VISUAL.worldScale, options)
 	const chargeWindup = profile.elite
 		? ELITE_RAMMER_CHARGE_WINDUP
 		: RAMMER_CHARGE_WINDUP
@@ -78,7 +80,7 @@ export function spawnRammer(
 		: k.vec2(0, 1)
 	const rammer = k.add([
 		k.pos(pos),
-		k.sprite("enemy_rammer"),
+		k.sprite(requirePrimaryVisualSprite(RAMMER_VISUAL)),
 		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),
@@ -157,7 +159,7 @@ export function spawnRammer(
 				rammer.phaseTimer = 0
 				rammer.lockedDirection = playerDirection
 				faceDirection(rammer, rammer.lockedDirection)
-				audioService.playPositionalSound(
+				gameSoundService.playPositional(
 					"wormhole_rampup",
 					() => rammer.exists() ? rammer.pos : undefined,
 					{
@@ -200,7 +202,7 @@ export function spawnRammer(
 					chargeLine.opacity = 0
 					thrustSpeed = RAMMER_CHARGE_SPEED
 					launchBurst = true
-					audioService.playPositionalSound(
+					gameSoundService.playPositional(
 						"rammer_launch",
 						() => rammer.exists() ? rammer.pos : undefined,
 						{
@@ -312,7 +314,7 @@ export function spawnRammer(
 			true,
 			{ tier: profile.elite ? "elite" : "normal" }
 		)
-		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
+		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(rammer)
 	})
 	rammer.onHurt(() => {

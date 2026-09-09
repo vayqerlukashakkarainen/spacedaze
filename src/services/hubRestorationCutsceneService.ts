@@ -4,6 +4,7 @@ import { starsEmitter } from "../particles"
 import type { HubRestorationHandle } from "../spawn/spawnHubRestoration"
 import { tags } from "../tags"
 import { audioService } from "./audioService"
+import { gameSoundService } from "./gameSoundService"
 import {
 	playCutscene,
 	type CutsceneContext,
@@ -83,7 +84,7 @@ function chargeLamp(
 	if (!lamp?.exists()) return Promise.resolve()
 	const baseScale = lamp.scale?.clone() ?? k.vec2(1)
 	const charge = spawnLampChargeEffect(lamp)
-	const riser = audioService.playSound("reward_riser_epic", {
+	const riser = gameSoundService.play("reward_riser_epic", {
 		volume: mainSoundVolume * 0.5,
 		detune: (level - 1) * 55,
 	})
@@ -183,7 +184,7 @@ function revealLamp(restoration: HubRestorationHandle, level: number) {
 	starsEmitter.emit(32)
 	k.shake(7)
 	k.flash(k.WHITE, 0.24)
-	audioService.playSound("reward_shine_legendary", {
+	gameSoundService.play("reward_shine_legendary", {
 		volume: mainSoundVolume * 0.72,
 		detune: (level - 1) * 45,
 	})

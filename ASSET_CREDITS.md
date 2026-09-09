@@ -4,6 +4,8 @@
 
 - **Emotes Pack** — Kenney. A curated set of pixel emotes was adapted to the game's monochrome palette. Licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/). Source: [Kenney Emotes Pack](https://kenney.nl/assets/emotes-pack).
 
+- **Fighter and Hunter enemy ships** — Generated with PixelLab, then separated into destructible components and converted to pure black-and-white sprites with the local SpaceDaze art tools.
+
 ## Music
 
 - **Flirt Flirt Oh It Hurts** — Bossfight, from *Caps On, Hats Off* (2012). Prototype copy downloaded from the [artist's Newgrounds upload](https://www.newgrounds.com/audio/listen/504114).
@@ -21,6 +23,8 @@
 - **Scrambled Telecommunications** — Raining-0n-Satrn. Sourced from [Freesound](https://freesound.org/people/Raining-0n-Satrn/sounds/615906/) for disturbed dialogue transmissions. Licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
 
 - **Funny Cartoon Music** — MaksymMalko. Sourced from [Pixabay](https://pixabay.com/sound-effects/nature-funny-cartoon-music-532611/) for Burt's prologue recovery scene. Licensed under the [Pixabay Content License](https://pixabay.com/service/license-summary/).
+
+- **Sci-fi Portal Jump 04** — DRAGON-STUDIO. Sourced from [Pixabay](https://pixabay.com/sound-effects/film-special-effects-sci-fi-portal-jump-04-416161/) for hostile phase arrivals. Licensed under the [Pixabay Content License](https://pixabay.com/service/license-summary/).
 
 - **Pneumatic hammer - Deprag zn231 - Start 1b** — ldezem. Sourced from [Freesound](https://freesound.org/people/ldezem/sounds/386309/) for Burt's repair sequence. Licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
 

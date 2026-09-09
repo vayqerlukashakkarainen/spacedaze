@@ -18,6 +18,9 @@ import {
 import { gridRegistry } from "../grid/gridRegistry";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import { setHitSoundProfile } from "../services/hitSoundService";
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog";
+
+const ASTEROID_VISUAL = getEnemyVisual("asteroid");
 
 interface Props {
 	pos: Vec2;
@@ -35,7 +38,7 @@ interface Props {
 }
 
 export function spawnMeteorite(props: Props) {
-	const baseScale = k.rand(0.7, 1.5);
+	const baseScale = ASTEROID_VISUAL.worldScale * k.rand(0.7, 1.5);
 	const profile = createEnemySpawnProfile(
 		props.hp,
 		1,

@@ -1,11 +1,13 @@
 import type { Color, GameObj, PosComp, RotateComp, Vec2 } from "kaplay"
 import { dt, k, layers, mainSoundVolume } from "../main"
 import { explosionEmitter, trailEmitter } from "../particles"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { easeDirection } from "../shared"
 import { tags } from "../tags"
 import { UI_COLORS } from "../ui/common/theme"
+import { getCompanionVisual } from "../visuals/companionVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { spawnFlash } from "./spawnFlash"
 import { spawnRing } from "./spawnRing"
 
@@ -36,6 +38,7 @@ const CARRIER_ARRIVAL_RADIUS = 7
 const CARRIER_MAX_LIFETIME = 4
 const CARRIER_TRAIL_INTERVAL = 0.025
 const TARGET_FLASH_INTERVAL = 0.075
+const ACTIVE_MODULE_CARRIER_VISUAL = getCompanionVisual("active-module-carrier")
 
 export function spawnActiveModuleCarrier(props: ActiveModuleCarrierProps) {
 	const launchDirection = props.launchDirection.len() > 0
@@ -50,10 +53,10 @@ export function spawnActiveModuleCarrier(props: ActiveModuleCarrierProps) {
 		: spawnCarrierTargetMarker(targetPos)
 	const carrier = k.add([
 		k.pos(props.pos.clone()),
-		k.sprite("rocket1"),
+		k.sprite(requirePrimaryVisualSprite(ACTIVE_MODULE_CARRIER_VISUAL)),
 		k.anchor("center"),
 		k.rotate(launchAngle),
-		k.scale(0.85),
+		k.scale(ACTIVE_MODULE_CARRIER_VISUAL.worldScale),
 		k.color(props.color),
 		k.layer(layers.gameEffects),
 		k.z(6),
@@ -79,7 +82,7 @@ export function spawnActiveModuleCarrier(props: ActiveModuleCarrierProps) {
 		k.z(1),
 	])
 
-	audioService.playPositionalSound("active_module_carrier_launch", carrier.pos, {
+	gameSoundService.playPositional("active_module_carrier_launch", carrier.pos, {
 		volume: mainSoundVolume * 0.55,
 	})
 

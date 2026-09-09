@@ -6,6 +6,8 @@ import {
 	updateLocalLight,
 } from "../services/localLightService"
 import { tags } from "../tags"
+import { getCompanionVisual } from "../visuals/companionVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { applySteeringLean, lerpAngleBetweenPos } from "../shared"
 
 export const HUB_RESTORATION_LAMP_COUNT = 8
@@ -213,7 +215,7 @@ function spawnSalvageHaulers(
 		const outsideDestination = outsideDestinations[index]
 		const hauler = k.add([
 			k.pos(dockPos),
-			k.sprite("drone_salvager", { width: 16, height: 16 }),
+			k.sprite(requirePrimaryVisualSprite(getCompanionVisual("salvager")), { width: 16, height: 16 }),
 			k.anchor("center"),
 			k.rotate(0),
 			k.scale(1),

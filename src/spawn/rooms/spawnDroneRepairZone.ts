@@ -3,8 +3,10 @@ import { interactable, type InteractableComp } from "../../comp/interactable"
 import { getScore, k, layers, mainSoundVolume, spendScore } from "../../main"
 import { starsEmitter } from "../../particles"
 import { spawnRepairedCombatDrone } from "../../powerups"
-import { audioService } from "../../services/audioService"
+import { gameSoundService } from "../../services/gameSoundService"
 import { tags } from "../../tags"
+import { getCompanionVisual } from "../../visuals/companionVisualCatalog"
+import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 import { spawnRing } from "../spawnRing"
 import { spawnRepairStation } from "./spawnRepairStation"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
@@ -64,6 +66,7 @@ interface BrokenDroneProps {
 }
 
 function spawnBrokenDrone(props: BrokenDroneProps) {
+	const visual = getCompanionVisual("combat")
 	let repairing = false
 	let repaired = false
 	let elapsed = 0
@@ -72,7 +75,7 @@ function spawnBrokenDrone(props: BrokenDroneProps) {
 	const startAngle = props.angle
 	const wreck = k.add([
 		k.pos(props.pos),
-		k.sprite("drone_combat", { width: 16, height: 16 }),
+		k.sprite(requirePrimaryVisualSprite(visual), { width: 16, height: 16 }),
 		k.anchor("center"),
 		k.rotate(startAngle),
 		k.scale(0.9, 0.62),
@@ -151,7 +154,7 @@ function spawnBrokenDrone(props: BrokenDroneProps) {
 		prompt.text = "REBOOTING"
 		prompt.color = k.rgb(90, 255, 135)
 		prompt.opacity = 1
-		audioService.playSound("powerup1", { volume: mainSoundVolume * 0.55 })
+		gameSoundService.play("powerup1", { volume: mainSoundVolume * 0.55 })
 	}
 
 	function finishRepair(droneWreck: GameObj<InteractableComp | PosComp>) {

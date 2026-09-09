@@ -7,6 +7,7 @@ import { LevelKey } from "../levels/levels";
 import { startLevelTransition } from "../services/levelTransitionService";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import { audioService } from "../services/audioService";
+import { gameSoundService } from "../services/gameSoundService"
 import { UI_FONT_SIZES } from "../ui/common";
 import { menuBlocksPostProcessing } from "../ui/uiState";
 import {
@@ -230,7 +231,7 @@ export function addWormholeEffect(
 	syncPostEffect();
 	const ambience = options.ambience === false
 		? undefined
-		: audioService.playPositionalSound(
+		: gameSoundService.playPositional(
 				"wormhole_ambience",
 				() => portal.exists() ? portal.pos : undefined,
 				{

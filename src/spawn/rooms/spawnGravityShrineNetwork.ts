@@ -6,10 +6,13 @@ import { resetPlayerPath } from "../../services/playerPathService"
 import { tags } from "../../tags"
 import { spawnGravityPull } from "../spawnGravityPull"
 import { spawnRing } from "../spawnRing"
+import { getWorldVisual } from "../../visuals/worldVisualCatalog"
+import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 
 const GRAVITY_COLOR = [174, 112, 255] as const
 const TELEPORT_RADIUS = 12
 const REARM_RADIUS = 28
+const GRAVITY_SHRINE_VISUAL = getWorldVisual("gravity-shrine")
 
 interface GravityShrineNetworkProps {
 	positions: Vec2[]
@@ -38,9 +41,9 @@ export function spawnGravityShrineNetwork(
 			...(props.tags ?? []),
 		])
 		const core = shrine.add([
-			k.sprite("shrine_gravity"),
+			k.sprite(requirePrimaryVisualSprite(GRAVITY_SHRINE_VISUAL)),
 			k.anchor("center"),
-			k.scale(1.25),
+			k.scale(GRAVITY_SHRINE_VISUAL.worldScale),
 			k.color(205, 185, 255),
 			k.layer(layers.buildings),
 		])

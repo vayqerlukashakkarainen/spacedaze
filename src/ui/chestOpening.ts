@@ -13,6 +13,7 @@ import {
 	Rarity,
 } from "../chestRewards";
 import { audioService } from "../services/audioService";
+import { gameSoundService } from "../services/gameSoundService"
 import { shake } from "../comp/shake";
 import {
 	applyReward,
@@ -349,7 +350,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		const isPerfect = totalFailures === 0;
 		if (isPerfect && !chestController.perfectOpenSoundPlayed) {
 			chestController.perfectOpenSoundPlayed = true;
-			audioService.playSound("perfect_chest_open", {
+			gameSoundService.play("perfect_chest_open", {
 				volume: mainSoundVolume * 0.85,
 			});
 			showPerfectChallengeFeedback(
@@ -375,7 +376,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			3,
 			chestController.successfulHits + amount
 		);
-		audioService.playSound("explosion1", {
+		gameSoundService.play("explosion1", {
 			volume: mainSoundVolume,
 			detune: chestController.successfulHits * 200,
 		});
@@ -414,7 +415,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 	};
 	const registerChallengeMiss = () => {
 		chestController.failedAttempts++;
-		audioService.playSound("collect1", { volume: mainSoundVolume });
+		gameSoundService.play("collect1", { volume: mainSoundVolume });
 		chestController.barTargetScale = k.vec2(0.3);
 	};
 	const startChallengeCountdown = async () => {
@@ -453,7 +454,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				loops: 1,
 				easing: k.easings.easeOutCubic,
 			});
-			audioService.playSound("collect1", {
+			gameSoundService.play("collect1", {
 				volume: mainSoundVolume * 0.55,
 				detune: (3 - value) * 120,
 			});
@@ -664,8 +665,8 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				) return;
 				chestController.capacitorCharging = true;
 				stopCapacitorChargeSound();
-				chestController.capacitorChargeSound = audioService.playSound(
-					"rail_lance_charge",
+				chestController.capacitorChargeSound = gameSoundService.play(
+					"chest_challenge_charge",
 					{
 						volume: mainSoundVolume * 0.32,
 						loop: true,
@@ -824,7 +825,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 					zone.hit = true;
 					chestController.successfulHits++;
 					hitZone = true;
-					audioService.playSound("explosion1", {
+					gameSoundService.play("explosion1", {
 						volume: mainSoundVolume,
 						detune: chestController.successfulHits * 200,
 					});
@@ -877,7 +878,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			}
 			if (!hitZone) {
 				chestController.failedAttempts++;
-				audioService.playSound("collect1", { volume: mainSoundVolume });
+				gameSoundService.play("collect1", { volume: mainSoundVolume });
 				// Scale down on miss
 				chestController.barTargetScale = k.vec2(0.3, 0.3);
 			}
@@ -1066,7 +1067,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			chestController.borderBox.shake(5);
 		}
 
-		audioService.playSound("explosion4", { volume: mainSoundVolume });
+		gameSoundService.play("explosion4", { volume: mainSoundVolume });
 
 		if (chestController.crateSprite) {
 			k.destroy(chestController.crateSprite);
@@ -1247,19 +1248,19 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			});
 
 			if (profile.revealSound) {
-				audioService.playSound("high_rarity_reveal", {
+				gameSoundService.play("high_rarity_reveal", {
 					volume: mainSoundVolume * profile.revealSound.volume,
 					detune: profile.revealSound.detune,
 					speed: profile.revealSound.speed,
 				});
 			} else {
-				audioService.playSound("powerup1", {
+				gameSoundService.play("powerup1", {
 					volume: mainSoundVolume,
 					detune: profile.detune,
 				});
 			}
 			if (isRarityAtLeast(reward.rarity, Rarity.Epic)) {
-				audioService.playSound("explosion2", {
+				gameSoundService.play("explosion2", {
 					volume:
 						mainSoundVolume *
 						(reward.rarity === Rarity.Legendary ? 0.75 : 0.45),
@@ -1267,7 +1268,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				});
 			}
 			if (reward.rarity === Rarity.Legendary) {
-				audioService.playSound("reward_shine_legendary", {
+				gameSoundService.play("reward_shine_legendary", {
 					volume: mainSoundVolume * 0.9,
 				});
 			}
@@ -1421,7 +1422,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			accepted = true;
 
 			// Play purchase sound
-			audioService.playSound("purchase1", { volume: mainSoundVolume });
+			gameSoundService.play("purchase1", { volume: mainSoundVolume });
 
 			finishSequence();
 			await playWorldChestOpenAnimation();
@@ -1454,7 +1455,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				(reward) => reward.id
 			);
 			clearDetailInteractions();
-			audioService.playSound("purchase1", { volume: mainSoundVolume });
+			gameSoundService.play("purchase1", { volume: mainSoundVolume });
 			chestController.enterState("reroll");
 		};
 		const retryChallenge = () => {
@@ -1470,7 +1471,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				fixed: true,
 			});
 			clearDetailInteractions();
-			audioService.playSound("purchase1", { volume: mainSoundVolume });
+			gameSoundService.play("purchase1", { volume: mainSoundVolume });
 			chestController.removeAll();
 			chestController.uiContainer = null;
 			chestController.borderBox = null;

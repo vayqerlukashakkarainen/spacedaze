@@ -7,7 +7,7 @@ import type {
 } from "kaplay"
 import { k, layers, mainSoundVolume } from "../main"
 import { tags } from "../tags"
-import { audioService } from "./audioService"
+import { gameSoundService } from "./gameSoundService"
 import {
 	createSpaceJumpStreaks,
 	drawSpaceJump,
@@ -57,7 +57,7 @@ export function startMainMenuSpaceJump(
 				elapsed += k.dt()
 				if (!warpSoundStarted && elapsed >= JUMP_START) {
 					warpSoundStarted = true
-					audioService.playSound("menu_spacejump_warp", {
+					gameSoundService.play("menu_spacejump_warp", {
 						volume: mainSoundVolume * 0.9,
 					})
 				}

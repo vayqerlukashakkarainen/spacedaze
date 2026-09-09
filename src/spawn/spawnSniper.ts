@@ -1,7 +1,7 @@
 import type { Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, subSoundVolume, velocityScale } from "../main"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import { applyDamage } from "../services/damageService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import {
@@ -21,21 +21,23 @@ import {
 	registerHitAnimation,
 } from "../shared"
 import { tags } from "../tags"
-import { randomExplosion } from "../util"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 
 type SniperPhase = "reposition" | "aim"
+const SNIPER_VISUAL = getEnemyVisual("sniper")
 
 export function spawnSniper(
 	pos: Vec2,
 	hp = 4,
 	options: EnemySpawnOptions = {}
 ) {
-	const profile = createEnemySpawnProfile(hp, 2, 0.95, options)
+	const profile = createEnemySpawnProfile(hp, 2, SNIPER_VISUAL.worldScale, options)
 	const sniper = k.add([
 		k.pos(pos),
-		k.sprite("enemy_sniper"),
+		k.sprite(requirePrimaryVisualSprite(SNIPER_VISUAL)),
 		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),
@@ -175,7 +177,7 @@ export function spawnSniper(
 			true,
 			{ tier: profile.elite ? "elite" : "normal" }
 		)
-		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
+		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(sniper)
 	})
 	sniper.onHurt(() => {

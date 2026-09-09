@@ -173,6 +173,24 @@ been recovered.
 - **Reward bias:** Salvage, repair, starter weapons, and broadly useful upgrades.
 - **Story use:** Memories of ordinary life in the Wake before the Claim.
 
+### Generated room environment
+
+Wake rooms use generated objects as part of their combat layout, not as a
+second reward roll after the room has loaded. Their first environment set is:
+
+- **Hull barricades:** Stable hard cover that establishes firing lanes.
+- **Floating scrap:** Pushable, destructible cover that enemies may hide behind.
+- **Volatile fuel cells:** Neutral explosive objects that damage and push every
+  nearby combatant and can chain-react.
+- **Loose salvage clusters:** Destructible scrap with a small debris return.
+- **Damaged memory consoles:** Rare explicit interactions reserved for quiet
+  rooms and story placement.
+
+The generator saves every placed object's identity, cell, orientation, variant,
+and mutable state with the room. Runtime room loading only instantiates this
+saved plan. Placement and behavior rules are defined in
+`room_environment_generation.md`.
+
 ## Federation Claim Zone
 
 These floors are fragments of reclamation carriers, impound stations, and

@@ -3,7 +3,7 @@ import { playerObj } from "../../game"
 import { getScore, k, layers, mainSoundVolume, spendScore } from "../../main"
 import { addThreatTime } from "../../services/threatService"
 import { spawnThreatEncounter } from "../../services/enemyEncounterService"
-import { audioService } from "../../services/audioService"
+import { gameSoundService } from "../../services/gameSoundService"
 import { tags } from "../../tags"
 import { spawnBuilding } from "../spawnBuilding"
 import { spawnRing } from "../spawnRing"
@@ -91,7 +91,7 @@ export function spawnRepairStation(props: RepairStationProps) {
 			maxRadius: props.defendRadius,
 			color: k.rgb(90, 255, 135),
 		})
-		audioService.playSound("powerup1", { volume: mainSoundVolume })
+		gameSoundService.play("powerup1", { volume: mainSoundVolume })
 		props.onComplete?.()
 	})
 

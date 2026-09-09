@@ -1,15 +1,18 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../../game"
 import { k, layers, mainSoundVolume } from "../../main"
-import { audioService } from "../../services/audioService"
+import { gameSoundService } from "../../services/gameSoundService"
 import { applyDamage } from "../../services/damageService"
 import { tags } from "../../tags"
 import { spawnExplosionEffect } from "../spawnFlash"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 import { querySpatialNearby } from "../../services/runtimeSpatialIndexService"
+import { getWorldVisual } from "../../visuals/worldVisualCatalog"
+import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 
 const MINE_WARNING_RADIUS = 90
 const MINE_TRIGGER_RADIUS = 28
+const MINEFIELD_VISUAL = getWorldVisual("minefield")
 
 interface MinefieldProps {
 	pos: Vec2
@@ -38,11 +41,11 @@ function spawnProximityMine(pos: Vec2, damage: number, extraTags?: string[]) {
 	let triggerElapsed = 0
 	const mine = k.add([
 		k.pos(pos),
-		k.sprite("room_proximity_mine"),
+		k.sprite(requirePrimaryVisualSprite(MINEFIELD_VISUAL)),
 		k.anchor("center"),
 		k.layer(layers.gameEffects),
 		k.rotate(k.rand(360)),
-		k.scale(0.82),
+		k.scale(MINEFIELD_VISUAL.worldScale),
 		k.color(150, 150, 150),
 		k.opacity(0.9),
 		tags.props,
@@ -106,7 +109,7 @@ function detonateMine(mine: GameObj, damage: number) {
 		})
 	}
 	spawnExplosionEffect(explosionPos, 52)
-	audioService.playPositionalSound("explosion2", explosionPos, {
+	gameSoundService.playPositional("explosion2", explosionPos, {
 		volume: mainSoundVolume * 0.8,
 		maxDistance: 650,
 	})

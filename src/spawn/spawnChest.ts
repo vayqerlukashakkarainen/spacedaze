@@ -18,12 +18,13 @@ import {
 	type ChestRewardType,
 } from "../ui/chestChallenge";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
-import { audioService } from "../services/audioService";
+import { gameSoundService } from "../services/gameSoundService"
 import { spawnCurrencyBurst } from "./spawnCurrencyBurst";
 import { playRequirementErrorSound } from "../services/uiSoundService";
 import { createNpcInteractionPrompt, UI_COLORS } from "../ui/common";
+import { getPickupVisual } from "../visuals/pickupVisualCatalog";
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation";
 
-const CHEST_SCALE = 0.75;
 const CHEST_AURA_RADIUS = 20;
 const CHEST_RING_RADIUS = 25;
 const CHEST_OPEN_ANTICIPATION_DURATION = 0.22;
@@ -33,6 +34,8 @@ interface ChestOptions {
 	rewardType?: ChestRewardType;
 	purchaseCost?: number | (() => number);
 	ghostCost?: number;
+	available?: boolean | (() => boolean);
+	ghostWhenUnavailable?: boolean;
 	debreeBurstCount?: number;
 	onPurchased?: () => void;
 	onOpened?: () => void;
@@ -47,11 +50,17 @@ export function spawnChest(
 	let opened = false;
 	const rewardType = options.rewardType ?? "salvage";
 	const weaponChest = rewardType === "weapon";
-	const chestSprite = weaponChest ? "chest_weapon_world" : "chest_salvage_world";
-	const openedChestSprite = weaponChest
-		? "chest_weapon_open_world"
-		: "chest_salvage_open_world";
+	const chestVisual = getPickupVisual(weaponChest ? "weapon-chest" : "salvage-chest");
+	const openedChestVisual = getPickupVisual(
+		weaponChest ? "weapon-chest-open" : "salvage-chest-open"
+	);
+	const chestSprite = requirePrimaryVisualSprite(chestVisual);
+	const openedChestSprite = requirePrimaryVisualSprite(openedChestVisual);
 	const ghost = options.ghostCost !== undefined;
+	const isAvailable = () => typeof options.available === "function"
+		? options.available()
+		: options.available ?? true;
+	let available = isAvailable();
 	const requiresPurchase = ghost || options.purchaseCost !== undefined;
 	let purchased = !requiresPurchase;
 	const getPurchaseCost = () => {
@@ -64,12 +73,12 @@ export function spawnChest(
 	const chest = spawnBuilding({
 		pos,
 		sprite: chestSprite,
-		interactRadius: 60,
-		scale: CHEST_SCALE,
+		interactRadius: available ? 60 : 0,
+		scale: chestVisual.worldScale,
 		interactionPrompt: false,
 		tags: options.tags,
-			onInteract: () => {
-			if (opened) return;
+		onInteract: () => {
+			if (opened || !isAvailable()) return;
 			if (!purchased && requiresPurchase) {
 				const purchaseCost = getPurchaseCost();
 				if (!spendScore(purchaseCost)) {
@@ -84,7 +93,7 @@ export function spawnChest(
 				});
 				starsEmitter.emitter.position = chest.pos.clone();
 				starsEmitter.emit(18);
-				audioService.playSound("purchase1", {
+				gameSoundService.play("purchase1", {
 					volume: mainSoundVolume,
 				});
 				options.onPurchased?.();
@@ -106,7 +115,9 @@ export function spawnChest(
 			}
 			: undefined,
 	});
-	chest.use(k.opacity(ghost ? 0.38 : 1));
+	chest.use(k.opacity(
+		ghost || (options.ghostWhenUnavailable && !available) ? 0.38 : 1
+	));
 
 	function startChestSequence() {
 		if (!chest.exists()) return;
@@ -138,7 +149,7 @@ export function spawnChest(
 				easing: k.easings.easeInCubic,
 			}
 		);
-		audioService.playSound("primary_weapon_charge", {
+		gameSoundService.play("chest_open_charge", {
 			volume: mainSoundVolume * 0.4,
 			speed: 1.45,
 		});
@@ -161,7 +172,7 @@ export function spawnChest(
 		);
 		starsEmitter.emitter.position = chest.pos.clone();
 		starsEmitter.emit(32);
-		audioService.playSound("powerup1", {
+		gameSoundService.play("powerup1", {
 			volume: mainSoundVolume * 0.65,
 			detune: 80,
 		});
@@ -214,7 +225,13 @@ export function spawnChest(
 	]);
 
 	registerBatchedEntityUpdate("world", chest, () => {
-		interactionPrompt.update(chest.isInRange);
+		const nextAvailable = isAvailable();
+		if (nextAvailable !== available) {
+			available = nextAvailable;
+			chest.setInteractRadius(available && !opened ? 60 : 0);
+			if (available && !opened) chest.opacity = 1;
+		}
+		interactionPrompt.update(available && chest.isInRange);
 		if (opened) return;
 		const pulse = k.wave(0.92, 1.08, k.time() * 2.5);
 		aura.scale = k.vec2(pulse);
@@ -222,6 +239,8 @@ export function spawnChest(
 		auraRing.opacity = k.wave(0.15, 0.4, k.time() * 2);
 		if (ghost && !purchased && !opened) {
 			chest.opacity = k.wave(0.28, 0.5, k.time() * 1.8);
+		} else if (options.ghostWhenUnavailable && !available) {
+			chest.opacity = k.wave(0.2, 0.38, k.time() * 1.8);
 		}
 	});
 

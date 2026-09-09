@@ -15,7 +15,7 @@ import {
 import { transitionToLevel, type LevelKey } from "../levels/levels";
 import { starsEmitter } from "../particles";
 import { tags } from "../tags";
-import { audioService } from "./audioService";
+import { gameSoundService } from "./gameSoundService"
 import { profileSection } from "./frameProfilerService";
 import { runtimeDebug } from "./runtimeDebugService";
 
@@ -98,7 +98,7 @@ export function startLevelTransition(options: TransitionOptions) {
 	]);
 	const controller = k.add([tags.levelTransition]);
 
-	audioService.playSound("swap_level", { volume: mainSoundVolume });
+	gameSoundService.play("swap_level", { volume: mainSoundVolume });
 	starsEmitter.emitter.position = portalPos;
 	starsEmitter.emit(20);
 
@@ -229,7 +229,7 @@ function setPortalIntensity(portal: GameObj, intensity: number) {
 
 function spawnArrivalEffect(pos: Vec2, playWarpLandingBass: boolean) {
 	if (playWarpLandingBass) {
-		audioService.playSound("warp_landing_bass", {
+		gameSoundService.play("warp_landing_bass", {
 			volume: mainSoundVolume,
 		})
 	}

@@ -2,7 +2,7 @@ import type { Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
 import { starsEmitterDir, trailEmitter } from "../particles"
-import { audioService } from "../services/audioService"
+import { gameSoundService } from "../services/gameSoundService"
 import { registerBossEncounter } from "../services/bossEncounterService"
 import { getBossDefinition, getBossHealth } from "../services/bossRegistry"
 import { applyDamage } from "../services/damageService"
@@ -18,7 +18,8 @@ import {
 } from "../services/threatService"
 import { applyDirectionalSteeringLean, easeDirection, registerHitAnimation } from "../shared"
 import { tags } from "../tags"
-import { randomExplosion } from "../util"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 
@@ -32,7 +33,8 @@ type ImpactAceState =
 	| "stationWindDown"
 type ImpactAceMode = "ramming" | "station"
 
-const IMPACT_ACE_SPRITE = "enemy_impact_ace"
+const IMPACT_ACE_VISUAL = getEnemyVisual("impact-ace")
+const IMPACT_ACE_SPRITE = requirePrimaryVisualSprite(IMPACT_ACE_VISUAL)
 const STATION_FIRE_DURATION = 3
 const STATION_SPREAD_DEGREES = 28
 
@@ -50,7 +52,7 @@ export function spawnImpactAce(
 	const profile = createEnemySpawnProfile(
 		getBossHealth("impact-ace", runDepth),
 		2,
-		1,
+		IMPACT_ACE_VISUAL.worldScale,
 		{ ...options, elite: false }
 	)
 	const initialDirection = directionToPlayer(pos)
@@ -256,7 +258,7 @@ export function spawnImpactAce(
 			false,
 			{ intensity: 4, starCount: 55 }
 		)
-		audioService.playSound(randomExplosion(), { volume: subSoundVolume })
+		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(ace)
 	})
 	ace.onHurt(() => {
@@ -273,7 +275,7 @@ function beginTelegraph(
 	ace.lockedDirection = directionToPlayer(ace.pos)
 	if (startingCombo) ace.chargesRemaining = ace.phaseIndex
 	setState(ace, "telegraph")
-	audioService.playPositionalSound(
+	gameSoundService.playPositional(
 		"wormhole_rampup",
 		() => ace.exists() ? ace.pos : undefined,
 		{ volume: mainSoundVolume * 0.55, voiceLimit: 2 }
@@ -289,7 +291,7 @@ function beginCharge(ace: ReturnType<typeof k.add>, scale: number) {
 	starsEmitterDir.emitter.position = ace.pos.sub(ace.lockedDirection.scale(16 * scale))
 	starsEmitterDir.emitter.direction = ace.lockedDirection.angle() + 180
 	starsEmitterDir.emit(30)
-	audioService.playPositionalSound(
+	gameSoundService.playPositional(
 		"rammer_launch",
 		() => ace.exists() ? ace.pos : undefined,
 		{ volume: mainSoundVolume, voiceLimit: 3 }
@@ -320,7 +322,7 @@ function beginStationCharge(
 	ace.scale = k.vec2(ace.baseScale)
 	ace.children[0].opacity = 0
 	setState(ace, "stationCharge")
-	audioService.playPositionalSound(
+	gameSoundService.playPositional(
 		"wormhole_rampup",
 		() => ace.exists() ? ace.pos : undefined,
 		{ volume: mainSoundVolume * 0.7, voiceLimit: 2 }

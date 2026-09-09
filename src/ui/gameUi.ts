@@ -33,6 +33,8 @@ import { registerBatchedUiUpdate } from "../services/uiUpdateService";
 import { uiHitRegion } from "./common/hitRegion";
 import { getRerollTokens, player } from "../player";
 import type { ActiveModuleDefinition } from "../services/activeModuleService";
+import { getPickupVisual } from "../visuals/pickupVisualCatalog";
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation";
 import { getEquippedWeapon } from "../services/weaponService";
 import { debreeRunActive } from "../services/debreeEconomyService";
 import type { AbilityDefinition } from "../services/abilityRegistry";
@@ -40,7 +42,7 @@ import { getAbilityDefinition } from "../services/abilityRegistry";
 import {
 	getEquippedMobilityAbilityId,
 } from "../services/abilityLoadoutService";
-import { audioService } from "../services/audioService";
+import { gameSoundService } from "../services/gameSoundService"
 import { getRunLevelSnapshot } from "../services/runLevelService";
 import { createUiProgressBar } from "./common/progressBar";
 import { hideRunLevelChoice, showRunLevelChoice } from "./runLevelChoice";
@@ -217,7 +219,7 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		},
 	]);
 	const roomKeyIcon = roomKeyDisplay.add([
-		k.sprite("room_phase_key", { width: 16, height: 16 }),
+		k.sprite(requirePrimaryVisualSprite(getPickupVisual("room-key")), { width: 16, height: 16 }),
 		k.pos(-25, 0),
 		k.anchor("center"),
 		k.color(...UI_COLORS.warning),
@@ -412,7 +414,7 @@ function setupRunLevelHud() {
 			for (let index = 0; index < gainedLevels; index++) {
 				k.wait(index * 0.12, () => {
 					if (!levelHud?.exists() || runLevelHud !== levelHud) return;
-					audioService.playSound("run_level_up", {
+					gameSoundService.play("run_level_up", {
 						volume: mainSoundVolume * 0.85,
 						detune: index * 120,
 					});

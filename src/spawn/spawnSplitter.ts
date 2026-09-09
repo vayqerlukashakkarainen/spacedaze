@@ -9,19 +9,23 @@ import {
 } from "../services/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
 import { spawnSwarmEnemy } from "./spawnSwarm"
+
+const SPLITTER_VISUAL = getEnemyVisual("splitter")
 
 export function spawnSplitter(
 	pos: Vec2,
 	hp = 7,
 	options: EnemySpawnOptions = {}
 ) {
-	const profile = createEnemySpawnProfile(hp, 1, 1.05, options)
+	const profile = createEnemySpawnProfile(hp, 1, SPLITTER_VISUAL.worldScale, options)
 	const splitter = k.add([
 		k.pos(pos),
-		k.sprite("enemy_splitter"),
+		k.sprite(requirePrimaryVisualSprite(SPLITTER_VISUAL)),
 		k.color(k.WHITE),
 		k.rotate(0),
 		k.anchor("center"),

@@ -4,14 +4,9 @@ import { k, velocityScale } from "../main";
 import { emitEnemyTrail } from "../particles";
 import { spawnEnemyBlaster } from "../services/projectileHelpers";
 import { tags } from "../tags";
+import { getEnemyVisual } from "../visuals/enemyVisualCatalog";
 
-const components = {
-	body: 1,
-	leftWing: 2,
-	rightWing: 3,
-	blaster: 4,
-};
-import { Component, compose } from "../compose";
+import { compose, unitComponents } from "../compose";
 import { jitter } from "../comp/jitter";
 import { onEnemyHit } from "./enemyShared";
 import { timescale } from "../comp/timescale";
@@ -31,8 +26,10 @@ import {
 	easeDirection,
 } from "../shared";
 
-const wingOffset = [6, 2];
-export const unitComponents: Record<number, Component[]> = {};
+const FIGHTER_VISUAL = getEnemyVisual("fighter");
+const FIGHTER_BODY = FIGHTER_VISUAL.parts[0];
+const FIGHTER_LEFT_WING = FIGHTER_VISUAL.parts[1];
+const FIGHTER_RIGHT_WING = FIGHTER_VISUAL.parts[2];
 
 export function spawnShip1(
 	pos: Vec2,
@@ -43,11 +40,16 @@ export function spawnShip1(
 	speed: number,
 	options: EnemySpawnOptions = {}
 ) {
-	const profile = createEnemySpawnProfile(hp, 1, scale, options);
+	const profile = createEnemySpawnProfile(
+		hp,
+		1,
+		FIGHTER_VISUAL.worldScale * scale,
+		options
+	);
 	const hb = 16 * profile.scale;
 	const m = k.add([
 		k.pos(pos),
-		k.sprite("enemy_ship1_body"),
+		k.sprite(FIGHTER_BODY.sprite),
 		k.color(k.WHITE),
 		k.rotate(dir.angle() + 90),
 		k.anchor("center"),
@@ -78,8 +80,8 @@ export function spawnShip1(
 	]);
 
 	const wing1 = m.add([
-		k.pos(k.vec2(-wingOffset[0], -wingOffset[1])),
-		k.sprite("enemy_ship1_left_wing"),
+		k.pos(k.vec2(...(FIGHTER_LEFT_WING.offset ?? [0, 0]))),
+		k.sprite(FIGHTER_LEFT_WING.sprite),
 		k.color(k.WHITE),
 		k.anchor("center"),
 		k.health(Math.floor(profile.hp / 2)),
@@ -91,8 +93,8 @@ export function spawnShip1(
 		tags.gameLoop,
 	]);
 	const wing2 = m.add([
-		k.pos(k.vec2(wingOffset[0], -wingOffset[1])),
-		k.sprite("enemy_ship1_right_wing"),
+		k.pos(k.vec2(...(FIGHTER_RIGHT_WING.offset ?? [0, 0]))),
+		k.sprite(FIGHTER_RIGHT_WING.sprite),
 		k.color(k.WHITE),
 		k.anchor("center"),
 		k.health(Math.floor(profile.hp / 2)),
@@ -187,7 +189,7 @@ export function spawnShip1(
 				m.damage,
 				{
 					name: profile.elite ? "ELITE FIGHTER" : "FIGHTER",
-					sprite: "enemy_ship1_body",
+					sprite: FIGHTER_BODY.sprite,
 				}
 			);
 		}

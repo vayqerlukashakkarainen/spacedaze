@@ -719,7 +719,7 @@ export function spawnEnemyBlaster(
 	damage: number,
 	damageSource: { name: string; sprite?: string } = {
 		name: "ENEMY SHIP",
-		sprite: "enemy_ship1_body",
+		sprite: "enemy_fighter_core",
 	}
 ) {
 	const config: ProjectileConfig = {
@@ -734,7 +734,8 @@ export function spawnEnemyBlaster(
 		impact: {
 			damage,
 		},
-		fireSound: "shoot1",
+		fireSound: "enemy_blaster_fire",
+		fireSoundVolume: 0.7,
 	};
 
 	return spawnProjectile(config);
