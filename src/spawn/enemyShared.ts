@@ -75,7 +75,7 @@ export function enemyOnDeath(
 	starsEmitter.emit(visuals.starCount ?? 20);
 	const reactorRewardMultiplier = 1 + player.threatReactorStacks * 0.25;
 	if (score > 0) addRunLevelXp(Math.max(1, Math.round(score)));
-	spawnDebree(pos, score * reactorRewardMultiplier);
+	spawnDebree(pos, score * reactorRewardMultiplier, { source: "enemy" });
 	const dropMultiplier =
 		powerupMultiplier * getForgeDropMultiplier();
 	trySpawnHealthOrb(pos, dropMultiplier);

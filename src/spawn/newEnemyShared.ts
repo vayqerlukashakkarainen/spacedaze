@@ -39,12 +39,13 @@ export function registerEnemyLifecycle(
 	registerHitAnimation(enemy)
 	enemy.onDeath(() => {
 		onBeforeDestroy?.()
+		const reconstructed = profile.rewardMode === "reconstructed"
 		enemyOnDeath(
 			enemy.pos,
-			score * profile.rewardMultiplier,
-			powerupMultiplier * profile.rewardMultiplier,
+			reconstructed ? 0 : score * profile.rewardMultiplier,
+			reconstructed ? 0 : powerupMultiplier * profile.rewardMultiplier,
 			"enemy",
-			true,
+			!reconstructed,
 			{ tier: profile.elite ? "elite" : "normal" }
 		)
 		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })

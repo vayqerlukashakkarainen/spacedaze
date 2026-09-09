@@ -48,12 +48,13 @@ export function composeWakeEnemy(
 	const deathPos = () => body.pos.clone()
 	const finishBodyDeath = (pos: Vec2) => {
 		if (body.exists()) k.destroy(body)
+		const reconstructed = profile.rewardMode === "reconstructed"
 		enemyOnDeath(
 			pos,
-			score * profile.rewardMultiplier,
-			powerupMultiplier * profile.rewardMultiplier,
+			reconstructed ? 0 : score * profile.rewardMultiplier,
+			reconstructed ? 0 : powerupMultiplier * profile.rewardMultiplier,
 			"enemy",
-			true,
+			!reconstructed,
 			{ tier: profile.elite ? "elite" : "normal" }
 		)
 		onBodyDeath?.()

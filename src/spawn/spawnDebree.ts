@@ -26,11 +26,13 @@ export interface DebreeCollectionState {
 }
 
 export type DebreeValue = SalvagePickupValue;
+export type DebreeSource = "enemy" | "player" | "world";
 
 export interface DebreeSpawnOptions {
 	pattern?: "random" | "radial";
 	minSpeed?: number;
 	maxSpeed?: number;
+	source?: DebreeSource;
 	tags?: string[];
 }
 
@@ -80,6 +82,7 @@ export function spawnDebreeValues(
 				collection: undefined as DebreeCollectionState | undefined,
 				carriedBy: undefined as number | undefined,
 				readyForPlayer: false,
+				source: options.source ?? "world",
 			},
 			tags.debree,
 			tags.gameLoop,

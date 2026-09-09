@@ -39,6 +39,7 @@ export interface EnemySpawnOptions {
 	elite?: boolean
 	disableThreatScaling?: boolean
 	persistOffscreen?: boolean
+	rewardMode?: "normal" | "reconstructed"
 	tags?: string[]
 }
 
@@ -49,6 +50,7 @@ export interface EnemySpawnProfile {
 	speedMultiplier: number
 	elite: boolean
 	rewardMultiplier: number
+	rewardMode: "normal" | "reconstructed"
 }
 
 let active = false
@@ -164,6 +166,7 @@ export function createEnemySpawnProfile(
 		speedMultiplier: elite ? 1.08 : 1,
 		elite,
 		rewardMultiplier: elite ? 1.75 : 1,
+		rewardMode: options.rewardMode ?? "normal",
 	}
 }
 
