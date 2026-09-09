@@ -737,7 +737,20 @@ function destroyBossPart(
 	const worldPos = part.worldPos.clone()
 	part.hidden = true
 	part.paused = true
-	detach(worldPos, sprite, 75 * scale)
+	const outward = worldPos.sub(boss.pos)
+	const impactDirection = part.detachImpactDirection?.len() > 0.001
+		? part.detachImpactDirection.unit()
+		: undefined
+	const detachDirection = impactDirection
+		? outward.unit().scale(0.72).add(impactDirection.scale(0.58)).unit()
+		: outward.len() > 0.001 ? outward.unit() : undefined
+	detach(worldPos, sprite, {
+		force: 75 * scale,
+		direction: detachDirection,
+		angle: boss.angle + (part.angle ?? 0),
+		scale,
+		secondaryBurst: true,
+	})
 	starsEmitter.emitter.position = worldPos
 	starsEmitter.emit(28)
 	gameSoundService.play("enemy_explosion", { volume: subSoundVolume * 0.9 })

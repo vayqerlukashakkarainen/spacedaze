@@ -1,6 +1,7 @@
 import type { Vec2 } from "kaplay"
 import { playerObj } from "../game"
 import { k, velocityScale } from "../main"
+import { spawnArtilleryBoulder } from "../services/artilleryBoulderService"
 import { applyDamage } from "../services/damageService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
@@ -88,8 +89,15 @@ export function spawnSiegeBarge(
 			if (barge.attackTimer <= 0 && distance < 620) {
 				barge.attacking = true
 				const targetPos = playerObj.pos.clone()
+				const impactDelay = profile.elite ? 0.78 : 1.05
+				spawnArtilleryBoulder(
+					barge.pos.clone(),
+					targetPos,
+					impactDelay,
+					options.tags
+				)
 				spawnTargetTelegraph(targetPos, IMPACT_RADIUS, {
-					duration: profile.elite ? 0.78 : 1.05,
+					duration: impactDelay,
 					tags: options.tags,
 					onComplete: () => {
 						if (!barge.exists()) return

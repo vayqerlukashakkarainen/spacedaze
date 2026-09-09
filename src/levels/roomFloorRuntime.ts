@@ -19,6 +19,7 @@ import {
 	beginRoomFloor,
 	clearRoomFloor,
 	enterFloorRoom,
+	extendCurrentEndlessRoomFloor,
 	getActiveRoomFloor,
 	getCurrentFloorRoom,
 	getFloorKeyCount,
@@ -33,6 +34,7 @@ import {
 } from "../services/roomFloorService"
 import { spawnPlannedEnemy } from "../services/enemyEncounterService"
 import { gameSoundService } from "../services/gameSoundService"
+import { setFloorMusicCombatState } from "../services/explorationMusicService"
 import { getBossHealth } from "../services/bossRegistry"
 import { getHubLevel } from "../services/hubProgressService"
 import { resetPlayerPath } from "../services/playerPathService"
@@ -43,6 +45,7 @@ import {
 import { startThreatLevel, stopThreatLevel, updateThreatLevel } from "../services/threatService"
 import { spawnBoss1 } from "../spawn/spawnBoss1"
 import { spawnChest } from "../spawn/spawnChest"
+import { spawnDebreeDeposit } from "../spawn/spawnDebreeDeposit"
 import { spawnFlash } from "../spawn/spawnFlash"
 import { spawnGravityPull } from "../spawn/spawnGravityPull"
 import { spawnImpactAce } from "../spawn/spawnImpactAce"
@@ -101,14 +104,20 @@ let transitionCooldown = 0
 export function startGeneratedRoomFloor(
 	config: GeneratedMapConfig,
 	seed: number,
-	depth: number
+	depth: number,
+	options: {
+		endless?: boolean
+		roomCount?: number
+	} = {}
 ) {
 	clearGeneratedRoomFloor()
 	active = true
 	activeConfig = config
 	beginRoomFloor(seed, depth, {
-		milestoneBoss: depth > 0 && depth % 3 === 0,
+		milestoneBoss: !options.endless && depth > 0 && depth % 3 === 0,
 		hubLevel: getHubLevel(),
+		endless: options.endless,
+		roomCount: options.roomCount,
 	})
 	startThreatLevel(depth)
 	spawnFloorController()
@@ -179,6 +188,7 @@ function loadCurrentRoom(
 	const room = getCurrentFloorRoom()
 	const config = activeConfig
 	if (!room || !config) return
+	extendCurrentEndlessRoomFloor()
 	const template = buildRoomTemplate(room)
 	const grid = generationMapToHexGrid(
 		template.map,
@@ -219,6 +229,7 @@ function loadCurrentRoom(
 		markCurrentFloorRoomCleared()
 	}
 	let doorsLocked = room.state !== "cleared"
+	setFloorMusicCombatState(roomUsesCombatMusic(room))
 	const lockRoom = () => {
 		if (doorsLocked) return
 		doorsLocked = true
@@ -295,6 +306,14 @@ function roomUsesStandardEncounter(room: RoomFloorRoom) {
 		room.kind === "reward" ||
 		room.kind === "gravity" ||
 		room.kind === "event"
+}
+
+function roomUsesCombatMusic(room: RoomFloorRoom) {
+	return room.kind === "start" ||
+		roomUsesStandardEncounter(room) ||
+		room.kind === "shrine" ||
+		room.kind === "miniBoss" ||
+		room.kind === "boss"
 }
 
 function roomHasPreviewedChest(room: RoomFloorRoom) {
@@ -477,6 +496,11 @@ function renderRoom(
 					const tangent = k.vec2(-direction.y, direction.x)
 					const keyLocked = isFloorRoomKeyLocked(door.destinationRoomId)
 					const roomLocked = doorsLocked()
+					const destinationVisited = getActiveRoomFloor()?.rooms.some(
+						(destination) =>
+							destination.id === door.destinationRoomId &&
+							destination.state === "cleared"
+					) === true
 					k.drawLine({
 						p1: center.add(tangent.scale(grid.config.hexSize * 0.36)),
 						p2: center.sub(tangent.scale(grid.config.hexSize * 0.36)),
@@ -486,7 +510,11 @@ function renderRoom(
 							: keyLocked
 								? k.rgb(...UI_COLORS.warning)
 								: k.rgb(...UI_COLORS.accent),
-						opacity: roomLocked || keyLocked ? 1 : 0.7,
+						opacity: roomLocked || keyLocked
+							? 1
+							: destinationVisited
+								? 0.18
+								: 0.7,
 					})
 					if (keyLocked && !roomLocked) {
 						k.drawSprite({
@@ -663,6 +691,14 @@ function spawnRoomContent(
 		spawnFloorExit(center, objectTags, { onActivated: onExitActivated })
 		return
 	}
+	if (room.kind === "deposit") {
+		spawnDebreeDeposit(center, {
+			available: () => !room.contentCompleted,
+			onDeposit: () => markCurrentRoomContentCompleted(),
+			tags: objectTags,
+		})
+		return
+	}
 	if (room.contentCompleted) return
 
 	switch (room.kind) {
@@ -752,7 +788,7 @@ function spawnMiniBossRoom(
 			onCleared()
 		}
 		const enemy = wakeFloor
-			? spawnBoilerHulk(center, 20 + depth * 2, {
+			? spawnBoilerHulk(center, (20 + depth * 2) * 10, {
 				persistOffscreen: true,
 				tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
 				onDefeated,

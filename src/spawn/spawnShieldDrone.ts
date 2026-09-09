@@ -263,7 +263,7 @@ function drawShieldLink(visual: ShieldLinkVisual) {
 }
 
 function getShieldHostThreat(target: GameObj, provider?: GameObj) {
-	const maxHealth = typeof target.maxHP === "function" ? target.maxHP() : 1
+	const maxHealth = typeof target.maxHP === "number" ? target.maxHP : 1
 	const baseDamage = provider?.shieldHostBaseDamage ?? target.damage ?? 0
 	const archetypeRank = target.threatRank ?? ENEMY_THREAT_RANK.fighter
 	const elitePriority = target.is(tags.elite) ? 100000 : 0

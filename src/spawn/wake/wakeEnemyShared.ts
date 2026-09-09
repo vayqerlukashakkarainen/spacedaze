@@ -42,21 +42,33 @@ export function composeWakeEnemy(
 	parts: WakeEnemyPart[],
 	score: number,
 	powerupMultiplier: number,
-	onBodyDeath?: () => void
+	onBodyDeath?: () => void,
+	deferBodyDeath?: (finish: () => void) => void
 ) {
+	const deathPos = () => body.pos.clone()
+	const finishBodyDeath = (pos: Vec2) => {
+		if (body.exists()) k.destroy(body)
+		enemyOnDeath(
+			pos,
+			score * profile.rewardMultiplier,
+			powerupMultiplier * profile.rewardMultiplier,
+			"enemy",
+			true,
+			{ tier: profile.elite ? "elite" : "normal" }
+		)
+		onBodyDeath?.()
+	}
 	unitComponents[body.id] = compose({
 		rewardMultiplier: profile.rewardMultiplier,
 		skipDefaultBodyDeath: true,
+		deferBodyDestruction: Boolean(deferBodyDeath),
 		onBodyDeath: () => {
-			enemyOnDeath(
-				body.pos,
-				score * profile.rewardMultiplier,
-				powerupMultiplier * profile.rewardMultiplier,
-				"enemy",
-				true,
-				{ tier: profile.elite ? "elite" : "normal" }
-			)
-			onBodyDeath?.()
+			const pos = deathPos()
+			if (deferBodyDeath) {
+				deferBodyDeath(() => finishBodyDeath(pos))
+				return
+			}
+			finishBodyDeath(pos)
 		},
 		parts: [
 			{ obj: body, hitbox: body.hb, isBody: true, scoreOnDestroy: 0 },
@@ -97,6 +109,6 @@ export function handleWakeCompositeCombat(
 			position: body.pos,
 			source: { name, sprite },
 		})
-		applyDamage(body, body.hp())
+		applyDamage(body, body.hp)
 	}
 }

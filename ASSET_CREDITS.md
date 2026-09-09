@@ -8,7 +8,11 @@
 
 - **Wake hull barricade and volatile fuel cell** — Generated with PixelLab for the room-environment system, then quantized against the existing asteroid palette with no dithering.
 
+- **Mass Driver railgun mount** — Generated with PixelLab (object `51aa76f1-473b-44cc-84d1-6f032085352d`), then quantized against the existing Rail Lance palette with no dithering.
+
 ## Music
+
+- **On The Run** — Shirobon, from *Dimensions*. Added as the Floor 1 exploration track from the user's local prototype copy; its embedded metadata links to [Shirobon's Bandcamp](https://shirobon.bandcamp.com/). Distribution rights are not recorded in the source file and must be confirmed before shipping.
 
 - **Flirt Flirt Oh It Hurts** — Bossfight, from *Caps On, Hats Off* (2012). Prototype copy downloaded from the [artist's Newgrounds upload](https://www.newgrounds.com/audio/listen/504114).
 

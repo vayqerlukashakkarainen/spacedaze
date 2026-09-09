@@ -33,7 +33,7 @@ export interface CritModifier {
 }
 
 export interface TrailModifier {
-	emitterType: "trail" | "boost" | "spark" | "dust" | "stars";
+	emitterType: "trail" | "boost" | "railgun" | "spark" | "dust" | "stars";
 	offset?: number;
 	particleCount?: number;
 }
@@ -254,6 +254,7 @@ export interface ProjectileConfig {
 	flashMinOpacity?: number;
 	visualWobble?: number;
 	visualScale?: number;
+	visualLengthScale?: number;
 	explosionDelay?: number;
 	persistOffscreen?: boolean;
 	ignoreWorldCollision?: boolean;

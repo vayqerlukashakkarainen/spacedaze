@@ -8,12 +8,16 @@ import { clearRecoveryOffers } from "../services/runInventoryService";
 import { hideRecoveryShop } from "../ui/recoveryShop";
 import type { CaveGenConfigOverrides } from "../generation/generationTypes";
 import {
+	getCurrentRunFloor,
 	getRunRouteSnapshot,
 	runSessionActive,
 } from "../services/runDirectorService";
 import { getWarpZone } from "../services/warpZoneService";
 import { musicVolume } from "../main";
-import { playZoneExplorationMusic } from "../services/explorationMusicService";
+import { playFloorExplorationMusic } from "../services/explorationMusicService";
+import { audioService } from "../services/audioService";
+import { getActiveRoomFloor } from "../services/roomFloorService";
+import { showFloorThemeTitle } from "../ui/floorThemeTitle";
 import {
 	prepareRunFinale,
 	resetRunFinale,
@@ -35,6 +39,8 @@ const levels = {
 	level1,
 	level2,
 } as const;
+
+const FLOOR_MUSIC_START_DELAY = 1;
 
 export type LevelKey = keyof typeof levels;
 
@@ -64,7 +70,7 @@ export function loadLevel(levelKey: LevelKey) {
 	currentLvl = lvl;
 	currentLevelKey = levelKey;
 	const zoneId = getRunRouteSnapshot()?.zoneId;
-	const runDepth = getRunRouteSnapshot()?.depth;
+	const runFloor = getCurrentRunFloor();
 	const zone = zoneId ? getWarpZone(zoneId) : undefined;
 	prepareRunFinale(
 		currentLvl.mapGeneration ? zone?.finaleId : undefined,
@@ -74,12 +80,22 @@ export function loadLevel(levelKey: LevelKey) {
 	if (currentLvl.onStart) {
 		currentLvl.onStart();
 	}
-	if (currentLvl.mapGeneration && zone?.explorationMusic) {
-		void playZoneExplorationMusic(
-			zone.id,
-			runDepth === 1,
-			musicVolume
-		);
+	if (currentLvl.mapGeneration && runFloor) {
+		const introducedFloor = getActiveRoomFloor();
+		if (introducedFloor?.seed === runFloor.mapSeed) {
+			showFloorThemeTitle(introducedFloor.themeId, introducedFloor.depth);
+		}
+		audioService.fadeOutMusic(0.5);
+		k.wait(FLOOR_MUSIC_START_DELAY, () => {
+			const activeFloor = getActiveRoomFloor();
+			const currentRunFloor = getCurrentRunFloor();
+			if (
+				currentLevelKey !== levelKey ||
+				activeFloor?.seed !== runFloor.mapSeed ||
+				currentRunFloor?.mapSeed !== runFloor.mapSeed
+			) return;
+			playFloorExplorationMusic(runFloor.depth, runFloor.mapSeed, musicVolume);
+		});
 	}
 	runtimeDebug.log("level", "level:load-complete", { level: levelKey });
 }

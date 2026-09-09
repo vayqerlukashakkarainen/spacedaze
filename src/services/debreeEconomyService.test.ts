@@ -11,13 +11,29 @@ import {
 	loseCarriedDebree,
 	spendAvailableDebree,
 } from "./debreeEconomyService"
+import {
+	getAbilityTierState,
+	registerAbilityTier,
+} from "./abilityTierService"
+import { RewardRarity } from "../types/rewardTypes"
 
 loadDepositedDebree(40)
 assert.equal(getAvailableDebree(), 40)
 assert.equal(spendAvailableDebree(10), true)
 assert.equal(getDepositedDebree(), 30)
 
+registerAbilityTier({
+	abilityId: "rocketPod",
+	slot: "secondary",
+	rarity: RewardRarity.Epic,
+	values: { power: 1.5, speed: 1.45, recovery: 1.4 },
+})
 beginDebreeRun()
+assert.equal(
+	getAbilityTierState("rocketPod")?.rarity,
+	RewardRarity.Epic,
+	"Equipment collected in the hub should retain its tier when a run begins"
+)
 assert.equal(getAvailableDebree(), 0)
 addAvailableDebree(17)
 assert.equal(spendAvailableDebree(5), true)

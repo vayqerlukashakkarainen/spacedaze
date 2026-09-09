@@ -8,6 +8,7 @@ import { tags } from "./tags";
 
 export let trailEmitter: GameObj<PosComp | ParticlesComp>;
 export let boostTrailEmitter: GameObj<PosComp | ParticlesComp>;
+export let railgunTrailEmitter: GameObj<PosComp | ParticlesComp>;
 export let starsEmitter: GameObj<PosComp | ParticlesComp>;
 export let starsEmitterDir: GameObj<PosComp | ParticlesComp>;
 export let explosionEmitter: GameObj<PosComp | ParticlesComp>;
@@ -181,6 +182,31 @@ export function initParticles() {
 				rate: 0,
 				direction: 0,
 				spread: 90,
+				position: k.vec2(0, 0),
+			}
+		),
+		"trail",
+	]);
+
+	railgunTrailEmitter = k.add([
+		k.pos(),
+		k.particles(
+			{
+				max: 800,
+				speed: [4, 38],
+				lifeTime: [0.12, 0.38],
+				colors: [k.rgb(255, 236, 120), k.rgb(255, 185, 30)],
+				opacities: [0.95, 0.5],
+				angle: [0, 360],
+				damping: [2, 3],
+				scales: [0.55, 0.25, 0.05],
+				texture: k.getSprite("particle3")!.data!.frames[0].tex,
+				quads: [k.getSprite("particle3")!.data!.frames[0].q],
+			},
+			{
+				rate: 0,
+				direction: 0,
+				spread: 70,
 				position: k.vec2(0, 0),
 			}
 		),

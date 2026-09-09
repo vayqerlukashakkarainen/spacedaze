@@ -61,6 +61,7 @@ import {
 	RUN_ROCK_TILE_SOURCE_RADIUS,
 	RUN_ROCK_TILE_SPRITE,
 } from "./runRockTiles";
+import { getFloorPositionForDepth } from "./floorThemes/floorThemeDirectory";
 import {
 	advanceRunSession,
 	getCurrentRunFloor,
@@ -1753,6 +1754,7 @@ export function spawnFloorExit(
 				return;
 			}
 			const clearedDepth = getCurrentRunFloor()?.depth ?? 1;
+			const clearedFloor = getFloorPositionForDepth(clearedDepth);
 			const nextFloor = advanceRunSession();
 			if (nextFloor) {
 				depositCarriedDebree();
@@ -1764,7 +1766,7 @@ export function spawnFloorExit(
 					setTimescale(1, 0.25, false);
 					selectLevel(nextFloor.levelKey);
 				}, {
-					title: `LEVEL ${clearedDepth} CLEARED`,
+					title: `FLOOR ${clearedFloor.floor}.${clearedFloor.subfloor} CLEARED`,
 					subtitle: "SALVAGE SECURED  //  ROUTE CONTINUES",
 					continueText: "CONTINUE RUN",
 				});

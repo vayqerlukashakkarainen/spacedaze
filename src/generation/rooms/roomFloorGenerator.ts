@@ -8,7 +8,10 @@ import {
 } from "../../services/enemyProgressionService"
 import { hexDistance, hexKey, hexNeighbors, type HexCoord } from "../hexUtils"
 import { SeededRNG } from "../seededRng"
-import { getFloorThemeIdForDepth } from "../../levels/floorThemes/floorThemeDirectory"
+import {
+	getFloorPositionForDepth,
+	getFloorThemeIdForDepth,
+} from "../../levels/floorThemes/floorThemeDirectory"
 import type { FloorThemeId } from "../../levels/floorThemes/floorThemeDirectory"
 import { createWakeEncounterEnemies } from "../../services/wakeEncounterService"
 import type {
@@ -20,8 +23,9 @@ import type {
 } from "./roomFloorTypes"
 import { planRoomEnvironment } from "./roomEnvironmentPlanner"
 
-const MIN_ROOMS = 10
-const MAX_ROOMS = 16
+const MIN_ROOMS = 20
+const MAX_ROOMS = 32
+const ROOM_COUNT_STEP = 4
 const MAX_ROOM_DEGREE = 4
 const ELITE_CHANCE_BY_TIER = [0, 0.04, 0.08, 0.15, 0.24, 0.34]
 
@@ -31,24 +35,33 @@ export function generateRoomFloor(
 	options: RoomFloorGenerationOptions = {}
 ): RoomFloor {
 	const normalizedDepth = Math.max(1, Math.floor(depth))
-	const targetCount = clamp(
-		options.roomCount ?? 10 + Math.floor((normalizedDepth - 1) * 0.75),
-		MIN_ROOMS,
-		MAX_ROOMS
-	)
+	const targetCount = options.endless
+		? clamp(options.roomCount ?? 4, 3, 8)
+		: clamp(
+			options.roomCount ?? MIN_ROOMS +
+				(normalizedDepth - 1) * ROOM_COUNT_STEP,
+			MIN_ROOMS,
+			MAX_ROOMS
+		)
 	const rng = new SeededRNG(mixSeed(seed, normalizedDepth, 701))
 	const coords = growRoomGraph(targetCount, rng)
 	const connections = connectAdjacentRooms(coords)
 	const distances = calculateDistances(coords, connections)
 	const exitIndex = selectFarthestRoom(coords, distances)
+	const floorPosition = getFloorPositionForDepth(normalizedDepth)
 	const kinds = assignRoomKinds(
 		coords,
 		connections,
 		distances,
 		exitIndex,
 		options.milestoneBoss === true,
+		floorPosition.subfloor >= 2,
 		rng
 	)
+	if (options.endless) {
+		kinds.fill("combat")
+		kinds[0] = "start"
+	}
 	const maxDistance = Math.max(...distances)
 	const themeId = getFloorThemeIdForDepth(normalizedDepth)
 	const rooms = coords.map((coord, index): RoomFloorRoom => {
@@ -88,12 +101,94 @@ export function generateRoomFloor(
 		seed,
 		depth: normalizedDepth,
 		themeId,
+		endless: options.endless === true,
+		hubLevel: options.hubLevel ?? 1,
 		startRoomId: rooms[0].id,
 		exitRoomId: rooms[exitIndex].id,
 		currentRoomId: rooms[0].id,
 		keys: 0,
 		rooms,
 	}
+}
+
+export function extendEndlessRoomFloor(
+	floor: RoomFloor,
+	fromRoomId: string
+) {
+	if (!floor.endless) return []
+	const source = floor.rooms.find((room) => room.id === fromRoomId)
+	if (!source) return []
+	const hasForwardConnection = source.connections.some((connectionId) => {
+		const neighbor = floor.rooms.find((room) => room.id === connectionId)
+		return neighbor && neighbor.distanceFromStart > source.distanceFromStart
+	})
+	if (hasForwardConnection) return []
+
+	const occupied = new Set(floor.rooms.map((room) => hexKey(room.coord)))
+	const rng = new SeededRNG(mixSeed(
+		floor.seed,
+		source.coord.q,
+		source.coord.r,
+		floor.rooms.length,
+		1701
+	))
+	const candidates = rng.shuffle(
+		hexNeighbors(source.coord).filter((coord) => !occupied.has(hexKey(coord)))
+	)
+	const branchCount = candidates.length > 1 && rng.nextBool(0.3) ? 2 : 1
+	const addedRooms: RoomFloorRoom[] = []
+
+	for (const coord of candidates.slice(0, branchCount)) {
+		const id = roomId(coord)
+		const adjacentRooms = floor.rooms.filter((room) =>
+			hexDistance(room.coord, coord) === 1
+		)
+		const distanceFromStart = Math.min(
+			...adjacentRooms.map((room) => room.distanceFromStart + 1)
+		)
+		const roomSeed = mixSeed(
+			floor.seed,
+			coord.q,
+			coord.r,
+			floor.depth
+		)
+		const room: RoomFloorRoom = {
+			id,
+			coord: { ...coord },
+			kind: "combat",
+			templateId: selectTemplateId("combat", adjacentRooms.length, roomSeed),
+			seed: roomSeed,
+			distanceFromStart,
+			connections: adjacentRooms.map((neighbor) => neighbor.id),
+			state: "discovered",
+			contentCompleted: false,
+			keyRequired: false,
+			keyUnlocked: true,
+			encounter: createEncounterPlan(
+				roomSeed,
+				floor.depth,
+				distanceFromStart,
+				Math.max(1, distanceFromStart + 2),
+				floor.hubLevel ?? 1,
+				floor.themeId
+			),
+		}
+		for (const neighbor of adjacentRooms) {
+			if (!neighbor.connections.includes(id)) neighbor.connections.push(id)
+			neighbor.templateId = selectTemplateId(
+				neighbor.kind,
+				neighbor.connections.length,
+				neighbor.seed
+			)
+		}
+		room.environment = planRoomEnvironment(room, floor.themeId)
+		floor.rooms.push(room)
+		floor.exitRoomId = room.id
+		addedRooms.push(room)
+	}
+
+	source.environment = planRoomEnvironment(source, floor.themeId)
+	return addedRooms
 }
 
 function growRoomGraph(targetCount: number, rng: SeededRNG) {
@@ -178,6 +273,7 @@ function assignRoomKinds(
 	distances: number[],
 	exitIndex: number,
 	milestoneBoss: boolean,
+	allowMiniBoss: boolean,
 	rng: SeededRNG
 ) {
 	const kinds = coords.map((): RoomFloorKind => "combat")
@@ -224,11 +320,18 @@ function assignRoomKinds(
 		kinds[gravityA] = "gravity"
 		kinds[gravityB] = "gravity"
 	}
-	const miniBoss = takeRoom(true)
-	if (miniBoss !== undefined) kinds[miniBoss] = "miniBoss"
+	if (allowMiniBoss) {
+		const miniBoss = takeRoom(true)
+		if (miniBoss !== undefined) kinds[miniBoss] = "miniBoss"
+	}
 	if (coords.length >= 13) {
 		const event = takeRoom(false)
 		if (event !== undefined) kinds[event] = "event"
+	}
+	const depositCount = coords.length >= 12 && rng.nextBool(0.35) ? 2 : 1
+	for (let index = 0; index < depositCount; index++) {
+		const deposit = takeRoom(true)
+		if (deposit !== undefined) kinds[deposit] = "deposit"
 	}
 	return kinds
 }
@@ -280,7 +383,11 @@ function createEncounterPlan(
 		? undefined
 		: selectEncounterDefinition(tier, random, true, isAvailable)
 	const enemyIds = themeId === "wake-scrap-district"
-		? createWakeEncounterEnemies(tier, random)
+		? createWakeEncounterEnemies(
+			tier,
+			random,
+			getFloorPositionForDepth(depth).subfloor
+		)
 		: definition
 			? createSimulatedEncounterEnemies(definition, tier, random, isAvailable)
 			: ["fighter" as const]

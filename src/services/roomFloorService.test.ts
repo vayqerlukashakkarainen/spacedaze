@@ -9,6 +9,7 @@ import {
 	getRoomFloorSnapshot,
 	isFloorRoomKeyLocked,
 	markCurrentFloorRoomCleared,
+	markCurrentRoomContentCompleted,
 	markFloorEnemyDefeated,
 	rollCurrentRoomClearKeyDrop,
 	rollFloorEnemyKeyDrop,
@@ -37,13 +38,28 @@ assert(
 )
 
 const combatFloor = beginRoomFloor(9341, 1, { roomCount: 10 })
-const combat = combatFloor.rooms.find((room) => room.kind === "combat")!
-const route = routeBetween(combatFloor.startRoomId, combat.id, combatFloor.rooms)
+const lockedRoomIds = new Set(
+	combatFloor.rooms.filter((room) => room.keyRequired).map((room) => room.id)
+)
+const combatRoutes = combatFloor.rooms
+	.filter((room) => room.kind === "combat")
+	.map((room) => ({
+		room,
+		route: routeBetween(
+			combatFloor.startRoomId,
+			room.id,
+			combatFloor.rooms,
+			lockedRoomIds
+		),
+	}))
+const combatRoute = combatRoutes.find((candidate) => candidate.route.length > 0)!
+const combat = combatRoute.room
+const route = combatRoute.route
 for (const roomId of route.slice(1)) {
 	markCurrentFloorRoomCleared()
 	enterFloorRoom(roomId)
 }
-const previousRoom = combat.connections[0]
+const previousRoom = route[route.length - 2]
 assert(
 	enterFloorRoom(previousRoom) === undefined,
 	"An uncleared combat room should block backtracking"
@@ -106,6 +122,12 @@ assert(
 	getCurrentFloorRoom()?.state === "cleared",
 	"Revealing a floor should preserve the current room state"
 )
+
+const depositFloor = beginRoomFloor(29117, 2, { roomCount: 12 })
+const depositRoom = depositFloor.rooms.find((room) => room.kind === "deposit")!
+depositFloor.currentRoomId = depositRoom.id
+assert(markCurrentRoomContentCompleted(), "A salvage relay should accept its first deposit")
+assert(!markCurrentRoomContentCompleted(), "A spent salvage relay should reject another deposit")
 
 const jumpFloor = beginRoomFloor(58124, 2, { roomCount: 10 })
 const jumpOrigin = getCurrentFloorRoom()!
@@ -172,7 +194,8 @@ assert(discoverAllFloorRooms() === undefined, "Revealing requires an active floo
 function routeBetween(
 	startId: string,
 	targetId: string,
-	rooms: Array<{ id: string; connections: string[] }>
+	rooms: Array<{ id: string; connections: string[] }>,
+	blocked: Set<string> = new Set()
 ) {
 	const previous = new Map<string, string>()
 	const visited = new Set([startId])
@@ -182,12 +205,13 @@ function routeBetween(
 		if (id === targetId) break
 		const room = rooms.find((candidate) => candidate.id === id)!
 		for (const neighbor of room.connections) {
-			if (visited.has(neighbor)) continue
+			if (visited.has(neighbor) || blocked.has(neighbor)) continue
 			visited.add(neighbor)
 			previous.set(neighbor, id)
 			queue.push(neighbor)
 		}
 	}
+	if (!visited.has(targetId)) return []
 	const route = [targetId]
 	while (route[0] !== startId) route.unshift(previous.get(route[0])!)
 	return route

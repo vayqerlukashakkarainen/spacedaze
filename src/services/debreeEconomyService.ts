@@ -24,7 +24,7 @@ export function beginDebreeRun() {
 	depositedThisRun = 0
 	runActive = true
 	beginRunLevelProgression()
-	beginAbilityTierRun()
+	beginAbilityTierRun(true)
 }
 
 export function debreeRunActive() {

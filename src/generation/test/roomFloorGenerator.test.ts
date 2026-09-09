@@ -1,6 +1,13 @@
-import { generateRoomFloor } from "../rooms/roomFloorGenerator"
+import {
+	extendEndlessRoomFloor,
+	generateRoomFloor,
+} from "../rooms/roomFloorGenerator"
 import { hexKey, hexNeighbors } from "../hexUtils"
-import { getFloorThemeIdForDepth } from "../../levels/floorThemes/floorThemeDirectory"
+import {
+	getFloorPositionForDepth,
+	getFloorThemeIdForDepth,
+	selectFloorMusicTrack,
+} from "../../levels/floorThemes/floorThemeDirectory"
 
 function assert(condition: boolean, message: string) {
 	if (!condition) throw new Error(message)
@@ -30,16 +37,36 @@ const openingThemeIds = [
 	"federation-claim-zone",
 	"daze-scar",
 ] as const
-for (let depth = 1; depth <= openingThemeIds.length; depth++) {
-	assert(
-		getFloorThemeIdForDepth(depth) === openingThemeIds[depth - 1],
-		`Floor ${depth} has the wrong opening theme`
-	)
+for (let floor = 1; floor <= openingThemeIds.length; floor++) {
+	for (let subfloor = 1; subfloor <= 3; subfloor++) {
+		const depth = (floor - 1) * 3 + subfloor
+		assert(
+			getFloorThemeIdForDepth(depth) === openingThemeIds[floor - 1],
+			`Floor ${floor}.${subfloor} has the wrong opening theme`
+		)
+	}
 }
 assert(
-	getFloorThemeIdForDepth(10) === "khelt-moltworks" &&
-	getFloorThemeIdForDepth(18) === "khelt-moltworks",
-	"Deep floor themes should follow the fixed eight-floor cycle"
+	getFloorThemeIdForDepth(28) === "khelt-moltworks" &&
+	getFloorThemeIdForDepth(30) === "khelt-moltworks" &&
+	getFloorThemeIdForDepth(52) === "khelt-moltworks",
+	"Deep themes should span three subfloors and follow the fixed eight-floor cycle"
+)
+assert(
+	selectFloorMusicTrack(1, 8128)?.music === "shirobon_fox",
+	"Floor 1.1 should use Fox"
+)
+assert(
+	selectFloorMusicTrack(2, 8128)?.music === "shirobon_on_the_run",
+	"Floor 1.2 should use On The Run"
+)
+assert(
+	selectFloorMusicTrack(3, 8128)?.music === "shirobon_on_the_run",
+	"Floor 1.3 should explicitly retain On The Run until it gets its own track"
+)
+assert(
+	selectFloorMusicTrack(4, 8128) === undefined,
+	"A floor without songs should not inherit the previous floor's music"
 )
 
 for (let seed = 1; seed <= 200; seed++) {
@@ -51,10 +78,12 @@ for (let seed = 1; seed <= 200; seed++) {
 		floor.themeId === getFloorThemeIdForDepth(depth),
 		`Seed ${seed} did not preserve its floor theme`
 	)
-	assert(floor.rooms.length >= 10 && floor.rooms.length <= 16, `Seed ${seed} has invalid room count`)
+	assert(floor.rooms.length >= 20 && floor.rooms.length <= 32, `Seed ${seed} has invalid room count`)
 	const ids = new Set(floor.rooms.map((room) => room.id))
 	assert(ids.size === floor.rooms.length, `Seed ${seed} has duplicate room ids`)
 	assert(floor.rooms.some((room) => room.kind === "reward"), `Seed ${seed} has no reward room`)
+	const depositCount = floor.rooms.filter((room) => room.kind === "deposit").length
+	assert(depositCount >= 1 && depositCount <= 2, `Seed ${seed} needs one or two deposit rooms`)
 	assert(floor.rooms.filter((room) => room.kind === "shop").length === 1, `Seed ${seed} needs one shop room`)
 	const lockedRooms = floor.rooms.filter((room) => room.keyRequired)
 	assert(lockedRooms.length === 2, `Seed ${seed} needs two locked rooms`)
@@ -68,7 +97,13 @@ for (let seed = 1; seed <= 200; seed++) {
 		)),
 		`Seed ${seed} requires a key to reach its exit`
 	)
-	assert(floor.rooms.filter((room) => room.kind === "miniBoss").length === 1, `Seed ${seed} needs one mini-boss room`)
+	const subfloor = getFloorPositionForDepth(depth).subfloor
+	const expectedMiniBossCount = subfloor >= 2 ? 1 : 0
+	assert(
+		floor.rooms.filter((room) => room.kind === "miniBoss").length ===
+			expectedMiniBossCount,
+		`Seed ${seed} has the wrong mini-boss count for sublevel ${subfloor}`
+	)
 	assert(!floor.rooms.some((room) => String(room.kind) === "repair"), `Seed ${seed} contains a removed repair room`)
 	assert(floor.rooms.filter((room) => room.kind === "gravity").length === 2, `Seed ${seed} needs two gravity rooms`)
 	const exit = floor.rooms.find((room) => room.id === floor.exitRoomId)
@@ -124,9 +159,20 @@ for (let seed = 1; seed <= 200; seed++) {
 	}
 }
 
+const expectedRoomCounts = [20, 24, 28, 32, 32]
+for (let depth = 1; depth <= expectedRoomCounts.length; depth++) {
+	assert(
+		generateRoomFloor(4100 + depth, depth).rooms.length ===
+			expectedRoomCounts[depth - 1],
+		`Depth ${depth} should use the four-room progression step`
+	)
+}
+
 const shallowFloor = generateRoomFloor(777, 1, { roomCount: 16 })
 const deepFloor = generateRoomFloor(777, 8, { roomCount: 16 })
-const wakeEnvironment = shallowFloor.rooms.flatMap(
+const wakeEnvironment = Array.from({ length: 8 }, (_, seedOffset) =>
+	generateRoomFloor(777 + seedOffset, 1, { roomCount: 16 })
+).flatMap((floor) => floor.rooms).flatMap(
 	(room) => room.environment?.objects ?? []
 )
 assert(
@@ -147,6 +193,44 @@ assert(
 	averageTier(deepFloor) > averageTier(shallowFloor),
 	"Deeper floors should pre-generate harder encounters"
 )
+
+const endlessFloor = generateRoomFloor(9917, 1, {
+	endless: true,
+	roomCount: 4,
+	hubLevel: 1,
+})
+assert(endlessFloor.endless === true, "Endless floors should retain their mode")
+assert(endlessFloor.rooms.length === 4, "Endless floors should start compact")
+assert(
+	endlessFloor.rooms.every((room) => room.kind === "start" || room.kind === "combat"),
+	"Endless floors should not generate exits or utility rooms"
+)
+for (let iteration = 0; iteration < 24; iteration++) {
+	const frontier = endlessFloor.rooms
+		.filter((room) => !room.connections.some((connectionId) => {
+			const neighbor = endlessFloor.rooms.find((candidate) => candidate.id === connectionId)
+			return neighbor && neighbor.distanceFromStart > room.distanceFromStart
+		}))
+		.sort((a, b) => b.distanceFromStart - a.distanceFromStart)[0]
+	assert(frontier !== undefined, `Endless iteration ${iteration} has no frontier`)
+	const added = extendEndlessRoomFloor(endlessFloor, frontier!.id)
+	assert(added.length > 0, `Endless iteration ${iteration} did not grow the floor`)
+}
+const endlessIds = new Set(endlessFloor.rooms.map((room) => room.id))
+assert(
+	endlessIds.size === endlessFloor.rooms.length,
+	"Endless expansion generated duplicate rooms"
+)
+for (const room of endlessFloor.rooms) {
+	for (const connectionId of room.connections) {
+		const neighbor = endlessFloor.rooms.find((candidate) => candidate.id === connectionId)
+		assert(neighbor !== undefined, `${room.id} has a missing endless neighbor`)
+		assert(
+			neighbor!.connections.includes(room.id),
+			`${room.id} has a one-way endless connection`
+		)
+	}
+}
 
 function hasRouteAvoidingRooms(
 	startId: string,

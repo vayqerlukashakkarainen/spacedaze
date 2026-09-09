@@ -321,6 +321,7 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("weapon_pulse_repeater", "sprites/weapons/pulse-repeater.png")
 	await k.loadSprite("weapon_twin_needle", "sprites/weapons/twin-needle.png")
 	await k.loadSprite("weapon_impact_driver", "sprites/weapons/impact-driver.png")
+	await k.loadSprite("weapon_railgun", "sprites/weapons/railgun.png")
 	await k.loadSprite("rocket_upg1", "sprites/upgrades/rocket_upg1.png");
 	await k.loadSprite(
 		"active_repulsor_pulse",

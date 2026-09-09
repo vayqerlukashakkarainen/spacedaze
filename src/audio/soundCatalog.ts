@@ -91,6 +91,9 @@ export const MUSIC_ASSETS = {
 	flirtFlirtOhItHurts: "songs/flirt-flirt-oh-it-hurts.mp3",
 	hub: "songs/hub.mp3",
 	burts_recovery: "songs/burts-recovery.mp3",
+	ambientSpaceNoise: "songs/ambient-space-noise.mp3",
+	shirobon_on_the_run: "songs/shirobon-on-the-run.mp3",
+	shirobon_fox: "songs/shirobon-fox.mp3",
 } as const
 
 export type SoundAssetId = keyof typeof SOUND_ASSETS

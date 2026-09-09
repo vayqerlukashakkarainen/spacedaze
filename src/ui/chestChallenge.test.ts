@@ -1,11 +1,13 @@
 import assert from "node:assert/strict"
 import {
 	consumeNextChestDifficulty,
+	consumeNextChestRewardCollectedCallback,
 	consumeNextChestWorldOpenAnimation,
 	consumeNextChestWorldPosition,
 	createChestChallengeConfig,
 	normalizeChestChallengeHits,
 	setNextChestDifficulty,
+	setNextChestRewardCollectedCallback,
 	setNextChestWorldOpenAnimation,
 	setNextChestWorldPosition,
 } from "./chestChallenge"
@@ -76,6 +78,11 @@ const chestOpenAnimation = async () => {}
 setNextChestWorldOpenAnimation(chestOpenAnimation)
 assert.equal(consumeNextChestWorldOpenAnimation(), chestOpenAnimation)
 assert.equal(consumeNextChestWorldOpenAnimation(), undefined)
+
+const rewardCollectedCallback = () => {}
+setNextChestRewardCollectedCallback(rewardCollectedCallback)
+assert.equal(consumeNextChestRewardCollectedCallback(), rewardCollectedCallback)
+assert.equal(consumeNextChestRewardCollectedCallback(), undefined)
 
 console.log("Chest challenge tests passed")
 

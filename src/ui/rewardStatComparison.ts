@@ -100,6 +100,22 @@ function getUpgradeComparisonRows(reward: Reward): UiStatRow[] {
 
 	const currentLevelIndex = getEffectiveUpgradeLevel(reward.upgradeKey) ?? -1
 	if (reward.upgradeKey === "tacticalUplink") {
+		const baseRarity = definition.reward?.rarity
+		const currentRarity = getEffectiveUpgradeRarity(reward.upgradeKey) ?? baseRarity
+		const nextRarity = getHigherRarity(currentRarity, reward.rarity)
+		const baseDamageEffects = definition.levels[0].effects
+		const currentDamageEffects = currentLevelIndex >= 0 && baseRarity && currentRarity
+			? scaleUpgradeEffects(baseDamageEffects, baseRarity, currentRarity)
+			: undefined
+		const nextDamageEffects = baseRarity
+			? scaleUpgradeEffects(baseDamageEffects, baseRarity, nextRarity)
+			: baseDamageEffects
+		const currentDamageMultiplier = currentDamageEffects?.modifiers?.find(
+			(modifier) => modifier.stat === "tacticalUplinkMultiplier"
+		)?.value
+		const nextDamageMultiplier = nextDamageEffects.modifiers?.find(
+			(modifier) => modifier.stat === "tacticalUplinkMultiplier"
+		)?.value
 		const currentThreshold = currentLevelIndex < 0
 			? "--"
 			: formatPercentage(
@@ -109,6 +125,12 @@ function getUpgradeComparisonRows(reward: Reward): UiStatRow[] {
 			getTacticalUplinkHullThreshold(reward.levelIndex) * 100
 		)
 		return [
+			{
+				label: "DAMAGE BONUS",
+				value: `${currentDamageMultiplier === undefined
+					? "--"
+					: formatPercentage((currentDamageMultiplier - 1) * 100)} > ${formatPercentage(((nextDamageMultiplier ?? 1) - 1) * 100)}`,
+			},
 			{
 				label: "HULL THRESHOLD",
 				value: `${currentThreshold} > ${nextThreshold}`,

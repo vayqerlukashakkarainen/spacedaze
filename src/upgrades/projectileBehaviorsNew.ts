@@ -52,7 +52,7 @@ export const hunterGuidance: UpgradeDefinition = {
 		{ turnSpeed: 0.036, distance: 320 },
 	].map(({ turnSpeed, distance }, index) => level(
 		index,
-		`Projectiles steer toward enemies within ${distance}px with ${index + 1} guidance strength`,
+		`Target-locked Strafe Mode shots steer within ${distance}px with ${index + 1} guidance strength`,
 		"hunter_guidance_upg1",
 		24 + index * 7,
 		{

@@ -24,6 +24,7 @@ import {
 	sparkEmitter,
 	starsEmitter,
 	trailEmitter,
+	railgunTrailEmitter,
 } from "../particles";
 import {
 	applySteeringLean,
@@ -99,12 +100,16 @@ import {
 } from "./passiveUpgradeRuntimeService";
 import { getTacticalUplinkHullThreshold } from "./tacticalUplinkService";
 import { recoverPlayerHealth } from "./playerHealthService";
-import { getPlayerTargetLock } from "./playerTargetLockService";
+import {
+	getPlayerTargetInterceptPoint,
+	getPlayerTargetLock,
+} from "./playerTargetLockService";
 import { PROJECTILE_VISUALS } from "../visuals/projectileVisualCatalog";
 import { updateRocketGuidance } from "./rocketGuidanceService"
 
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
 const PLAYER_PROJECTILE_SCALE = PROJECTILE_VISUALS.player.worldScale;
+const ENEMY_PROJECTILE_SPEED_MULTIPLIER = 0.8;
 const KNOCKBACK_PUSH_DURATION = 0.32;
 const KNOCKBACK_FULL_STEER_STRENGTH = 60;
 let projectileUpdateController: GameObj | undefined;
@@ -124,11 +129,18 @@ interface ChainLightningRuntime extends ChainModifier {
 export function spawnProjectile(config: ProjectileConfig): GameObj {
 	config.procState ??= { remaining: DEFAULT_PROJECTILE_PROC_BUDGET };
 	// Calculate final speed
-	const finalSpeed = config.speed * (config.speedMultiplier ?? 1);
+	const hostileSpeedMultiplier = config.tags.includes(tags.enemy)
+		? ENEMY_PROJECTILE_SPEED_MULTIPLIER
+		: 1;
+	const finalSpeed =
+		config.speed *
+		(config.speedMultiplier ?? 1) *
+		hostileSpeedMultiplier;
 	const damagesDestructibleWalls = config.tags.includes(tags.friendly);
 	const projectileScale = damagesDestructibleWalls
 		? PLAYER_PROJECTILE_SCALE * (config.visualScale ?? 1)
 		: PROJECTILE_VISUALS.enemy.worldScale * (config.visualScale ?? 1);
+	const projectileLengthScale = config.visualLengthScale ?? 1;
 
 	// Build component list
 	const components: any[] = [
@@ -151,7 +163,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 			]
 			: []),
 		...(config.flashLikeThruster ? [k.opacity(1)] : []),
-		k.scale(projectileScale),
+		k.scale(projectileScale, projectileScale * projectileLengthScale),
 		{
 			speed: finalSpeed,
 			dir: config.dir,
@@ -200,6 +212,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	proj.procState = config.procState;
 	proj.damagesDestructibleWalls = damagesDestructibleWalls;
 	proj.projectileVisualScale = projectileScale;
+	proj.projectileVisualLengthScale = projectileLengthScale;
 
 	// Play fire sound
 	if (config.fireSound) {
@@ -756,6 +769,9 @@ function updateTrail(proj: GameObj) {
 		case "boost":
 			emitter = boostTrailEmitter;
 			break;
+		case "railgun":
+			emitter = railgunTrailEmitter;
+			break;
 		case "spark":
 			emitter = sparkEmitter;
 			break;
@@ -828,6 +844,15 @@ function updateMovement(proj: GameObj) {
 			targetPosition = guidance.aimPosition
 			turnStrength = guidance.turnStrength * guidanceTimeScale
 			speed *= guidance.speedMultiplier
+		} else if (
+			proj.tags.includes(tags.friendly) &&
+			getPlayerTargetLock()?.id === proj.targetUnit.id
+		) {
+			targetPosition = getPlayerTargetInterceptPoint(
+				proj.pos,
+				proj.targetUnit,
+				speed * velocityScale()
+			)
 		}
 		// Homing movement
 		const { lerp, correctedDesiredRot } = lerpAngleBetweenPos(
@@ -843,7 +868,10 @@ function updateMovement(proj: GameObj) {
 			lerp + wiggleAngle,
 			speed,
 			correctedDesiredRot + wiggleAngle,
-			proj.projectileVisualScale
+			k.vec2(
+				proj.projectileVisualScale,
+				proj.projectileVisualScale * proj.projectileVisualLengthScale
+			)
 		);
 	} else {
 		// Straight movement
@@ -865,7 +893,10 @@ function updateMovement(proj: GameObj) {
 			proj,
 			proj.angle,
 			proj.angle,
-			proj.projectileVisualScale
+			k.vec2(
+				proj.projectileVisualScale,
+				proj.projectileVisualScale * proj.projectileVisualLengthScale
+			)
 		);
 	}
 }
@@ -1152,7 +1183,7 @@ function updateGrowth(proj: GameObj) {
 	);
 	const scale = k.lerp(config.baseScale, config.maxScale, progress);
 	proj.projectileVisualScale = scale;
-	proj.scale = k.vec2(scale);
+	proj.scale = k.vec2(scale, scale * proj.projectileVisualLengthScale);
 	if (config.baseDamage !== undefined) {
 		const damageMultiplier = k.lerp(
 			1,
@@ -1652,6 +1683,8 @@ export function applyProjectileDamage(
 			}
 		}
 
+		target.detachImpactDirection = projectile.dir?.clone();
+		target.detachImpactPosition = projectile.pos?.clone();
 		const damageApplied = applyDamage(target, damage, {
 			critical,
 			position: projectile.pos,

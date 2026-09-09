@@ -8,6 +8,7 @@ export type ChestChallengeType =
 
 export type ChestRewardType = "salvage" | "weapon"
 export type ChestWorldOpenAnimation = () => Promise<void>
+export type ChestRewardCollectedCallback = () => void
 
 export interface ChestChallengeConfig {
 	difficulty: number
@@ -37,6 +38,7 @@ let nextChestDifficulty = 1
 let nextChestRewardType: ChestRewardType = "salvage"
 let nextChestWorldPosition: Vec2 | undefined
 let nextChestWorldOpenAnimation: ChestWorldOpenAnimation | undefined
+let nextChestRewardCollectedCallback: ChestRewardCollectedCallback | undefined
 
 export function setNextChestDifficulty(difficulty: number) {
 	nextChestDifficulty = difficulty
@@ -54,6 +56,12 @@ export function setNextChestWorldOpenAnimation(
 	animation: ChestWorldOpenAnimation
 ) {
 	nextChestWorldOpenAnimation = animation
+}
+
+export function setNextChestRewardCollectedCallback(
+	callback: ChestRewardCollectedCallback | undefined
+) {
+	nextChestRewardCollectedCallback = callback
 }
 
 export function consumeNextChestDifficulty() {
@@ -78,6 +86,12 @@ export function consumeNextChestWorldOpenAnimation() {
 	const animation = nextChestWorldOpenAnimation
 	nextChestWorldOpenAnimation = undefined
 	return animation
+}
+
+export function consumeNextChestRewardCollectedCallback() {
+	const callback = nextChestRewardCollectedCallback
+	nextChestRewardCollectedCallback = undefined
+	return callback
 }
 
 export function createChestChallengeConfig(

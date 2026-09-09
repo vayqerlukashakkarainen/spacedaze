@@ -24,7 +24,8 @@ const WAKE_ENCOUNTERS: Readonly<Record<number, readonly (readonly WakeEnemyId[])
 
 export function createWakeEncounterEnemies(
 	tier: number,
-	random: () => number
+	random: () => number,
+	subfloor: number = 3
 ): WakeEnemyId[] {
 	const normalizedTier = Math.max(1, Math.min(5, Math.round(tier)))
 	const formations = WAKE_ENCOUNTERS[normalizedTier]
@@ -32,5 +33,11 @@ export function createWakeEncounterEnemies(
 		formations.length - 1,
 		Math.floor(random() * formations.length)
 	)
-	return [...formations[index]]
+	const enemies = [...formations[index]]
+	if (subfloor > 1) return enemies
+	return enemies.map((enemyId) =>
+		enemyId === "wake-rivet-gunner"
+			? "wake-scrap-nipper"
+			: enemyId
+	)
 }

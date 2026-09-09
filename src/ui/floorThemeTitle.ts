@@ -4,6 +4,7 @@ import { registerBatchedUiUpdate } from "../services/uiUpdateService"
 import { tags } from "../tags"
 import {
 	getFloorThemeDefinition,
+	getFloorPositionForDepth,
 	type FloorThemeId,
 } from "../levels/floorThemes/floorThemeDirectory"
 import { UI_COLORS, UI_FONT_SIZES } from "./common"
@@ -19,6 +20,7 @@ export function showFloorThemeTitle(themeId: FloorThemeId, depth: number) {
 	if (activeTitle?.exists()) k.destroy(activeTitle)
 
 	const theme = getFloorThemeDefinition(themeId)
+	const floorPosition = getFloorPositionForDepth(depth)
 	const root = k.add([
 		k.pos(k.width() / 2, k.height() * 0.22 - 8),
 		k.fixed(),
@@ -30,10 +32,13 @@ export function showFloorThemeTitle(themeId: FloorThemeId, depth: number) {
 
 	const elements = [
 		root.add([
-			k.text(`FLOOR ${String(depth).padStart(2, "0")}`, {
+			k.text(
+				`FLOOR ${String(floorPosition.floor).padStart(2, "0")}  //  SUBLEVEL ${floorPosition.subfloor}`,
+				{
 				font: "unscii",
 				size: UI_FONT_SIZES.small,
-			}),
+				}
+			),
 			k.pos(0, -24),
 			k.anchor("center"),
 			k.color(...theme.color),

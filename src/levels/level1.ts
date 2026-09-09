@@ -3,10 +3,13 @@ import { playerObj } from "../game"
 import { dt, k } from "../main"
 import { ASTEROID_SPRITES } from "../asteroidSprites"
 import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject"
-import { clearGeneratedRunMap, startGeneratedRunMap } from "./runMap"
 import { getCurrentRunFloor } from "../services/runDirectorService"
 import type { Level } from "./levels"
 import { RUN_ROCK_PROJECTION_Y_SCALE } from "./runRockTiles"
+import {
+	clearGeneratedRoomFloor,
+	startGeneratedRoomFloor,
+} from "./roomFloorRuntime"
 
 let bgAsteroidTimer = 0
 
@@ -16,24 +19,17 @@ export const level1: Level = {
 		height: 36,
 		hexSize: 96,
 		projectionYScale: RUN_ROCK_PROJECTION_Y_SCALE,
-		generator: {
-			fill: { percentage: 0.48 },
-			ca: { iterations: 5 },
-			features: {
-				resourceNodeCount: 5,
-				hazardCount: 3,
-				minPoiSpacing: 6,
-			},
-		},
 	},
 	reset: () => {
-		clearGeneratedRunMap()
+		clearGeneratedRoomFloor()
 		bgAsteroidTimer = 0
 	},
 	onStart: () => {
-		startGeneratedRunMap(
+		startGeneratedRoomFloor(
 			level1.mapGeneration!,
-			getCurrentRunFloor()?.mapSeed
+			getCurrentRunFloor()?.mapSeed ?? Math.floor(k.rand(1, 1000000)),
+			1,
+			{ endless: true, roomCount: 4 }
 		)
 	},
 	lvlUpd: () => {

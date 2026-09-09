@@ -311,7 +311,7 @@ export const outsideBorderPos: Vec2[] = [];
 
 export const subSoundVolume = 0.3;
 export const mainSoundVolume = 0.5;
-export const musicVolume = 0.6;
+export const musicVolume = 0.54;
 
 // Keep world zoom and UI zoom independent. KAPLAY's global scale controls all
 // fixed UI, while the camera compensates so changing UI_ZOOM does not alter

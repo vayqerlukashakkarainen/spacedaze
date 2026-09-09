@@ -15,6 +15,21 @@ for (let tier = 1; tier <= 5; tier++) {
 	)
 }
 
+for (let tier = 1; tier <= 5; tier++) {
+	for (const randomValue of [0, 0.5, 0.999999]) {
+		assert(
+			!createWakeEncounterEnemies(tier, () => randomValue, 1)
+				.includes("wake-rivet-gunner"),
+			`Wake tier ${tier} introduced Rivet Gunners on sublevel 1.1`
+		)
+	}
+}
+assert(
+	createWakeEncounterEnemies(1, () => 0.999999, 2)
+		.includes("wake-rivet-gunner"),
+	"Rivet Gunners should unlock on sublevel 1.2"
+)
+
 const wakeFloor = generateRoomFloor(777, 1, { roomCount: 16 })
 const federationFloor = generateRoomFloor(777, 8, { roomCount: 16 })
 assert(

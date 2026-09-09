@@ -22,6 +22,7 @@ import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
+import { spawnMiniBossDeathSequence } from "./spawnEnemyDeathEffect"
 
 type ImpactAceState =
 	| "approach"
@@ -80,6 +81,7 @@ export function spawnImpactAce(
 			trailTimer: 0,
 			nextAttackMode: "ramming" as ImpactAceMode,
 			shotTimer: 0,
+			deathSequenceActive: false,
 		},
 		tags.enemy,
 		tags.unit,
@@ -101,6 +103,7 @@ export function spawnImpactAce(
 	registerHitAnimation(ace)
 	registerBossEncounter(ace, definition.id, {
 		maxHealth: profile.hp,
+		deferDefeatUntilDestroy: true,
 		onPhaseChanged: (_phase, phaseIndex) => {
 			ace.phaseIndex = phaseIndex
 			if (phaseIndex === 1) ace.nextAttackMode = "station"
@@ -111,6 +114,7 @@ export function spawnImpactAce(
 	})
 
 	registerBatchedEntityUpdate("enemies", ace, () => {
+		if (ace.deathSequenceActive) return
 		const delta = k.dt() * ace.getTimescale()
 		ace.stateTimer += delta
 		const toPlayer = playerObj.pos.sub(ace.pos)
@@ -250,16 +254,29 @@ export function spawnImpactAce(
 	})
 
 	ace.onDeath(() => {
-		enemyOnDeath(
-			ace.pos,
-			18 * definition.rewardMultiplier,
-			definition.rewardMultiplier,
-			"boss",
-			false,
-			{ intensity: 4, starCount: 55 }
-		)
-		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
-		k.destroy(ace)
+		if (ace.deathSequenceActive) return
+		ace.deathSequenceActive = true
+		ace.opacity = 1
+		ace.scale = k.vec2(profile.scale)
+		chargeLine.opacity = 0
+		ace.unuse(tags.enemy)
+		ace.unuse(tags.unit)
+		spawnMiniBossDeathSequence(ace, {
+			radius: 28 * profile.scale,
+			color: k.rgb(125, 220, 255),
+			onComplete: () => {
+				enemyOnDeath(
+					ace.pos,
+					18 * definition.rewardMultiplier,
+					definition.rewardMultiplier,
+					"boss",
+					false,
+					{ intensity: 4, starCount: 55 }
+				)
+				gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
+				k.destroy(ace)
+			},
+		})
 	})
 	ace.onHurt(() => {
 		ace.animation.seek(0)

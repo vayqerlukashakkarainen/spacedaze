@@ -63,6 +63,7 @@ interface ResolvedDialogueReference {
 }
 
 const dialogueReferenceCache = new Map<string, ResolvedDialogueReference>()
+const DIALOGUE_BOTTOM_OFFSET = 132
 
 export interface DialogueOptions {
 	channel?: "modal" | "comms"
@@ -175,7 +176,7 @@ export function showDialogue(
 	const panelWidth = Math.min(700, k.width() - 48)
 	const panelHeight = 146
 	const panelX = (k.width() - panelWidth) / 2
-	const panelY = k.height() - panelHeight - 32
+	const panelY = k.height() - panelHeight - DIALOGUE_BOTTOM_OFFSET
 	const initialSpeakerColor = k.rgb(
 		...getDialogueVoiceProfile(lines[0].speaker).color
 	)

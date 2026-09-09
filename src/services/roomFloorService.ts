@@ -1,4 +1,7 @@
-import { generateRoomFloor } from "../generation/rooms/roomFloorGenerator"
+import {
+	extendEndlessRoomFloor,
+	generateRoomFloor,
+} from "../generation/rooms/roomFloorGenerator"
 import type {
 	RoomFloor,
 	RoomFloorGenerationOptions,
@@ -30,6 +33,12 @@ export function getActiveRoomFloor() {
 
 export function getCurrentFloorRoom() {
 	return activeFloor?.rooms.find((room) => room.id === activeFloor?.currentRoomId)
+}
+
+export function extendCurrentEndlessRoomFloor() {
+	const room = getCurrentFloorRoom()
+	if (!activeFloor || !room) return []
+	return extendEndlessRoomFloor(activeFloor, room.id)
 }
 
 export function enterFloorRoom(roomId: string) {

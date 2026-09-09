@@ -15,6 +15,10 @@ import {
 } from "../levels/runMap"
 import { quickJumpToClearedRoom } from "../levels/roomFloorRuntime"
 import { activeLevelKey } from "../levels/levels"
+import {
+	getFloorPositionForDepth,
+	getFloorThemeDefinition,
+} from "../levels/floorThemes/floorThemeDirectory"
 import { k, layers } from "../main"
 import { getPickupVisual } from "../visuals/pickupVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
@@ -58,6 +62,7 @@ import {
 	playShopMenuCloseSound,
 	playShopMenuOpenSound,
 } from "../services/shopMenuSoundService"
+import { audioService } from "../services/audioService"
 
 const MAP_MARGIN = 22
 const MAP_HEADER_HEIGHT = 48
@@ -67,6 +72,8 @@ const MAP_MAX_ZOOM = 5
 const MAP_RASTER_PIXELS_PER_UNIT = 14
 const MAP_RASTER_PADDING = 8
 const MAP_MAX_RASTER_SIZE = 2048
+const MAP_MUSIC_MULTIPLIER = 0.4
+const MAP_MUSIC_FADE_DURATION = 0.35
 
 let open = false
 let closing = false
@@ -113,6 +120,12 @@ export function showTacticalMap() {
 		? createHubMapSnapshot()
 		: undefined
 	const roomFloorSnapshot = hubSnapshot ? undefined : getRoomFloorSnapshot()
+	const roomFloorName = roomFloorSnapshot
+		? getFloorThemeDefinition(roomFloorSnapshot.themeId).name.toUpperCase()
+		: undefined
+	const roomFloorPosition = roomFloorSnapshot
+		? getFloorPositionForDepth(roomFloorSnapshot.depth)
+		: undefined
 	const runSnapshot = hubSnapshot || roomFloorSnapshot
 		? undefined
 		: getGeneratedRunMapSnapshot()
@@ -122,6 +135,10 @@ export function showTacticalMap() {
 	closing = false
 	afterCloseAction = undefined
 	uiState.modalOpen = true
+	audioService.fadeMusicDucking(
+		MAP_MUSIC_MULTIPLIER,
+		MAP_MUSIC_FADE_DURATION
+	)
 	pausedObjects = new Set()
 	for (const obj of k.get<GameObj>(tags.gameLoop)) {
 		if (obj.paused) continue
@@ -133,11 +150,19 @@ export function showTacticalMap() {
 	const sidebarWidth = hubSnapshot
 		? 0
 		: k.clamp(k.width() * 0.24, 190, 280)
-	const viewportPos = k.vec2(MAP_MARGIN, MAP_HEADER_HEIGHT)
+	const floorTreeWidth = roomFloorSnapshot
+		? k.clamp(k.width() * 0.18, 160, 220)
+		: 0
+	const viewportPos = k.vec2(
+		MAP_MARGIN + (floorTreeWidth > 0 ? floorTreeWidth + MAP_MARGIN : 0),
+		MAP_HEADER_HEIGHT
+	)
 	const viewportSize = k.vec2(
 		Math.max(
 			220,
-			k.width() - sidebarWidth - MAP_MARGIN * (hubSnapshot ? 2 : 3)
+			k.width() - sidebarWidth - floorTreeWidth - MAP_MARGIN * (
+				hubSnapshot ? 2 : roomFloorSnapshot ? 4 : 3
+			)
 		),
 		Math.max(180, k.height() - MAP_HEADER_HEIGHT - MAP_FOOTER_HEIGHT)
 	)
@@ -175,7 +200,7 @@ export function showTacticalMap() {
 		title: hubSnapshot
 			? `HUB MAP  //  LEVEL ${hubSnapshot.level}`
 			: roomFloorSnapshot
-				? `FLOOR ${roomFloorSnapshot.depth}  //  SEED ${roomFloorSnapshot.seed}`
+				? `FLOOR ${roomFloorPosition!.floor}.${roomFloorPosition!.subfloor}  //  ${roomFloorName}  //  SEED ${roomFloorSnapshot.seed}`
 				: `SECTOR MAP  //  SEED ${runSnapshot!.seed}`,
 		action: hubSnapshot
 			? "LIVE STATION SURVEY"
@@ -359,6 +384,14 @@ export function showTacticalMap() {
 	})
 
 	if (roomFloorSnapshot) {
+		addSublevelTree(
+			contentRoot,
+			roomFloorSnapshot,
+			MAP_MARGIN,
+			viewportPos.y,
+			floorTreeWidth,
+			viewportSize.y
+		)
 		addRoomFloorSidebar(
 			contentRoot,
 			roomFloorSnapshot,
@@ -399,6 +432,7 @@ export function hideTacticalMap(onClosed?: () => void) {
 	if (!open || closing) return
 	closing = true
 	afterCloseAction = onClosed
+	audioService.fadeMusicDucking(1, MAP_MUSIC_FADE_DURATION)
 	for (const controller of inputControllers) controller.cancel()
 	inputControllers = []
 	playShopMenuCloseSound()
@@ -678,6 +712,7 @@ function getRoomFloorKindCode(kind: RoomFloorKind) {
 		gravity: "G",
 		event: "!",
 		shop: "$",
+		deposit: "D",
 		miniBoss: "M",
 		boss: "B",
 		exit: "E",
@@ -694,6 +729,7 @@ function getRoomFloorKindLabel(kind: RoomFloorKind) {
 		gravity: "GRAVITY LINK",
 		event: "UNKNOWN SIGNAL",
 		shop: "SALVAGE EXCHANGE",
+		deposit: "SALVAGE RELAY",
 		miniBoss: "MINI-BOSS",
 		boss: "COMMAND THREAT",
 		exit: "FLOOR EXIT",
@@ -702,7 +738,7 @@ function getRoomFloorKindLabel(kind: RoomFloorKind) {
 
 function getRoomFloorKindColor(kind: RoomFloorKind) {
 	if (kind === "combat" || kind === "miniBoss" || kind === "boss") return k.rgb(...UI_COLORS.danger)
-	if (kind === "health") return k.rgb(...UI_COLORS.success)
+	if (kind === "health" || kind === "deposit") return k.rgb(...UI_COLORS.success)
 	if (kind === "reward" || kind === "shop") return k.rgb(255, 190, 55)
 	if (kind === "gravity" || kind === "shrine") return k.rgb(185, 80, 255)
 	if (kind === "exit") return k.rgb(...UI_COLORS.accent)
@@ -1107,6 +1143,78 @@ function canvasColor(color: Color, opacity = 1) {
 	return `rgba(${color.r}, ${color.g}, ${color.b}, ${opacity})`
 }
 
+function addSublevelTree(
+	parent: GameObj,
+	snapshot: RoomFloor,
+	x: number,
+	y: number,
+	width: number,
+	height: number
+) {
+	const theme = getFloorThemeDefinition(snapshot.themeId)
+	const floorPosition = getFloorPositionForDepth(snapshot.depth)
+	createUiSurface(parent, {
+		pos: k.vec2(x, y),
+		size: k.vec2(width, height),
+		tone: "default",
+	})
+	createUiSectionHeader(parent, {
+		pos: k.vec2(x, y),
+		width,
+		height: 58,
+		eyebrow: `FLOOR ${String(floorPosition.floor).padStart(2, "0")}`,
+		title: theme.name.toUpperCase(),
+	})
+
+	const nodeX = x + 28
+	const firstNodeY = y + 88
+	const rowHeight = 48
+	const discoveredSublevels = Array.from(
+		{ length: floorPosition.subfloor },
+		(_, index) => index + 1
+	)
+	if (discoveredSublevels.length > 0) {
+		parent.add([
+			k.pos(nodeX, y + 58),
+			k.rect(1, firstNodeY - (y + 58) + rowHeight * (discoveredSublevels.length - 1)),
+			k.color(...UI_COLORS.border),
+		])
+	}
+
+	for (const sublevel of discoveredSublevels) {
+		const nodeY = firstNodeY + (sublevel - 1) * rowHeight
+		const current = sublevel === floorPosition.subfloor
+		const color = current
+			? k.rgb(...UI_COLORS.accent)
+			: k.rgb(...UI_COLORS.text)
+		parent.add([
+			k.pos(nodeX, nodeY),
+			k.rect(18, 1),
+			k.color(...UI_COLORS.border),
+		])
+		parent.add([
+			k.pos(nodeX - 4, nodeY - 4),
+			k.rect(9, 9),
+			k.color(...UI_COLORS.background),
+			k.outline(2, color),
+		])
+		addThemedText(parent, {
+			pos: k.vec2(nodeX + 25, nodeY - 8),
+			text: `SUBLEVEL ${String(sublevel).padStart(2, "0")}`,
+			variant: "body",
+			width: width - 62,
+			color,
+		})
+		addThemedText(parent, {
+			pos: k.vec2(nodeX + 25, nodeY + 8),
+			text: current ? "CURRENT" : "DISCOVERED",
+			variant: "muted",
+			width: width - 62,
+			color: current ? color : k.rgb(...UI_COLORS.muted),
+		})
+	}
+}
+
 function addRoomFloorSidebar(
 	parent: GameObj,
 	snapshot: RoomFloor,
@@ -1179,7 +1287,9 @@ function addRoomFloorSidebar(
 		])
 		zoneScroll!.content.add([
 			k.text(
-				`${getRoomFloorStateLabel(room.state)}  //  DEPTH ${room.distanceFromStart}`,
+				`${room.kind === "deposit" && room.contentCompleted
+					? "SPENT"
+					: getRoomFloorStateLabel(room.state)}  //  DEPTH ${room.distanceFromStart}`,
 				{
 					size: UI_FONT_SIZES.tiny,
 					font: "unscii",

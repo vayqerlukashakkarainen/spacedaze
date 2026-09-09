@@ -75,7 +75,13 @@ const playingSounds: PlayingSound[] = [];
 let currentMusic: AudioPlay | null = null;
 let currentMusicId: string | null = null;
 let currentMusicBaseVolume = 1;
+let currentMusicDuckingMultiplier = 1;
 let currentMusicFade: KEventController | null = null;
+let currentMusicDuckingFade: KEventController | null = null;
+let ambientMusic: AudioPlay | null = null;
+let ambientMusicId: string | null = null;
+let ambientMusicBaseVolume = 0;
+let ambientMusicFade: KEventController | null = null;
 let optionalMusicRequest = 0;
 let audioSettings = loadAudioSettings();
 let positionalAudioUpdate: KEventController | null = null;
@@ -156,6 +162,40 @@ function cancelMusicFade() {
 	if (!currentMusicFade) return;
 	currentMusicFade.cancel();
 	currentMusicFade = null;
+}
+
+function cancelMusicDuckingFade() {
+	if (!currentMusicDuckingFade) return;
+	currentMusicDuckingFade.cancel();
+	currentMusicDuckingFade = null;
+}
+
+function cancelAmbientMusicFade() {
+	if (!ambientMusicFade) return;
+	ambientMusicFade.cancel();
+	ambientMusicFade = null;
+}
+
+function currentMusicOutputVolume() {
+	return currentMusicBaseVolume *
+		currentMusicDuckingMultiplier *
+		audioSettings.musicVolume *
+		masterVolume();
+}
+
+function ambientMusicOutputVolume() {
+	return ambientMusicBaseVolume *
+		currentMusicDuckingMultiplier *
+		audioSettings.musicVolume *
+		masterVolume();
+}
+
+function stopAmbientMusic() {
+	cancelAmbientMusicFade();
+	if (!ambientMusic) return;
+	ambientMusic.stop();
+	ambientMusic = null;
+	ambientMusicId = null;
 }
 
 function positionProvider(provider: PositionProvider): () => Vec2 | undefined {
@@ -482,8 +522,7 @@ export const audioService = {
 			currentMusicId === musicId
 		) {
 			runtimeDebug.log("audio", "music:continued", { id: musicId });
-			currentMusic.volume =
-				currentMusicBaseVolume * audioSettings.musicVolume * masterVolume();
+			currentMusic.volume = currentMusicOutputVolume();
 			currentMusic.paused = false;
 			return currentMusic;
 		}
@@ -498,14 +537,85 @@ export const audioService = {
 
 		currentMusic = k.play(musicId, {
 			loop: options?.loop,
-			volume:
-				currentMusicBaseVolume * audioSettings.musicVolume * masterVolume(),
+			volume: currentMusicOutputVolume(),
 		});
 		currentMusic.speed = 1;
 		currentMusicId = musicId;
 		runtimeDebug.log("audio", "music:started", { id: musicId });
 
 		return currentMusic;
+	},
+
+	playAmbientMusic(
+		musicId: string,
+		options?: MusicOptions
+	): AudioPlay | null {
+		syncMasterVolume();
+		cancelAmbientMusicFade();
+		ambientMusicBaseVolume = options?.volume ?? 1;
+		if (browserNeedsAudioUnlock()) return null;
+		if (
+			options?.continueIfPlaying &&
+			ambientMusic &&
+			ambientMusicId === musicId
+		) {
+			ambientMusic.volume = ambientMusicOutputVolume();
+			ambientMusic.paused = false;
+			return ambientMusic;
+		}
+		stopAmbientMusic();
+		ambientMusicBaseVolume = options?.volume ?? 1;
+		ambientMusic = k.play(musicId, {
+			loop: options?.loop,
+			volume: ambientMusicOutputVolume(),
+		});
+		ambientMusic.speed = 1;
+		ambientMusicId = musicId;
+		return ambientMusic;
+	},
+
+	fadeAmbientMusicBaseVolume(
+		volume: number,
+		durationSeconds: number,
+		delaySeconds = 0,
+		stopWhenSilent = false
+	) {
+		const targetVolume = clampVolume(volume);
+		cancelAmbientMusicFade();
+		if (!ambientMusic) return;
+		if (durationSeconds <= 0 && delaySeconds <= 0) {
+			ambientMusicBaseVolume = targetVolume;
+			ambientMusic.volume = ambientMusicOutputVolume();
+			if (stopWhenSilent && targetVolume === 0) stopAmbientMusic();
+			return;
+		}
+
+		const fadingMusic = ambientMusic;
+		const startVolume = ambientMusicBaseVolume;
+		let elapsedSeconds = 0;
+		let fadeController: KEventController;
+		fadeController = k.onUpdate(() => profileSection("external:audioFade", () => {
+			if (ambientMusic !== fadingMusic) {
+				fadeController.cancel();
+				if (ambientMusicFade === fadeController) ambientMusicFade = null;
+				return;
+			}
+			elapsedSeconds += k.dt();
+			if (elapsedSeconds < delaySeconds) return;
+			const progress = durationSeconds <= 0
+				? 1
+				: clampVolume((elapsedSeconds - delaySeconds) / durationSeconds);
+			const eased = progress * progress * (3 - 2 * progress);
+			ambientMusicBaseVolume = startVolume +
+				(targetVolume - startVolume) * eased;
+			fadingMusic.volume = ambientMusicOutputVolume();
+			if (progress < 1) return;
+
+			fadeController.cancel();
+			if (ambientMusicFade === fadeController) ambientMusicFade = null;
+			if (stopWhenSilent && targetVolume === 0) stopAmbientMusic();
+		}));
+		ambientMusicFade = fadeController;
 	},
 
 	async playOptionalMusic(
@@ -563,6 +673,83 @@ export const audioService = {
 		currentMusicFade = fadeController;
 	},
 
+	fadeMusicBaseVolume(volume: number, durationSeconds: number) {
+		const targetVolume = clampVolume(volume);
+		cancelMusicFade();
+		if (!currentMusic || durationSeconds <= 0) {
+			currentMusicBaseVolume = targetVolume;
+			if (currentMusic) {
+				currentMusic.volume = currentMusicOutputVolume();
+			}
+			return;
+		}
+
+		const fadingMusic = currentMusic;
+		const startVolume = currentMusicBaseVolume;
+		let elapsedSeconds = 0;
+		let fadeController: KEventController;
+		fadeController = k.onUpdate(() => profileSection("external:audioFade", () => {
+			if (currentMusic !== fadingMusic) {
+				fadeController.cancel();
+				if (currentMusicFade === fadeController) currentMusicFade = null;
+				return;
+			}
+			elapsedSeconds += k.dt();
+			const progress = clampVolume(elapsedSeconds / durationSeconds);
+			const eased = progress * progress * (3 - 2 * progress);
+			currentMusicBaseVolume = startVolume +
+				(targetVolume - startVolume) * eased;
+			fadingMusic.volume = currentMusicOutputVolume();
+			if (progress < 1) return;
+
+			fadeController.cancel();
+			if (currentMusicFade === fadeController) currentMusicFade = null;
+		}));
+		currentMusicFade = fadeController;
+	},
+
+	fadeMusicDucking(multiplier: number, durationSeconds: number) {
+		const targetMultiplier = clampVolume(multiplier);
+		cancelMusicDuckingFade();
+		if ((!currentMusic && !ambientMusic) || durationSeconds <= 0) {
+			currentMusicDuckingMultiplier = targetMultiplier;
+			if (currentMusic) currentMusic.volume = currentMusicOutputVolume();
+			if (ambientMusic) ambientMusic.volume = ambientMusicOutputVolume();
+			return;
+		}
+
+		const duckedMusic = currentMusic;
+		const duckedAmbientMusic = ambientMusic;
+		const startMultiplier = currentMusicDuckingMultiplier;
+		let elapsedSeconds = 0;
+		let fadeController: KEventController;
+		fadeController = k.onUpdate(() => profileSection("external:audioFade", () => {
+			if (currentMusic !== duckedMusic || ambientMusic !== duckedAmbientMusic) {
+				fadeController.cancel();
+				if (currentMusicDuckingFade === fadeController) {
+					currentMusicDuckingFade = null;
+				}
+				return;
+			}
+			elapsedSeconds += k.dt();
+			const progress = clampVolume(elapsedSeconds / durationSeconds);
+			const eased = progress * progress * (3 - 2 * progress);
+			currentMusicDuckingMultiplier = startMultiplier +
+				(targetMultiplier - startMultiplier) * eased;
+			if (duckedMusic) duckedMusic.volume = currentMusicOutputVolume();
+			if (duckedAmbientMusic) {
+				duckedAmbientMusic.volume = ambientMusicOutputVolume();
+			}
+			if (progress < 1) return;
+
+			fadeController.cancel();
+			if (currentMusicDuckingFade === fadeController) {
+				currentMusicDuckingFade = null;
+			}
+		}));
+		currentMusicDuckingFade = fadeController;
+	},
+
 	stopMusic() {
 		runtimeDebug.log("audio", "music:stop-request", {
 			id: currentMusicId,
@@ -570,6 +757,7 @@ export const audioService = {
 		});
 		optionalMusicRequest++;
 		cancelMusicFade();
+		stopAmbientMusic();
 		pendingMusic = null;
 		stopListeningForAudioUnlock();
 		if (currentMusic) {
@@ -586,6 +774,7 @@ export const audioService = {
 			currentMusic.paused = true;
 			runtimeDebug.log("audio", "music:paused", { id: currentMusicId });
 		}
+		if (ambientMusic) ambientMusic.paused = true;
 	},
 
 	resumeMusic() {
@@ -593,6 +782,7 @@ export const audioService = {
 			currentMusic.paused = false;
 			runtimeDebug.log("audio", "music:resumed", { id: currentMusicId });
 		}
+		if (ambientMusic) ambientMusic.paused = false;
 	},
 
 	setMusicSpeed(speed: number) {
@@ -604,9 +794,9 @@ export const audioService = {
 	setMusicVolume(volume: number) {
 		audioSettings.musicVolume = clampVolume(volume);
 		if (currentMusic) {
-			currentMusic.volume =
-				currentMusicBaseVolume * audioSettings.musicVolume * masterVolume();
+			currentMusic.volume = currentMusicOutputVolume();
 		}
+		if (ambientMusic) ambientMusic.volume = ambientMusicOutputVolume();
 		saveAudioSettings();
 	},
 
@@ -628,9 +818,9 @@ export const audioService = {
 		audioSettings.muted = muted;
 		syncMasterVolume();
 		if (currentMusic) {
-			currentMusic.volume =
-				currentMusicBaseVolume * audioSettings.musicVolume * masterVolume();
+			currentMusic.volume = currentMusicOutputVolume();
 		}
+		if (ambientMusic) ambientMusic.volume = ambientMusicOutputVolume();
 		for (const sound of playingSounds) updatePlayingSound(sound, true);
 		saveAudioSettings();
 	},

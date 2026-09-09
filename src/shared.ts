@@ -56,7 +56,7 @@ export function steerMoveRotateAndLean(
 	lerp: number,
 	speed: number,
 	desiredAngle: number,
-	baseScale = 1
+	baseScale: number | Vec2 = 1
 ) {
 	const lerpAngle = k.deg2rad(lerp + 90);
 	const x = Math.cos(lerpAngle);
@@ -70,11 +70,13 @@ export function applySteeringLean(
 	m: GameObj<ScaleComp | any>,
 	currentAngle: number,
 	desiredAngle: number,
-	baseScale = 1,
+	baseScale: number | Vec2 = 1,
 	rounded = false,
 	angleForFullLean = 100,
 	responsiveness = 12
 ) {
+	const baseScaleX = typeof baseScale === "number" ? baseScale : baseScale.x;
+	const baseScaleY = typeof baseScale === "number" ? baseScale : baseScale.y;
 	const correctedDesiredAngle = adjustedTarget(currentAngle, desiredAngle);
 	const steeringAmount = k.clamp(
 		Math.abs(currentAngle - correctedDesiredAngle) /
@@ -82,10 +84,10 @@ export function applySteeringLean(
 		0,
 		1
 	);
-	const targetScaleX = (1 - steeringAmount * MAX_STEERING_LEAN) * baseScale;
+	const targetScaleX = (1 - steeringAmount * MAX_STEERING_LEAN) * baseScaleX;
 	const targetScaleY = rounded
-		? (1 + steeringAmount * ROUNDED_STEERING_STRETCH) * baseScale
-		: (1 - steeringAmount / 40) * baseScale;
+		? (1 + steeringAmount * ROUNDED_STEERING_STRETCH) * baseScaleY
+		: (1 - steeringAmount / 40) * baseScaleY;
 	const bankLerp = k.clamp(responsiveness * k.dt(), 0, 1);
 	m.scale.x = k.lerp(m.scale.x, targetScaleX, bankLerp);
 	m.scale.y = k.lerp(m.scale.y, targetScaleY, bankLerp);

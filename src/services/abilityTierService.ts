@@ -34,8 +34,8 @@ const TIER_RANGES: Readonly<Record<RewardRarity, readonly [number, number]>> = {
 	[RewardRarity.Legendary]: [1.68, 1.88],
 }
 
-export function beginAbilityTierRun() {
-	abilityTiers.clear()
+export function beginAbilityTierRun(preserveExisting = false) {
+	if (!preserveExisting) abilityTiers.clear()
 }
 
 export function endAbilityTierRun() {

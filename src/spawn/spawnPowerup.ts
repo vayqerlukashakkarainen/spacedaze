@@ -342,6 +342,8 @@ export function spawnRewardPickup(
 
 	registerBatchedEntityUpdate("world", m, () => {
 		const dist = m.pos.dist(playerObj.pos);
+		const collectionRange =
+			player.debreeSeekDistance * player.debreeSeekDistanceMultiplier
 		interactionPrompt?.update(m.isInRange === true);
 		if (interactionGlow) updateLocalLight(interactionGlow);
 		if (options.launch && launchElapsed < launchDuration) {
@@ -356,10 +358,10 @@ export function spawnRewardPickup(
 				? k.lerp(0.35, 1.12, progress / 0.24)
 				: k.lerp(1.12, 1, (progress - 0.24) / 0.76);
 			m.scale = k.vec2(REWARD_PICKUP_SCALE * popScale);
-			if (progress >= 1) armed = true;
+			if (progress >= 1 && !options.armWhenPlayerLeaves) armed = true;
 			return;
 		}
-		if (!armed && dist > 40) armed = true;
+		if (!armed && dist > collectionRange + 8) armed = true;
 
 		const pulseAmount = compactAura ? 0.015 : feedback.pulseAmount;
 		const pulse = k.wave(
@@ -399,10 +401,7 @@ export function spawnRewardPickup(
 			collectPowerup();
 		});
 
-		if (
-			dist <
-			player.debreeSeekDistance * player.debreeSeekDistanceMultiplier
-		) {
+		if (dist < collectionRange) {
 			collectPowerup();
 		}
 	});

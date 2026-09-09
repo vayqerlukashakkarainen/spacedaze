@@ -25,6 +25,7 @@ import { getUiEffects } from "../particles";
 import { addCollectedPowerup } from "./gameUi";
 import {
 	consumeNextChestDifficulty,
+	consumeNextChestRewardCollectedCallback,
 	consumeNextChestRewardType,
 	consumeNextChestWorldOpenAnimation,
 	consumeNextChestWorldPosition,
@@ -187,6 +188,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 	const chestWorldPosition = consumeNextChestWorldPosition() ??
 		playerObj.pos.clone();
 	const worldChestOpenAnimation = consumeNextChestWorldOpenAnimation();
+	const rewardCollectedCallback = consumeNextChestRewardCollectedCallback();
 	let worldChestOpenStarted = false;
 	const playWorldChestOpenAnimation = async () => {
 		if (worldChestOpenStarted) return;
@@ -1429,10 +1431,12 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			const abilityReward = isAbilityReward(reward);
 			spawnRewardPickup(chestWorldPosition, reward, {
 				stationary: true,
+				armWhenPlayerLeaves: !abilityReward,
 				interactionOnly: abilityReward,
 				interactionPromptStyle: abilityReward ? "key" : undefined,
 				telemetrySource: "chest",
 				recordOffer: false,
+				onCollected: () => rewardCollectedCallback?.(),
 				launch: {
 					endOffset: k.vec2(0, -48),
 					height: 34,

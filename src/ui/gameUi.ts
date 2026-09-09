@@ -175,7 +175,7 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		},
 	]);
 	const salvageIcon = salvageDisplay.add([
-		k.sprite("debree_part1", { width: 18, height: 18 }),
+		k.sprite("salvage_shard", { width: 16, height: 16 }),
 		k.pos(-33, 0),
 		k.anchor("center"),
 		k.color(...UI_COLORS.accent),

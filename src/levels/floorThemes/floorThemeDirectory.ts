@@ -15,6 +15,35 @@ export interface FloorThemeDefinition {
 	subtitle: string
 	color: readonly [number, number, number]
 	enemyFamily: string
+	subfloorCount: number
+	subfloorMusic: readonly (FloorMusicTrack | undefined)[]
+}
+
+export interface FloorMusicTrack {
+	music: string
+	path: string
+	title: string
+	author: string
+	albumCover?: string
+}
+
+export interface FloorPosition {
+	floor: number
+	subfloor: number
+}
+
+const SHIROBON_FOX: FloorMusicTrack = {
+	music: "shirobon_fox",
+	path: "songs/shirobon-fox.mp3",
+	title: "Fox",
+	author: "Shirobon",
+}
+
+const SHIROBON_ON_THE_RUN: FloorMusicTrack = {
+	music: "shirobon_on_the_run",
+	path: "songs/shirobon-on-the-run.mp3",
+	title: "On The Run",
+	author: "Shirobon",
 }
 
 export const FLOOR_THEME_DIRECTORY: Readonly<Record<FloorThemeId, FloorThemeDefinition>> = {
@@ -24,6 +53,12 @@ export const FLOOR_THEME_DIRECTORY: Readonly<Record<FloorThemeId, FloorThemeDefi
 		subtitle: "THE DAZE REMEMBERS HOME",
 		color: [0, 207, 255],
 		enemyFamily: "wake-scrap",
+		subfloorCount: 3,
+		subfloorMusic: [
+			SHIROBON_FOX,
+			SHIROBON_ON_THE_RUN,
+			SHIROBON_ON_THE_RUN,
+		],
 	},
 	"freebooter-exchange": {
 		id: "freebooter-exchange",
@@ -31,6 +66,8 @@ export const FLOOR_THEME_DIRECTORY: Readonly<Record<FloorThemeId, FloorThemeDefi
 		subtitle: "EVERYTHING HAS A PRICE",
 		color: [255, 150, 55],
 		enemyFamily: "freebooter",
+		subfloorCount: 3,
+		subfloorMusic: [],
 	},
 	"khelt-moltworks": {
 		id: "khelt-moltworks",
@@ -38,6 +75,8 @@ export const FLOOR_THEME_DIRECTORY: Readonly<Record<FloorThemeId, FloorThemeDefi
 		subtitle: "THE OLD SHELL FEEDS THE NEW",
 		color: [240, 184, 75],
 		enemyFamily: "khelt",
+		subfloorCount: 3,
+		subfloorMusic: [],
 	},
 	"oruun-pilgrim-array": {
 		id: "oruun-pilgrim-array",
@@ -45,6 +84,8 @@ export const FLOOR_THEME_DIRECTORY: Readonly<Record<FloorThemeId, FloorThemeDefi
 		subtitle: "FOLLOW THE WEIGHT BETWEEN STARS",
 		color: [174, 112, 255],
 		enemyFamily: "oruun",
+		subfloorCount: 3,
+		subfloorMusic: [],
 	},
 	"naru-tide-ark": {
 		id: "naru-tide-ark",
@@ -52,6 +93,8 @@ export const FLOOR_THEME_DIRECTORY: Readonly<Record<FloorThemeId, FloorThemeDefi
 		subtitle: "THE CURRENT CARRIES MEMORY",
 		color: [65, 145, 255],
 		enemyFamily: "naru",
+		subfloorCount: 3,
+		subfloorMusic: [],
 	},
 	"silex-resonance-vault": {
 		id: "silex-resonance-vault",
@@ -59,6 +102,8 @@ export const FLOOR_THEME_DIRECTORY: Readonly<Record<FloorThemeId, FloorThemeDefi
 		subtitle: "ONE SIGNAL BECOMES A CHORUS",
 		color: [225, 75, 255],
 		enemyFamily: "silex",
+		subfloorCount: 3,
+		subfloorMusic: [],
 	},
 	"vey-living-convoy": {
 		id: "vey-living-convoy",
@@ -66,6 +111,8 @@ export const FLOOR_THEME_DIRECTORY: Readonly<Record<FloorThemeId, FloorThemeDefi
 		subtitle: "NOTHING LIVING TRAVELS ALONE",
 		color: [90, 220, 145],
 		enemyFamily: "vey",
+		subfloorCount: 3,
+		subfloorMusic: [],
 	},
 	"federation-claim-zone": {
 		id: "federation-claim-zone",
@@ -73,6 +120,8 @@ export const FLOOR_THEME_DIRECTORY: Readonly<Record<FloorThemeId, FloorThemeDefi
 		subtitle: "PROPERTY MARKED FOR RECLAMATION",
 		color: [255, 90, 90],
 		enemyFamily: "federation",
+		subfloorCount: 3,
+		subfloorMusic: [],
 	},
 	"daze-scar": {
 		id: "daze-scar",
@@ -80,6 +129,8 @@ export const FLOOR_THEME_DIRECTORY: Readonly<Record<FloorThemeId, FloorThemeDefi
 		subtitle: "MEMORY HAS LOST ITS SHAPE",
 		color: [210, 210, 255],
 		enemyFamily: "phase-echo",
+		subfloorCount: 3,
+		subfloorMusic: [],
 	},
 }
 
@@ -107,13 +158,44 @@ const DEEP_FLOOR_THEMES: readonly FloorThemeId[] = [
 ]
 
 export function getFloorThemeIdForDepth(depth: number): FloorThemeId {
+	return resolveFloorDepth(depth).themeId
+}
+
+export function getFloorPositionForDepth(depth: number): FloorPosition {
+	const resolved = resolveFloorDepth(depth)
+	return { floor: resolved.floor, subfloor: resolved.subfloor }
+}
+
+function resolveFloorDepth(depth: number) {
 	const normalizedDepth = Math.max(1, Math.floor(depth))
-	if (normalizedDepth <= OPENING_FLOOR_THEMES.length) {
-		return OPENING_FLOOR_THEMES[normalizedDepth - 1]
+	let remainingDepth = normalizedDepth
+	let floor = 1
+	for (const themeId of OPENING_FLOOR_THEMES) {
+		const subfloorCount = FLOOR_THEME_DIRECTORY[themeId].subfloorCount
+		if (remainingDepth <= subfloorCount) {
+			return { floor, subfloor: remainingDepth, themeId }
+		}
+		remainingDepth -= subfloorCount
+		floor++
 	}
-	return DEEP_FLOOR_THEMES[
-		(normalizedDepth - OPENING_FLOOR_THEMES.length - 1) % DEEP_FLOOR_THEMES.length
-	]
+
+	const cycleDepth = DEEP_FLOOR_THEMES.reduce(
+		(total, themeId) => total + FLOOR_THEME_DIRECTORY[themeId].subfloorCount,
+		0
+	)
+	const completedCycles = Math.floor((remainingDepth - 1) / cycleDepth)
+	remainingDepth -= completedCycles * cycleDepth
+	floor += completedCycles * DEEP_FLOOR_THEMES.length
+	for (const themeId of DEEP_FLOOR_THEMES) {
+		const subfloorCount = FLOOR_THEME_DIRECTORY[themeId].subfloorCount
+		if (remainingDepth <= subfloorCount) {
+			return { floor, subfloor: remainingDepth, themeId }
+		}
+		remainingDepth -= subfloorCount
+		floor++
+	}
+
+	return { floor, subfloor: 1, themeId: DEEP_FLOOR_THEMES[0] }
 }
 
 export function getFloorThemeDefinition(themeId: FloorThemeId) {
@@ -122,4 +204,10 @@ export function getFloorThemeDefinition(themeId: FloorThemeId) {
 
 export function getFloorThemeForDepth(depth: number) {
 	return getFloorThemeDefinition(getFloorThemeIdForDepth(depth))
+}
+
+export function selectFloorMusicTrack(depth: number, _seed: number) {
+	const theme = getFloorThemeForDepth(depth)
+	const { subfloor } = getFloorPositionForDepth(depth)
+	return theme.subfloorMusic[subfloor - 1]
 }

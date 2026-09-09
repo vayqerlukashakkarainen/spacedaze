@@ -101,9 +101,12 @@ export function spawnRepairSkiff(
 			skiff.repairTarget?.exists() &&
 			skiff.pos.dist(skiff.repairTarget.pos) < 130
 		) {
-			const currentHp = skiff.repairTarget.hp()
-			const maxHp = skiff.repairTarget.maxHP()
-			skiff.repairTarget.setHP(Math.min(maxHp, currentHp + (profile.elite ? 1 : 0.65)))
+			const currentHp = skiff.repairTarget.hp
+			const maxHp = skiff.repairTarget.maxHP
+			skiff.repairTarget.hp = Math.min(
+				maxHp,
+				currentHp + (profile.elite ? 1 : 0.65)
+			)
 			skiff.healTimer = profile.elite ? 0.48 : 0.7
 		}
 		handleEnemyCombat(skiff, "REPAIR SKIFF", "enemy_repair_skiff")
@@ -118,12 +121,12 @@ function findRepairTarget(skiff: GameObj) {
 			candidate !== skiff &&
 			candidate.exists() &&
 			candidate.is(tags.unit) &&
-			typeof candidate.hp === "function" &&
-			typeof candidate.maxHP === "function" &&
-			candidate.hp() < candidate.maxHP() &&
+			typeof candidate.hp === "number" &&
+			typeof candidate.maxHP === "number" &&
+			candidate.hp < candidate.maxHP &&
 			candidate.pos.dist(skiff.pos) < 300
 		)
 		.sort((a, b) =>
-			(a.hp() / a.maxHP()) - (b.hp() / b.maxHP())
+			(a.hp / a.maxHP) - (b.hp / b.maxHP)
 		)[0]
 }

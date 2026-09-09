@@ -316,14 +316,17 @@ function spawnHubGhostChest(pos: Vec2) {
 	const purchaseIndex = getHubGhostChestCapacity("salvage") - stock;
 	const cost = ghostChestCosts[purchaseIndex];
 	if (cost === undefined) return;
-	spawnChest(pos, 1, {
+	const chest = spawnChest(pos, 1, {
 		ghostCost: cost,
 		debreeBurstCount: 12 + Math.round(cost * 0.7),
 		onPurchased: () => {
 			consumeHubGhostChest("salvage");
 			saveGame("slot1");
 		},
-		onOpened: () => spawnHubGhostChest(pos),
+		onRewardCollected: () => {
+			if (chest.exists()) k.destroy(chest);
+			spawnHubGhostChest(pos);
+		},
 	});
 }
 

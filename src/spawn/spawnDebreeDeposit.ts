@@ -10,7 +10,6 @@ import { createNpcInteractionPrompt } from "../ui/common"
 import { saveGame } from "../util"
 import { showDebreeDepositPanel } from "../ui/debreeDepositPanel"
 import { spawnCurrencyBurst } from "./spawnCurrencyBurst"
-import { spawnRing } from "./spawnRing"
 import { getWorldVisual } from "../visuals/worldVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 
@@ -24,10 +23,21 @@ const RECEIVER_Y = -5
 const FLOAT_AMOUNT = 2
 const FLOAT_SPEED = 1.15
 
-export function spawnDebreeDeposit(pos: Vec2) {
+interface DebreeDepositOptions {
+	available?: () => boolean
+	onDeposit?: (amount: number) => void
+	tags?: string[]
+}
+
+export function spawnDebreeDeposit(
+	pos: Vec2,
+	options: DebreeDepositOptions = {}
+) {
+	const available = options.available ?? (() => true)
 	const station = k.add([
 		k.pos(pos),
 		interactable(DEPOSIT_RADIUS, () => {
+			if (!available()) return
 			showDebreeDepositPanel({
 				onDeposit: playDepositEffect,
 			})
@@ -38,6 +48,7 @@ export function spawnDebreeDeposit(pos: Vec2) {
 		tags.gameLoop,
 		tags.runtimeCullable,
 		{ runtimeCullRadius: 120 },
+		...(options.tags ?? []),
 	]) as GameObj<PosComp | InteractableComp>
 
 	function playDepositEffect(deposited: number) {
@@ -53,14 +64,8 @@ export function spawnDebreeDeposit(pos: Vec2) {
 			particleCount: Math.min(72, 12 + deposited),
 			tags: [tags.runMap],
 		})
-		spawnRing({
-			pos: effectPos,
-			speed: 240,
-			intensity: 0.35,
-			maxRadius: 100,
-			color: k.rgb(...UI_COLORS.success),
-		})
 		gameSoundService.play("purchase1", { volume: mainSoundVolume })
+		options.onDeposit?.(deposited)
 	}
 
 	const foundation = station.add([
@@ -91,6 +96,7 @@ export function spawnDebreeDeposit(pos: Vec2) {
 	})
 
 	registerBatchedEntityUpdate("world", station, () => {
+		station.setInteractRadius(available() ? DEPOSIT_RADIUS : 0)
 		prompt.update(station.isInRange && k.get(tags.player).length > 0)
 		const floatOffset = Math.sin(k.time() * FLOAT_SPEED) * FLOAT_AMOUNT
 		foundation.pos.y = FOUNDATION_Y + floatOffset

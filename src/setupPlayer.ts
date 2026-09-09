@@ -20,6 +20,7 @@ import {
 	updateUltimateUi,
 } from "./ui/gameUi";
 import {
+	BULLET_SPEED,
 	dt,
 	k,
 	layers,
@@ -165,10 +166,15 @@ import {
 	DRIFT_SPEED_MULTIPLIER,
 	easeAngle,
 	getSignedAngleDelta,
+	shouldTurnHullForStationaryAim,
 	TURRET_AIM_RESPONSE,
 } from "./services/playerSteeringModeService"
 import { addPlayerDamageEffects } from "./services/playerDamageEffectService"
-import { setPlayerTargetLock } from "./services/playerTargetLockService"
+import {
+	getPlayerTargetInterceptPoint,
+	setPlayerTargetLock,
+	updatePlayerTargetMotion,
+} from "./services/playerTargetLockService"
 
 let blasters = 0;
 let bulletIndex = 1;
@@ -182,6 +188,10 @@ const strafeTargetQueryRadius = 72;
 const strafeTargetMinimumRadius = 14;
 const strafeTargetPadding = 5;
 const strafeTargetReleasePadding = 64;
+const strafeTargetEaseResponse = 14;
+const strafeTargetReleaseEaseDuration = 0.18;
+const strafeTargetCritChanceBonus = 25;
+const strafeTargetCritScaleMultiplier = 1.35;
 const multiBlasterMountSpacing = 6;
 const weaponRecoilReturnSpeed = 20;
 const maxWeaponRecoilDistance = 8;
@@ -590,14 +600,20 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	const targetObj = k.add([k.pos(k.center()), k.z(1000), tags.gameLoop]);
 	let strafeTarget: GameObj<PosComp> | undefined
 	let strafeTargetMarker: GameObj | undefined
+	let strafeAimPos = playerObj.pos.clone()
+	let strafeTargetReleaseEaseRemaining = 0
+	let strafeModeWasActive = false
+	let strafeTargetCritActive = false
 	const setStrafeTarget = (nextTarget?: GameObj<PosComp>) => {
 		if (nextTarget?.id === strafeTarget?.id) return
-		if (strafeTargetMarker?.exists()) k.destroy(strafeTargetMarker)
+		const acquiredTarget = Boolean(nextTarget)
+		const releasedTarget = Boolean(strafeTarget) && !nextTarget
 		strafeTarget = nextTarget
 		setPlayerTargetLock(nextTarget)
-		strafeTargetMarker = undefined
-		if (!nextTarget) return
-		strafeTargetMarker = spawnStrafeTargetMarker(nextTarget.pos)
+		if (releasedTarget) {
+			strafeTargetReleaseEaseRemaining = strafeTargetReleaseEaseDuration
+		}
+		if (!acquiredTarget) return
 		gameSoundService.play("target_lock", {
 			volume: mainSoundVolume * 0.7,
 		})
@@ -964,18 +980,62 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			k.isKeyDown("shift")
 		updatePlayerSteeringModeUi(driftModeActive)
 		const pointerWorldPos = k.toWorld(k.mousePos())
+		const strafeAimActive = driftModeActive && !combatInputBlocked()
 		setStrafeTarget(
-			driftModeActive && !combatInputBlocked()
+			strafeAimActive
 				? findHoveredStrafeTarget(pointerWorldPos, strafeTarget)
 				: undefined
 		)
-		if (strafeTarget?.exists() && strafeTargetMarker?.exists()) {
-			strafeTargetMarker.pos = strafeTarget.pos.clone()
-			strafeTargetMarker.angle += 90 * dt()
-			strafeTargetMarker.scale = k.vec2(
-				k.wave(0.9, 1.08, k.time() * 7)
+		if (strafeAimActive) {
+			if (!strafeModeWasActive) {
+				strafeAimPos = pointerWorldPos.clone()
+				strafeTargetReleaseEaseRemaining = 0
+			}
+			if (!strafeTargetMarker?.exists()) {
+				strafeTargetMarker = spawnStrafeTargetMarker(strafeAimPos)
+			}
+			const lockedTarget = strafeTarget?.exists() ? strafeTarget : undefined
+			strafeTargetCritActive = Boolean(
+				lockedTarget && pointerIsOverTarget(pointerWorldPos, lockedTarget)
 			)
+			if (lockedTarget) updatePlayerTargetMotion(lockedTarget, dt())
+			const equippedProjectileSpeed =
+				BULLET_SPEED *
+				player.blasterSpeedMultiplier *
+				getEquippedWeapon().projectileSpeedMultiplier
+			const desiredAimPos = lockedTarget
+				? getPlayerTargetInterceptPoint(
+					playerObj.pos,
+					lockedTarget,
+					equippedProjectileSpeed
+				)
+				: pointerWorldPos
+			if (lockedTarget || strafeTargetReleaseEaseRemaining > 0) {
+				const blend = 1 - Math.exp(-strafeTargetEaseResponse * dt())
+				strafeAimPos = strafeAimPos.lerp(desiredAimPos, blend)
+				strafeTargetReleaseEaseRemaining = Math.max(
+					0,
+					strafeTargetReleaseEaseRemaining - dt()
+				)
+			} else {
+				strafeAimPos = pointerWorldPos.clone()
+			}
+			strafeTargetMarker.pos = strafeAimPos.clone()
+			strafeTargetMarker.angle += 90 * dt()
+			const markerScale = k.wave(0.9, 1.08, k.time() * 7) *
+				(strafeTargetCritActive ? strafeTargetCritScaleMultiplier : 1)
+			strafeTargetMarker.scale = k.vec2(markerScale)
+			strafeTargetMarker.color = strafeTargetCritActive
+				? k.rgb(0, 210, 255)
+				: lockedTarget
+					? k.rgb(255, 70, 70)
+					: k.WHITE
+		} else if (strafeTargetMarker?.exists()) {
+			k.destroy(strafeTargetMarker)
+			strafeTargetMarker = undefined
 		}
+		if (!strafeAimActive) strafeTargetCritActive = false
+		strafeModeWasActive = strafeAimActive
 		const isInvulnerable =
 			isPhaseJumping || isGravitySlinging ||
 			k.time() < phaseJumpInvulnerableUntil;
@@ -1073,15 +1133,22 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 
 		// The turret angle is local to the rotating player, while aiming uses a
 		// world angle. Keep both coordinate spaces separate.
-		const mouseWorldPos = k.toWorld(k.mousePos());
+		const turretAimWorldPos = strafeAimActive
+			? strafeAimPos
+			: k.toWorld(k.mousePos());
 		const desiredTurretWorldAngle = lerpAngleBetweenPos(
 			turretWorldAngle,
 			playerObj.pos,
-			mouseWorldPos,
+			turretAimWorldPos,
 			1,
 			-90
 		).correctedDesiredRot;
 		const steeringDelta = dt() * timeScale * playerObj.getTimescale()
+		const stationaryAim =
+			wasdDir.len() <= 0.001 &&
+			currentMoveSpeed <= 1 &&
+			gravityVelocity.len() <= 1 &&
+			gravitySlingReleaseVelocity.len() <= 1
 		if (driftModeActive) {
 			turretWorldAngle = easeAngle(
 				turretWorldAngle,
@@ -1097,6 +1164,19 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			)
 			desiredPlayerAngle = turretWorldAngle
 		} else {
+			if (shouldTurnHullForStationaryAim(
+				nextPlayerAngle,
+				desiredTurretWorldAngle,
+				stationaryAim
+			)) {
+				nextPlayerAngle = easeAngle(
+					playerObj.angle,
+					desiredTurretWorldAngle,
+					DRIFT_HULL_RESPONSE,
+					steeringDelta
+				)
+				desiredPlayerAngle = desiredTurretWorldAngle
+			}
 			const constrainedTurretAngle = clampTurretWorldAngle(
 				nextPlayerAngle,
 				desiredTurretWorldAngle
@@ -1340,6 +1420,9 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			)
 			: undefined;
 		kickWeaponVisual(weapon, chargeRatio);
+		if (weapon.id === "railgun" && chargeRatio >= 1) {
+			k.shake(5)
+		}
 
 		if (
 			session.primaryRocketChance > 0 &&
@@ -1385,6 +1468,12 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 						fireSoundDetune,
 						isFullyCharged: chargeRatio >= 1,
 						chargeRatio,
+						critChanceBonus: strafeTargetCritActive
+							? strafeTargetCritChanceBonus
+							: 0,
+						preferredTarget: strafeTarget?.exists()
+							? strafeTarget
+							: undefined,
 						wigglePhase: hasPatternWiggle
 							? index * Math.PI
 							: undefined,
@@ -1442,6 +1531,21 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			else k.wait(index * burstInterval, fireRound);
 		}
 	};
+
+	playerObj.onUpdate(() => {
+		if (primaryChargeStartedAt === undefined) return
+		const weapon = getEquippedWeapon()
+		if (
+			weapon.id !== primaryChargeWeaponId ||
+			!weapon.charge ||
+			weapon.charge.autoFireDelay === undefined
+		) return
+		const autoFireAt = weapon.charge.maxDuration + weapon.charge.autoFireDelay
+		if (k.time() - primaryChargeStartedAt < autoFireAt) return
+		primaryChargeStartedAt = undefined
+		stopPrimaryChargeSound()
+		firePrimaryWeapon(1)
+	})
 
 	playerObj.onUpdate(() => profileSection("external:playerWeaponHold", () => {
 		if (!k.isMouseDown("left")) return;
@@ -1960,29 +2064,38 @@ function findHoveredStrafeTarget(
 	pointerWorldPos: Vec2,
 	currentTarget?: GameObj<PosComp>
 ) {
+	let closestTarget: GameObj<PosComp> | undefined
+	let closestDistance = Number.POSITIVE_INFINITY
+	for (const candidate of querySpatialNearby(
+		pointerWorldPos,
+		strafeTargetQueryRadius,
+		{
+			allTags: [tags.unit],
+			anyTags: [tags.enemy, tags.roomVolatile],
+		}
+	)) {
+		const distance = candidate.pos.dist(pointerWorldPos)
+		if (distance >= closestDistance) continue
+		closestTarget = candidate as GameObj<PosComp>
+		closestDistance = distance
+	}
+	if (closestTarget) return closestTarget
 	if (
 		currentTarget?.exists() &&
+		isStrafeTarget(currentTarget) &&
 		pointerIsOverTarget(
 			pointerWorldPos,
 			currentTarget,
 			strafeTargetReleasePadding
 		)
 	) return currentTarget
+	return undefined
+}
 
-	let closestTarget: GameObj<PosComp> | undefined
-	let closestDistance = Number.POSITIVE_INFINITY
-	for (const candidate of querySpatialNearby(
-		pointerWorldPos,
-		strafeTargetQueryRadius,
-		{ allTags: [tags.enemy, tags.unit] }
-	)) {
-		if (!pointerIsOverTarget(pointerWorldPos, candidate)) continue
-		const distance = candidate.pos.dist(pointerWorldPos)
-		if (distance >= closestDistance) continue
-		closestTarget = candidate as GameObj<PosComp>
-		closestDistance = distance
-	}
-	return closestTarget
+function isStrafeTarget(target: GameObj) {
+	return target.is(tags.unit) && (
+		target.is(tags.enemy) || target.is(tags.roomVolatile)
+	)
 }
 
 function pointerIsOverTarget(

@@ -105,7 +105,10 @@ export function spawnPatchTender(
 			tender.pos.dist(tender.repairTarget.pos) < 135
 		) {
 			const target = tender.repairTarget
-			target.setHP(Math.min(target.maxHP(), target.hp() + (profile.elite ? 0.8 : 0.55)))
+			target.hp = Math.min(
+				target.maxHP,
+				target.hp + (profile.elite ? 0.8 : 0.55)
+			)
 			tender.healTimer = profile.elite ? 0.48 : 0.72
 		}
 		handleWakeCompositeCombat(tender, "PATCH TENDER", "enemy_wake_patch_tender_core")
@@ -120,10 +123,10 @@ function findRepairTarget(tender: GameObj) {
 			candidate !== tender &&
 			candidate.exists() &&
 			candidate.is(tags.unit) &&
-			typeof candidate.hp === "function" &&
-			typeof candidate.maxHP === "function" &&
-			candidate.hp() < candidate.maxHP() &&
+			typeof candidate.hp === "number" &&
+			typeof candidate.maxHP === "number" &&
+			candidate.hp < candidate.maxHP &&
 			candidate.pos.dist(tender.pos) < 300
 		)
-		.sort((a, b) => (a.hp() / a.maxHP()) - (b.hp() / b.maxHP()))[0]
+		.sort((a, b) => (a.hp / a.maxHP) - (b.hp / b.maxHP))[0]
 }

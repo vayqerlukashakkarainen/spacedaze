@@ -13,6 +13,7 @@ import { runtimeDebug } from "./runtimeDebugService"
 
 export interface BossEncounterOptions {
 	maxHealth: number
+	deferDefeatUntilDestroy?: boolean
 	onPhaseChanged?: (
 		phase: BossPhaseDefinition,
 		phaseIndex: number
@@ -39,7 +40,7 @@ export function registerBossEncounter(
 	let phaseIndex = 0
 	let finished = false
 	const hud = definition.kind === "miniBoss"
-		? spawnMiniBossHud(boss, definition.name)
+		? spawnMiniBossHud(boss)
 		: spawnBossHud(definition.name, definition.subtitle)
 
 	const controller: BossEncounterController = {
@@ -74,8 +75,12 @@ export function registerBossEncounter(
 		})
 	})
 
-	boss.onDeath(() => finish(true))
-	boss.onDestroy(() => finish(false))
+	let deathConfirmed = false
+	boss.onDeath(() => {
+		deathConfirmed = true
+		if (!options.deferDefeatUntilDestroy) finish(true)
+	})
+	boss.onDestroy(() => finish(deathConfirmed))
 	return controller
 
 	function finish(defeated: boolean) {
@@ -150,8 +155,7 @@ function spawnBossHud(name: string, subtitle: string) {
 }
 
 function spawnMiniBossHud(
-	miniBoss: GameObj<HealthComp | PosComp>,
-	name: string
+	miniBoss: GameObj<HealthComp | PosComp>
 ) {
 	const width = 58
 	const height = 4
@@ -164,18 +168,16 @@ function spawnMiniBossHud(
 		tags.gameLoopUi,
 	])
 	root.add([
-		k.text(name, {
-			size: UI_FONT_SIZES.tiny,
-			font: "unscii",
-		}),
-		k.pos(0, -5),
-		k.anchor("bot"),
-		k.color(...UI_COLORS.text),
+		k.rect(width + 2, height + 2),
+		k.pos(-width / 2 - 1, -1),
+		k.color(3, 7, 10),
+		k.opacity(0.95),
 	])
 	root.add([
 		k.rect(width, height),
 		k.pos(-width / 2, 0),
 		k.color(...UI_COLORS.border),
+		k.opacity(0.85),
 	])
 	const fill = root.add([
 		k.rect(width, height),
@@ -186,7 +188,26 @@ function spawnMiniBossHud(
 		root,
 		setHealth(value: number) {
 			root.pos = miniBoss.pos.add(offset)
+			root.hidden = miniBoss.hidden || value <= 0
 			fill.width = width * k.clamp(value, 0, 1)
 		},
 	}
+}
+
+export function spawnMiniBossHealthBar(
+	miniBoss: GameObj<HealthComp | PosComp>,
+	maxHealth: number
+) {
+	const hud = spawnMiniBossHud(miniBoss)
+	registerBatchedUiUpdate("overlay", hud.root, () => {
+		if (!miniBoss.exists()) {
+			if (hud.root.exists()) k.destroy(hud.root)
+			return
+		}
+		hud.setHealth(Math.max(0, Number(miniBoss.hp)) / Math.max(1, maxHealth))
+	})
+	miniBoss.onDestroy(() => {
+		if (hud.root.exists()) k.destroy(hud.root)
+	})
+	return hud.root
 }

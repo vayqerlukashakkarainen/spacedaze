@@ -5,6 +5,8 @@ import { checkProjectileIntersection, playerObj } from "../../game"
 import { k, layers, mainSoundVolume, velocityScale } from "../../main"
 import { ASTEROID_SPRITES } from "../../asteroidSprites"
 import { applyDamage } from "../../services/damageService"
+import { spawnArtilleryBoulder } from "../../services/artilleryBoulderService"
+import { spawnMiniBossHealthBar } from "../../services/bossEncounterService"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 import { getEnemyNavigationDirection } from "../../services/enemyNavigationService"
 import { spawnTargetTelegraph } from "../../services/enemyTelegraphService"
@@ -12,15 +14,12 @@ import { gameSoundService } from "../../services/gameSoundService"
 import { setHitSoundProfile } from "../../services/hitSoundService"
 import { isPlayerDamageInvulnerable } from "../../services/playerDamageState"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../../services/threatService"
-import {
-	applyDirectionalSteeringLean,
-	easeDirection,
-	registerHitAnimation,
-} from "../../shared"
+import { easeDirection, registerHitAnimation } from "../../shared"
 import { tags } from "../../tags"
 import { getEnemyVisual } from "../../visuals/enemyVisualCatalog"
 import { onEnemyHit } from "../enemyShared"
 import { spawnExplosionEffect, spawnFlash } from "../spawnFlash"
+import { spawnMiniBossDeathSequence } from "../spawnEnemyDeathEffect"
 import { spawnRing } from "../spawnRing"
 import { addWakeEnemyPart, composeWakeEnemy, handleWakeCompositeCombat } from "./wakeEnemyShared"
 
@@ -71,6 +70,7 @@ export function spawnBoilerHulk(
 			defenseCharging: false,
 			defenseChargeTimer: 0,
 			defenseCooldown: SCRAP_SHIELD_INITIAL_DELAY,
+			deathSequenceActive: false,
 		},
 		tags.enemy,
 		tags.unit,
@@ -104,9 +104,24 @@ export function spawnBoilerHulk(
 			hitbox: 7 * profile.scale,
 			hitboxOffset: k.vec2(5, -18).scale(profile.scale),
 		},
-	], 14, 2, options.onDefeated)
+	], 14, 2, options.onDefeated, (finishDeath) => {
+		hulk.deathSequenceActive = true
+		hulk.attacking = false
+		destroyScrapShield(scrapShield)
+		defenseChargeRing.opacity = 0
+		hulk.opacity = 1
+		hulk.unuse(tags.enemy)
+		hulk.unuse(tags.unit)
+		spawnMiniBossDeathSequence(hulk, {
+			radius: 24 * profile.scale,
+			color: k.rgb(125, 220, 255),
+			onComplete: finishDeath,
+		})
+	})
+	spawnMiniBossHealthBar(hulk, profile.hp)
 
 	registerBatchedEntityUpdate("enemies", hulk, () => {
+		if (hulk.deathSequenceActive) return
 		const delta = k.dt() * hulk.getTimescale()
 		const toPlayer = playerObj.pos.sub(hulk.pos)
 		const distance = toPlayer.len()
@@ -162,7 +177,6 @@ export function spawnBoilerHulk(
 
 		hulk.angle = direction.angle() + 90
 		updateScrapShieldPieces(hulk, scrapShield, profile, delta)
-		applyDirectionalSteeringLean(hulk, hulk.moveDirection, direction, profile.scale)
 		handleWakeCompositeCombat(hulk, "BOILER HULK", "enemy_wake_boiler_hulk_core")
 	})
 	hulk.onDestroy(() => destroyScrapShield(scrapShield))
@@ -339,8 +353,15 @@ function startHulkShot(
 	hulk.attacking = true
 	const targetPos = playerObj.pos.clone()
 	const impactRadius = scoop.hidden ? 44 : HULK_IMPACT_RADIUS
+	const impactDelay = profile.elite ? 0.75 : 1
+	spawnArtilleryBoulder(
+		hulk.pos.clone(),
+		targetPos,
+		impactDelay,
+		extraTags
+	)
 	spawnTargetTelegraph(targetPos, impactRadius, {
-		duration: profile.elite ? 0.75 : 1,
+		duration: impactDelay,
 		tags: extraTags,
 		onComplete: () => {
 			if (!hulk.exists()) return

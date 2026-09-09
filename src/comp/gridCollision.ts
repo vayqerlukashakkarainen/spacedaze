@@ -88,7 +88,7 @@ export function gridCollision(gridKey: string): GridCollisionComp {
 					// Calculate next position
 					let moveVec: Vec2
 					if (typeof x === "number" && y !== undefined) {
-						moveVec = { x, y } as Vec2
+						moveVec = k.vec2(x, y)
 					} else if (typeof x === "object") {
 						moveVec = x
 					} else {
@@ -97,13 +97,18 @@ export function gridCollision(gridKey: string): GridCollisionComp {
 
 					const nextPos = this.pos.add(moveVec.scale(k.dt()))
 
+					const moveIfWalkable = (velocity: Vec2) => {
+						if (velocity.len() <= 0.001 || !originalMove) return false
+						const candidate = this.pos.add(velocity.scale(k.dt()))
+						if (!this.canMoveTo(candidate)) return false
+						originalMove(velocity)
+						this.lastValidPos = this.pos.clone()
+						return true
+					}
+
 					// Check if next position is walkable
 					if (this.canMoveTo(nextPos)) {
-						// Allow movement
-						if (originalMove) {
-							originalMove(moveVec)
-						}
-						this.lastValidPos = this.pos.clone()
+						moveIfWalkable(moveVec)
 					} else {
 						// Collision detected - trigger event
 						const nextCell = this.grid.screenToHex(nextPos)
@@ -113,7 +118,24 @@ export function gridCollision(gridKey: string): GridCollisionComp {
 							this.trigger("gridCollide", nextCellData)
 						}
 
-						// Movement blocked - stay at last valid position
+						const obstacleCenter = this.grid.hexToScreen(nextCell)
+						const awayFromObstacle = this.pos.sub(obstacleCenter)
+						const collisionNormal = awayFromObstacle.len() > 0.001
+							? awayFromObstacle.unit()
+							: moveVec.scale(-1).unit()
+						const inwardSpeed = Math.min(0, moveVec.dot(collisionNormal))
+						const tangentVelocity = moveVec.sub(
+							collisionNormal.scale(inwardSpeed)
+						)
+						const slideCandidates = [
+							tangentVelocity,
+							k.vec2(moveVec.x, 0),
+							k.vec2(0, moveVec.y),
+						].sort((a, b) => b.len() - a.len())
+						for (const slideVelocity of slideCandidates) {
+							if (moveIfWalkable(slideVelocity)) return
+							if (moveIfWalkable(slideVelocity.scale(0.5))) return
+						}
 					}
 				}
 			}

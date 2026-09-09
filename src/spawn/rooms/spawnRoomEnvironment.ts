@@ -1,15 +1,17 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { gridCollision } from "../../comp/gridCollision"
+import { mass } from "../../comp/mass"
 import { timescale } from "../../comp/timescale"
 import type { RoomEnvironmentObjectPlan, RoomFloorRoom } from "../../generation/rooms/roomFloorTypes"
 import type { HexGrid } from "../../grid/hexGrid"
 import { ACTIVE_RUN_GRID_KEY } from "../../grid/gridKeys"
 import { checkProjectileIntersection, playerObj } from "../../game"
-import { k, layers, mainSoundVolume } from "../../main"
+import { k, layers, mainSoundVolume, velocityScale } from "../../main"
 import { explosionEmitter, sparkEmitter } from "../../particles"
 import { applyDamage } from "../../services/damageService"
 import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
 import { gameSoundService } from "../../services/gameSoundService"
+import { isPlayerDamageInvulnerable } from "../../services/playerDamageState"
 import {
 	applyKnockbackImpulse,
 	applyProjectileDamage,
@@ -24,12 +26,15 @@ import { registerHitAnimation } from "../../shared"
 import { tags } from "../../tags"
 import { ASTEROID_SPRITES } from "../../asteroidSprites"
 import { setHitSoundProfile } from "../../services/hitSoundService"
+import { bounceMovingTerrainOffGrid } from "../../services/movingTerrainService"
 import { spawnExplosionEffect, spawnFlash } from "../spawnFlash"
 import { spawnRing } from "../spawnRing"
 import { getWorldVisual } from "../../visuals/worldVisualCatalog"
 import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 
 const FLOATING_SCRAP_RADIUS = 14
+const FLOATING_SCRAP_MIN_IMPACT_SPEED = 24
+const FLOATING_SCRAP_MAX_SPEED = 150
 const FUEL_CELL_RADIUS = 12
 const FUEL_EXPLOSION_RADIUS = 105
 const FUEL_EXPLOSION_DAMAGE = 14
@@ -83,9 +88,13 @@ function spawnFloatingScrap(
 		k.health(plan.health ?? 18),
 		k.animate(),
 		timescale(),
+		mass(1),
 		gridCollision(ACTIVE_RUN_GRID_KEY),
 		{
 			hb: FLOATING_SCRAP_RADIUS,
+			vel: k.vec2(0),
+			speed: 0,
+			rotVel: 0,
 		},
 		tags.props,
 		tags.unit,
@@ -100,6 +109,7 @@ function spawnFloatingScrap(
 	setHitSoundProfile(scrap, "stone")
 	registerDynamicRoomCover(plan.id, scrap, FLOATING_SCRAP_RADIUS)
 	registerEnvironmentProjectileHits(scrap, true)
+	registerFloatingScrapMovement(grid, scrap, sprite)
 	persistObjectState(grid, plan, scrap)
 	scrap.onDeath(() => {
 		plan.destroyed = true
@@ -110,6 +120,60 @@ function spawnFloatingScrap(
 		k.destroy(scrap)
 	})
 	return scrap
+}
+
+function registerFloatingScrapMovement(
+	grid: HexGrid,
+	scrap: GameObj,
+	sprite: string
+) {
+	registerBatchedEntityUpdate("world", scrap, () => {
+		if (scrap.speed <= 0 || scrap.vel.len() <= 0.001) return
+		const moveVelocity = scrap.vel.unit().scale(
+			scrap.speed * velocityScale() * scrap.getTimescale()
+		)
+		if (!bounceMovingTerrainOffGrid(scrap, moveVelocity, grid)) {
+			scrap.move(moveVelocity)
+		}
+		scrap.angle += scrap.rotVel * k.dt() * scrap.getTimescale()
+		resolveFloatingScrapImpact(scrap, sprite)
+	})
+}
+
+function resolveFloatingScrapImpact(scrap: GameObj, sprite: string) {
+	if (scrap.speed < FLOATING_SCRAP_MIN_IMPACT_SPEED) return
+	const damage = k.clamp(scrap.speed * 0.08, 4, 14)
+	if (
+		!isPlayerDamageInvulnerable() &&
+		playerObj.exists() &&
+		playerObj.pos.dist(scrap.pos) < scrap.hb + 8
+	) {
+		applyDamage(playerObj, damage, {
+			position: scrap.pos,
+			incomingDirection: scrap.vel,
+			playerHullDamage: true,
+			source: { name: "FLYING COVER", sprite },
+		})
+		applyDamage(scrap, scrap.maxHP)
+		return
+	}
+
+	for (const enemy of querySpatialNearby(scrap.pos, scrap.hb + 34, {
+		allTags: [tags.enemy, tags.unit],
+	})) {
+		if (!enemy.exists() || typeof enemy.hp !== "number" || enemy.hp <= 0) {
+			continue
+		}
+		const targetRadius = typeof enemy.hb === "number" ? enemy.hb : 10
+		if (enemy.pos.dist(scrap.pos) >= scrap.hb + targetRadius) continue
+		applyDamage(enemy, damage, {
+			position: scrap.pos,
+			incomingDirection: scrap.vel,
+		})
+		applyKnockbackImpulse(enemy, scrap.vel, scrap.speed * 0.3)
+		applyDamage(scrap, scrap.maxHP)
+		return
+	}
 }
 
 function spawnGeneratedFuelCell(
@@ -306,6 +370,18 @@ function registerEnvironmentProjectileHits(
 					const direction = projectile.dir?.len() > 0.001
 						? projectile.dir.unit()
 						: target.pos.sub(projectile.pos).unit()
+					target.vel = direction
+					target.speed = Math.max(
+						target.speed ?? 0,
+						k.clamp(
+							35 + projectile.knockbackStrength * 1.1,
+							FLOATING_SCRAP_MIN_IMPACT_SPEED,
+							FLOATING_SCRAP_MAX_SPEED
+						)
+					)
+					if (Math.abs(target.rotVel ?? 0) < 0.01) {
+						target.rotVel = k.rand(-70, 70)
+					}
 					applyKnockbackImpulse(
 						target,
 						direction,

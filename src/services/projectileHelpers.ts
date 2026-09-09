@@ -55,6 +55,8 @@ export interface PlayerBlasterShotOptions {
 	fireSoundDetune?: number
 	isFullyCharged?: boolean
 	chargeRatio?: number
+	critChanceBonus?: number
+	preferredTarget?: GameObj
 	wigglePhase?: number
 }
 
@@ -80,10 +82,35 @@ export function spawnPlayerBlaster(
 		weapon.charge !== undefined && shotOptions.isFullyCharged === true;
 	const isFullyChargedRailLance =
 		weapon.id === "railLance" && isFullyChargedWeapon;
+	const isFullyChargedTwinNeedle =
+		weapon.id === "twinNeedle" && isFullyChargedWeapon;
+	const isFullyChargedRailgun =
+		weapon.id === "railgun" && isFullyChargedWeapon;
+	const chargeRatio = k.clamp(shotOptions.chargeRatio ?? 0, 0, 1)
+	const chargeScale = weapon.charge?.projectileScaleMultiplier
+		? k.lerp(
+			weapon.charge.projectileScaleMultiplier.min,
+			weapon.charge.projectileScaleMultiplier.max,
+			chargeRatio
+		)
+		: isFullyChargedWeapon
+			? 1.5
+			: 1
+	const chargePiercing = weapon.charge?.piercing
+	const chargePierces = chargePiercing
+		? Math.min(
+			chargePiercing.maxPierces,
+			Math.floor(k.lerp(
+				chargePiercing.minPierces,
+				chargePiercing.maxPierces + 0.999,
+				chargeRatio
+			))
+		)
+		: 0
 	const knockbackStrength = weapon.knockback === undefined
 		? undefined
-		: weapon.id === "railLance"
-			? scaleRailLanceKnockback(
+		: weapon.id === "railLance" || weapon.id === "railgun"
+			? scaleChargedKnockback(
 				weapon.knockback,
 				shotOptions.chargeRatio ?? (isFullyChargedWeapon ? 1 : 0)
 			)
@@ -102,9 +129,8 @@ export function spawnPlayerBlaster(
 		flashLikeThruster: weapon.projectileFlash,
 		flashMinOpacity: weapon.projectileFlashMinOpacity,
 		visualWobble: weapon.projectileWobble,
-		visualScale: isFullyChargedWeapon
-			? (weapon.projectileScale ?? 1) * 1.5
-			: weapon.projectileScale,
+		visualScale: (weapon.projectileScale ?? 1) * chargeScale,
+		visualLengthScale: weapon.projectileLengthScale,
 		explosionDelay: weapon.explosionDelay,
 		speed: BULLET_SPEED,
 		speedMultiplier:
@@ -115,9 +141,15 @@ export function spawnPlayerBlaster(
 			damageMultiplier: player.blasterDmgMultiplier,
 		},
 		crit: {
-			chance: player.critChance,
+			chance: player.critChance + (shotOptions.critChanceBonus ?? 0),
 			multiplier: player.critMultiplier,
 		},
+		piercing: chargePierces > 0
+			? {
+				maxPierces: chargePierces,
+				damageReduction: chargePiercing?.damageReduction ?? 0.8,
+			}
+			: undefined,
 		lifesteal: weapon.lifesteal
 			? { healthRatio: weapon.lifesteal }
 			: undefined,
@@ -168,11 +200,17 @@ export function spawnPlayerBlaster(
 				phase: shotOptions.wigglePhase ?? 0,
 			}
 			: undefined,
-		trail: isFullyChargedRailLance
+		trail: isFullyChargedRailLance ||
+			isFullyChargedTwinNeedle ||
+			isFullyChargedRailgun
 			? {
-				emitterType: "boost",
-				offset: 8,
-				particleCount: 2,
+				emitterType: isFullyChargedRailgun ? "railgun" : "boost",
+				offset: isFullyChargedRailgun
+					? 4
+					: isFullyChargedTwinNeedle
+						? 6
+						: 8,
+				particleCount: isFullyChargedRailgun ? 3 : 2,
 			}
 			: undefined,
 		fireSound: shotOptions.playFireSound === false
@@ -183,6 +221,18 @@ export function spawnPlayerBlaster(
 		explosionSoundPool: weapon.explosionSoundPool,
 		explosionSoundVolume: weapon.explosionSoundVolume,
 	};
+	const preferredTarget = shotOptions.preferredTarget?.exists()
+		? shotOptions.preferredTarget
+		: undefined
+	if (preferredTarget && weapon.targetingGuidance) {
+		config.seek = {
+			enabled: true,
+			acquireDelay: weapon.targetingGuidance.acquireDelay ?? 0,
+			seekDistance: preferredTarget.pos.dist(pos) + 64,
+			turnSpeed: weapon.targetingGuidance.turnSpeed,
+			targetTags: [tags.enemy],
+		}
+	}
 	if (weapon.piercing) {
 		config.piercing = { ...weapon.piercing };
 	}
@@ -192,7 +242,7 @@ export function spawnPlayerBlaster(
 			targetTags: [tags.enemy, tags.unit],
 		};
 	}
-	applyPlayerProjectileModifiers(config, true);
+	applyPlayerProjectileModifiers(config, true, Boolean(preferredTarget));
 	spawnFlash(
 		pos,
 		isFullyChargedWeapon ? 6 : 3,
@@ -201,10 +251,13 @@ export function spawnPlayerBlaster(
 			: undefined
 	);
 
-	return spawnProjectile(config);
+	const projectile = spawnProjectile(config)
+	return config.seek
+		? applyPreferredProjectileTarget(projectile, preferredTarget)
+		: projectile
 }
 
-function scaleRailLanceKnockback(maxStrength: number, chargeRatio: number) {
+function scaleChargedKnockback(maxStrength: number, chargeRatio: number) {
 	const charge = k.clamp(chargeRatio, 0, 1);
 	const multiplier = k.lerp(
 		RAIL_LANCE_MIN_KNOCKBACK_MULTIPLIER,
@@ -259,25 +312,25 @@ export function spawnPrimaryLinkedRocket(
 	};
 	applyPlayerProjectileModifiers(config, false);
 
-	return applyPreferredRocketTarget(
+	return applyPreferredProjectileTarget(
 		spawnProjectile(config),
 		preferredTarget
 	);
 }
 
-function applyPreferredRocketTarget(
-	rocket: GameObj,
+function applyPreferredProjectileTarget(
+	projectile: GameObj,
 	preferredTarget?: GameObj
 ) {
-	if (!preferredTarget?.exists()) return rocket;
-	rocket.targetUnit = preferredTarget;
+	if (!preferredTarget?.exists()) return projectile;
+	projectile.targetUnit = preferredTarget;
 	preferredTarget.onDestroy(() => {
 		if (
-			rocket.exists() &&
-			rocket.targetUnit?.id === preferredTarget.id
-		) rocket.targetUnit = null;
+			projectile.exists() &&
+			projectile.targetUnit?.id === preferredTarget.id
+		) projectile.targetUnit = null;
 	});
-	return rocket;
+	return projectile;
 }
 
 export function getPrimaryWeaponDamage() {
@@ -372,7 +425,7 @@ export function spawnHomingRocket(
 	};
 	if (inheritPlayerModifiers) applyPlayerProjectileModifiers(config, false);
 
-	return applyPreferredRocketTarget(
+	return applyPreferredProjectileTarget(
 		spawnProjectile(config),
 		preferredTarget
 	);
@@ -380,7 +433,8 @@ export function spawnHomingRocket(
 
 function applyPlayerProjectileModifiers(
 	config: ProjectileConfig,
-	allowSplit: boolean
+	allowSplit: boolean,
+	targetModeActive = false
 ) {
 	const projectileDamage = getConfiguredProjectileDamage(config)
 	const modifierFallbacks = {
@@ -502,7 +556,7 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileGuidance > 0) {
+	if (targetModeActive && player.projectileGuidance > 0) {
 		config.seek = {
 			enabled: true,
 			acquireDelay: 0.08,
@@ -705,7 +759,7 @@ export function spawnPlayerRocket(
 	};
 	applyPlayerProjectileModifiers(config, false);
 
-	return applyPreferredRocketTarget(
+	return applyPreferredProjectileTarget(
 		spawnProjectile(config),
 		preferredTarget
 	);

@@ -12,6 +12,7 @@ export type RoomFloorKind =
 	| "gravity"
 	| "event"
 	| "shop"
+	| "deposit"
 	| "miniBoss"
 	| "boss"
 	| "exit"
@@ -99,6 +100,8 @@ export interface RoomFloor {
 	seed: number
 	depth: number
 	themeId: FloorThemeId
+	endless?: boolean
+	hubLevel?: number
 	startRoomId: string
 	exitRoomId: string
 	currentRoomId: string
@@ -110,4 +113,5 @@ export interface RoomFloorGenerationOptions {
 	roomCount?: number
 	milestoneBoss?: boolean
 	hubLevel?: number
+	endless?: boolean
 }

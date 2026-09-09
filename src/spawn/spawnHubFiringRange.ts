@@ -1,4 +1,8 @@
 import type { GameObj, Vec2 } from "kaplay"
+import { jitter } from "../comp/jitter"
+import { timescale } from "../comp/timescale"
+import { compose, unitComponents } from "../compose"
+import { checkProjectileComponentIntersection } from "../game"
 import { k, layers } from "../main"
 import {
 	ABILITIES,
@@ -10,6 +14,12 @@ import { spawnAbilityLoadoutPickup } from "../services/abilitySwapService"
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
 import { tags } from "../tags"
 import { UI_COLORS } from "../ui/common"
+import {
+	HUNTER_VISUALS,
+	getEnemyVisual,
+} from "../visuals/enemyVisualCatalog"
+import type { VisualRepresentation } from "../visuals/visualRepresentation"
+import { onEnemyHit } from "./enemyShared"
 import { spawnMeteorite } from "./spawnAsteroid"
 import { spawnExplodingFuelCell } from "./rooms/spawnRoomEnvironment"
 import { spawnHealthShrine } from "./shrine/spawnHealthShrine"
@@ -22,6 +32,14 @@ const DISCOVERY_REFRESH_INTERVAL = 0.5
 const PICKUP_SPACING = 60
 const TRAINING_SWARM_COUNT = 5
 const TRAINING_FUEL_CELL_RESPAWN_DELAY = 3
+const COMPOSITE_TARGET_OFFSET_X = 130
+const COMPOSITE_TARGET_HP = 90
+const COMPOSITE_PART_HP = 14
+
+const TRAINING_COMPOSITE_VISUALS = [
+	getEnemyVisual("fighter"),
+	HUNTER_VISUALS.standard,
+] as const
 
 const SLOT_ROWS: readonly {
 	slot: AbilitySlot
@@ -103,16 +121,21 @@ export function spawnHubFiringRange(
 	})
 
 	let primaryTarget: GameObj | undefined
-	const targetOffsets = [-90, 0, 90]
-	for (const offsetX of targetOffsets) {
-		spawnTrainingDummy(
-			targetPos.add(offsetX, 0),
-			props.isHubSessionActive,
-			offsetX === 0
-				? (target) => primaryTarget = target
-				: undefined
-		)
-	}
+	spawnTrainingDummy(
+		targetPos,
+		props.isHubSessionActive,
+		(target) => primaryTarget = target
+	)
+	spawnCompositeTrainingTarget(
+		targetPos.add(-COMPOSITE_TARGET_OFFSET_X, 0),
+		TRAINING_COMPOSITE_VISUALS[0],
+		props.isHubSessionActive
+	)
+	spawnCompositeTrainingTarget(
+		targetPos.add(COMPOSITE_TARGET_OFFSET_X, 0),
+		TRAINING_COMPOSITE_VISUALS[1],
+		props.isHubSessionActive
+	)
 	spawnTrainingSwarm(targetPos, props.isHubSessionActive)
 
 	return {
@@ -121,6 +144,89 @@ export function spawnHubFiringRange(
 			? primaryTarget
 			: undefined,
 	}
+}
+
+function spawnCompositeTrainingTarget(
+	pos: Vec2,
+	visual: VisualRepresentation,
+	isHubSessionActive: () => boolean
+) {
+	const [bodyVisual, ...partVisuals] = visual.parts
+	if (!bodyVisual) return undefined
+	const target = k.add([
+		k.pos(pos),
+		k.sprite(bodyVisual.sprite),
+		k.color(k.WHITE),
+		k.anchor("center"),
+		k.rotate(0),
+		k.scale(visual.worldScale),
+		k.health(COMPOSITE_TARGET_HP),
+		k.animate(),
+		timescale(),
+		jitter(),
+		{
+			hb: 18 * visual.worldScale,
+		},
+		tags.enemy,
+		tags.unit,
+		tags.trainingTarget,
+		tags.gameLoop,
+	])
+	const parts = partVisuals.map((partVisual) => {
+		const offset = partVisual.offset ?? [0, 0]
+		return target.add([
+			k.pos(offset[0], offset[1]),
+			k.sprite(partVisual.sprite),
+			k.color(k.WHITE),
+			k.anchor("center"),
+			k.rotate(0),
+			k.scale(partVisual.scale ?? 1),
+			k.health(COMPOSITE_PART_HP),
+			k.animate(),
+			timescale(),
+			jitter(),
+			tags.part,
+			tags.gameLoop,
+		])
+	})
+	unitComponents[target.id] = compose({
+		skipDefaultBodyDeath: true,
+		onBodyDeath: () => {
+			k.wait(TARGET_RESPAWN_DELAY, () => {
+				if (!isHubSessionActive()) return
+				spawnCompositeTrainingTarget(pos, visual, isHubSessionActive)
+			})
+		},
+		parts: [
+			{
+				obj: target,
+				hitbox: 11 * visual.worldScale,
+				isBody: true,
+				scoreOnDestroy: 0,
+			},
+			...parts.map((part) => ({
+				obj: part,
+				hitbox: 7 * visual.worldScale,
+				isBody: false,
+				scoreOnDestroy: 0,
+			})),
+		],
+	})
+	target.onDestroy(() => {
+		delete unitComponents[target.id]
+	})
+	registerBatchedEntityUpdate("enemies", target, () => {
+		const components = unitComponents[target.id]
+		if (!components) return
+		checkProjectileComponentIntersection(
+			target.pos,
+			target.hb,
+			tags.friendly,
+			components,
+			(projectile, index) => onEnemyHit(components[index].obj, projectile)
+		)
+	})
+	return target
 }
 
 function spawnTrainingFuelCell(

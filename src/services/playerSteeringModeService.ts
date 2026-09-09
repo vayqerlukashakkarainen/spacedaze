@@ -16,6 +16,16 @@ export function clampTurretWorldAngle(
 	return hullAngle + clamp(offset, -limitDegrees, limitDegrees)
 }
 
+export function shouldTurnHullForStationaryAim(
+	hullAngle: number,
+	desiredTurretAngle: number,
+	isStationary: boolean,
+	limitDegrees: number = PLAYER_TURRET_LIMIT_DEGREES
+) {
+	return isStationary &&
+		Math.abs(getSignedAngleDelta(hullAngle, desiredTurretAngle)) > limitDegrees
+}
+
 export function easeAngle(
 	currentAngle: number,
 	targetAngle: number,

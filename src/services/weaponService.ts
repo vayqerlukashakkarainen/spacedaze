@@ -17,6 +17,7 @@ export type WeaponId =
 	| "burstDriver"
 	| "plasmaMortar"
 	| "railLance"
+	| "railgun"
 
 export interface WeaponTriggerModifier {
 	mode: "press" | "hold" | "charge"
@@ -39,10 +40,20 @@ export interface WeaponFirePattern {
 
 export interface WeaponChargeModifier {
 	maxDuration: number
+	autoFireDelay?: number
 	minDamageMultiplier: number
 	maxDamageMultiplier: number
 	minSpeedMultiplier?: number
 	maxSpeedMultiplier?: number
+	projectileScaleMultiplier?: {
+		min: number
+		max: number
+	}
+	piercing?: {
+		minPierces: number
+		maxPierces: number
+		damageReduction?: number
+	}
 	fireSoundDetune?: {
 		min: number
 		max: number
@@ -58,6 +69,11 @@ export interface WeaponProjectileSpin {
 	initialSpeed: number
 	acceleration: number
 	maxSpeed: number
+}
+
+export interface WeaponTargetingGuidance {
+	turnSpeed: number
+	acquireDelay?: number
 }
 
 export interface WeaponDefinition {
@@ -83,12 +99,14 @@ export interface WeaponDefinition {
 	charge?: WeaponChargeModifier
 	projectileSprite?: string
 	projectileScale?: number
+	projectileLengthScale: number
 	projectileTint?: [number, number, number]
 	projectileFlash?: boolean
 	projectileFlashMinOpacity?: number
 	projectileWobble?: number
 	projectileAcceleration?: WeaponProjectileAcceleration
 	projectileSpin?: WeaponProjectileSpin
+	targetingGuidance?: WeaponTargetingGuidance
 	explosionDelay?: number
 	lifespan?: number
 	splash?: {
@@ -126,7 +144,8 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		fireSound: "weapon_standard_blaster_fire",
 		fireSoundVolume: 0.9,
 		damageMultiplier: 1,
-		projectileSpeedMultiplier: 1,
+		projectileSpeedMultiplier: 2.4,
+		projectileLengthScale: 2,
 		fireCooldown: 0.18,
 		triggerModifier: {
 			mode: "press",
@@ -148,7 +167,8 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		fireSoundVolume: 0.6,
 		fireSoundDetune: 200,
 		damageMultiplier: 0.48,
-		projectileSpeedMultiplier: 1.18,
+		projectileSpeedMultiplier: 2.832,
+		projectileLengthScale: 2,
 		fireCooldown: 0.075,
 		triggerModifier: {
 			mode: "hold",
@@ -163,16 +183,37 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		id: "twinNeedle",
 		minimumHubLevel: 1,
 		name: "TWIN NEEDLE",
-		description: "Fires two lightweight rounds that weave around each other.",
+		description: "Hold and release two weaving needles. Charge increases their size, damage, and penetration.",
 		icon: "weapon_twin_needle",
 		fireSound: "weapon_twin_needle_fire",
 		fireSoundVolume: 0.7,
 		damageMultiplier: 0.58,
-		projectileSpeedMultiplier: 1.28,
+		projectileSpeedMultiplier: 3.072,
+		projectileLengthScale: 2,
 		fireCooldown: 0.22,
 		triggerModifier: {
-			mode: "press",
+			mode: "charge",
 			usesCooldown: true,
+		},
+		charge: {
+			maxDuration: 0.8,
+			minDamageMultiplier: 1,
+			maxDamageMultiplier: 2.5,
+			minSpeedMultiplier: 1,
+			maxSpeedMultiplier: 1.4,
+			projectileScaleMultiplier: {
+				min: 1,
+				max: 1.75,
+			},
+			piercing: {
+				minPierces: 0,
+				maxPierces: 3,
+				damageReduction: 0.82,
+			},
+			fireSoundDetune: {
+				min: -180,
+				max: 260,
+			},
 		},
 		spreadDegrees: 0,
 		mountScale: 0.6,
@@ -197,7 +238,8 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		description: "Launches an accelerating heavy bolt that knocks targets back and ricochets toward nearby enemies.",
 		icon: "weapon_impact_driver",
 		damageMultiplier: 1.55,
-		projectileSpeedMultiplier: 0.34,
+		projectileSpeedMultiplier: 0.816,
+		projectileLengthScale: 2,
 		fireCooldown: 0.38,
 		triggerModifier: {
 			mode: "press",
@@ -234,7 +276,8 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		description: "Heavy, deliberate shots that punch through two additional targets.",
 		icon: "weapon_breach_cannon",
 		damageMultiplier: 1.8,
-		projectileSpeedMultiplier: 0.72,
+		projectileSpeedMultiplier: 1.728,
+		projectileLengthScale: 2,
 		fireCooldown: 0.32,
 		spreadDegrees: 0.6,
 		mountScale: 0.55,
@@ -255,7 +298,8 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		fireSoundVolume: 0.6,
 		fireSoundDetune: 350,
 		damageMultiplier: 0.72,
-		projectileSpeedMultiplier: 1.18,
+		projectileSpeedMultiplier: 2.832,
+		projectileLengthScale: 2,
 		fireCooldown: 0.11,
 		spreadDegrees: 2.4,
 		mountScale: 0.5,
@@ -276,7 +320,8 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		fireSound: "weapon_scatter_array",
 		fireSoundVolume: 0.7,
 		damageMultiplier: 0.42,
-		projectileSpeedMultiplier: 0.88,
+		projectileSpeedMultiplier: 2.112,
+		projectileLengthScale: 2,
 		fireCooldown: 0.52,
 		spreadDegrees: 1.2,
 		mountScale: 0.6,
@@ -299,7 +344,8 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		fireSound: "weapon_burst_driver",
 		fireSoundVolume: 0.5,
 		damageMultiplier: 0.74,
-		projectileSpeedMultiplier: 1.15,
+		projectileSpeedMultiplier: 2.76,
+		projectileLengthScale: 2,
 		fireCooldown: 0.46,
 		triggerModifier: {
 			mode: "press",
@@ -329,7 +375,8 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		explosionSoundPool: "plasmaMortar",
 		explosionSoundVolume: 0.7,
 		damageMultiplier: 1.45,
-		projectileSpeedMultiplier: 0.48,
+		projectileSpeedMultiplier: 1.152,
+		projectileLengthScale: 2,
 		fireCooldown: 0.68,
 		triggerModifier: {
 			mode: "charge",
@@ -369,12 +416,13 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		id: "railLance",
 		minimumHubLevel: 5,
 		name: "RAIL LANCE",
-		description: "Hold and release to drive a charged shot through an enemy column.",
+		description: "Hold and release to drive a charged shot through an enemy column. Locked Strafe Mode shots steer toward their target.",
 		icon: "weapon_rail_lance",
 		fireSound: "weapon_rail_lance_fire",
 		fireSoundVolume: 0.65,
 		damageMultiplier: 1.35,
-		projectileSpeedMultiplier: 2.25,
+		projectileSpeedMultiplier: 5.4,
+		projectileLengthScale: 2,
 		fireCooldown: 0.72,
 		triggerModifier: {
 			mode: "charge",
@@ -397,11 +445,60 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		},
 		projectileScale: 2,
 		projectileTint: [115, 215, 255],
+		targetingGuidance: {
+			turnSpeed: 0.014,
+			acquireDelay: 0,
+		},
 		piercing: {
 			maxPierces: 4,
 			damageReduction: 0.9,
 		},
 		knockback: 48,
+	},
+	{
+		id: "railgun",
+		minimumHubLevel: 6,
+		name: "MASS DRIVER",
+		description: "Charge a heavy unguided rail bolt through enemy formations. Full charge maximizes speed, force, and penetration.",
+		icon: "weapon_railgun",
+		fireSound: "weapon_rail_lance_fire",
+		fireSoundVolume: 0.85,
+		damageMultiplier: 1.55,
+		projectileSpeedMultiplier: 4.2,
+		projectileLengthScale: 2,
+		fireCooldown: 0.9,
+		triggerModifier: {
+			mode: "charge",
+			usesCooldown: true,
+		},
+		spreadDegrees: 0,
+		mountScale: 0.68,
+		mountOffsetY: -7,
+		muzzleOffsetY: -17,
+		charge: {
+			maxDuration: 1.2,
+			autoFireDelay: 0.3,
+			minDamageMultiplier: 0.55,
+			maxDamageMultiplier: 3.1,
+			minSpeedMultiplier: 0.7,
+			maxSpeedMultiplier: 1.9,
+			projectileScaleMultiplier: {
+				min: 0.8,
+				max: 2.2,
+			},
+			piercing: {
+				minPierces: 1,
+				maxPierces: 6,
+				damageReduction: 0.88,
+			},
+			fireSoundDetune: {
+				min: -500,
+				max: 300,
+			},
+		},
+		projectileScale: 3,
+		projectileTint: [255, 210, 55],
+		knockback: 70,
 	},
 ]
 

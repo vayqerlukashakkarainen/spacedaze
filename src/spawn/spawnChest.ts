@@ -12,6 +12,7 @@ import { starsEmitter } from "../particles";
 import { spawnBuilding } from "./spawnBuilding";
 import {
 	setNextChestDifficulty,
+	setNextChestRewardCollectedCallback,
 	setNextChestRewardType,
 	setNextChestWorldOpenAnimation,
 	setNextChestWorldPosition,
@@ -39,6 +40,7 @@ interface ChestOptions {
 	debreeBurstCount?: number;
 	onPurchased?: () => void;
 	onOpened?: () => void;
+	onRewardCollected?: () => void;
 	tags?: string[];
 }
 
@@ -125,6 +127,7 @@ export function spawnChest(
 		setNextChestRewardType(rewardType);
 		setNextChestWorldPosition(chest.pos.clone());
 		setNextChestWorldOpenAnimation(playChestOpenAnimation);
+		setNextChestRewardCollectedCallback(options.onRewardCollected);
 		chest.isInRange = false;
 		chest.setInteractRadius(0);
 		chest.setOnInteract(() => {});
@@ -136,12 +139,13 @@ export function spawnChest(
 
 	async function playChestOpenAnimation() {
 		if (!chest.exists()) return;
+		const chestScale = chestVisual.worldScale;
 		chest.use(k.animate());
 		chest.animate(
 			"scale",
 			[
-				k.vec2(CHEST_SCALE),
-				k.vec2(CHEST_SCALE * 1.12, CHEST_SCALE * 0.72),
+				k.vec2(chestScale),
+				k.vec2(chestScale * 1.12, chestScale * 0.72),
 			],
 			{
 				duration: CHEST_OPEN_ANTICIPATION_DURATION,
@@ -159,9 +163,9 @@ export function spawnChest(
 		chest.animate(
 			"scale",
 			[
-				k.vec2(CHEST_SCALE * 1.24, CHEST_SCALE * 0.82),
-				k.vec2(CHEST_SCALE * 0.92, CHEST_SCALE * 1.08),
-				k.vec2(CHEST_SCALE),
+				k.vec2(chestScale * 1.24, chestScale * 0.82),
+				k.vec2(chestScale * 0.92, chestScale * 1.08),
+				k.vec2(chestScale),
 			],
 			{
 				duration: CHEST_OPEN_RELEASE_DURATION,
@@ -179,7 +183,7 @@ export function spawnChest(
 		chest.opacity = 0.72;
 		await k.wait(CHEST_OPEN_RELEASE_DURATION);
 		if (!chest.exists()) return;
-		chest.scale = k.vec2(CHEST_SCALE);
+		chest.scale = k.vec2(chestScale);
 		options.onOpened?.();
 	}
 	const aura = chest.add([

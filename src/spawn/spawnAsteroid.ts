@@ -15,10 +15,11 @@ import {
 	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
 } from "../services/threatService";
-import { gridRegistry } from "../grid/gridRegistry";
 import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
 import { setHitSoundProfile } from "../services/hitSoundService";
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog";
+import { gridRegistry } from "../grid/gridRegistry";
+import { bounceMovingTerrainOffGrid } from "../services/movingTerrainService";
 
 const ASTEROID_VISUAL = getEnemyVisual("asteroid");
 
@@ -91,7 +92,10 @@ export function spawnMeteorite(props: Props) {
 		const moveVelocity = m.vel.scale(
 			m.speed * velocityScale() * m.getTimescale()
 		);
-		if (!bounceOffGridCell(m, moveVelocity)) {
+		const grid = m.bounceGridKey
+			? gridRegistry.get(m.bounceGridKey)
+			: undefined;
+		if (!bounceMovingTerrainOffGrid(m, moveVelocity, grid)) {
 			m.move(moveVelocity);
 		}
 		m.angle += m.rotVel * dtScaled() * m.getTimescale();
@@ -163,41 +167,4 @@ export function spawnMeteorite(props: Props) {
 	});
 
 	return m;
-}
-
-function bounceOffGridCell(
-	meteorite: {
-		pos: Vec2;
-		vel: Vec2;
-		hb: number;
-		bounceGridKey?: string;
-	},
-	moveVelocity: Vec2
-) {
-	if (!meteorite.bounceGridKey || moveVelocity.len() <= 0) return false;
-	const grid = gridRegistry.get(meteorite.bounceGridKey);
-	if (!grid) return false;
-
-	const movement = moveVelocity.scale(k.dt());
-	const direction = movement.unit();
-	const probePos = meteorite.pos
-		.add(movement)
-		.add(direction.scale(meteorite.hb));
-	const blockedCoord = grid.screenToHex(probePos);
-	if (grid.inBounds(blockedCoord) && grid.isWalkable(blockedCoord)) {
-		return false;
-	}
-
-	const blockedCenter = grid.hexToScreen(blockedCoord);
-	const awayFromCell = meteorite.pos.sub(blockedCenter);
-	const normal = awayFromCell.len() > 0
-		? awayFromCell.unit()
-		: direction.scale(-1);
-	const reflected = meteorite.vel.sub(
-		normal.scale(2 * meteorite.vel.dot(normal))
-	);
-	meteorite.vel = reflected.len() > 0
-		? reflected.unit()
-		: direction.scale(-1);
-	return true;
 }
