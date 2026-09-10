@@ -1,3 +1,4 @@
+import type { Vec2 } from "kaplay"
 import { k } from "../main"
 
 interface CameraBobOptions {
@@ -11,6 +12,17 @@ interface ActiveCameraBob extends CameraBobOptions {
 }
 
 let activeCameraBob: ActiveCameraBob | undefined
+
+interface ActiveCameraKick {
+	offset: Vec2
+	startedAt: number
+	duration: number
+}
+
+const CAMERA_KICK_DURATION = 0.18
+const CAMERA_KICK_MAX_OFFSET = 3.5
+
+let activeCameraKick: ActiveCameraKick | undefined
 
 export function startCameraBob(options: CameraBobOptions) {
 	activeCameraBob = {
@@ -37,4 +49,36 @@ export function getCameraBobScale(baseScale: number) {
 
 export function clearCameraBob() {
 	activeCameraBob = undefined
+}
+
+export function addCameraKick(direction: Vec2, strength: number) {
+	if (direction.len() <= 0.001 || strength <= 0) return
+	const retainedOffset = getCameraKickOffset()
+	let nextOffset = retainedOffset.add(
+		direction.unit().scale(Math.min(CAMERA_KICK_MAX_OFFSET, strength))
+	)
+	if (nextOffset.len() > CAMERA_KICK_MAX_OFFSET) {
+		nextOffset = nextOffset.unit().scale(CAMERA_KICK_MAX_OFFSET)
+	}
+	activeCameraKick = {
+		offset: nextOffset,
+		startedAt: k.time(),
+		duration: CAMERA_KICK_DURATION,
+	}
+}
+
+export function getCameraKickOffset() {
+	if (!activeCameraKick) return k.vec2(0)
+	const elapsed = k.time() - activeCameraKick.startedAt
+	const progress = k.clamp(elapsed / activeCameraKick.duration, 0, 1)
+	if (progress >= 1) {
+		activeCameraKick = undefined
+		return k.vec2(0)
+	}
+	const falloff = Math.pow(1 - progress, 2.4)
+	return activeCameraKick.offset.scale(falloff)
+}
+
+export function clearCameraKick() {
+	activeCameraKick = undefined
 }

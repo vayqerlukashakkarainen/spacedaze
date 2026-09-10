@@ -103,8 +103,11 @@ import {
 } from "./services/runtimeSpatialIndexService";
 import { isPointerOverUi } from "./services/uiPointerService";
 import {
+	addCameraKick,
 	clearCameraBob,
+	clearCameraKick,
 	getCameraBobScale,
+	getCameraKickOffset,
 	startCameraBob,
 } from "./services/cameraEffectService";
 import { dialogCapturesInput } from "./services/dialogService";
@@ -1098,7 +1101,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			cameraTarget,
 			1 - Math.exp(-cameraFollowSpeed * dt())
 		);
-		k.setCamPos(currentCameraPos);
+		k.setCamPos(currentCameraPos.add(getCameraKickOffset()));
 
 		if (!isPhaseJumping && k.time() >= phaseJumpInvulnerableUntil) {
 			checkProjectileIntersection(playerObj.pos, 12, tags.enemy, (p) => {
@@ -1431,6 +1434,41 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		);
 		weaponRecoilOffset = Math.max(weaponRecoilOffset, recoilDistance);
 	};
+	const kickCameraForWeapon = (
+		weapon: WeaponDefinition,
+		chargeRatio: number,
+		burstDamageMultiplier: number
+	) => {
+		const projectileCount = Math.max(
+			1,
+			Math.floor(weapon.pattern?.projectileCount ?? 1)
+		)
+		const salvoMultiplier = 1 + Math.min(
+			0.35,
+			(projectileCount - 1) * 0.08
+		)
+		const chargeMultiplier = weapon.charge
+			? k.lerp(
+				weapon.charge.minDamageMultiplier,
+				weapon.charge.maxDamageMultiplier,
+				k.clamp(chargeRatio, 0, 1)
+			)
+			: 1
+		const strength = k.clamp(
+			0.35 +
+				weapon.damageMultiplier *
+				chargeMultiplier *
+				burstDamageMultiplier *
+				salvoMultiplier *
+				0.55,
+			0.65,
+			3.1
+		)
+		addCameraKick(
+			k.Vec2.fromAngle(turretWorldAngle + 90),
+			strength
+		)
+	}
 
 	const fireWeaponVolley = (
 		weapon: WeaponDefinition,
@@ -1464,6 +1502,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			)
 			: undefined;
 		kickWeaponVisual(weapon, chargeRatio);
+		kickCameraForWeapon(weapon, chargeRatio, burstDamageMultiplier)
 		if (weapon.id === "railgun" && chargeRatio >= 1) {
 			k.shake(5)
 		}
@@ -1939,6 +1978,7 @@ function getPlayerMuzzlePos(
 
 export function clearPlayer() {
 	clearCameraBob();
+	clearCameraKick()
 	bulletIndex = 0;
 	blasters = 0;
 	currentMoveSpeed = 0;
