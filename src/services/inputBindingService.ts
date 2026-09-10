@@ -12,11 +12,10 @@ export type InputActionId =
 	| "moveRight"
 	| "strafe"
 	| "primary"
+	| "primaryWheel"
 	| "secondary"
 	| "mobility"
 	| "ultimate"
-	| "previousPrimary"
-	| "nextPrimary"
 	| "interact"
 	| "tacticalMap"
 	| "pause"
@@ -97,10 +96,16 @@ export const INPUT_ACTIONS: readonly InputActionDefinition[] = [
 		defaultBinding: { device: "mouse", input: "left" },
 	},
 	{
+		id: "primaryWheel",
+		label: "PRIMARY WHEEL",
+		group: "COMBAT",
+		defaultBinding: { device: "key", input: "shift" },
+	},
+	{
 		id: "secondary",
 		label: "SECONDARY",
 		group: "COMBAT",
-		defaultBinding: { device: "key", input: "shift" },
+		defaultBinding: { device: "key", input: "e" },
 	},
 	{
 		id: "mobility",
@@ -113,18 +118,6 @@ export const INPUT_ACTIONS: readonly InputActionDefinition[] = [
 		label: "ULTIMATE",
 		group: "COMBAT",
 		defaultBinding: { device: "key", input: "r" },
-	},
-	{
-		id: "previousPrimary",
-		label: "PREVIOUS PRIMARY",
-		group: "COMBAT",
-		defaultBinding: { device: "key", input: "q" },
-	},
-	{
-		id: "nextPrimary",
-		label: "NEXT PRIMARY",
-		group: "COMBAT",
-		defaultBinding: { device: "key", input: "e" },
 	},
 	{
 		id: "interact",
@@ -330,10 +323,17 @@ function loadInputBindings(): Record<InputActionId, InputBinding> {
 	try {
 		const saved = JSON.parse(
 			localStorage.getItem(INPUT_BINDINGS_KEY) ?? "{}"
-		) as Partial<Record<InputActionId, unknown>>
+		) as Partial<Record<InputActionId | "previousPrimary" | "nextPrimary", unknown>>
+		const legacyWeaponBindings =
+			saved.previousPrimary !== undefined || saved.nextPrimary !== undefined
 		for (const action of INPUT_ACTIONS) {
 			const binding = saved[action.id]
 			if (!validBinding(binding)) continue
+			if (
+				legacyWeaponBindings &&
+				action.id === "secondary" &&
+				bindingsEqual(binding, { device: "key", input: "shift" })
+			) continue
 			const previousBinding = defaults[action.id]
 			const currentOwner = INPUT_ACTIONS.find((candidate) =>
 				candidate.id !== action.id &&

@@ -16,6 +16,14 @@ assert.deepEqual(getInputBinding("moveDown"), {
 	device: "key",
 	input: "s",
 })
+assert.deepEqual(getInputBinding("primaryWheel"), {
+	device: "key",
+	input: "shift",
+})
+assert.deepEqual(getInputBinding("secondary"), {
+	device: "key",
+	input: "e",
+})
 
 let changeCount = 0
 const unsubscribe = onInputBindingsChanged(() => changeCount++)

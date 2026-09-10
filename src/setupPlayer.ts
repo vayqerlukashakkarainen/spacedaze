@@ -72,7 +72,7 @@ import type { GridCollisionComp } from "./comp/gridCollision";
 import { levelTransitionActive } from "./services/levelTransitionService";
 import { getPriorityInteraction } from "./comp/interactable";
 import {
-	cycleEquippedWeapon,
+	equipWeapon,
 	getEquippedWeapon,
 	getWeaponTriggerModifier,
 } from "./services/weaponService";
@@ -180,6 +180,10 @@ import {
 	onInputActionRelease,
 	type InputController,
 } from "./services/inputBindingService"
+import {
+	installWeaponWheel,
+	weaponWheelOpen,
+} from "./ui/weaponWheel"
 
 let blasters = 0;
 let bulletIndex = 1;
@@ -1398,7 +1402,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		updatePlayerHealthBar(playerObj.hp);
 	});
 
-	const combatInputBlocked = () =>
+	const gameplayInputBlocked = () =>
 		dialogCapturesInput() ||
 		isPointerOverUi() ||
 		uiState.modalOpen ||
@@ -1407,6 +1411,8 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		k.get("chestUI").length > 0 ||
 		levelTransitionActive() ||
 		respawnTransitionActive;
+	const combatInputBlocked = () =>
+		gameplayInputBlocked() || weaponWheelOpen()
 	const canFirePrimaryWeapon = () => !combatInputBlocked();
 	const kickWeaponVisual = (weapon: WeaponDefinition, chargeRatio: number) => {
 		const projectileCount = Math.max(
@@ -1645,6 +1651,26 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		firePrimaryWeapon(chargeRatio);
 	}));
 
+	inputControllers.push(installWeaponWheel({
+		player: playerObj,
+		inputBlocked: gameplayInputBlocked,
+		onOpen: () => {
+			primaryChargeStartedAt = undefined
+			primaryChargeWeaponId = ""
+			stopPrimaryChargeSound()
+		},
+		onSelect: (weapon) => {
+			const previousWeaponId = getEquippedWeapon().id
+			if (!equipWeapon(weapon.id) || weapon.id === previousWeaponId) return
+			spawnFlash(playerObj.pos.clone(), 5, k.rgb(75, 205, 255))
+			showWeaponSwitchLabel(weapon)
+			gameSoundService.play("click1", {
+				volume: mainSoundVolume * 0.65,
+				detune: 100,
+			})
+		},
+	}))
+
 	inputControllers.push(onInputActionPress("secondary", () => {
 		if (combatInputBlocked()) return;
 		if (!getEquippedActiveModule()) {
@@ -1759,29 +1785,6 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		phaseJumpElapsed = 0;
 		phaseJumpHitTargets.clear();
 		spawnPhaseJumpEffect(startPos, destination, playerObj.angle);
-	}));
-
-	const cyclePrimary = (direction: -1 | 1) => {
-		if (combatInputBlocked()) return;
-		const previousWeaponId = getEquippedWeapon().id;
-		primaryChargeStartedAt = undefined;
-		primaryChargeWeaponId = "";
-		stopPrimaryChargeSound();
-		const weapon = cycleEquippedWeapon(direction);
-		if (weapon.id === previousWeaponId) return;
-		spawnFlash(playerObj.pos.clone(), 5, k.rgb(75, 205, 255));
-		showWeaponSwitchLabel(weapon)
-		gameSoundService.play("click1", {
-			volume: mainSoundVolume * 0.65,
-			detune: direction > 0 ? 100 : -100,
-		});
-	};
-
-	inputControllers.push(onInputActionPress("previousPrimary", () => {
-		cyclePrimary(-1)
-	}));
-	inputControllers.push(onInputActionPress("nextPrimary", () => {
-		cyclePrimary(1)
 	}));
 
 	inputControllers.push(onInputActionPress("ultimate", () => {
