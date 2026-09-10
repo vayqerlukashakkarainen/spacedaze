@@ -35,7 +35,6 @@ import {
 	startFacilityConstruction,
 } from "../services/hub/hubProgressService";
 import {
-	showPhaseStation,
 	showRunPreparation,
 	showRunTerminal,
 } from "../ui/hubFacilities";
@@ -125,7 +124,7 @@ const hubFacilitySprites: Record<
 		destroyed: "facility_contract_terminal_destroyed_1bit",
 	},
 	trainingRange: {
-		built: "facility_phase_station_minimal",
+		built: "facility_training_range",
 		destroyed: "facility_training_range_destroyed",
 	},
 	salvageForge: {
@@ -562,6 +561,7 @@ function spawnHubFacilities(
 	repairCrew: HubRepairCrew
 ) {
 	for (const facility of HUB_FACILITIES) {
+		if (facility.id === "trainingRange") continue;
 		spawnHubFacility(facility, positions[facility.id], repairCrew);
 	}
 }
@@ -744,7 +744,6 @@ function openHubFacility(id: HubFacilityId) {
 	if (id === "contractTerminal") showRunTerminal("contracts");
 	if (id === "salvageForge") showRunTerminal("forge");
 	if (id === "debriefTerminal") showRunTerminal("debrief");
-	if (id === "trainingRange") showPhaseStation();
 }
 
 function spawnHubBoundaries() {

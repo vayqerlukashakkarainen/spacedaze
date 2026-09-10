@@ -90,6 +90,8 @@ interface Ship {
 
 	projectilePierces: number;
 	projectileSlowPercentage: number;
+	projectileStunChance: number;
+	projectileStunDuration: number;
 	projectileDotDamage: number;
 	projectileChainCount: number;
 	projectileLifesteal: number;
@@ -264,6 +266,8 @@ export const player: Ship = {
 	explosionPulseStrength: 0,
 	projectilePierces: 0,
 	projectileSlowPercentage: 0,
+	projectileStunChance: 0,
+	projectileStunDuration: 0,
 	projectileDotDamage: 0,
 	projectileChainCount: 0,
 	projectileLifesteal: 0,
@@ -410,6 +414,9 @@ export function loadPlayer() {
 
 	player.projectilePierces = getToolUpgradeLvlValue("armorPiercing") ?? 0;
 	player.projectileSlowPercentage = getToolUpgradeLvlValue("cryoRounds") ?? 0;
+	player.projectileStunChance = getToolUpgradeLvlValue("stunRounds") ?? 0;
+	player.projectileStunDuration =
+		getToolUpgradeStatValue("stunRounds", "projectileStunDuration") ?? 0;
 	player.projectileDotDamage = getToolUpgradeLvlValue("corrosivePayload") ?? 0;
 	player.projectileChainCount = getToolUpgradeLvlValue("arcCapacitor") ?? 0;
 	player.projectileLifesteal = getToolUpgradeLvlValue("lifesteal") ?? 0;

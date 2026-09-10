@@ -44,6 +44,8 @@ const STAT_LABELS: Readonly<Record<string, string>> = {
 	projectilePaintDamage: "BONUS DAMAGE",
 	projectilePaintStacks: "MAX MARK STACKS",
 	projectileProximityDamage: "BLAST DAMAGE",
+	projectileStunChance: "STUN CHANCE",
+	projectileStunDuration: "STUN DURATION",
 	projectileVolatileDamage: "BURST DAMAGE",
 	rocketCount: "ROCKETS",
 	rocketShards: "SHRAPNEL",
@@ -64,6 +66,7 @@ const PERCENTAGE_STATS = new Set([
 	"projectilePaintDamage",
 	"projectileProximityDamage",
 	"projectileSlowPercentage",
+	"projectileStunChance",
 	"projectileVolatileDamage",
 ])
 

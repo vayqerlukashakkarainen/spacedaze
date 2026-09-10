@@ -1,4 +1,6 @@
 import { interactable, INTERACTION_PRIORITY } from "../../comp/interactable"
+import { dialogue } from "../../content/dialogue/dialogueCatalog"
+import { snareable } from "../../comp/snareable"
 import { k, layers, WORLD_CAMERA_SCALE } from "../../main"
 import { discoverDroid, getDroidDefinition } from "../../npcs/droidRegistry"
 import { playCutscene, type CutsceneDefinition } from "../../services/narrative/cutsceneService"
@@ -7,7 +9,6 @@ import { getHubLevel } from "../../services/hub/hubProgressService"
 import {
 	markNpcDialogueSeen,
 	registerNpcDialogueTrigger,
-	type NpcDialogueVariant,
 } from "../../services/narrative/npcDialogueService"
 import { registerNpcDialogueIndicator } from "../../services/narrative/npcDialogueIndicatorService"
 import { showPopover } from "../../services/ui/popoverService"
@@ -42,6 +43,14 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 			startConversation,
 			INTERACTION_PRIORITY.dialogue
 		),
+		snareable({
+			mass: 0.8,
+			radius: 10,
+			releaseDrag: 2.8,
+			returnAfterRelease: true,
+			returnSpeed: 95,
+		}),
+		tags.npc,
 		tags.props,
 		tags.gameLoop,
 	])
@@ -77,19 +86,6 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 		talking = true
 		keeper.isInRange = false
 		prompt.update(false)
-		if (discoverDroid("lamp-keeper")) {
-			const definition = getDroidDefinition("lamp-keeper")
-			if (definition) {
-				showPopover({
-					title: "DROID DISCOVERED",
-					message: definition.name,
-					description: "NEW DROID RECORD ADDED TO THE PHASE STATION",
-					sprite: definition.sprite,
-					color: k.rgb(0, 220, 255),
-					duration: 6,
-				})
-			}
-		}
 		void playCutscene(createLampKeeperConversation(
 			dialogue,
 			ringCenter,
@@ -103,6 +99,7 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 		}).then((result) => {
 			if (result === "completed") {
 				markNpcDialogueSeen("lamp-keeper", dialogue.id)
+				showDroidDiscovery()
 			}
 		}).finally(() => {
 			if (keeper.exists()) talking = false
@@ -110,15 +107,29 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 		return true
 	}
 
+	function showDroidDiscovery() {
+		if (!discoverDroid("lamp-keeper")) return
+		const definition = getDroidDefinition("lamp-keeper")
+		if (!definition) return
+		showPopover({
+			title: "DROID DISCOVERED",
+			message: definition.name,
+			description: "NEW DROID RECORD ADDED TO THE COMPENDIUM",
+			sprite: definition.sprite,
+			color: k.rgb(0, 220, 255),
+			duration: 6,
+		})
+	}
+
 	return keeper
 }
 
 function createLampKeeperConversation(
-	dialogue: NpcDialogueVariant,
+	dialogueContent: ReturnType<typeof dialogue.lampKeeper>,
 	ringCenter: ReturnType<typeof k.vec2>,
 	litLampCount: number
 ): CutsceneDefinition {
-	const emotion = dialogue.id === "all-lamps-lit" ? "impressed" : "idea"
+	const emotion = dialogueContent.id === "all-lamps-lit" ? "impressed" : "idea"
 	const recentLampPosition = getHubRestorationLampPosition(
 		ringCenter,
 		litLampCount
@@ -145,7 +156,7 @@ function createLampKeeperConversation(
 			},
 			{
 				type: "dialogue",
-				lines: dialogue.lines.slice(0, 1),
+				lines: dialogueContent.observation,
 				options: {
 					gameplay: "paused",
 					advance: "manual",
@@ -189,7 +200,7 @@ function createLampKeeperConversation(
 			{ type: "wait", duration: emotion === "impressed" ? 0.48 : 0.34 },
 			{
 				type: "dialogue",
-				lines: dialogue.lines.slice(1),
+				lines: dialogueContent.explanation,
 				options: {
 					gameplay: "paused",
 					advance: "manual",
@@ -206,38 +217,7 @@ function createLampKeeperConversation(
 	}
 }
 
-function getLampDialogue(): NpcDialogueVariant {
+function getLampDialogue() {
 	const litLamps = Math.min(HUB_RESTORATION_LAMP_COUNT, getHubLevel())
-	if (litLamps >= HUB_RESTORATION_LAMP_COUNT) {
-		return {
-			id: "all-lamps-lit",
-			lines: [
-				{
-					speaker: "LAMP KEEPER",
-					text: "All eight are burning. I had forgotten how bright Drius Wake could be.",
-				},
-				{
-					speaker: "LAMP KEEPER",
-					text: "The Phase Crown is awake. Lost ships can find us again. So can the Federation.",
-				},
-			],
-		}
-	}
-	return {
-		id: `hub-level-${litLamps}`,
-		lines: [
-			{
-				speaker: "LAMP KEEPER",
-				text: `${litLamps} of ${HUB_RESTORATION_LAMP_COUNT} lamps are lit. Each one holds another district of Drius Wake outside the Daze.`,
-			},
-			{
-				speaker: "LAMP KEEPER",
-				text: "They are not decoration. Light means another piece of home is stable enough to live in again.",
-			},
-			{
-				speaker: "LAMP KEEPER",
-				text: "When all eight burn, the Phase Crown can guide our people home.",
-			},
-		],
-	}
+	return dialogue.lampKeeper(litLamps, HUB_RESTORATION_LAMP_COUNT)
 }

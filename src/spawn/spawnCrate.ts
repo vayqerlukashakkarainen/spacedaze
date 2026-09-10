@@ -60,6 +60,7 @@ export function spawnCrate(props: Props) {
 			? []
 			: [k.offscreen({ destroy: true })]),
 		{
+			enemyDamageMaterial: "rock",
 			tier,
 			vel: k.Vec2.fromAngle(k.rand(0, 360)),
 			rotVel: k.rand(-4, 4),

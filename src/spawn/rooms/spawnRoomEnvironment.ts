@@ -1,6 +1,7 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { gridCollision } from "../../comp/gridCollision"
 import { mass } from "../../comp/mass"
+import { snareable } from "../../comp/snareable"
 import { timescale } from "../../comp/timescale"
 import type { RoomEnvironmentObjectPlan, RoomFloorRoom } from "../../generation/rooms/roomFloorTypes"
 import type { HexGrid } from "../../grid/hexGrid"
@@ -31,6 +32,10 @@ import { spawnExplosionEffect, spawnFlash } from "../spawnFlash"
 import { spawnRing } from "../spawnRing"
 import { getWorldVisual } from "../../visuals/worldVisualCatalog"
 import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
+import { spawnRockDestructionFragments } from "../../services/combat/rockDestructionEffectService"
+import { spawnConcussionPlate } from "./spawnConcussionPlate"
+import { spawnSlowdownPlate } from "./spawnSlowdownPlate"
+import { spawnTeslaCoilHazard } from "./spawnTeslaCoil"
 
 const FLOATING_SCRAP_RADIUS = 14
 const FLOATING_SCRAP_MIN_IMPACT_SPEED = 24
@@ -65,6 +70,18 @@ export function spawnRoomEnvironment(grid: HexGrid, room: RoomFloorRoom) {
 			spawnFloatingScrap(grid, plan, position)
 			continue
 		}
+		if (plan.archetypeId === "wake-concussion-plate") {
+			spawnConcussionPlate(grid, plan, position)
+			continue
+		}
+		if (plan.archetypeId === "wake-slowdown-plate") {
+			spawnSlowdownPlate(plan, position)
+			continue
+		}
+		if (plan.archetypeId === "wake-tesla-coil") {
+			spawnTeslaCoilHazard(position)
+			continue
+		}
 		if (plan.archetypeId === "wake-fuel-cell") {
 			spawnGeneratedFuelCell(grid, plan, position)
 		}
@@ -90,6 +107,16 @@ function spawnFloatingScrap(
 		timescale(),
 		mass(1),
 		gridCollision(ACTIVE_RUN_GRID_KEY),
+		snareable({
+			mass: 1.8,
+			radius: FLOATING_SCRAP_RADIUS,
+			releaseDrag: 1.45,
+			onSnareStart: () => {
+				scrap.vel = k.vec2(0)
+				scrap.speed = 0
+				scrap.rotVel = 0
+			},
+		}),
 		{
 			hb: FLOATING_SCRAP_RADIUS,
 			vel: k.vec2(0),
@@ -114,9 +141,10 @@ function spawnFloatingScrap(
 	scrap.onDeath(() => {
 		plan.destroyed = true
 		spawnExplosionEffect(scrap.pos, 25, { particleCount: 8 })
-		gameSoundService.playPositional("asteroid_destroyed", scrap.pos, {
+		gameSoundService.playPositional("rock_material_destroyed", scrap.pos, {
 			volume: mainSoundVolume * 0.5,
 		})
+		spawnRockDestructionFragments(scrap.pos, 0.7)
 		k.destroy(scrap)
 	})
 	return scrap
@@ -206,6 +234,11 @@ export function spawnExplodingFuelCell(
 		k.health(options.health ?? 9),
 		k.animate(),
 		timescale(),
+		snareable({
+			mass: 1.1,
+			radius: FUEL_CELL_RADIUS,
+			releaseDrag: 1.6,
+		}),
 		{
 			hb: FUEL_CELL_RADIUS,
 			exploding: false,
@@ -425,7 +458,7 @@ function explodeFuelCell(
 		}
 	}
 	spawnFuelCellExplosionEffect(position)
-	gameSoundService.playPositional("explosion4", position, {
+	gameSoundService.playPositional("explosive_blast", position, {
 		volume: mainSoundVolume * 1.1,
 		detune: -120,
 	})
@@ -438,13 +471,12 @@ function explodeFuelCell(
 }
 
 function spawnFuelCellExplosionEffect(position: Vec2) {
-	const blastColor = k.rgb(255, 78, 45)
-	const hotColor = k.rgb(255, 220, 125)
 	spawnFlash(position, 38, k.WHITE)
 	spawnExplosionEffect(position, FUEL_EXPLOSION_VISUAL_RADIUS, {
-		color: blastColor,
+		color: k.WHITE,
 		ringIntensity: 1.1,
 		particleCount: 52,
+		persistentSmoke: true,
 	})
 	spawnRing({
 		pos: position,
@@ -452,7 +484,7 @@ function spawnFuelCellExplosionEffect(position: Vec2) {
 		intensity: 0.8,
 		maxRadius: 96,
 		visualize: true,
-		color: hotColor,
+		color: k.WHITE,
 		outlineWidth: 2,
 		visualOpacity: 0.9,
 	})
@@ -471,7 +503,7 @@ function spawnFuelCellExplosionEffect(position: Vec2) {
 			)
 			explosionEmitter.emitter.position = burstPosition
 			explosionEmitter.emit(9 - burstIndex * 2)
-			spawnFlash(burstPosition, 18 - burstIndex * 3, hotColor)
+			spawnFlash(burstPosition, 18 - burstIndex * 3, k.WHITE)
 		})
 	}
 }

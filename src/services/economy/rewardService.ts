@@ -190,7 +190,7 @@ const powerupRewardRegistry: Record<PowerupKey, RewardDefinition> = {
 		progression: scalingProgression(RewardRarity.Epic, "stack"),
 		allowedSources: ["crate", "boss"],
 		weights: { crate: 350, boss: 400 },
-		minimumHubLevel: 2,
+		minimumHubLevel: 1,
 	},
 	addPlayerMaxHealth: {
 		id: "addPlayerMaxHealth",
@@ -913,6 +913,7 @@ const PROJECTILE_DAMAGE_PERCENTAGE_STATS = new Set([
 	"projectileMineDamage",
 	"projectilePaintDamage",
 	"projectileProximityDamage",
+	"projectileStunChance",
 	"projectileVolatileDamage",
 ])
 

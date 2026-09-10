@@ -12,6 +12,11 @@ export type RoomFloorKind =
 	| "gravity"
 	| "event"
 	| "shop"
+	| "droneShop"
+	| "lassoComponent"
+	| "scrapCircuit"
+	| "cargoPuzzleSource"
+	| "cargoPuzzleTarget"
 	| "deposit"
 	| "miniBoss"
 	| "boss"
@@ -53,12 +58,16 @@ export type RoomEnvironmentArchetypeId =
 	| "wake-hull-barricade"
 	| "wake-floating-scrap"
 	| "wake-fuel-cell"
+	| "wake-concussion-plate"
+	| "wake-slowdown-plate"
+	| "wake-tesla-coil"
 	| "wake-salvage-cluster"
 
 export type RoomEnvironmentCategory =
 	| "structural"
 	| "dynamic-cover"
 	| "volatile"
+	| "trap"
 	| "resource"
 
 export interface RoomEnvironmentObjectPlan {
@@ -74,6 +83,13 @@ export interface RoomEnvironmentObjectPlan {
 
 export interface RoomEnvironmentPlan {
 	objects: RoomEnvironmentObjectPlan[]
+}
+
+export interface RoomCargoPuzzlePlan {
+	id: string
+	sourceRoomId: string
+	targetRoomId: string
+	socketActivated: boolean
 }
 
 export interface RoomFloorRoom {
@@ -101,17 +117,23 @@ export interface RoomFloor {
 	depth: number
 	themeId: FloorThemeId
 	endless?: boolean
+	maxRoomCount?: number
 	hubLevel?: number
 	startRoomId: string
 	exitRoomId: string
 	currentRoomId: string
 	keys: number
 	rooms: RoomFloorRoom[]
+	cargoPuzzles: RoomCargoPuzzlePlan[]
 }
 
 export interface RoomFloorGenerationOptions {
 	roomCount?: number
+	maxRoomCount?: number
 	milestoneBoss?: boolean
 	hubLevel?: number
 	endless?: boolean
+	lassoComponentAvailable?: boolean
+	scrapCircuitAvailable?: boolean
+	cargoPuzzleAvailable?: boolean
 }

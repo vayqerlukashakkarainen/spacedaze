@@ -16,6 +16,7 @@ import { tags } from "../tags"
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
+import { snareable } from "../comp/snareable"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
 
 const ORBIT_LANCER_VISUAL = getEnemyVisual("orbit-lancer")
@@ -36,6 +37,13 @@ export function spawnOrbitLancer(
 		k.animate(),
 		k.scale(profile.scale),
 		timescale(),
+		snareable({
+			mass: 0.65,
+			radius: 12 * profile.scale,
+			releaseDrag: 1.3,
+			suspendTimescaleWhileMoving: true,
+			canSnare: () => !profile.elite,
+		}),
 		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{
 			hb: 12 * profile.scale,

@@ -1,4 +1,5 @@
 import type { GameObj, Vec2 } from "kaplay"
+import { dialogue } from "../../content/dialogue/dialogueCatalog"
 import {
 	horizontalDirectionalVisual,
 	type HorizontalDirectionalVisualComp,
@@ -174,13 +175,9 @@ export async function playBattlefieldRecovery() {
 	await waitSeconds(0.34, generation)
 	if (!isCurrent(generation)) return false
 	tracePrologue("dialogue:burt-federation-open")
-	const federationDialogueResult = await showDialogue([
-		{ speaker: "BURT", text: "They are gone. They have to be gone." },
-		{
-			speaker: "BURT",
-			text: "No Federation transponders. Not yet.",
-		},
-	], {
+	const federationDialogueResult = await showDialogue(
+		dialogue.prologueRecovery.battlefieldScan,
+	{
 		overlayOpacity: 0,
 		resolveSpeaker: () => burt,
 	})
@@ -205,13 +202,9 @@ export async function playBattlefieldRecovery() {
 	if (!isCurrent(generation)) return false
 
 	tracePrologue("dialogue:burt-cleanup-open")
-	const cleanupDialogueResult = await showDialogue([
-		{ speaker: "BURT", text: "You are not Federation." },
-		{
-			speaker: "BURT",
-			text: "Good. I can repair you. Whether I should is a later problem.",
-		},
-	], {
+	const cleanupDialogueResult = await showDialogue(
+		dialogue.prologueRecovery.wreckInspection,
+	{
 		overlayOpacity: 0,
 		resolveSpeaker: () => burt,
 	})
@@ -262,10 +255,9 @@ export async function playBattlefieldRecovery() {
 	if (!isCurrent(generation)) return false
 	portal.setPortalState("active")
 	tracePrologue("dialogue:burt-wormhole-exit-open")
-	const wormholeExitDialogueResult = await showDialogue([{
-		speaker: "BURT",
-		text: "Wake Station still answers. Move before the Claimkeeper turns around.",
-	}], {
+	const wormholeExitDialogueResult = await showDialogue(
+		dialogue.prologueRecovery.wormholeExit,
+	{
 		overlayOpacity: 0,
 		resolveSpeaker: () => burt,
 	})
@@ -355,10 +347,9 @@ export async function playHubRepairSequence(
 		y: Math.round(burt.pos.y),
 	})
 	await waitSeconds(0.32, generation)
-	const arrivalDialogueResult = await showDialogue([{
-		speaker: "BURT",
-		text: "No pursuit. Good. Good.",
-	}], {
+	const arrivalDialogueResult = await showDialogue(
+		dialogue.prologueRecovery.hubArrival,
+	{
 		gameplay: "live",
 		advance: "auto",
 		input: "passthrough",
@@ -383,10 +374,9 @@ export async function playHubRepairSequence(
 	})
 	if (!isCurrent(generation)) return false
 
-	const hubDialogueResult = await showDialogue([{
-		speaker: "BURT",
-		text: "Hold still. I can rebuild a ship from five pieces. I have had practice.",
-	}], {
+	const hubDialogueResult = await showDialogue(
+		dialogue.prologueRecovery.hubRepair,
+	{
 		gameplay: "live",
 		advance: "auto",
 		input: "passthrough",

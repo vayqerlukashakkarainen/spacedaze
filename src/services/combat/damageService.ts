@@ -15,6 +15,8 @@ import { runtimeDebug } from "../debug/runtimeDebugService"
 import { showPlayerDamageDirection } from "./combatImpactService"
 import { LEGACY_PLAYER_DAMAGE_SCALE } from "../player/playerHealthBalance"
 import { playDamageHitSound } from "../audio/hitSoundService"
+import { playVisualHitKnockback } from "./visualHitKnockbackService"
+import { ensureEnemyLowHealthEffects } from "./enemyDamageEffectService"
 
 export interface DamageOptions {
 	critical?: boolean
@@ -22,6 +24,7 @@ export interface DamageOptions {
 	showNumber?: boolean
 	source?: PlayerDeathCause
 	incomingDirection?: Vec2
+	visualForceOrigin?: Vec2
 	playerHullDamage?: boolean
 }
 
@@ -82,7 +85,12 @@ export function applyDamage(
 	if (tryBlockPlayerDamage(target, appliedDamage)) return false
 	const healthBefore = target.hp
 	if (!damagesPlayer) playDamageHitSound(target, options.position)
+	if (!damagesPlayer) {
+		const visualDirection = getVisualHitDirection(target, options)
+		if (visualDirection) playVisualHitKnockback(target, visualDirection)
+	}
 	target.hp -= appliedDamage
+	if (target.tags.includes(tags.enemy)) ensureEnemyLowHealthEffects(target)
 	if (damagesPlayer) {
 		showPlayerDamageDirection(
 			target,
@@ -122,6 +130,17 @@ export function applyDamage(
 		}
 	}
 	return true
+}
+
+function getVisualHitDirection(target: GameObj, options: DamageOptions) {
+	if (options.incomingDirection?.len() > 0.001) {
+		return options.incomingDirection
+	}
+	const origin = options.visualForceOrigin ?? options.position
+	const targetPosition = target.worldPos ?? target.pos
+	if (!origin || !targetPosition) return undefined
+	const direction = targetPosition.sub(origin)
+	return direction.len() > 0.001 ? direction : undefined
 }
 
 export function showDamageNumber(

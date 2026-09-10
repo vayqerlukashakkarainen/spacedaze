@@ -38,7 +38,7 @@ export interface HubFacilityConstruction {
 export const HUB_FACILITY_BUILD_DURATION_MS = 15000
 
 export const HUB_LEVELS: readonly HubLevelDefinition[] = [
-	{ level: 1, requiredDeposited: 0, chestLuck: 0, unlocks: ["PHASE STATION", "SALVAGE GHOST CHEST", "EMERGENCY SERVICE DRONE"] },
+	{ level: 1, requiredDeposited: 0, chestLuck: 0, unlocks: ["COMPENDIUM", "SALVAGE GHOST CHEST", "EMERGENCY SERVICE DRONE"] },
 	{ level: 2, requiredDeposited: 75, chestLuck: 0.03, unlocks: ["CONTRACT TERMINAL", "SECOND SALVAGE GHOST CHEST", "COURIER TRAFFIC"] },
 	{ level: 3, requiredDeposited: 200, chestLuck: 0.06, unlocks: ["SALVAGE FORGE", "GHOST WEAPON CACHE", "SALVAGE HAULERS"] },
 	{ level: 4, requiredDeposited: 400, chestLuck: 0.09, unlocks: ["POST-RUN DEBRIEF TERMINAL", "SIGNAL ARRAY"] },
@@ -49,7 +49,7 @@ export const HUB_LEVELS: readonly HubLevelDefinition[] = [
 ]
 
 export const HUB_FACILITIES: readonly HubFacilityDefinition[] = [
-	{ id: "trainingRange", name: "PHASE STATION", description: "Central registry for ship systems, weapons, upgrades, and droids", cost: 0, requiredHubLevel: 1 },
+	{ id: "trainingRange", name: "COMPENDIUM", description: "Navigation archive for ship systems, weapons, upgrades, and droids", cost: 0, requiredHubLevel: 1 },
 	{ id: "contractTerminal", name: "CONTRACT TERMINAL", description: "Select and prepare the next expedition", cost: 40, requiredHubLevel: 2 },
 	{ id: "salvageForge", name: "SALVAGE FORGE", description: "Improve reward recovery from destroyed hostiles", cost: 75, requiredHubLevel: 3 },
 	{ id: "debriefTerminal", name: "DEBRIEF TERMINAL", description: "Review the most recent expedition record", cost: 100, requiredHubLevel: 4 },

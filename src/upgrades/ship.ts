@@ -1,5 +1,18 @@
 import { Tool } from "../upg";
 
+export const salvageLasso: Tool = {
+	toolName: "Salvage Lasso",
+	upgrades: [
+		{
+			name: "Salvage Lasso",
+			desc: "Unlock the lasso link for towing and throwing loose objects",
+			sprite: "salvage_lasso",
+			price: 32,
+			value: 1,
+		},
+	],
+};
+
 export const debreeDist: Tool = {
 	toolName: "Salvage magnets",
 	upgrades: [
@@ -228,6 +241,33 @@ export const maxHealth: Tool = {
 			sprite: "hull_upg1",
 			price: 32,
 			value: 205,
+		},
+	],
+};
+
+export const extraLife: Tool = {
+	toolName: "Phase Recall",
+	upgrades: [
+		{
+			name: "Mark I",
+			desc: "Begin each run with 1 recall charge. Fatal damage consumes it and reconstructs the ship where it was destroyed",
+			sprite: "phase_recall_upg1",
+			price: 32,
+			value: 1,
+		},
+		{
+			name: "Mark II",
+			desc: "Begin each run with 2 recall charges",
+			sprite: "phase_recall_upg1",
+			price: 32,
+			value: 2,
+		},
+		{
+			name: "Mark III",
+			desc: "Begin each run with 3 recall charges",
+			sprite: "phase_recall_upg1",
+			price: 32,
+			value: 3,
 		},
 	],
 };

@@ -167,6 +167,11 @@ export interface SlowModifier {
 	procState?: ProjectileProcState;
 }
 
+export interface StunModifier {
+	chance: number;
+	duration: number;
+}
+
 export interface KnockbackModifier {
 	strength: number;
 }
@@ -271,6 +276,7 @@ export interface ProjectileConfig {
 	};
 	damageTick?: DamageTickModifier;
 	slow?: SlowModifier;
+	stun?: StunModifier;
 
 	// Modifiers (all optional)
 	impact?: ImpactModifier;

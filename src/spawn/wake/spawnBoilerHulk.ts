@@ -33,6 +33,7 @@ const SCRAP_SHIELD_RADIUS = 62
 const SCRAP_SHIELD_HITBOX = 11
 const SCRAP_SHIELD_ORBIT_SPEED = 52
 const PLAYER_HITBOX = 8
+const DESTROYED_VENT_SPEED_MULTIPLIER = 0.55
 
 export interface BoilerHulkSpawnOptions extends EnemySpawnOptions {
 	onDefeated?: () => void
@@ -44,7 +45,7 @@ export function spawnBoilerHulk(
 	options: BoilerHulkSpawnOptions = {}
 ) {
 	const profile = createEnemySpawnProfile(hp, 2, BOILER_HULK_VISUAL.worldScale, options)
-	const [coreVisual, scoopVisual, ventVisual] = BOILER_HULK_VISUAL.parts
+	const [coreVisual, scoopVisual, ventVisual, mortarVisual] = BOILER_HULK_VISUAL.parts
 	const hulk = k.add([
 		k.pos(pos),
 		k.sprite(coreVisual.sprite),
@@ -71,6 +72,8 @@ export function spawnBoilerHulk(
 			defenseChargeTimer: 0,
 			defenseCooldown: SCRAP_SHIELD_INITIAL_DELAY,
 			deathSequenceActive: false,
+			movementSpeedMultiplier: 1,
+			mortarOperational: true,
 		},
 		tags.enemy,
 		tags.unit,
@@ -83,6 +86,7 @@ export function spawnBoilerHulk(
 	const partHp = Math.max(2, Math.round(profile.hp * 0.28))
 	const scoop = addWakeEnemyPart(hulk, scoopVisual.sprite, partHp)
 	const vent = addWakeEnemyPart(hulk, ventVisual.sprite, partHp)
+	const mortar = addWakeEnemyPart(hulk, mortarVisual.sprite, partHp)
 	const scrapShield: GameObj[] = []
 	const defenseChargeRing = hulk.add([
 		k.circle(SCRAP_SHIELD_RADIUS, { fill: false }),
@@ -103,6 +107,17 @@ export function spawnBoilerHulk(
 			obj: vent,
 			hitbox: 7 * profile.scale,
 			hitboxOffset: k.vec2(5, -18).scale(profile.scale),
+			onDestroyed: () => {
+				hulk.movementSpeedMultiplier = DESTROYED_VENT_SPEED_MULTIPLIER
+			},
+		},
+		{
+			obj: mortar,
+			hitbox: 7 * profile.scale,
+			hitboxOffset: k.vec2(-8, -18).scale(profile.scale),
+			onDestroyed: () => {
+				hulk.mortarOperational = false
+			},
 		},
 	], 14, 2, options.onDefeated, (finishDeath) => {
 		hulk.deathSequenceActive = true
@@ -160,7 +175,8 @@ export function spawnBoilerHulk(
 			)
 			hulk.moveDirection = easeDirection(hulk.moveDirection, navigationDirection, 2.2, delta)
 			hulk.move(hulk.moveDirection.scale(
-				34 * profile.speedMultiplier * velocityScale() * hulk.getTimescale()
+				34 * profile.speedMultiplier * hulk.movementSpeedMultiplier *
+					velocityScale() * hulk.getTimescale()
 			))
 			hulk.attackTimer -= delta * (hulk.shieldFireRateMultiplier ?? 1)
 			if (
@@ -170,7 +186,12 @@ export function spawnBoilerHulk(
 				distance < 650
 			) {
 				startScrapShieldCharge(hulk)
-			} else if (!hulk.attacking && hulk.attackTimer <= 0 && distance < 650) {
+			} else if (
+				hulk.mortarOperational &&
+				!hulk.attacking &&
+				hulk.attackTimer <= 0 &&
+				distance < 650
+			) {
 				startHulkShot(hulk, scoop, vent, profile, options.tags)
 			}
 		}
@@ -372,7 +393,13 @@ function startHulkShot(
 				}
 			}
 			for (const impact of impacts) {
-				spawnExplosionEffect(impact, scoop.hidden ? 34 : 40, { particleCount: 7 })
+				spawnExplosionEffect(impact, scoop.hidden ? 34 : 40, {
+					particleCount: 7,
+					persistentSmoke: true,
+				})
+				gameSoundService.playPositional("explosive_blast", impact, {
+					volume: mainSoundVolume * 0.65,
+				})
 			}
 			if (
 				!isPlayerDamageInvulnerable() &&

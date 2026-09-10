@@ -19,7 +19,6 @@ export const HUB_SETTLEMENT_PLOTS: readonly HubSettlementPlot[] = [
 	{ id: "repair-drydock", requiredHubLevel: 4, position: [-430, 610], groundSprite: "hub_ground_repair_drydock_rocks", groundOffsetY: 12, builtSprite: "hub_building_repair_drydock", destroyedSprite: "hub_building_repair_drydock_destroyed", buildingOffsetY: -16 },
 	{ id: "fuel-farm", requiredHubLevel: 5, position: [250, 620], groundSprite: "hub_ground_medium_b", groundOffsetY: 18, builtSprite: "hub_building_fuel_farm", destroyedSprite: "hub_building_fuel_farm_destroyed", buildingOffsetY: -22, facing: "left" },
 	{ id: "freight-terminal", requiredHubLevel: 6, position: [520, -40], groundSprite: "hub_ground_freight_terminal_rocks", groundOffsetY: 20, builtSprite: "hub_building_freight_terminal", destroyedSprite: "hub_building_freight_terminal_destroyed", buildingOffsetY: -20, facing: "left" },
-	{ id: "habitat-cluster", requiredHubLevel: 7, position: [1220, 610], groundSprite: "hub_ground_habitat_cluster_rocks", groundOffsetY: 34, builtSprite: "hub_building_habitat_cluster", destroyedSprite: "hub_building_habitat_cluster_destroyed", buildingOffsetY: -32, facing: "left" },
 	{ id: "observatory-crown", requiredHubLevel: 8, position: [1240, -610], groundSprite: "hub_ground_observatory_crown_rocks", groundOffsetY: 48, builtSprite: "hub_building_observatory_crown", destroyedSprite: "hub_building_observatory_crown_destroyed", buildingOffsetY: -44, facing: "left" },
 ]
 

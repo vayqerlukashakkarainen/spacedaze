@@ -1,7 +1,6 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileIntersection, playerObj } from "../game";
-import { k, mainSoundVolume, velocityScale } from "../main";
-import { gameSoundService } from "../services/audio/gameSoundService"
+import { k, velocityScale } from "../main";
 import { tags } from "../tags";
 import { registerHitAnimation } from "../shared";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
@@ -87,9 +86,11 @@ export function spawnHeavyVehicle(
 			2 * profile.rewardMultiplier,
 			"enemy",
 			true,
-			{ tier: profile.elite ? "elite" : "normal" }
+			{
+				tier: profile.elite ? "elite" : "normal",
+				material: "ship",
+			}
 		);
-		gameSoundService.play("enemy_explosion", { volume: mainSoundVolume });
 		k.destroy(m);
 	});
 

@@ -1,5 +1,5 @@
 import { GameObj, Vec2 } from "kaplay";
-import { k } from "../main";
+import { k, subSoundVolume } from "../main";
 import { starsEmitter } from "../particles";
 import { spawnDebree } from "./spawnDebree";
 import {
@@ -25,12 +25,18 @@ import { grantUltimateCharge } from "../services/abilities/ultimateAbilityServic
 import { player } from "../player";
 import { triggerWreckHarvesterFeedback } from "../services/abilities/passiveUpgradeRuntimeService";
 import { addRunLevelXp } from "../services/runs/runLevelService";
+import { gameSoundService } from "../services/audio/gameSoundService";
+import { spawnRockDestructionFragments } from "../services/combat/rockDestructionEffectService";
+import { spawnEnemyDeathWreckage } from "../services/combat/persistentShipPartService";
+
+export type EnemyDeathMaterial = "ship" | "rock"
 
 interface EnemyDeathVisualOptions {
 	intensity?: number;
 	starCount?: number;
 	tier?: EnemyDeathTier;
 	particleScale?: number;
+	material?: EnemyDeathMaterial;
 }
 
 export function onEnemyHit(m: GameObj, p: GameObj) {
@@ -64,6 +70,24 @@ export function enemyOnDeath(
 		rewardSource === "boss" ? "boss" : visuals.tier ?? "normal",
 		{ particleScale: visuals.particleScale }
 	);
+	if (visuals.material) {
+		gameSoundService.playPositional(
+			visuals.material === "ship"
+				? "enemy_ship_destroyed"
+				: "rock_material_destroyed",
+			pos,
+			{ volume: subSoundVolume }
+		)
+		if (visuals.material === "rock") {
+			spawnRockDestructionFragments(
+				pos,
+				visuals.intensity ?? Math.sqrt(Math.max(1, powerupMultiplier))
+			)
+		}
+		if (visuals.material === "ship") {
+			spawnEnemyDeathWreckage(pos)
+		}
+	}
 	for (const follower of k.get(tags.follower) as GameObj[]) {
 		if (!follower.exists() || follower.droneType !== "medic") continue;
 		follower.medicKillCharge = Math.min(

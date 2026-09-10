@@ -1,5 +1,7 @@
 import type { GameObj, PosComp, Vec2 } from "kaplay"
+import { dialogue } from "../../content/dialogue/dialogueCatalog"
 import { interactable, INTERACTION_PRIORITY } from "../../comp/interactable"
+import { snareable } from "../../comp/snareable"
 import type { RoomFloorRoom } from "../../generation/rooms/roomFloorTypes"
 import {
 	getScore,
@@ -41,20 +43,13 @@ import { spawnRewardPickup } from "../spawnPowerup"
 
 const SHOPKEEPER_DIALOGUE_ID = "void-profit"
 const SHOPKEEPER_INTERACT_RADIUS = 86
-const SHOPKEEPER_LINES = [
-	{
-		speaker: "MARGIN",
-		text: "The Daze remembers the Wake. I remember where it kept the expensive parts.",
-	},
-	{
-		speaker: "MARGIN",
-		text: "Federation crews declared this stock theirs during the Claim. I found their paperwork unconvincing.",
-	},
-	{
-		speaker: "MARGIN",
-		text: "You recover Drius Wake. I recover a reasonable margin. Community requires specialization.",
-	},
-] as const
+const DRONE_SPECIALIZATION_KEYS = new Set([
+	"followerMissiles",
+	"followerInterceptorProtocol",
+	"followerGunship",
+	"followerMedic",
+	"followerSalvager",
+])
 
 export function spawnRunUpgradeShop(
 	pos: Vec2,
@@ -62,6 +57,23 @@ export function spawnRunUpgradeShop(
 	objectTags: string[]
 ) {
 	ensureShopOffers(room)
+	return spawnRunShop(pos, room, objectTags)
+}
+
+export function spawnRunDroneShop(
+	pos: Vec2,
+	room: RoomFloorRoom,
+	objectTags: string[]
+) {
+	ensureDroneShopOffers(room)
+	return spawnRunShop(pos, room, objectTags)
+}
+
+function spawnRunShop(
+	pos: Vec2,
+	room: RoomFloorRoom,
+	objectTags: string[]
+) {
 	const shopkeeper = spawnRunShopkeeper(pos.add(0, -70), objectTags)
 	const offsets = [
 		k.vec2(-145, 100),
@@ -92,6 +104,14 @@ function spawnRunShopkeeper(pos: Vec2, objectTags: string[]) {
 			startConversation,
 			INTERACTION_PRIORITY.progressionDialogue
 		),
+		snareable({
+			mass: 1,
+			radius: 12,
+			releaseDrag: 2.7,
+			returnAfterRelease: true,
+			returnSpeed: 95,
+		}),
+		tags.npc,
 		tags.props,
 		tags.gameLoop,
 		tags.runtimeCullable,
@@ -165,7 +185,7 @@ function createShopkeeperCutscene(): CutsceneDefinition {
 		steps: [
 			{
 				type: "dialogue",
-				lines: SHOPKEEPER_LINES.slice(0, 2),
+				lines: dialogue.shopkeeper.introduction,
 				options: dialogueOptions,
 			},
 			{
@@ -177,7 +197,7 @@ function createShopkeeperCutscene(): CutsceneDefinition {
 			{ type: "wait", duration: 0.38 },
 			{
 				type: "dialogue",
-				lines: SHOPKEEPER_LINES.slice(2),
+				lines: dialogue.shopkeeper.conclusion,
 				options: dialogueOptions,
 			},
 		],
@@ -202,6 +222,42 @@ function ensureShopOffers(room: RoomFloorRoom) {
 		3,
 		pricing
 	)
+}
+
+function ensureDroneShopOffers(room: RoomFloorRoom) {
+	if (room.shopOffers) return
+	const pricing = {
+		depth: getActiveRoomFloor()?.depth ?? 1,
+		difficulty: getThreatSnapshot().tier,
+	}
+	const candidates = getRewardDefinitions("crate")
+	const combatDrone = candidates.find((definition) =>
+		definition.id === "addFollower"
+	)
+	const specializations = candidates.filter((definition) =>
+		definition.upgradeKey !== undefined &&
+		DRONE_SPECIALIZATION_KEYS.has(definition.upgradeKey)
+	)
+	const offers = selectRunUpgradeShopOffers(
+		room.seed ^ 0x64726f6e,
+		specializations,
+		2,
+		pricing
+	)
+	if (combatDrone) {
+		const combatOffer = selectRunUpgradeShopOffers(
+			room.seed,
+			[combatDrone],
+			1,
+			pricing
+		)[0]
+		offers.unshift(combatOffer)
+		while (offers.length < 3) {
+			offers.push({ ...combatOffer, purchased: false })
+		}
+	}
+	room.shopPricing = pricing
+	room.shopOffers = offers.slice(0, 3)
 }
 
 function spawnShopOffer(

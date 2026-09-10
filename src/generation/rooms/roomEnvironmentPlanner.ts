@@ -76,12 +76,16 @@ function getWakePlacementRequests(
 		]
 	}
 	if (room.kind === "combat") {
+		const trapRequest = getWakeTrapPlacementRequest(room, rng)
+		const teslaRequest = getWakeTeslaPlacementRequest(room, rng)
 		return [
 			{
 				archetypeId: "wake-hull-barricade",
 				category: "structural",
 				count: rng.nextInt(2, 4),
 			},
+			...(trapRequest ? [trapRequest] : []),
+			...(teslaRequest ? [teslaRequest] : []),
 			{
 				archetypeId: "wake-floating-scrap",
 				category: "dynamic-cover",
@@ -118,6 +122,32 @@ function getWakePlacementRequests(
 		]
 	}
 	return []
+}
+
+function getWakeTeslaPlacementRequest(
+	room: RoomFloorRoom,
+	rng: SeededRNG
+): PlacementRequest | undefined {
+	if (room.distanceFromStart < 1 || !rng.nextBool(0.28)) return undefined
+	return {
+		archetypeId: "wake-tesla-coil",
+		category: "trap",
+		count: 1,
+	}
+}
+
+function getWakeTrapPlacementRequest(
+	room: RoomFloorRoom,
+	rng: SeededRNG
+): PlacementRequest | undefined {
+	if (room.distanceFromStart < 2 || !rng.nextBool(0.72)) return undefined
+	return {
+		archetypeId: rng.nextBool(0.5)
+			? "wake-concussion-plate"
+			: "wake-slowdown-plate",
+		category: "trap",
+		count: room.distanceFromStart >= 7 && rng.nextBool(0.25) ? 2 : 1,
+	}
 }
 
 function getPlacementCandidates(room: RoomFloorRoom, rng: SeededRNG) {

@@ -6,7 +6,7 @@ import { k, velocityScale } from "../../main"
 import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import { getEnemyNavigationDirection } from "../../services/enemies/enemyNavigationService"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../../services/enemies/threatService"
-import { applyDirectionalSteeringLean, easeDirection } from "../../shared"
+import { easeDirection } from "../../shared"
 import { tags } from "../../tags"
 import { getEnemyVisual } from "../../visuals/enemyVisualCatalog"
 import { addWakeEnemyPart, composeWakeEnemy, handleWakeCompositeCombat } from "./wakeEnemyShared"
@@ -95,7 +95,6 @@ export function spawnPatchTender(
 			(welder.hidden ? 115 : 86) * profile.speedMultiplier * velocityScale() * tender.getTimescale()
 		))
 		tender.angle = tender.moveDirection.angle() + 90
-		applyDirectionalSteeringLean(tender, tender.moveDirection, desired, profile.scale)
 
 		tender.healTimer -= delta
 		if (

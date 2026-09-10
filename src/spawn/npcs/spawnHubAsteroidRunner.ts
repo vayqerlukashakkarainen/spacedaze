@@ -1,17 +1,16 @@
 import type { GameObj, PosComp } from "kaplay"
+import { dialogue } from "../../content/dialogue/dialogueCatalog"
 import { interactable, INTERACTION_PRIORITY } from "../../comp/interactable"
+import { snareable } from "../../comp/snareable"
 import {
 	k,
 	layers,
 	mainSoundVolume,
-	subSoundVolume,
 	WORLD_CAMERA_SCALE,
 } from "../../main"
 import { starsEmitterDir, trailEmitter } from "../../particles"
 import { getDroidDefinition, discoverDroid } from "../../npcs/droidRegistry"
-import { audioService } from "../../services/audio/audioService"
 import { playCutscene, type CutsceneDefinition } from "../../services/narrative/cutsceneService"
-import type { DialogueLine } from "../../services/narrative/dialogService"
 import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import {
 	markNpcDialogueSeen,
@@ -25,40 +24,11 @@ import {
 import { showPopover } from "../../services/ui/popoverService"
 import { tags } from "../../tags"
 import { createNpcInteractionPrompt } from "../../ui/common"
-import { randomExplosion } from "../../util"
 import { spawnEnemyDeathEffect } from "../spawnEnemyDeathEffect"
 
 const INTERACT_RADIUS = 82
 const CAMERA_ZOOM_MULTIPLIER = 1.18
 const DIALOGUE_ID = "asteroid-ring-attempt"
-const INTRO_LINES: readonly DialogueLine[] = [
-	{
-		speaker: "RING RUNNER",
-		text: "Those asteroid rings shielded Drius Wake before the Claim.",
-	},
-	{
-		speaker: "RING RUNNER",
-		text: "The mapped gaps died with the village.",
-	},
-	{
-		speaker: "RING RUNNER",
-		text: "No one has crossed them since the Federation left.",
-	},
-]
-const LAUNCH_LINES: readonly DialogueLine[] = [
-	{
-		speaker: "RING RUNNER",
-		text: "Everyone keeps searching for the old safe lane.",
-	},
-	{
-		speaker: "RING RUNNER",
-		text: "The Wake needs a new one.",
-	},
-	{
-		speaker: "RING RUNNER",
-		text: "Watch this.",
-	},
-]
 
 export function spawnHubAsteroidRunner(fieldCenter: ReturnType<typeof k.vec2>) {
 	if (!shouldShowAsteroidRunnerEncounter()) return
@@ -81,6 +51,14 @@ export function spawnHubAsteroidRunner(fieldCenter: ReturnType<typeof k.vec2>) {
 			startEncounter,
 			INTERACTION_PRIORITY.progressionDialogue
 		),
+		snareable({
+			mass: 1.1,
+			radius: 14,
+			releaseDrag: 2.5,
+			returnAfterRelease: true,
+			returnSpeed: 105,
+		}),
+		tags.npc,
 		tags.props,
 		tags.gameLoop,
 	])
@@ -111,19 +89,6 @@ export function spawnHubAsteroidRunner(fieldCenter: ReturnType<typeof k.vec2>) {
 		encounterStarted = true
 		runner.isInRange = false
 		prompt.update(false)
-		if (discoverDroid("ring-runner")) {
-			const definition = getDroidDefinition("ring-runner")
-			if (definition) {
-				showPopover({
-					title: "DROID DISCOVERED",
-					message: definition.name,
-					description: "NEW DROID RECORD ADDED TO THE PHASE STATION",
-					sprite: definition.sprite,
-					color: k.rgb(0, 220, 255),
-					duration: 6,
-				})
-			}
-		}
 		const cutscene = createAsteroidRunnerCutscene(
 			runner,
 			impactPos,
@@ -138,10 +103,26 @@ export function spawnHubAsteroidRunner(fieldCenter: ReturnType<typeof k.vec2>) {
 			},
 		}).then((result) => {
 			if (result === "completed") {
+				completeAsteroidRunnerEncounter()
 				markNpcDialogueSeen("ring-runner", DIALOGUE_ID)
+				showDroidDiscovery()
 			}
 		})
 		return true
+	}
+
+	function showDroidDiscovery() {
+		if (!discoverDroid("ring-runner")) return
+		const definition = getDroidDefinition("ring-runner")
+		if (!definition) return
+		showPopover({
+			title: "DROID DISCOVERED",
+			message: definition.name,
+			description: "NEW DROID RECORD ADDED TO THE COMPENDIUM",
+			sprite: definition.sprite,
+			color: k.rgb(0, 220, 255),
+			duration: 6,
+		})
 	}
 }
 
@@ -189,7 +170,7 @@ function createAsteroidRunnerCutscene(
 			{ type: "wait", duration: 0.32 },
 			{
 				type: "dialogue",
-				lines: INTRO_LINES,
+				lines: dialogue.asteroidRunner.introduction,
 				options: { overlayOpacity: 0 },
 			},
 			{
@@ -209,7 +190,7 @@ function createAsteroidRunnerCutscene(
 			{ type: "wait", duration: 0.44 },
 			{
 				type: "dialogue",
-				lines: LAUNCH_LINES,
+				lines: dialogue.asteroidRunner.launch,
 				options: { overlayOpacity: 0 },
 			},
 			{
@@ -265,18 +246,8 @@ function createAsteroidRunnerCutscene(
 				run() {
 					if (!runner.exists()) return
 					const deathPos = runner.pos.clone()
-					completeAsteroidRunnerEncounter()
 					k.destroy(runner)
 					spawnEnemyDeathEffect(deathPos, 0.9)
-					audioService.playPositionalSound(
-						randomExplosion(),
-						deathPos,
-						{
-							volume: subSoundVolume * 1.15,
-							minDistance: 30,
-							maxDistance: 620,
-						}
-					)
 					k.shake(4)
 				},
 			},

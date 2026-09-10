@@ -1,8 +1,9 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { timescale } from "../comp/timescale"
+import { snareable } from "../comp/snareable"
 import { getShipThrusterFlash } from "../comp/shipThruster"
 import { checkProjectileIntersection, playerObj } from "../game"
-import { k, layers, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
+import { k, layers, mainSoundVolume, velocityScale } from "../main"
 import { gameSoundService } from "../services/audio/gameSoundService"
 import { applyDamage } from "../services/combat/damageService"
 import { createCadencedSystem } from "../services/core/cadencedSystemService"
@@ -27,6 +28,7 @@ import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { DensePool } from "../services/core/densePool"
 import { spawnEnemyDeathEffect } from "./spawnEnemyDeathEffect"
 import { setHitSoundProfile } from "../services/audio/hitSoundService"
+import { spawnEnemyDeathWreckage } from "../services/combat/persistentShipPartService"
 
 type SwarmPhase = "gather" | "stage" | "charge" | "regroup"
 
@@ -214,6 +216,13 @@ export function spawnSwarmEnemy(
 		k.animate(),
 		k.scale(spriteScale),
 		timescale(),
+		snareable({
+			mass: 0.35,
+			radius: 9 * spriteScale,
+			releaseDrag: 1.2,
+			suspendTimescaleWhileMoving: true,
+			canSnare: () => !profile.elite,
+		}),
 		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{
 			draw() {
@@ -264,6 +273,14 @@ export function spawnSwarmEnemy(
 			spawnEnemyDeathEffect(enemy.pos, 0.42, "normal", {
 				particleScale: 0.35,
 			})
+			spawnEnemyDeathWreckage(enemy.pos, {
+				count: 1,
+				scale: 0.6,
+				force: 48,
+			})
+			gameSoundService.playPositional("enemy_ship_destroyed", enemy.pos, {
+				volume: mainSoundVolume * 0.45,
+			})
 		} else enemyOnDeath(
 			enemy.pos,
 			2 * profile.rewardMultiplier,
@@ -275,9 +292,9 @@ export function spawnSwarmEnemy(
 				starCount: 5,
 				tier: profile.elite ? "elite" : "normal",
 				particleScale: 0.35,
+				material: "ship",
 			}
 		)
-		gameSoundService.play("enemy_explosion", { volume: subSoundVolume * 0.25 })
 		k.destroy(enemy)
 		behavior.onDeath?.()
 	})
@@ -295,6 +312,7 @@ function registerSwarmVisual(enemy: GameObj) {
 		thrusterLength: 0,
 	}
 	swarmVisuals.add(visual)
+	enemy.dataOrientedVisual = true
 	enemy.hidden = true
 	enemy.onDestroy(() => swarmVisuals.remove(enemy.id))
 	return visual
@@ -349,8 +367,13 @@ function drawSwarmVisual(
 		enemy.pos.y < minY ||
 		enemy.pos.y > maxY
 	) return
+	const visualHitOffset = enemy.visualHitOffset as Vec2 | undefined
 	k.pushTransform()
-	k.pushTranslate(enemy.pos)
+	k.pushTranslate(
+		visualHitOffset
+			? enemy.pos.add(visualHitOffset)
+			: enemy.pos
+	)
 	k.pushRotate(enemy.angle)
 	k.pushScale(enemy.scale)
 	const opacity = enemy.opacity ?? 1
@@ -571,9 +594,11 @@ export function spawnHiveMind(
 			1.6 * profile.rewardMultiplier,
 			"enemy",
 			true,
-			{ tier: profile.elite ? "elite" : "normal" }
+			{
+				tier: profile.elite ? "elite" : "normal",
+				material: "ship",
+			}
 		)
-		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(hive)
 	})
 	hive.onDestroy(releaseSwarm)

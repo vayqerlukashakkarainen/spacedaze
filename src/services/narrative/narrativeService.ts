@@ -16,6 +16,10 @@ interface NarrativeProgress {
 	strafeTrainingOfferComplete: boolean
 	strafeTrainingUnlocked: boolean
 	strafeTutorialComplete: boolean
+	lassoComponentCollected: boolean
+	lassoConstructionComplete: boolean
+	lassoUnlocked: boolean
+	lassoTutorialComplete: boolean
 }
 
 export type HubBurtLocation = "home" | "phaseStation" | "center"
@@ -30,6 +34,10 @@ const defaultProgress: NarrativeProgress = {
 	strafeTrainingOfferComplete: false,
 	strafeTrainingUnlocked: false,
 	strafeTutorialComplete: false,
+	lassoComponentCollected: false,
+	lassoConstructionComplete: false,
+	lassoUnlocked: false,
+	lassoTutorialComplete: false,
 }
 
 let progress = loadProgress()
@@ -155,6 +163,58 @@ export function completeStrafeTutorial() {
 	saveProgress()
 }
 
+export function canDiscoverLassoComponent() {
+	return progress.prologueComplete &&
+		!progress.lassoComponentCollected &&
+		!progress.lassoConstructionComplete &&
+		!progress.lassoUnlocked
+}
+
+export function collectLassoComponent() {
+	if (!canDiscoverLassoComponent()) return false
+	progress.lassoComponentCollected = true
+	progress.burtHubLocation = "center"
+	saveProgress()
+	return true
+}
+
+export function shouldOfferLassoConstruction() {
+	return progress.lassoComponentCollected &&
+		!progress.lassoConstructionComplete &&
+		!progress.lassoUnlocked
+}
+
+export function completeLassoConstruction() {
+	if (!progress.lassoComponentCollected || progress.lassoUnlocked) return false
+	progress.lassoConstructionComplete = true
+	progress.burtHubLocation = "center"
+	saveProgress()
+	return true
+}
+
+export function shouldSpawnBuiltLasso() {
+	return progress.lassoConstructionComplete && !progress.lassoUnlocked
+}
+
+export function unlockBuiltLasso() {
+	if (!progress.lassoConstructionComplete) return false
+	progress.lassoUnlocked = true
+	progress.burtHubLocation = "center"
+	saveProgress()
+	return true
+}
+
+export function shouldShowLassoTutorial() {
+	return progress.lassoUnlocked && !progress.lassoTutorialComplete
+}
+
+export function completeLassoTutorial() {
+	if (!progress.lassoUnlocked) return false
+	progress.lassoTutorialComplete = true
+	saveProgress()
+	return true
+}
+
 export function skipNarrativeIntroduction() {
 	prologueActive = false
 	progress.prologueComplete = true
@@ -208,6 +268,11 @@ function loadProgress(): NarrativeProgress {
 		strafeTrainingOfferComplete,
 		strafeTrainingUnlocked,
 		strafeTutorialComplete: parsed.strafeTutorialComplete === true,
+		lassoComponentCollected: parsed.lassoComponentCollected === true,
+		lassoConstructionComplete: parsed.lassoConstructionComplete === true ||
+			parsed.lassoUnlocked === true,
+		lassoUnlocked: parsed.lassoUnlocked === true,
+		lassoTutorialComplete: parsed.lassoTutorialComplete === true,
 	}
 	if (legacyProgress) {
 		writeProfileSection("narrative", normalizedProgress)

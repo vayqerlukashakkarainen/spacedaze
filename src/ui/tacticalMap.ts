@@ -30,6 +30,8 @@ import type {
 } from "../generation/rooms/roomFloorTypes"
 import {
 	getHubLevel,
+	getHubLevelProgress,
+	hasUnseenBlueprints,
 	HUB_FACILITIES,
 	isFacilityBuilt,
 } from "../services/hub/hubProgressService"
@@ -47,7 +49,9 @@ import { tags } from "../tags"
 import { createUiScrollable, UiScrollableControl } from "./common/scrollable"
 import {
 	addThemedText,
+	createUiActionButton,
 	createUiPanel,
+	createUiProgressBar,
 	createUiSectionHeader,
 	createUiSurface,
 	playUiModalClose,
@@ -55,6 +59,7 @@ import {
 	UI_COLORS,
 	UI_FONT_SIZES,
 } from "./common"
+import { addCompendiumContent } from "./hubFacilities"
 import { uiState } from "./uiState"
 import { registerBatchedUiUpdate } from "../services/ui/uiUpdateService"
 import { uiHitRegion } from "./common/hitRegion"
@@ -70,7 +75,10 @@ import {
 } from "../services/input/inputBindingService"
 
 const MAP_MARGIN = 22
+const MAP_TOP_PADDING = 10
 const MAP_HEADER_HEIGHT = 48
+const MAP_TAB_BAR_HEIGHT = 40
+const MAP_PROGRESS_HEIGHT = 48
 const MAP_FOOTER_HEIGHT = 34
 const MAP_MIN_ZOOM = 0.7
 const MAP_MAX_ZOOM = 5
@@ -92,6 +100,8 @@ let afterCloseAction: (() => void) | undefined
 let rememberedMapKey: string | undefined
 let rememberedZoomMultiplier = 1
 
+type NavigationTab = "map" | "compendium"
+
 type HubMapLandmarkKind = "core" | "facility" | "settlement" | "phase" | "wormhole"
 
 interface HubMapLandmark {
@@ -108,6 +118,12 @@ interface HubMapSnapshot {
 	landmarks: HubMapLandmark[]
 }
 
+interface RoomDirectoryEntry {
+	rooms: RoomFloorRoom[]
+	typeHidden: boolean
+	current: boolean
+}
+
 export function tacticalMapOpen() {
 	return open
 }
@@ -120,7 +136,7 @@ export function toggleTacticalMap() {
 	return showTacticalMap()
 }
 
-export function showTacticalMap() {
+export function showTacticalMap(initialTab: NavigationTab = "map") {
 	if (open) return true
 	const hubSnapshot = activeLevelKey() === "hub"
 		? createHubMapSnapshot()
@@ -167,7 +183,8 @@ export function showTacticalMap() {
 		: 0
 	const viewportPos = k.vec2(
 		MAP_MARGIN + (floorTreeWidth > 0 ? floorTreeWidth + MAP_MARGIN : 0),
-		MAP_HEADER_HEIGHT
+		MAP_TOP_PADDING + MAP_HEADER_HEIGHT + MAP_TAB_BAR_HEIGHT +
+			MAP_PROGRESS_HEIGHT
 	)
 	const viewportSize = k.vec2(
 		Math.max(
@@ -176,7 +193,11 @@ export function showTacticalMap() {
 				hubSnapshot ? 2 : roomFloorSnapshot ? 4 : 3
 			)
 		),
-		Math.max(180, k.height() - MAP_HEADER_HEIGHT - MAP_FOOTER_HEIGHT)
+		Math.max(
+			180,
+			k.height() - MAP_TOP_PADDING - MAP_HEADER_HEIGHT -
+				MAP_TAB_BAR_HEIGHT - MAP_PROGRESS_HEIGHT - MAP_FOOTER_HEIGHT
+		)
 	)
 	const sidebarX = viewportPos.x + viewportSize.x + MAP_MARGIN
 
@@ -201,27 +222,105 @@ export function showTacticalMap() {
 	const contentRoot = root.add([
 		k.pos(-k.width() / 2, -k.height() / 2),
 	])
+	const headerRoot = contentRoot.add([k.pos(0, 0)])
+	const navigationTabsRoot = contentRoot.add([k.pos(0, 0)])
+	const mapContentRoot = contentRoot.add([k.pos(0, 0)])
+	let compendiumContentRoot: GameObj | undefined
+	let activeNavigationTab = initialTab
 	activeBackdrop = backdrop
 	activeRoot = root
 
-	createUiSectionHeader(contentRoot, {
-		pos: k.vec2(MAP_MARGIN, 0),
+	const renderNavigationTab = () => {
+		destroyUiChildren(headerRoot)
+		destroyUiChildren(navigationTabsRoot)
+		if (compendiumContentRoot?.exists()) {
+			destroyUiTree(compendiumContentRoot)
+		}
+		compendiumContentRoot = undefined
+		mapContentRoot.hidden = activeNavigationTab !== "map"
+
+		createUiSectionHeader(headerRoot, {
+			pos: k.vec2(MAP_MARGIN, MAP_TOP_PADDING),
+			width: k.width() - MAP_MARGIN * 2,
+			height: MAP_HEADER_HEIGHT,
+			eyebrow: "NAVIGATION COMPUTER",
+			title: activeNavigationTab === "compendium"
+				? "COMPENDIUM"
+				: hubSnapshot
+					? `HUB MAP  //  LEVEL ${hubSnapshot.level}`
+					: roomFloorSnapshot
+						? `FLOOR ${roomFloorPosition!.floor}.${roomFloorPosition!.subfloor}  //  ${roomFloorName}  //  SEED ${roomFloorSnapshot.seed}`
+						: `SECTOR MAP  //  SEED ${runSnapshot!.seed}`,
+			action: activeNavigationTab === "compendium"
+				? `HUB LEVEL ${getHubLevel()}`
+				: hubSnapshot
+					? "LIVE STATION SURVEY"
+					: roomFloorSnapshot
+						? "DISCOVERED ROOM NETWORK"
+						: "LIVE CARTOGRAPHY",
+		})
+		for (const [index, tab] of (["map", "compendium"] as const).entries()) {
+			createUiActionButton(navigationTabsRoot, {
+				pos: k.vec2(
+					MAP_MARGIN + index * 158,
+					MAP_TOP_PADDING + MAP_HEADER_HEIGHT + 4
+				),
+				size: k.vec2(150, 32),
+				text: tab.toUpperCase(),
+				selected: activeNavigationTab === tab,
+				notification: tab === "compendium" && hasUnseenBlueprints(),
+				onClick: () => {
+					if (activeNavigationTab === tab) return
+					activeNavigationTab = tab
+					renderNavigationTab()
+				},
+			})
+		}
+		if (activeNavigationTab !== "compendium") return
+		compendiumContentRoot = contentRoot.add([k.pos(0, 0)])
+		const compendiumWidth = k.width() - MAP_MARGIN * 2
+		const compendiumTop = MAP_TOP_PADDING + MAP_HEADER_HEIGHT +
+			MAP_TAB_BAR_HEIGHT + 12
+		addCompendiumContent(compendiumContentRoot, {
+			left: MAP_MARGIN,
+			top: compendiumTop,
+			width: compendiumWidth,
+			bottom: k.height() - MAP_FOOTER_HEIGHT,
+		})
+	}
+	const hubLevelProgress = getHubLevelProgress()
+	const hubXpRemaining = Math.max(
+		0,
+		hubLevelProgress.required - hubLevelProgress.current
+	)
+	const mapProgressTop = MAP_TOP_PADDING + MAP_HEADER_HEIGHT +
+		MAP_TAB_BAR_HEIGHT + 4
+	addThemedText(mapContentRoot, {
+		text: `HUB LEVEL ${hubLevelProgress.level}`,
+		pos: k.vec2(MAP_MARGIN, mapProgressTop),
+		variant: "caption",
 		width: k.width() - MAP_MARGIN * 2,
-		height: MAP_HEADER_HEIGHT,
-		eyebrow: "NAVIGATION COMPUTER",
-		title: hubSnapshot
-			? `HUB MAP  //  LEVEL ${hubSnapshot.level}`
-			: roomFloorSnapshot
-				? `FLOOR ${roomFloorPosition!.floor}.${roomFloorPosition!.subfloor}  //  ${roomFloorName}  //  SEED ${roomFloorSnapshot.seed}`
-				: `SECTOR MAP  //  SEED ${runSnapshot!.seed}`,
-		action: hubSnapshot
-			? "LIVE STATION SURVEY"
-			: roomFloorSnapshot
-				? "DISCOVERED ROOM NETWORK"
-				: "LIVE CARTOGRAPHY",
+	})
+	addThemedText(mapContentRoot, {
+		text: hubLevelProgress.progress >= 1
+			? `${hubLevelProgress.current} DEPOSITED  //  MAXIMUM LEVEL`
+			: `${hubLevelProgress.current} / ${hubLevelProgress.required} DEPOSITED  //  ${hubXpRemaining} NEEDED`,
+		pos: k.vec2(MAP_MARGIN, mapProgressTop),
+		variant: "muted",
+		width: k.width() - MAP_MARGIN * 2,
+		align: "right",
+	})
+	createUiProgressBar(mapContentRoot, {
+		pos: k.vec2(MAP_MARGIN, mapProgressTop + 20),
+		width: k.width() - MAP_MARGIN * 2,
+		height: 6,
+		value: hubLevelProgress.progress,
+		color: hubLevelProgress.progress >= 1
+			? UI_COLORS.success
+			: UI_COLORS.accent,
 	})
 
-	const viewport = createUiSurface(contentRoot, {
+	const viewport = createUiSurface(mapContentRoot, {
 		pos: viewportPos,
 		size: viewportSize,
 		tone: "raised",
@@ -287,6 +386,14 @@ export function showTacticalMap() {
 	}
 	mapCanvas.onDestroy(() => rasterizedMap.sprite.data?.tex?.free())
 	const roomNodes = rasterizedMap.roomNodes ?? []
+	if (roomFloorSnapshot) {
+		const currentRoomNode = roomNodes.find(
+			(node) => node.roomId === roomFloorSnapshot.currentRoomId
+		)
+		if (currentRoomNode) {
+			addCurrentRoomMarker(mapCanvas, currentRoomNode.position)
+		}
+	}
 	const currentRoom = roomFloorSnapshot?.rooms.find(
 		(room) => room.id === roomFloorSnapshot.currentRoomId
 	)
@@ -309,6 +416,7 @@ export function showTacticalMap() {
 			k.pos(0, 0),
 			{
 				draw() {
+					if (activeNavigationTab !== "map") return
 					const node = roomNodeAt(k.mousePos())
 					if (!node || !canQuickJump(node)) return
 					const center = mapCanvas.pos.add(node.position.scale(zoom))
@@ -339,18 +447,21 @@ export function showTacticalMap() {
 	let pressedMousePos: Vec2 | undefined
 	inputControllers = [
 		k.onMousePress("left", () => {
+			if (activeNavigationTab !== "map") return
 			if (!viewport.isHovering()) return
 			dragging = true
 			previousMousePos = k.mousePos()
 			pressedMousePos = previousMousePos
 		}),
 		k.onMouseMove(() => {
+			if (activeNavigationTab !== "map") return
 			if (!dragging) return
 			const mousePos = k.mousePos()
 			mapCanvas.pos = mapCanvas.pos.add(mousePos.sub(previousMousePos))
 			previousMousePos = mousePos
 		}),
 		k.onMouseRelease("left", () => {
+			if (activeNavigationTab !== "map") return
 			const releasedAt = k.mousePos()
 			const clicked = pressedMousePos && pressedMousePos.dist(releasedAt) <= 6
 			dragging = false
@@ -363,6 +474,7 @@ export function showTacticalMap() {
 			})
 		}),
 		k.onScroll((delta) => {
+			if (activeNavigationTab !== "map") return
 			if (!viewport.isHovering()) return
 			const previousZoom = zoom
 			const zoomFactor = Math.exp(-delta.y * 0.12)
@@ -378,6 +490,7 @@ export function showTacticalMap() {
 			rememberZoom()
 		}),
 		k.onKeyPress("r", () => {
+			if (activeNavigationTab !== "map") return
 			zoom = fitScale
 			mapCanvas.scale = k.vec2(fitScale)
 			mapCanvas.pos = focusedMapPos(fitScale)
@@ -386,6 +499,7 @@ export function showTacticalMap() {
 	]
 
 	registerBatchedUiUpdate("modal", mapCanvas, () => {
+		if (activeNavigationTab !== "map") return
 		const panDirection = k.vec2(
 			(isInputActionDown("moveRight") ? 1 : 0) -
 				(isInputActionDown("moveLeft") ? 1 : 0),
@@ -393,13 +507,13 @@ export function showTacticalMap() {
 				(isInputActionDown("moveUp") ? 1 : 0)
 		)
 		if (panDirection.len() !== 0) {
-			mapCanvas.pos = mapCanvas.pos.add(panDirection.unit().scale(260 * k.dt()))
+			mapCanvas.pos = mapCanvas.pos.sub(panDirection.unit().scale(260 * k.dt()))
 		}
 	})
 
 	if (roomFloorSnapshot) {
 		addSublevelTree(
-			contentRoot,
+			mapContentRoot,
 			roomFloorSnapshot,
 			MAP_MARGIN,
 			viewportPos.y,
@@ -407,7 +521,7 @@ export function showTacticalMap() {
 			viewportSize.y
 		)
 		addRoomFloorSidebar(
-			contentRoot,
+			mapContentRoot,
 			roomFloorSnapshot,
 			sidebarX,
 			viewportPos.y,
@@ -416,7 +530,7 @@ export function showTacticalMap() {
 		)
 	} else if (!hubSnapshot) {
 		addZoneSidebar(
-			contentRoot,
+			mapContentRoot,
 			runSnapshot!.cells,
 			sidebarX,
 			viewportPos.y,
@@ -424,7 +538,7 @@ export function showTacticalMap() {
 			viewportSize.y
 		)
 	}
-	addThemedText(contentRoot, {
+	addThemedText(mapContentRoot, {
 		text: roomFloorSnapshot
 			? `CLICK CLEARED ROOM  QUICK JUMP     DRAG / ${movementBindingLabel()}  PAN     WHEEL  ZOOM     R  RESET     ${closeBindingLabel()}  CLOSE`
 			: `DRAG / ${movementBindingLabel()}  PAN     WHEEL  ZOOM     R  RESET     ${closeBindingLabel()}  CLOSE`,
@@ -432,6 +546,7 @@ export function showTacticalMap() {
 		variant: "muted",
 		width: k.width() - MAP_MARGIN * 2,
 	})
+	renderNavigationTab()
 
 	playUiModalOpen(backdrop, root, {
 		panelPos: k.center(),
@@ -495,6 +610,15 @@ function finishClosingTacticalMap() {
 	action?.()
 }
 
+function destroyUiChildren(parent: GameObj) {
+	for (const child of [...parent.children]) destroyUiTree(child)
+}
+
+function destroyUiTree(obj: GameObj) {
+	for (const child of [...obj.children]) destroyUiTree(child)
+	k.destroy(obj)
+}
+
 function createHubMapSnapshot(): HubMapSnapshot | undefined {
 	const player = k.get<GameObj>(tags.player)[0]
 	if (!player?.exists()) return undefined
@@ -507,7 +631,9 @@ function createHubMapSnapshot(): HubMapSnapshot | undefined {
 			kind: "core",
 			built: true,
 		},
-		...HUB_FACILITIES.map((facility) => ({
+		...HUB_FACILITIES
+			.filter((facility) => facility.id !== "trainingRange")
+			.map((facility) => ({
 			id: facility.id,
 			label: facility.name,
 			position: k.vec2(...HUB_FACILITY_OFFSETS[facility.id]),
@@ -571,8 +697,40 @@ interface RoomMapNode {
 }
 
 const ROOM_MAP_NODE_RADIUS = 28
-const ROOM_MAP_HEX_SIZE = 76
+const ROOM_MAP_HEX_SIZE = 96
 const ROOM_MAP_PADDING = 54
+
+function addCurrentRoomMarker(parent: GameObj, position: Vec2) {
+	const marker = parent.add([
+		k.pos(position),
+		k.z(30),
+		{
+			draw() {
+				const pulse = k.wave(0, 1, k.time() * 3.2)
+				k.drawCircle({
+					radius: k.lerp(34, 42, pulse),
+					fill: false,
+					opacity: k.lerp(0.95, 0.35, pulse),
+					outline: {
+						width: 2,
+						color: k.WHITE,
+					},
+				})
+			}
+		},
+	])
+	marker.add([
+		k.text("YOU ARE HERE", {
+			size: 8,
+			font: "unscii",
+		}),
+		k.pos(0, 48),
+		k.anchor("top"),
+		k.color(k.WHITE),
+		k.outline(2, k.BLACK),
+		k.z(31),
+	])
+}
 
 function rasterizeRoomFloorMap(snapshot: RoomFloor): RasterizedMap {
 	const rooms = snapshot.rooms.filter((room) => room.state !== "unseen")
@@ -665,7 +823,8 @@ function rasterizeRoomFloorMap(snapshot: RoomFloor): RasterizedMap {
 function roomMapRoomIsKeyLocked(room: RoomFloorRoom) {
 	const keyRequired = room.keyRequired === true ||
 		room.kind === "reward" ||
-		room.kind === "shop"
+		room.kind === "shop" ||
+		room.kind === "droneShop"
 	return keyRequired && room.keyUnlocked !== true
 }
 
@@ -740,6 +899,11 @@ function getRoomFloorKindCode(kind: RoomFloorKind) {
 		gravity: "G",
 		event: "!",
 		shop: "$",
+		droneShop: "R",
+		lassoComponent: "L",
+		scrapCircuit: "C",
+		cargoPuzzleSource: "C",
+		cargoPuzzleTarget: "O",
 		deposit: "D",
 		miniBoss: "M",
 		boss: "B",
@@ -757,6 +921,11 @@ function getRoomFloorKindLabel(kind: RoomFloorKind) {
 		gravity: "GRAVITY LINK",
 		event: "UNKNOWN SIGNAL",
 		shop: "SALVAGE EXCHANGE",
+		droneShop: "DRONE DEPOT",
+		lassoComponent: "TETHER SIGNAL",
+		scrapCircuit: "SCRAP CIRCUIT",
+		cargoPuzzleSource: "PHASE CARGO",
+		cargoPuzzleTarget: "DELIVERY",
 		deposit: "SALVAGE RELAY",
 		miniBoss: "MINI-BOSS",
 		boss: "COMMAND THREAT",
@@ -768,6 +937,12 @@ function getRoomFloorKindColor(kind: RoomFloorKind) {
 	if (kind === "combat" || kind === "miniBoss" || kind === "boss") return k.rgb(...UI_COLORS.danger)
 	if (kind === "health" || kind === "deposit") return k.rgb(...UI_COLORS.success)
 	if (kind === "reward" || kind === "shop") return k.rgb(255, 190, 55)
+	if (kind === "droneShop") return k.rgb(90, 190, 255)
+	if (kind === "lassoComponent") return k.rgb(...UI_COLORS.warning)
+	if (kind === "scrapCircuit") return k.rgb(...UI_COLORS.accent)
+	if (kind === "cargoPuzzleSource" || kind === "cargoPuzzleTarget") {
+		return k.rgb(...UI_COLORS.accent)
+	}
 	if (kind === "gravity" || kind === "shrine") return k.rgb(185, 80, 255)
 	if (kind === "exit") return k.rgb(...UI_COLORS.accent)
 	if (kind === "event") return k.rgb(255, 145, 45)
@@ -781,6 +956,71 @@ function getRoomFloorStateLabel(state: RoomFloorState) {
 		active: "CURRENT",
 		cleared: "CLEARED",
 	}[state]
+}
+
+function createRoomDirectoryEntries(
+	rooms: RoomFloorRoom[],
+	currentRoomId: string
+) {
+	const grouped = new Map<string, RoomDirectoryEntry>()
+	for (const room of rooms) {
+		const current = room.id === currentRoomId
+		const typeHidden =
+			room.state === "discovered" && room.mapIdentityRevealed !== true
+		const key = current
+			? `current:${room.id}`
+			: typeHidden
+				? "hidden"
+				: `kind:${room.kind}`
+		const existing = grouped.get(key)
+		if (existing) {
+			existing.rooms.push(room)
+			continue
+		}
+		grouped.set(key, {
+			rooms: [room],
+			typeHidden,
+			current,
+		})
+	}
+	return Array.from(grouped.values()).sort((a, b) => {
+		if (a.current !== b.current) return a.current ? -1 : 1
+		const aDepth = Math.min(...a.rooms.map((room) => room.distanceFromStart))
+		const bDepth = Math.min(...b.rooms.map((room) => room.distanceFromStart))
+		return aDepth - bDepth || a.rooms[0].id.localeCompare(b.rooms[0].id)
+	})
+}
+
+function getRoomDirectoryStateText(rooms: RoomFloorRoom[]) {
+	const depths = rooms.map((room) => room.distanceFromStart)
+	const minimumDepth = Math.min(...depths)
+	const maximumDepth = Math.max(...depths)
+	const depthLabel = minimumDepth === maximumDepth
+		? `${minimumDepth}`
+		: `${minimumDepth}-${maximumDepth}`
+	if (rooms.length === 1) {
+		const room = rooms[0]
+		const state = room.kind === "deposit" && room.contentCompleted
+			? "SPENT"
+			: getRoomFloorStateLabel(room.state)
+		return `${state}  //  DEPTH ${depthLabel}`
+	}
+	const spentCount = rooms.filter(
+		(room) => room.kind === "deposit" && room.contentCompleted
+	).length
+	if (spentCount > 0) {
+		const state = spentCount === rooms.length
+			? "SPENT"
+			: `${spentCount}/${rooms.length} SPENT`
+		return `${state}  //  DEPTH ${depthLabel}`
+	}
+	const clearedCount = rooms.filter((room) => room.state === "cleared").length
+	const state = clearedCount === rooms.length
+		? "CLEARED"
+		: clearedCount > 0
+			? `${clearedCount}/${rooms.length} CLEARED`
+			: "DISCOVERED"
+	return `${state}  //  DEPTH ${depthLabel}`
 }
 
 function createMapGeometry(cells: GeneratedRunMapCell[]) {
@@ -1264,13 +1504,10 @@ function addRoomFloorSidebar(
 		title: "KNOWN ROOMS",
 	})
 
-	const rooms = snapshot.rooms
-		.filter((room) => room.state !== "unseen")
-		.sort((a, b) => {
-			if (a.id === snapshot.currentRoomId) return -1
-			if (b.id === snapshot.currentRoomId) return 1
-			return a.distanceFromStart - b.distanceFromStart || a.id.localeCompare(b.id)
-		})
+	const entries = createRoomDirectoryEntries(
+		snapshot.rooms.filter((room) => room.state !== "unseen"),
+		snapshot.currentRoomId
+	)
 	const scrollY = y + 52
 	const scrollHeight = height - 56
 	const rowHeight = 46
@@ -1279,31 +1516,35 @@ function addRoomFloorSidebar(
 		pos: k.vec2(x, scrollY),
 		width,
 		height: scrollHeight,
-		contentHeight: Math.max(scrollHeight, rooms.length * rowHeight + 12),
+		contentHeight: Math.max(scrollHeight, entries.length * rowHeight + 12),
 		scrollStep: rowHeight,
 		tags: [tags.tacticalMap],
 	})
 
-	rooms.forEach((room, index) => {
+	entries.forEach((entry, index) => {
+		const room = entry.rooms[0]
 		const yPos = 8 + index * rowHeight
-		const typeHidden =
-			room.state === "discovered" && room.mapIdentityRevealed !== true
-		const color = room.state === "active"
+		const allDiscovered = entry.rooms.every(
+			(candidate) => candidate.state === "discovered"
+		)
+		const color = entry.current
 			? k.rgb(...UI_COLORS.accent)
-			: typeHidden
+			: entry.typeHidden
 				? k.rgb(...UI_COLORS.muted)
 				: getRoomFloorKindColor(room.kind)
 		zoneScroll!.content.add([
 			k.rect(6, 32),
 			k.pos(7, yPos),
 			k.color(color),
-			k.opacity(room.state === "discovered" ? 0.65 : 1),
+			k.opacity(allDiscovered ? 0.65 : 1),
 		])
 		zoneScroll!.content.add([
 			k.text(
-				typeHidden
+				`${entry.typeHidden
 					? "?  UNKNOWN ROOM"
-					: `${getRoomFloorKindCode(room.kind)}  ${getRoomFloorKindLabel(room.kind)}`,
+					: `${getRoomFloorKindCode(room.kind)}  ${getRoomFloorKindLabel(room.kind)}`}${entry.rooms.length > 1
+					? `  x${entry.rooms.length}`
+					: ""}`,
 				{
 					size: UI_FONT_SIZES.small,
 					font: "unscii",
@@ -1311,13 +1552,11 @@ function addRoomFloorSidebar(
 				}
 			),
 			k.pos(19, yPos),
-			k.color(room.state === "discovered" ? k.rgb(...UI_COLORS.muted) : color),
+			k.color(allDiscovered ? k.rgb(...UI_COLORS.muted) : color),
 		])
 		zoneScroll!.content.add([
 			k.text(
-				`${room.kind === "deposit" && room.contentCompleted
-					? "SPENT"
-					: getRoomFloorStateLabel(room.state)}  //  DEPTH ${room.distanceFromStart}`,
+				getRoomDirectoryStateText(entry.rooms),
 				{
 					size: UI_FONT_SIZES.tiny,
 					font: "unscii",

@@ -226,6 +226,14 @@ export async function init(k: KAPLAYCtx) {
 			`sprites/asteroids/asteroid-${number}.png`
 		)
 	}
+	for (const size of [16, 32]) {
+		for (const variant of ["a", "b", "c"]) {
+			await k.loadSprite(
+				`rock_fragment_${size}_${variant}`,
+				`sprites/asteroids/fragments/rock-${size}-${variant}.png`
+			)
+		}
+	}
 	await k.loadSprite(
 		"foliage_void_fern",
 		"sprites/bg/foliage/foliage-void-fern.png"
@@ -454,6 +462,7 @@ export async function init(k: KAPLAYCtx) {
 		"boomerang_payload_upg1",
 		"growing_charge_upg1",
 		"stasis_burst_upg1",
+		"stun_rounds_upg1",
 		"volatile_corrosion_upg1",
 		"critical_shatter_upg1",
 		"execution_rounds_upg1",
@@ -464,6 +473,10 @@ export async function init(k: KAPLAYCtx) {
 	for (const sprite of projectileBehaviorSprites) {
 		await k.loadSprite(sprite, `sprites/upgrades/${sprite}.png`);
 	}
+	await k.loadSprite(
+		"phase_recall_upg1",
+		"sprites/upgrades/phase_recall_upg1.png"
+	);
 	await k.loadSprite("start_run", "sprites/upgrades/start_run.png");
 	const systemUpgradeSprites = [
 		"phase_echo_upg1",
@@ -572,9 +585,33 @@ export async function init(k: KAPLAYCtx) {
 		"wake_fuel_cell",
 		"sprites/rooms/environment/wake-fuel-cell.png"
 	)
+	await k.loadSprite(
+		"room_tesla_coil",
+		"sprites/rooms/tesla-coil.png"
+	)
 	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
 
 	await loadAudioAssets(k)
+
+	k.loadShader(
+		"visualHitKnockback",
+		`
+		uniform vec2 u_visualHitOffset;
+
+		vec4 vert(vec2 pos, vec2 uv, vec4 color) {
+			vec4 worldPos = transform * vec4(pos, 0.0, 1.0);
+			worldPos.xy += u_visualHitOffset;
+			vec4 projected = camera * worldPos;
+			return vec4(
+				projected.x / width * 2.0 - 1.0,
+				projected.y / -height * 2.0 + 1.0,
+				projected.z,
+				projected.w
+			);
+		}
+		`,
+		null
+	)
 
 	k.loadShader(
 		"wormholeLighting",
@@ -754,6 +791,7 @@ export async function init(k: KAPLAYCtx) {
 		["enemy_wake_boiler_hulk_core", "sprites/enemies/wake/boiler-hulk-core.png"],
 		["enemy_wake_boiler_hulk_scoop", "sprites/enemies/wake/boiler-hulk-scoop.png"],
 		["enemy_wake_boiler_hulk_vent", "sprites/enemies/wake/boiler-hulk-vent.png"],
+		["enemy_wake_boiler_hulk_mortar", "sprites/enemies/wake/boiler-hulk-mortar.png"],
 	] as const
 	for (const [name, path] of heavyWakeEnemySprites) {
 		await k.loadSprite(name, path)
@@ -807,6 +845,10 @@ export async function init(k: KAPLAYCtx) {
 		"wreck_harvester_upg1",
 		"sprites/upgrades/wreck_harvester_upg1.png"
 	)
+	await k.loadSprite(
+		"salvage_lasso",
+		"sprites/upgrades/salvage_lasso.png"
+	)
 
 	await k.loadSprite("boss1_body", "sprites/boss/boss1/boss1_body.png");
 	await k.loadSprite(
@@ -823,6 +865,12 @@ export async function init(k: KAPLAYCtx) {
 	)
 	await k.loadSprite("boss1_blaster", "sprites/boss/boss1/boss1_blaster.png");
 	await k.loadSprite("boss1_head", "sprites/boss/boss1/boss1_head.png");
+	// This 64x48 facility prop sits after the gameplay sprite groups so its
+	// dimensions cannot disturb their automatic atlas packing.
+	await k.loadSprite(
+		"cargo_receiver_station",
+		"sprites/bg/building1.png"
+	)
 
 	// Load timescale zone shader
 	k.loadShader(

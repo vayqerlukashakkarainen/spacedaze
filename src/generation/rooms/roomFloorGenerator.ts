@@ -35,8 +35,11 @@ export function generateRoomFloor(
 	options: RoomFloorGenerationOptions = {}
 ): RoomFloor {
 	const normalizedDepth = Math.max(1, Math.floor(depth))
+	const endlessRoomLimit = options.maxRoomCount === undefined
+		? 8
+		: Math.max(3, Math.floor(options.maxRoomCount))
 	const targetCount = options.endless
-		? clamp(options.roomCount ?? 4, 3, 8)
+		? clamp(options.roomCount ?? 4, 3, endlessRoomLimit)
 		: clamp(
 			options.roomCount ?? MIN_ROOMS +
 				(normalizedDepth - 1) * ROOM_COUNT_STEP,
@@ -49,15 +52,19 @@ export function generateRoomFloor(
 	const distances = calculateDistances(coords, connections)
 	const exitIndex = selectFarthestRoom(coords, distances)
 	const floorPosition = getFloorPositionForDepth(normalizedDepth)
-	const kinds = assignRoomKinds(
+	const assignment = assignRoomKinds(
 		coords,
 		connections,
 		distances,
 		exitIndex,
 		options.milestoneBoss === true,
 		floorPosition.subfloor >= 2,
+		options.lassoComponentAvailable === true,
+		options.scrapCircuitAvailable === true,
+		options.cargoPuzzleAvailable === true,
 		rng
 	)
+	const kinds = assignment.kinds
 	if (options.endless) {
 		kinds.fill("combat")
 		kinds[0] = "start"
@@ -78,7 +85,7 @@ export function generateRoomFloor(
 			connections: connections[index].map((neighborIndex) => roomId(coords[neighborIndex])),
 			state: index === 0 ? "active" : connections[index].includes(0) ? "discovered" : "unseen",
 			contentCompleted: false,
-			keyRequired: kind === "reward" || kind === "shop",
+			keyRequired: kind === "reward" || kind === "shop" || kind === "droneShop",
 			keyUnlocked: false,
 			encounter: roomUsesStandardEncounter(kind)
 				? createEncounterPlan(
@@ -102,12 +109,21 @@ export function generateRoomFloor(
 		depth: normalizedDepth,
 		themeId,
 		endless: options.endless === true,
+		maxRoomCount: options.maxRoomCount,
 		hubLevel: options.hubLevel ?? 1,
 		startRoomId: rooms[0].id,
 		exitRoomId: rooms[exitIndex].id,
 		currentRoomId: rooms[0].id,
 		keys: 0,
 		rooms,
+		cargoPuzzles: assignment.cargoPuzzle
+			? [{
+				id: `cargo-${seed}-${normalizedDepth}`,
+				sourceRoomId: rooms[assignment.cargoPuzzle.sourceIndex].id,
+				targetRoomId: rooms[assignment.cargoPuzzle.targetIndex].id,
+				socketActivated: false,
+			}]
+			: [],
 	}
 }
 
@@ -116,6 +132,10 @@ export function extendEndlessRoomFloor(
 	fromRoomId: string
 ) {
 	if (!floor.endless) return []
+	if (
+		floor.maxRoomCount !== undefined &&
+		floor.rooms.length >= floor.maxRoomCount
+	) return []
 	const source = floor.rooms.find((room) => room.id === fromRoomId)
 	if (!source) return []
 	const hasForwardConnection = source.connections.some((connectionId) => {
@@ -138,7 +158,13 @@ export function extendEndlessRoomFloor(
 	const branchCount = candidates.length > 1 && rng.nextBool(0.3) ? 2 : 1
 	const addedRooms: RoomFloorRoom[] = []
 
-	for (const coord of candidates.slice(0, branchCount)) {
+	const remainingRoomCount = floor.maxRoomCount === undefined
+		? branchCount
+		: Math.max(0, floor.maxRoomCount - floor.rooms.length)
+	for (const coord of candidates.slice(
+		0,
+		Math.min(branchCount, remainingRoomCount)
+	)) {
 		const id = roomId(coord)
 		const adjacentRooms = floor.rooms.filter((room) =>
 			hexDistance(room.coord, coord) === 1
@@ -274,6 +300,9 @@ function assignRoomKinds(
 	exitIndex: number,
 	milestoneBoss: boolean,
 	allowMiniBoss: boolean,
+	allowLassoComponent: boolean,
+	allowScrapCircuit: boolean,
+	allowCargoPuzzle: boolean,
 	rng: SeededRNG
 ) {
 	const kinds = coords.map((): RoomFloorKind => "combat")
@@ -287,6 +316,7 @@ function assignRoomKinds(
 		.sort((a, b) => distances[b] - distances[a])
 	const used = new Set([0, exitIndex])
 	const optionalLockedRooms = candidates.filter((index) =>
+		distances[index] >= 2 &&
 		hasPathAvoidingRooms(connections, 0, exitIndex, [index])
 	)
 	const takeRoom = (
@@ -312,6 +342,48 @@ function assignRoomKinds(
 	)
 	const shop = takeRoom(true, shopCandidates)
 	if (shop !== undefined) kinds[shop] = "shop"
+	const droneShopCandidates = optionalLockedRooms.filter((index) =>
+		(reward === undefined || index !== reward) &&
+		(shop === undefined || index !== shop) &&
+		hasPathAvoidingRooms(
+			connections,
+			0,
+			exitIndex,
+			[reward, shop, index].filter((room): room is number => room !== undefined)
+		)
+	)
+	const droneShop = takeRoom(true, droneShopCandidates)
+	if (droneShop !== undefined) kinds[droneShop] = "droneShop"
+	if (allowLassoComponent && rng.nextBool(0.35)) {
+		const lassoComponent = takeRoom(true)
+		if (lassoComponent !== undefined) kinds[lassoComponent] = "lassoComponent"
+	}
+	if (allowScrapCircuit && rng.nextBool(0.55)) {
+		const scrapCircuit = takeRoom(true)
+		if (scrapCircuit !== undefined) kinds[scrapCircuit] = "scrapCircuit"
+	}
+	let cargoPuzzle: { sourceIndex: number; targetIndex: number } | undefined
+	if (allowCargoPuzzle && rng.nextBool(0.45)) {
+		const sourceCandidates = rng.shuffle(candidates.filter((index) =>
+			!used.has(index) && connections[index].some((neighbor) =>
+				candidates.includes(neighbor) && !used.has(neighbor)
+			)
+		))
+		const sourceIndex = sourceCandidates[0]
+		if (sourceIndex !== undefined) {
+			const targetCandidates = rng.shuffle(connections[sourceIndex].filter(
+				(index) => candidates.includes(index) && !used.has(index)
+			)).sort((a, b) => distances[b] - distances[a])
+			const targetIndex = targetCandidates[0]
+			if (targetIndex !== undefined) {
+				used.add(sourceIndex)
+				used.add(targetIndex)
+				kinds[sourceIndex] = "cargoPuzzleSource"
+				kinds[targetIndex] = "cargoPuzzleTarget"
+				cargoPuzzle = { sourceIndex, targetIndex }
+			}
+		}
+	}
 	const support = takeRoom(false)
 	if (support !== undefined) kinds[support] = rng.choice(["health", "shrine"])
 	const gravityA = takeRoom(true)
@@ -333,7 +405,7 @@ function assignRoomKinds(
 		const deposit = takeRoom(true)
 		if (deposit !== undefined) kinds[deposit] = "deposit"
 	}
-	return kinds
+	return { kinds, cargoPuzzle }
 }
 
 function hasPathAvoidingRooms(
@@ -360,7 +432,9 @@ function roomUsesStandardEncounter(kind: RoomFloorKind) {
 	return kind === "combat" ||
 		kind === "reward" ||
 		kind === "gravity" ||
-		kind === "event"
+		kind === "event" ||
+		kind === "lassoComponent" ||
+		kind === "cargoPuzzleSource"
 }
 
 function createEncounterPlan(

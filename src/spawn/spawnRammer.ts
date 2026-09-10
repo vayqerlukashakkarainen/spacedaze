@@ -1,6 +1,6 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
-import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
+import { k, mainSoundVolume, velocityScale } from "../main"
 import { emitEnemyTrail, starsEmitterDir, trailEmitter } from "../particles"
 import { gameSoundService } from "../services/audio/gameSoundService"
 import { applyDamage } from "../services/combat/damageService"
@@ -312,9 +312,11 @@ export function spawnRammer(
 			profile.rewardMultiplier,
 			"enemy",
 			true,
-			{ tier: profile.elite ? "elite" : "normal" }
+			{
+				tier: profile.elite ? "elite" : "normal",
+				material: "ship",
+			}
 		)
-		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(rammer)
 	})
 	rammer.onHurt(() => {

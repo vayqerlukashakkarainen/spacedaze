@@ -45,6 +45,11 @@ import {
 import { gameSoundService } from "../services/audio/gameSoundService"
 import { getRunLevelSnapshot } from "../services/runs/runLevelService";
 import { createUiProgressBar } from "./common/progressBar";
+import {
+	drawRewardTypeFrame,
+	getRewardTypeShape,
+	type RewardTypeShape,
+} from "./common/rewardTypeFrame";
 import { hideRunLevelChoice, showRunLevelChoice } from "./runLevelChoice";
 import { RewardRarity } from "../types/rewardTypes";
 import {
@@ -88,11 +93,16 @@ const collectedItems = new Map<
 	string,
 	{
 		count: number;
-		countLabel: GameObj;
+		countText: string;
 		reward: Reward;
 		tile: GameObj;
-		icon: GameObj;
-		statusLabel: GameObj;
+		shape: RewardTypeShape;
+		frameColor: Color;
+		iconSize: number;
+		iconScale: number;
+		iconOpacity: number;
+		statusText: string;
+		statusColor: Color;
 		lastProcSerial: number;
 	}
 >();
@@ -408,7 +418,14 @@ export function setupGameLoopUi(health: number, missilesUnlocked = false) {
 		tags: [tags.gameLoopUi],
 		frameless: true,
 	});
-	loadoutIconsContainer = runLoadoutPanel.add([k.pos(0, 0)]);
+	loadoutIconsContainer = runLoadoutPanel.add([
+		k.pos(0, 0),
+		{
+			draw() {
+				drawCollectedUpgrades();
+			},
+		},
+	]);
 	registerBatchedUiUpdate("hud", runLoadoutPanel, updateStackingRewardFeedback);
 
 }
@@ -846,15 +863,13 @@ export function addCollectedPowerup(
 	if (existing) {
 		const replacesLoadoutSlot = reward.weaponId || reward.activeModuleId;
 		existing.count = replacesLoadoutSlot ? 1 : existing.count + 1;
+		existing.countText = `x${existing.count}`;
 		existing.reward = reward;
 		if (replacesLoadoutSlot) {
-			existing.icon.use(k.sprite(reward.sprite, {
-				width: 22 * HUD_SCALE,
-				height: 22 * HUD_SCALE,
-			}));
+			existing.iconSize = 22 * HUD_SCALE;
 		}
-		existing.tile.outline.color = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
-		existing.countLabel.text = `x${existing.count}`;
+		existing.shape = getRewardTypeShape(reward.kind, reward.abilitySlot);
+		existing.frameColor = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
 		if (existing.tile.isHovering()) {
 			showRewardTooltip(
 				collectionKey,
@@ -869,46 +884,25 @@ export function addCollectedPowerup(
 	if (!runLoadoutPanel || !loadoutIconsContainer) {
 		return;
 	}
-	const rarityColor = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
 	const tileSize = upgradeTileSize * HUD_SCALE;
 	const tile = loadoutIconsContainer.add([
-		k.rect(tileSize, tileSize),
-		k.color(...UI_COLORS.panel),
-		k.opacity(0.88),
-		k.outline(1, rarityColor),
 		k.pos(0, 0),
-		k.anchor("center"),
 		uiHitRegion(k.vec2(tileSize), true),
-	]);
-	const icon = tile.add([
-		k.sprite(reward.sprite, { width: 20 * HUD_SCALE, height: 20 * HUD_SCALE }),
-		k.pos(0, 0),
-		k.anchor("center"),
-		k.color(k.WHITE),
-		k.opacity(1),
-		k.scale(1),
-	]);
-	const statusLabel = tile.add([
-		k.text("", { size: UI_FONT_SIZES.tiny * HUD_SCALE, font: "unscii" }),
-		k.pos(-tileSize / 2 + 2, -tileSize / 2 + 2),
-		k.anchor("topleft"),
-		k.color(...UI_COLORS.accent),
-	]);
-	const countLabel = tile.add([
-		k.text("x1", { size: UI_FONT_SIZES.tiny * HUD_SCALE, font: "unscii" }),
-		k.pos(tileSize / 2 - 1, tileSize / 2 - 1),
-		k.anchor("center"),
-		k.color(k.WHITE),
 	]);
 
 	const feedback = getStackingRewardFeedbackSnapshot();
 	const collectedItem = {
 		count: 1,
-		countLabel,
+		countText: "x1",
 		reward,
 		tile,
-		icon,
-		statusLabel,
+		shape: getRewardTypeShape(reward.kind, reward.abilitySlot),
+		frameColor: k.rgb(...REWARD_RARITY_COLORS[reward.rarity]),
+		iconSize: 20 * HUD_SCALE,
+		iconScale: 1,
+		iconOpacity: 1,
+		statusText: "",
+		statusColor: k.rgb(...UI_COLORS.accent),
 		lastProcSerial: getStackingRewardProcSerial(collectionKey, feedback),
 	};
 	collectedItems.set(collectionKey, collectedItem);
@@ -935,20 +929,19 @@ function updateStackingRewardFeedback() {
 		const procSerial = getStackingRewardProcSerial(key, snapshot);
 		if (procSerial > item.lastProcSerial) {
 			item.lastProcSerial = procSerial;
-			item.icon.scale = k.vec2(1.35);
+			item.iconScale = 1.35;
 		}
-		const nextScale = k.lerp(
-			item.icon.scale.x,
+		item.iconScale = k.lerp(
+			item.iconScale,
 			1,
 			k.clamp(k.dt() * 12, 0, 1)
 		);
-		item.icon.scale = k.vec2(nextScale);
 
 		if (key === "phaseCounter") {
-			item.statusLabel.text =
+			item.statusText =
 				`${snapshot.phaseCounterCharge}/${snapshot.phaseCounterCapacity}`;
-			item.statusLabel.color = k.rgb(...UI_COLORS.accent);
-			item.icon.opacity = snapshot.phaseCounterCharge > 0
+			item.statusColor = k.rgb(...UI_COLORS.accent);
+			item.iconOpacity = snapshot.phaseCounterCharge > 0
 				? k.wave(0.72, 1, k.time() * 8)
 				: 0.42;
 			continue;
@@ -959,23 +952,76 @@ function updateStackingRewardFeedback() {
 				? 1
 				: 1 - snapshot.resonanceCooldownRemaining /
 					snapshot.resonanceCooldownDuration;
-			item.statusLabel.text = ready
+			item.statusText = ready
 				? "RDY"
 				: `${Math.ceil(snapshot.resonanceCooldownRemaining)}s`;
-			item.statusLabel.color = k.rgb(
+			item.statusColor = k.rgb(
 				...(ready ? UI_COLORS.accent : UI_COLORS.muted)
 			);
-			item.icon.opacity = ready
+			item.iconOpacity = ready
 				? k.wave(0.72, 1, k.time() * 7)
 				: 0.25 + k.clamp(cooldownProgress, 0, 1) * 0.5;
 			continue;
 		}
 		if (key === "threatReactor") {
-			item.statusLabel.text = `T+${snapshot.threatTierBonus}`;
-			item.statusLabel.color = k.rgb(...UI_COLORS.danger);
+			item.statusText = `T+${snapshot.threatTierBonus}`;
+			item.statusColor = k.rgb(...UI_COLORS.danger);
 			continue;
 		}
-		item.statusLabel.text = "";
+		item.statusText = "";
+		item.iconOpacity = 1;
+	}
+}
+
+function drawCollectedUpgrades() {
+	const tileSize = upgradeTileSize * HUD_SCALE;
+	for (const item of collectedItems.values()) {
+		drawRewardTypeFrame({
+			pos: item.tile.pos,
+			size: tileSize,
+			shape: item.shape,
+			color: item.frameColor,
+			fillOpacity: 0.12,
+			outlineOpacity: 0.9,
+			lineWidth: 1,
+		});
+	}
+	for (const item of collectedItems.values()) {
+		k.drawSprite({
+			sprite: item.reward.sprite,
+			pos: item.tile.pos,
+			width: item.iconSize,
+			height: item.iconSize,
+			anchor: "center",
+			color: k.WHITE,
+			opacity: item.iconOpacity,
+			scale: k.vec2(item.iconScale),
+		});
+	}
+	for (const item of collectedItems.values()) {
+		if (item.statusText) {
+			k.drawText({
+				text: item.statusText,
+				font: "unscii",
+				size: UI_FONT_SIZES.tiny * HUD_SCALE,
+				pos: k.vec2(
+					item.tile.pos.x - tileSize / 2 + 2,
+					item.tile.pos.y - tileSize / 2 + 2
+				),
+				color: item.statusColor,
+			});
+		}
+		k.drawText({
+			text: item.countText,
+			font: "unscii",
+			size: UI_FONT_SIZES.tiny * HUD_SCALE,
+			pos: k.vec2(
+				item.tile.pos.x + tileSize / 2 - 1,
+				item.tile.pos.y + tileSize / 2 - 1
+			),
+			anchor: "center",
+			color: k.WHITE,
+		});
 	}
 }
 

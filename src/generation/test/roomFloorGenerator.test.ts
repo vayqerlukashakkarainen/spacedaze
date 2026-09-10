@@ -85,10 +85,15 @@ for (let seed = 1; seed <= 200; seed++) {
 	const depositCount = floor.rooms.filter((room) => room.kind === "deposit").length
 	assert(depositCount >= 1 && depositCount <= 2, `Seed ${seed} needs one or two deposit rooms`)
 	assert(floor.rooms.filter((room) => room.kind === "shop").length === 1, `Seed ${seed} needs one shop room`)
+	assert(floor.rooms.filter((room) => room.kind === "droneShop").length === 1, `Seed ${seed} needs one drone shop room`)
 	const lockedRooms = floor.rooms.filter((room) => room.keyRequired)
-	assert(lockedRooms.length === 2, `Seed ${seed} needs two locked rooms`)
+	assert(lockedRooms.length === 3, `Seed ${seed} needs three locked rooms`)
 	assert(
-		lockedRooms.every((room) => room.kind === "reward" || room.kind === "shop"),
+		lockedRooms.every((room) =>
+			room.kind === "reward" ||
+			room.kind === "shop" ||
+			room.kind === "droneShop"
+		),
 		`Seed ${seed} locks a non-treasure room`
 	)
 	assert(
@@ -158,6 +163,92 @@ for (let seed = 1; seed <= 200; seed++) {
 		assert(enemyIds.size === room.encounter!.enemies.length, `${room.id} has duplicate enemy ids`)
 	}
 }
+
+const lassoEligibleFloors = Array.from({ length: 200 }, (_, index) =>
+	generateRoomFloor(index + 1, 2, { lassoComponentAvailable: true })
+)
+assert(
+	lassoEligibleFloors.some((floor) =>
+		floor.rooms.some((room) => room.kind === "lassoComponent")
+	),
+	"Eligible floors should have a chance to generate a lasso component room"
+)
+assert(
+	lassoEligibleFloors.every((floor) =>
+		floor.rooms.filter((room) => room.kind === "lassoComponent").length <= 1
+	),
+	"A floor should never contain multiple lasso component rooms"
+)
+assert(
+	lassoEligibleFloors.flatMap((floor) => floor.rooms)
+		.filter((room) => room.kind === "lassoComponent")
+		.every((room) => room.encounter !== undefined),
+	"Lasso component rooms should require clearing an encounter"
+)
+assert(
+	!generateRoomFloor(1, 2).rooms.some(
+		(room) => room.kind === "lassoComponent"
+	),
+	"The lasso component room should not generate before it is eligible"
+)
+
+const scrapCircuitEligibleFloors = Array.from({ length: 200 }, (_, index) =>
+	generateRoomFloor(index + 1, 2, { scrapCircuitAvailable: true })
+)
+assert(
+	scrapCircuitEligibleFloors.some((floor) =>
+		floor.rooms.some((room) => room.kind === "scrapCircuit")
+	),
+	"Lasso-enabled floors should have a chance to generate a scrap circuit"
+)
+assert(
+	scrapCircuitEligibleFloors.every((floor) =>
+		floor.rooms.filter((room) => room.kind === "scrapCircuit").length <= 1
+	),
+	"A floor should never contain multiple scrap circuit rooms"
+)
+assert(
+	scrapCircuitEligibleFloors.flatMap((floor) => floor.rooms)
+		.filter((room) => room.kind === "scrapCircuit")
+		.every((room) => room.encounter === undefined),
+	"Scrap circuits should remain dedicated puzzle rooms without encounters"
+)
+assert(
+	!generateRoomFloor(1, 2).rooms.some(
+		(room) => room.kind === "scrapCircuit"
+	),
+	"Scrap circuits should not generate before the permanent lasso is unlocked"
+)
+
+const cargoEligibleFloors = Array.from({ length: 240 }, (_, index) =>
+	generateRoomFloor(9000 + index, 2, { cargoPuzzleAvailable: true })
+)
+assert(
+	cargoEligibleFloors.some((floor) => floor.cargoPuzzles.length === 1),
+	"Lasso owners should have a chance to generate a cargo puzzle"
+)
+assert(
+	cargoEligibleFloors.every((floor) => floor.cargoPuzzles.length <= 1),
+	"A floor should never contain multiple cargo puzzles"
+)
+for (const floor of cargoEligibleFloors) {
+	const puzzle = floor.cargoPuzzles[0]
+	if (!puzzle) continue
+	const source = floor.rooms.find((room) => room.id === puzzle.sourceRoomId)
+	const target = floor.rooms.find((room) => room.id === puzzle.targetRoomId)
+	assert(source?.kind === "cargoPuzzleSource", "Cargo puzzle needs a source room")
+	assert(target?.kind === "cargoPuzzleTarget", "Cargo puzzle needs a target room")
+	assert(
+		source!.connections.includes(target!.id),
+		"Cargo puzzle source and socket rooms must be directly connected"
+	)
+	assert(source!.encounter !== undefined, "Cargo should be secured by an encounter")
+	assert(target!.encounter === undefined, "The cargo socket room should be safe")
+}
+assert(
+	generateRoomFloor(9000, 2).cargoPuzzles.length === 0,
+	"Cargo puzzles must not generate before the lasso is owned"
+)
 
 const expectedRoomCounts = [20, 24, 28, 32, 32]
 for (let depth = 1; depth <= expectedRoomCounts.length; depth++) {
@@ -231,6 +322,69 @@ for (const room of endlessFloor.rooms) {
 		)
 	}
 }
+
+const cappedEndlessFloor = generateRoomFloor(1933, 1, {
+	endless: true,
+	roomCount: 100,
+	maxRoomCount: 100,
+	hubLevel: 1,
+})
+assert(
+	cappedEndlessFloor.rooms.length === 100,
+	"Capped endless floors should support a large pre-generated room count"
+)
+const concussionPlateRooms = cappedEndlessFloor.rooms.filter((room) =>
+	room.environment?.objects.some(
+		(object) => object.archetypeId === "wake-concussion-plate"
+	)
+)
+assert(
+	concussionPlateRooms.length > 0,
+	"Long Wake floors should generate concussion plate rooms"
+)
+assert(
+	concussionPlateRooms.every((room) => room.distanceFromStart >= 2),
+	"Concussion plates should not appear in the opening rooms"
+)
+const slowdownPlateRooms = cappedEndlessFloor.rooms.filter((room) =>
+	room.environment?.objects.some(
+		(object) => object.archetypeId === "wake-slowdown-plate"
+	)
+)
+assert(
+	slowdownPlateRooms.length > 0,
+	"Long Wake floors should generate slowdown plate rooms"
+)
+assert(
+	slowdownPlateRooms.every((room) => room.distanceFromStart >= 2),
+	"Slowdown plates should not appear in the opening rooms"
+)
+const teslaCoilRooms = cappedEndlessFloor.rooms.filter((room) =>
+	room.environment?.objects.some(
+		(object) => object.archetypeId === "wake-tesla-coil"
+	)
+)
+assert(
+	teslaCoilRooms.length > 0,
+	"Long Wake floors should generate Tesla coil rooms"
+)
+assert(
+	teslaCoilRooms.every((room) => room.kind === "combat"),
+	"Tesla coils should only generate in ordinary combat rooms"
+)
+const cappedFrontier = cappedEndlessFloor.rooms.find((room) =>
+	!room.connections.some((connectionId) => {
+		const neighbor = cappedEndlessFloor.rooms.find(
+			(candidate) => candidate.id === connectionId
+		)
+		return neighbor && neighbor.distanceFromStart > room.distanceFromStart
+	})
+)
+assert(cappedFrontier !== undefined, "Capped endless floor should have a frontier")
+assert(
+	extendEndlessRoomFloor(cappedEndlessFloor, cappedFrontier!.id).length === 0,
+	"Capped endless floors should stop expanding at their room limit"
+)
 
 function hasRouteAvoidingRooms(
 	startId: string,

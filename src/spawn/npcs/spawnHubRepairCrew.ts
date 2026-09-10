@@ -1,4 +1,5 @@
 import type { Vec2 } from "kaplay"
+import { isSnareMotionActive, snareable } from "../../comp/snareable"
 import { k, layers } from "../../main"
 import { tags } from "../../tags"
 
@@ -26,6 +27,7 @@ export function spawnHubRepairCrew(phaseStationPos: Vec2): HubRepairCrew {
 		let patrolDuration = k.rand(1.8, 3.2)
 		let patrolPause = 0
 		let wasRepairing = false
+		let wasLassoControlled = false
 
 		function beginPatrolFrom(pos: Vec2) {
 			patrolStart = pos.clone()
@@ -43,8 +45,24 @@ export function spawnHubRepairCrew(phaseStationPos: Vec2): HubRepairCrew {
 			k.opacity(0.92),
 			k.layer(layers.game2),
 			k.z(-1),
+			snareable({
+				mass: 0.65,
+				radius: 9,
+				releaseDrag: 3,
+				returnAfterRelease: true,
+				returnSpeed: 115,
+			}),
 			{
 				update() {
+					if (isSnareMotionActive(this)) {
+						wasLassoControlled = true
+						return
+					}
+					if (wasLassoControlled) {
+						wasLassoControlled = false
+						wasRepairing = false
+						beginPatrolFrom(this.pos)
+					}
 					const elapsed = k.time()
 					const previousPos = this.pos.clone()
 					if (repairTarget) {
@@ -94,6 +112,7 @@ export function spawnHubRepairCrew(phaseStationPos: Vec2): HubRepairCrew {
 					})
 				},
 			},
+			tags.npc,
 			tags.hubRepairDrone,
 			tags.gameLoop,
 		])

@@ -38,6 +38,7 @@ import {
 	addThemedText,
 	createAbilitySlotMarker,
 	createInputPromptRow,
+	createRewardTypeFrame,
 	createUiActionButton,
 	createUiBadge,
 	createUiPanel,
@@ -1164,15 +1165,18 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			chestController.borderBox?.width ?? 840,
 			chestController.rewards.length
 		);
-		const concealedSlots = chestController.rewards.map((_, index) => {
-			const slot = chestController.uiContainer!.add([
-				k.rect(82, 98),
-				k.pos(layout.cardX(index), layout.iconY),
-				k.anchor("center"),
-				k.color(6, 6, 10),
-				k.outline(2, k.rgb(70, 70, 80)),
-				k.opacity(0.85),
-			]);
+		const concealedSlots = chestController.rewards.map((reward, index) => {
+			const slot = createRewardTypeFrame(chestController.uiContainer!, {
+				pos: k.vec2(layout.cardX(index), layout.iconY),
+				size: 82,
+				color: UI_COLORS.muted,
+				kind: reward.kind,
+				abilitySlot: reward.abilitySlot,
+				fillOpacity: 0.1,
+				outlineOpacity: 0.62,
+				lineWidth: 2,
+				z: 0,
+			});
 			slot.add([
 				k.text("?", { size: UI_FONT_SIZES.hero, font: "unscii" }),
 				k.anchor("center"),
@@ -1210,9 +1214,20 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 
 			const concealedSlot = concealedSlots[index];
 			if (concealedSlot.exists()) {
-				concealedSlot.removeAll();
-				concealedSlot.opacity = 1;
+				k.destroy(concealedSlot);
 			}
+			const rarityColor = REWARD_RARITY_COLORS[reward.rarity];
+			createRewardTypeFrame(chestController.uiContainer, {
+				pos: target,
+				size: 82,
+				color: rarityColor,
+				kind: reward.kind,
+				abilitySlot: reward.abilitySlot,
+				fillOpacity: 0.1,
+				outlineOpacity: 0.86,
+				lineWidth: 2,
+				z: 0,
+			});
 
 			const rewardSprite = chestController.uiContainer.add([
 				k.sprite(reward.sprite, { width: 64, height: 64 }),
@@ -1236,7 +1251,6 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 					easing: k.easings.easeOutCubic,
 				}
 			);
-			const rarityColor = REWARD_RARITY_COLORS[reward.rarity];
 			chestController.uiContainer.add([
 				k.text(reward.rarity, { size: UI_FONT_SIZES.small, font: "unscii" }),
 				k.pos(target.x, target.y + 52),
@@ -1555,9 +1569,20 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				timing: [0, 0.72, 1],
 				easing: k.easings.easeOutCubic,
 			});
+			const rewardVisualCenterY = 96;
+			createRewardTypeFrame(card, {
+				pos: k.vec2(cardWidth / 2, rewardVisualCenterY),
+				size: 128,
+				color: rarityColor,
+				kind: reward.kind,
+				abilitySlot: reward.abilitySlot,
+				fillOpacity: 0.07,
+				outlineOpacity: 0.68,
+				z: 2,
+			});
 			card.add([
 				k.sprite(reward.sprite, { width: 56, height: 56 }),
-				k.pos(cardWidth / 2, 60),
+				k.pos(cardWidth / 2, rewardVisualCenterY),
 				k.anchor("center"),
 				k.color(...rarityColor),
 				k.z(3),
@@ -1571,7 +1596,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			});
 			addThemedText(card, {
 				text: reward.name,
-				pos: k.vec2(12, 102),
+				pos: k.vec2(12, 166),
 				variant: "heading",
 				size: UI_FONT_SIZES.body,
 				width: cardWidth - 24,
@@ -1580,7 +1605,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				color: k.rgb(...rarityColor),
 				z: 3,
 			});
-			const descriptionTop = 154;
+			const descriptionTop = 218;
 			const description = addThemedText(card, {
 				text: formatTieredTextValues(reward.description),
 				pos: k.vec2(14, descriptionTop),
@@ -1599,7 +1624,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				z: 3,
 			});
 			const statTop = Math.max(
-				Math.min(240, cardHeight - 128),
+				Math.min(300, cardHeight - 128),
 				Math.ceil(descriptionTop + description.height + 12)
 			);
 			createUiStatList(card, {

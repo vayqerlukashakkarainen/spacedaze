@@ -5,6 +5,7 @@ import { k, layers, mainSoundVolume } from "../main"
 import { starsEmitter } from "../particles"
 import { gameSoundService } from "../services/audio/gameSoundService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
+import { getCarriedDebree } from "../services/economy/debreeEconomyService"
 import { tags } from "../tags"
 import { createNpcInteractionPrompt } from "../ui/common"
 import { saveGame } from "../util"
@@ -93,12 +94,21 @@ export function spawnDebreeDeposit(
 	const prompt = createNpcInteractionPrompt({
 		target: station,
 		offset: k.vec2(0, -92),
-		label: { text: "DEPOSIT DEBRIS" },
+		label: () => getCarriedDebree() > 0
+			? { text: "DEPOSIT DEBRIS" }
+			: { text: "NO DEBRIS TO DEPOSIT", color: k.rgb(105, 120, 128) },
+		requireInteractionTarget: false,
+		showKey: () => getCarriedDebree() > 0,
 	})
 
 	registerBatchedEntityUpdate("world", station, () => {
-		station.setInteractRadius(available() ? DEPOSIT_RADIUS : 0)
-		prompt.update(station.isInRange && k.get(tags.player).length > 0)
+		const player = k.get<GameObj<PosComp>>(tags.player)[0]
+		const stationAvailable = available()
+		const hasDebree = getCarriedDebree() > 0
+		const playerInRange = player?.exists() === true &&
+			player.pos.dist(station.pos) < DEPOSIT_RADIUS
+		station.setInteractRadius(stationAvailable && hasDebree ? DEPOSIT_RADIUS : 0)
+		prompt.update(stationAvailable && playerInRange)
 		const floatOffset = Math.sin(k.time() * FLOAT_SPEED) * FLOAT_AMOUNT
 		foundation.pos.y = FOUNDATION_Y + floatOffset
 		house.pos.y = HOUSE_Y + floatOffset

@@ -3,6 +3,32 @@ export const DRIFT_SPEED_MULTIPLIER = 0.6
 export const DRIFT_HULL_RESPONSE = 2.5
 export const TURRET_AIM_RESPONSE = 9
 
+let playerTargetModeActive = false
+let playerTargetModeAimPosition: { x: number; y: number } | undefined
+
+export function setPlayerTargetModeActive(active: boolean) {
+	playerTargetModeActive = active
+	if (!active) playerTargetModeAimPosition = undefined
+}
+
+export function isPlayerTargetModeActive() {
+	return playerTargetModeActive
+}
+
+export function setPlayerTargetModeAimPosition(
+	position?: { x: number; y: number }
+) {
+	playerTargetModeAimPosition = position
+		? { x: position.x, y: position.y }
+		: undefined
+}
+
+export function getPlayerTargetModeAimPosition() {
+	return playerTargetModeAimPosition
+		? { ...playerTargetModeAimPosition }
+		: undefined
+}
+
 export function getSignedAngleDelta(fromAngle: number, toAngle: number) {
 	return ((toAngle - fromAngle + 540) % 360) - 180
 }

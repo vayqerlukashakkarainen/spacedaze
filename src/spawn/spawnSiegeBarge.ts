@@ -1,12 +1,13 @@
 import type { Vec2 } from "kaplay"
 import { playerObj } from "../game"
-import { k, velocityScale } from "../main"
+import { k, mainSoundVolume, velocityScale } from "../main"
 import { spawnArtilleryBoulder } from "../services/combat/artilleryBoulderService"
 import { applyDamage } from "../services/combat/damageService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import { getEnemyNavigationDirection } from "../services/enemies/enemyNavigationService"
 import { spawnTargetTelegraph } from "../services/enemies/enemyTelegraphService"
 import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState"
+import { gameSoundService } from "../services/audio/gameSoundService"
 import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
@@ -101,7 +102,13 @@ export function spawnSiegeBarge(
 					tags: options.tags,
 					onComplete: () => {
 						if (!barge.exists()) return
-						spawnExplosionEffect(targetPos, IMPACT_RADIUS, { particleCount: 9 })
+						spawnExplosionEffect(targetPos, IMPACT_RADIUS, {
+							particleCount: 9,
+							persistentSmoke: true,
+						})
+						gameSoundService.playPositional("explosive_blast", targetPos, {
+							volume: mainSoundVolume * 0.8,
+						})
 						if (
 							!isPlayerDamageInvulnerable() &&
 							playerObj.pos.dist(targetPos) <= IMPACT_RADIUS

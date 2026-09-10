@@ -59,6 +59,7 @@ import type {
 	ReturnModifier,
 	SeekModifier,
 	SlowModifier,
+	StunModifier,
 	SpinModifier,
 	SplashModifier,
 	SpiralModifier,
@@ -105,6 +106,12 @@ import {
 	getPlayerTargetInterceptPoint,
 	getPlayerTargetLock,
 } from "../player/playerTargetLockService";
+import {
+	findClosestProjectileTarget,
+	getTargetHitRadius,
+	getTargetWorldPosition,
+	isProjectileTargetForTags,
+} from "./targetingService";
 import { PROJECTILE_VISUALS } from "../../visuals/projectileVisualCatalog";
 import { updateRocketGuidance } from "./rocketGuidanceService"
 
@@ -118,6 +125,7 @@ const STANDARD_SCALE_PROJECTILE_SPRITES = new Set([
 const ENEMY_PROJECTILE_SPEED_MULTIPLIER = 0.8;
 const KNOCKBACK_PUSH_DURATION = 0.32;
 const KNOCKBACK_FULL_STEER_STRENGTH = 60;
+const STUN_TIMESCALE_MODIFIER_ID = -73_502;
 let projectileUpdateController: GameObj | undefined;
 
 interface KnockbackImpulse {
@@ -211,6 +219,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	applyWiggleModifier(proj, config.wiggle);
 	applyDamageTickModifier(proj, config.damageTick);
 	applySlowModifier(proj, config.slow);
+	applyStunModifier(proj, config.stun);
 	applyKnockbackModifier(proj, config.knockback);
 	applyFragmentModifier(proj, config.fragment);
 	applyProximityModifier(proj, config.proximity);
@@ -685,6 +694,11 @@ function applySlowModifier(proj: GameObj, config?: SlowModifier) {
 	};
 }
 
+function applyStunModifier(proj: GameObj, config?: StunModifier) {
+	if (!config) return;
+	proj.stunConfig = { ...config };
+}
+
 function applyKnockbackModifier(proj: GameObj, config?: KnockbackModifier) {
 	if (!config) return;
 	proj.knockbackStrength = config.strength;
@@ -814,18 +828,25 @@ function updateSeeking(proj: GameObj) {
 	if (
 		directedTarget &&
 		directedTarget.id !== proj.targetUnit?.id &&
-		directedTarget.tags.includes(tags.unit) &&
-		proj.targetTags.some((tag: string) => directedTarget.tags.includes(tag)) &&
-		proj.pos.dist(directedTarget.pos) <= proj.seekDistance
+		isProjectileTargetForTags(directedTarget, proj.targetTags) &&
+		proj.pos.dist(getTargetWorldPosition(directedTarget)) <= proj.seekDistance
 	) {
 		setSeekingTarget(proj, directedTarget);
 		return;
 	}
+	if (
+		proj.targetUnit &&
+		!isProjectileTargetForTags(proj.targetUnit, proj.targetTags)
+	) {
+		proj.targetUnit = null
+		proj.rocketGuidanceState = undefined
+	}
 	if (proj.targetUnit == null) {
-		const target = findClosestSpatial(proj.pos, proj.seekDistance, {
-			allTags: [tags.unit],
-			anyTags: proj.targetTags,
-		})
+		const target = findClosestProjectileTarget(
+			proj.pos,
+			proj.seekDistance,
+			proj.targetTags
+		)
 		if (target) setSeekingTarget(proj, target)
 	}
 }
@@ -842,9 +863,17 @@ function setSeekingTarget(proj: GameObj, target: GameObj) {
 
 function updateMovement(proj: GameObj) {
 	let speed = proj.speed * proj.getTimescale();
+	if (
+		proj.targetUnit &&
+		proj.targetTags &&
+		!isProjectileTargetForTags(proj.targetUnit, proj.targetTags)
+	) {
+		proj.targetUnit = null
+		proj.rocketGuidanceState = undefined
+	}
 
 	if (proj.targetUnit) {
-		let targetPosition = proj.targetUnit.pos
+		let targetPosition = getTargetWorldPosition(proj.targetUnit)
 		const guidanceTimeScale = timeScale * proj.getTimescale()
 		let turnStrength = proj.turnSpeed * guidanceTimeScale
 		if (proj.is(tags.rocket)) {
@@ -852,7 +881,7 @@ function updateMovement(proj: GameObj) {
 				rocketPosition: proj.pos,
 				heading: k.Vec2.fromAngle(proj.angle - 90),
 				targetId: proj.targetUnit.id,
-				targetPosition: proj.targetUnit.pos,
+				targetPosition,
 				rocketSpeed: speed,
 				baseTurnStrength: proj.turnSpeed,
 				deltaTime: k.dt() * guidanceTimeScale,
@@ -947,8 +976,10 @@ function shouldSplitProjectile(
 	const leadDistance = split.impactLeadDistance;
 	const target = proj.targetUnit?.exists() ? proj.targetUnit : undefined;
 	if (target && isSplitImpactTarget(proj, target)) {
-		const targetRadius = typeof target.hb === "number" ? target.hb : 10;
-		if (proj.pos.dist(target.pos) <= leadDistance + targetRadius) return true;
+		const targetRadius = getTargetHitRadius(target) || 10;
+		if (
+			proj.pos.dist(getTargetWorldPosition(target)) <= leadDistance + targetRadius
+		) return true;
 	}
 
 	const heading = k.Vec2.fromAngle(proj.angle - 90);
@@ -981,7 +1012,10 @@ function isSplitImpactTarget(proj: GameObj, target: GameObj) {
 	if (!target.exists() || target.id === proj.id) return false;
 	if (typeof target.hp === "number" && target.hp <= 0) return false;
 	return proj.is(tags.friendly)
-		? target.is(tags.enemy) || target.is(tags.roomVolatile)
+		? isProjectileTargetForTags(
+			target,
+			[tags.enemy, tags.roomVolatile]
+		)
 		: target.is(tags.player);
 }
 
@@ -1045,7 +1079,7 @@ function updateSeekingAngle(proj: GameObj) {
 	const { lerp } = lerpAngleBetweenPos(
 		proj.angle,
 		proj.pos,
-		proj.targetUnit.pos,
+		getTargetWorldPosition(proj.targetUnit),
 		proj.turnSpeed * timeScale * proj.getTimescale(),
 		-90
 	);
@@ -1168,6 +1202,7 @@ function detonateMine(proj: GameObj) {
 		damage: proj.splashDamage ?? 1,
 		damageFalloff: proj.splashFalloff ?? 0.35,
 		falloffDistance: proj.splashFalloffDist ?? 0.5,
+		persistentSmoke: true,
 	});
 	debreeRocketEmitter.emitter.position = proj.pos;
 	debreeRocketEmitter.emitter.direction = proj.angle - 90;
@@ -1551,6 +1586,7 @@ function stripPlayerModifiersAfterBounce(projectile: GameObj) {
 	delete projectile.critSound;
 	delete projectile.damageTickConfig;
 	delete projectile.slowConfig;
+	delete projectile.stunConfig;
 	delete projectile.knockbackStrength;
 	delete projectile.fragmentConfig;
 	delete projectile.proximityConfig;
@@ -1653,6 +1689,9 @@ function triggerProjectileLifesteal(
 			if (!playerObj?.exists()) return;
 			const recovered = recoverPlayerHealth(playerObj, recovery);
 			if (recovered > 0) {
+				gameSoundService.play("lifesteal_health_receive", {
+					volume: mainSoundVolume * 0.17,
+				})
 				spawnFlash(playerObj.pos.clone(), 4, lifestealColor);
 			}
 		},
@@ -1693,6 +1732,9 @@ export function applyProjectileDamage(
 			...projectile.slowConfig,
 			procState: projectile.procState,
 		});
+	}
+	if (projectile.stunConfig && k.chance(projectile.stunConfig.chance)) {
+		applyStunEffect(target, projectile.stunConfig);
 	}
 
 	// Apply impact damage with crit
@@ -1868,7 +1910,7 @@ export function applyProjectileDamage(
 	) {
 		projectile.chainConfig.chainedTargets.add(target.id);
 		handleChainLightning(
-			target.pos,
+			getTargetWorldPosition(target),
 			projectile.chainConfig,
 			projectile.impactDamage ?? 1
 		);
@@ -2074,9 +2116,10 @@ function startExplosionChainLightning(
 	);
 
 	for (const hit of explosion.hits) {
+		const hitPosition = getTargetWorldPosition(hit.target)
 		spawnChainProjectile({
 			pos1: explosion.pos,
-			pos2: hit.target.pos,
+			pos2: hitPosition,
 			decayTime: 0.2 * (2 - timeScale),
 			color: k.Color.fromHex("#00ffff"),
 			opacity: 0.8,
@@ -2087,7 +2130,7 @@ function startExplosionChainLightning(
 			chainedTargets: new Set(blastTargetIds),
 			chainsUsed: 0,
 		};
-		handleChainLightning(hit.target.pos, branchConfig, hit.damage);
+		handleChainLightning(hitPosition, branchConfig, hit.damage);
 	}
 }
 
@@ -2097,40 +2140,42 @@ function handleChainLightning(
 	baseDamage: number
 ) {
 	if (config.chainsUsed >= config.maxChains) return;
-	const units = querySpatialNearby(origin, config.chainDistance, {
-		allTags: config.targetTags,
-	});
+	const semanticTargetTags = config.targetTags.filter(
+		(targetTag) => targetTag !== tags.unit
+	)
+	const target = findClosestProjectileTarget(
+		origin,
+		config.chainDistance,
+		semanticTargetTags.length > 0 ? semanticTargetTags : config.targetTags,
+		config.chainedTargets
+	)
+	if (!target) return
+	const targetPosition = getTargetWorldPosition(target)
+	config.chainedTargets.add(target.id)
+	config.chainsUsed++
 
-	for (const unit of units) {
-		if (!unit.exists()) continue;
-		if (config.chainedTargets.has(unit.id)) continue;
-		if (unit.pos.dist(origin) > config.chainDistance) continue;
-		config.chainedTargets.add(unit.id);
-		config.chainsUsed++;
+	// Spawn a collision-free visual arc between targets
+	spawnChainProjectile({
+		pos1: origin,
+		pos2: targetPosition,
+		target,
+		decayTime: 0.2 * (2 - timeScale),
+		color: k.Color.fromHex("#00ffff"),
+		opacity: 0.8,
+		size: 2,
+		onArrive: () => {
+			if (!target.exists()) return
 
-		// Spawn a collision-free visual arc between targets
-		spawnChainProjectile({
-			pos1: origin,
-			pos2: unit.pos,
-			target: unit,
-			decayTime: 0.2 * (2 - timeScale),
-			color: k.Color.fromHex("#00ffff"),
-			opacity: 0.8,
-			size: 2,
-			onArrive: () => {
-				if (!unit.exists()) return;
+			const chainDamage = baseDamage * config.damageReduction
+			applyDamage(target, chainDamage)
+			const impactPosition = getTargetWorldPosition(target)
+			spawnFlash(impactPosition, 1)
 
-				const chainDamage = baseDamage * config.damageReduction;
-				applyDamage(unit, chainDamage);
-				spawnFlash(unit.pos, 1);
-
-				if (config.chainsUsed < config.maxChains) {
-					handleChainLightning(unit.pos, config, baseDamage);
-				}
-			},
-		});
-		break;
-	}
+			if (config.chainsUsed < config.maxChains) {
+				handleChainLightning(impactPosition, config, baseDamage)
+			}
+		},
+	})
 }
 
 function applyDamageTickEffect(target: GameObj, config: any) {
@@ -2306,6 +2351,45 @@ function applySlowEffect(target: GameObj, config: any) {
 			}
 		});
 	}
+}
+
+function applyStunEffect(target: GameObj, config: StunModifier) {
+	if (!(target.timescaleModifiers instanceof Map)) return;
+	const resistance = target.is(tags.boss) || target.is(tags.miniBoss)
+		? 0.3
+		: target.is(tags.elite)
+			? 0.6
+			: 1;
+	const duration = Math.max(0.08, config.duration * resistance);
+	if (target.stunEffect) {
+		target.stunEffect.remaining = Math.max(
+			target.stunEffect.remaining,
+			duration
+		);
+		target.timescaleModifiers.set(STUN_TIMESCALE_MODIFIER_ID, 0);
+		return;
+	}
+
+	target.stunEffect = {
+		remaining: duration,
+		particleTimer: 0,
+	};
+	target.timescaleModifiers.set(STUN_TIMESCALE_MODIFIER_ID, 0);
+	if (target.hasStunUpdate) return;
+	target.hasStunUpdate = true;
+	registerBatchedEntityUpdate("effects", target, () => {
+		if (!target.stunEffect) return;
+		target.stunEffect.remaining -= k.dt();
+		target.stunEffect.particleTimer += k.dt();
+		if (target.stunEffect.particleTimer >= 0.1) {
+			target.stunEffect.particleTimer = 0;
+			sparkEmitter.emitter.position = target.pos;
+			sparkEmitter.emit(1);
+		}
+		if (target.stunEffect.remaining > 0) return;
+		target.timescaleModifiers?.delete(STUN_TIMESCALE_MODIFIER_ID);
+		target.stunEffect = null;
+	});
 }
 
 function triggerVolatileCorrosion(target: GameObj, config: VolatileModifier) {

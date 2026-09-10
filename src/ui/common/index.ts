@@ -1,6 +1,7 @@
 export * from "./abilitySlotMarker"
 export * from "./badge"
 export * from "./button"
+export * from "./catalogBrowser"
 export * from "./checkbox"
 export * from "./collapsible"
 export * from "./commandButton"

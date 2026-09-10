@@ -1,6 +1,6 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
-import { k, layers, mainSoundVolume, subSoundVolume } from "../main"
+import { k, layers, mainSoundVolume } from "../main"
 import { gameSoundService } from "../services/audio/gameSoundService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import { spawnProjectile } from "../services/combat/projectileService"
@@ -177,10 +177,6 @@ function updateDeathAnimation(
 			particleCount: 5 + Math.floor(progress * 5),
 			ringIntensity: 0.25 + progress * 0.35,
 		})
-		gameSoundService.playPositional("enemy_explosion", burstPos, {
-			volume: subSoundVolume * 0.42,
-			detune: k.rand(-180, 140),
-		})
 		k.shake(1 + progress * 2.5)
 	}
 
@@ -190,9 +186,6 @@ function updateDeathAnimation(
 	spawnExplosionEffect(deathPos, 74, {
 		particleCount: 38,
 		ringIntensity: 1,
-	})
-	gameSoundService.playPositional("enemy_explosion", deathPos, {
-		volume: subSoundVolume,
 	})
 	k.shake(9)
 	enemyOnDeath(

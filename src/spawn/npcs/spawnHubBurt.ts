@@ -1,5 +1,6 @@
 import type { GameObj } from "kaplay"
 import { horizontalDirectionalVisual } from "../../comp/horizontalDirectionalVisual"
+import { snareable } from "../../comp/snareable"
 import { k, layers } from "../../main"
 import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import { tags } from "../../tags"
@@ -50,7 +51,15 @@ export function spawnHubBurt(
 		k.color(k.WHITE),
 		k.layer(layers.game),
 		k.z(20),
+		snareable({
+			mass: 1.15,
+			radius: 13,
+			releaseDrag: 2.6,
+			returnAfterRelease: true,
+			returnSpeed: 95,
+		}),
 		BURT_TAG,
+		tags.npc,
 		tags.props,
 		tags.gameLoop,
 	])

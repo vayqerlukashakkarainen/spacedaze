@@ -1,5 +1,26 @@
 import { UpgradeDefinition } from "../types/upgradeTypes";
 
+export const salvageLasso: UpgradeDefinition = {
+	toolKey: "salvageLasso",
+	toolName: "Salvage Lasso",
+	category: "special",
+	type: "unlock",
+	levels: [
+		{
+			name: "Salvage Lasso",
+			desc: "Unlock the lasso link for towing and throwing loose objects",
+			sprite: "salvage_lasso",
+			price: 32,
+			effects: {
+				unlocks: [{
+					unlockId: "salvageLasso",
+					description: "Cast a lasso link at loose objects",
+				}],
+			},
+		},
+	],
+};
+
 export const debreeDist: UpgradeDefinition = {
 	toolKey: "debreeDist",
 	toolName: "Salvage magnets",
@@ -332,4 +353,22 @@ export const maxHealth: UpgradeDefinition = {
 			},
 		},
 	],
+};
+
+export const extraLife: UpgradeDefinition = {
+	toolKey: "extraLife",
+	toolName: "Phase Recall",
+	category: "survival",
+	type: "passive",
+	levels: [1, 2, 3].map((charges, index) => ({
+		name: `Mark ${["I", "II", "III"][index]}`,
+		desc: index === 0
+			? "Begin each run with 1 recall charge. Fatal damage reconstructs the ship at the point of destruction"
+			: `Begin each run with ${charges} recall charges`,
+		sprite: "phase_recall_upg1",
+		price: 32,
+		effects: {
+			modifiers: [{ stat: "extraLives", value: charges, type: "base" }],
+		},
+	})),
 };

@@ -20,6 +20,10 @@ assert.deepEqual(getInputBinding("primaryWheel"), {
 	device: "key",
 	input: "shift",
 })
+assert.deepEqual(getInputBinding("lasso"), {
+	device: "key",
+	input: "q",
+})
 assert.deepEqual(getInputBinding("secondary"), {
 	device: "key",
 	input: "e",

@@ -1,7 +1,6 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
-import { k, layers, subSoundVolume } from "../main"
-import { gameSoundService } from "../services/audio/gameSoundService"
+import { k, layers } from "../main"
 import { applyDamage } from "../services/combat/damageService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState"
@@ -19,6 +18,7 @@ import { tags } from "../tags"
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
+import { snareable } from "../comp/snareable"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { DensePool } from "../services/core/densePool"
 import { setHitSoundProfile } from "../services/audio/hitSoundService"
@@ -58,6 +58,13 @@ export function spawnShieldDrone(
 		k.animate(),
 		k.scale(profile.scale),
 		timescale(),
+		snareable({
+			mass: 0.55,
+			radius: 11 * profile.scale,
+			releaseDrag: 1.25,
+			suspendTimescaleWhileMoving: true,
+			canSnare: () => !profile.elite,
+		}),
 		{
 			hb: 11 * profile.scale,
 			damage: profile.damage,
@@ -95,29 +102,34 @@ export function spawnShieldDrone(
 			retargetTimer = SHIELD_RETARGET_INTERVAL
 			retargetShield(false)
 		}
-		drone.orbitAngle += delta * 75
-		const followBlend = 1 - Math.exp(-9 * delta)
-		drone.orbitCenter = drone.orbitCenter.lerp(
-			protectedTarget.pos,
-			followBlend
-		)
-		const orbitOffset = k.Vec2.fromAngle(drone.orbitAngle).scale(36)
-		const desiredDirection = orbitOffset.normal().unit()
-		drone.moveDirection = easeDirection(
-			drone.moveDirection,
-			desiredDirection,
-			7,
-			delta
-		)
-		drone.pos = drone.orbitCenter.add(orbitOffset)
-		drone.angle = drone.moveDirection.angle() + 90
-		applyDirectionalSteeringLean(
-			drone,
-			drone.moveDirection,
-			desiredDirection,
-			profile.scale,
-			true
-		)
+		if (!drone.snared && drone.snareVelocity.len() < 3) {
+			drone.orbitAngle += delta * 75
+			const followBlend = 1 - Math.exp(-9 * delta)
+			drone.orbitCenter = drone.orbitCenter.lerp(
+				protectedTarget.pos,
+				followBlend
+			)
+			const orbitOffset = k.Vec2.fromAngle(drone.orbitAngle).scale(36)
+			const desiredDirection = orbitOffset.normal().unit()
+			drone.moveDirection = easeDirection(
+				drone.moveDirection,
+				desiredDirection,
+				7,
+				delta
+			)
+			drone.pos = drone.orbitCenter.add(orbitOffset)
+			drone.angle = drone.moveDirection.angle() + 90
+			applyDirectionalSteeringLean(
+				drone,
+				drone.moveDirection,
+				desiredDirection,
+				profile.scale,
+				true
+			)
+		} else {
+			const orbitOffset = k.Vec2.fromAngle(drone.orbitAngle).scale(36)
+			drone.orbitCenter = drone.pos.sub(orbitOffset)
+		}
 		checkProjectileIntersection(drone.pos, drone.hb, tags.friendly, (projectile) => {
 			onEnemyHit(drone, projectile)
 		})
@@ -141,9 +153,11 @@ export function spawnShieldDrone(
 			1.2 * profile.rewardMultiplier,
 			"enemy",
 			true,
-			{ tier: profile.elite ? "elite" : "normal" }
+			{
+				tier: profile.elite ? "elite" : "normal",
+				material: "ship",
+			}
 		)
-		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(drone)
 	})
 	drone.onDestroy(() => clearShieldProvider(protectedTarget, drone))

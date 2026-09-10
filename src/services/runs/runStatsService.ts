@@ -8,6 +8,7 @@ export interface LifetimeStats {
 	playtimeSeconds: number
 	enemiesKilled: number
 	runs: number
+	completedRuns: number
 	deaths: number
 	debreeCollected: number
 }
@@ -135,6 +136,8 @@ export function finishRunStats(
 		rewardsCollected: activeRun.rewardsCollected,
 		highestRarity: activeRun.highestRarity,
 	}
+	lifetimeStats.completedRuns++
+	saveLifetimeStats()
 	activeRun = undefined
 	clearSelectedContract()
 	localStorage.setItem(LAST_RUN_KEY, JSON.stringify(lastRun))
@@ -182,6 +185,7 @@ function loadLifetimeStats(): LifetimeStats {
 		playtimeSeconds: validStat(parsed.playtimeSeconds),
 		enemiesKilled: validStat(parsed.enemiesKilled),
 		runs: validStat(parsed.runs),
+		completedRuns: validStat(parsed.completedRuns ?? parsed.runs),
 		deaths: validStat(parsed.deaths),
 		debreeCollected: validStat(parsed.debreeCollected),
 	}
@@ -192,6 +196,7 @@ function createEmptyLifetimeStats(): LifetimeStats {
 		playtimeSeconds: 0,
 		enemiesKilled: 0,
 		runs: 0,
+		completedRuns: 0,
 		deaths: 0,
 		debreeCollected: 0,
 	}

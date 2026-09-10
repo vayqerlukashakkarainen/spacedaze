@@ -99,6 +99,7 @@ export interface WeaponDefinition {
 	mountScale: number
 	mountOffsetY: number
 	muzzleOffsetY: number
+	projectileSpawnOffset?: number
 	pattern?: WeaponFirePattern
 	charge?: WeaponChargeModifier
 	projectileSprite?: string
@@ -160,6 +161,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		mountScale: 0.45,
 		mountOffsetY: -4,
 		muzzleOffsetY: -11,
+		projectileSpawnOffset: 2,
 	},
 	{
 		id: "pulseRepeater",
@@ -182,6 +184,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		mountScale: 0.6,
 		mountOffsetY: -5,
 		muzzleOffsetY: -13,
+		projectileSpawnOffset: 3,
 	},
 	{
 		id: "twinNeedle",
@@ -223,6 +226,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		mountScale: 0.6,
 		mountOffsetY: -5,
 		muzzleOffsetY: -13,
+		projectileSpawnOffset: 3,
 		pattern: {
 			projectileCount: 2,
 			lateralSpacing: 5,
@@ -253,6 +257,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		mountScale: 0.6,
 		mountOffsetY: -5,
 		muzzleOffsetY: -13,
+		projectileSpawnOffset: 3,
 		projectileSprite: "impact_driver_arc_projectile",
 		projectileScale: 1.35,
 		projectileAcceleration: {
@@ -287,6 +292,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		mountScale: 0.55,
 		mountOffsetY: -6,
 		muzzleOffsetY: -14,
+		projectileSpawnOffset: 2,
 		piercing: {
 			maxPierces: 2,
 			damageReduction: 0.82,
@@ -309,6 +315,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		mountScale: 0.5,
 		mountOffsetY: -5,
 		muzzleOffsetY: -13,
+		projectileSpawnOffset: 1,
 		chain: {
 			maxChains: 1,
 			chainDistance: 165,
@@ -331,6 +338,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		mountScale: 0.6,
 		mountOffsetY: -5,
 		muzzleOffsetY: -12,
+		projectileSpawnOffset: 3,
 		pattern: {
 			projectileCount: 5,
 			spreadDegrees: 28,
@@ -359,6 +367,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		mountScale: 0.6,
 		mountOffsetY: -5,
 		muzzleOffsetY: -13,
+		projectileSpawnOffset: 3,
 		pattern: {
 			burstCount: 3,
 			burstInterval: 0.075,
@@ -390,6 +399,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		mountScale: 0.6,
 		mountOffsetY: -5,
 		muzzleOffsetY: -13,
+		projectileSpawnOffset: 4,
 		charge: {
 			maxDuration: 1.15,
 			minDamageMultiplier: 0.55,
@@ -436,6 +446,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 		mountScale: 0.6,
 		mountOffsetY: -6,
 		muzzleOffsetY: -15,
+		projectileSpawnOffset: 2,
 		charge: {
 			maxDuration: 1.15,
 			minDamageMultiplier: 0.55,

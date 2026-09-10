@@ -14,7 +14,17 @@ import {
 	UI_COLORS,
 	UI_FONT_SIZES,
 } from "../../ui/common"
-import { getDroidDefinition, type DroidId } from "../../npcs/droidRegistry"
+import { getDroidDefinition } from "../../npcs/droidRegistry"
+import type {
+	DialogueLine,
+	DialogueReference,
+	DialogueTextSegment,
+} from "../../content/dialogue/types"
+export type {
+	DialogueLine,
+	DialogueReference,
+	DialogueTextSegment,
+} from "../../content/dialogue/types"
 import {
 	getRewardDefinition,
 	REWARD_RARITY_COLORS,
@@ -28,33 +38,6 @@ import {
 import { acquireGameplayPause } from "../player/gameplayPauseService"
 import { runtimeDebug } from "../debug/runtimeDebugService"
 import { acquireInteractionPromptSuppression } from "../ui/interactionPromptVisibilityService"
-
-export interface DialogueLine {
-	speaker: string
-	text: string | readonly DialogueTextSegment[]
-	autoAdvance?: boolean
-	holdAfter?: number
-	disturbance?: boolean
-}
-
-export interface DialogueTextSegment {
-	text: string
-	reference?: DialogueReference
-	waitAfter?: number
-	color?: readonly [number, number, number]
-	flash?: boolean
-	textShake?: number
-	sound?: {
-		id: string
-		volume?: number
-		detune?: number
-	}
-	shake?: number
-}
-
-export type DialogueReference =
-	| { kind: "reward"; id: string }
-	| { kind: "npc"; id: DroidId }
 
 interface ResolvedDialogueReference {
 	name: string

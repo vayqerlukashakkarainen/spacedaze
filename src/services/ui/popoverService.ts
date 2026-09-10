@@ -14,6 +14,8 @@ export interface PopoverOptions {
 	sprite?: string
 	color?: Color
 	duration?: number
+	stackKey?: string
+	stackCount?: number
 }
 
 interface ActivePopover {
@@ -22,6 +24,10 @@ interface ActivePopover {
 	elapsed: number
 	duration: number
 	fadeTargets: PopoverFadeTarget[]
+	message: GameObj
+	baseMessage: string
+	stackKey?: string
+	stackCount: number
 }
 
 interface PopoverFadeTarget {
@@ -42,7 +48,30 @@ let popoverController: GameObj | undefined
 
 export function showPopover(options: PopoverOptions) {
 	removeDestroyedPopovers()
+	const stackCount = Math.max(1, Math.floor(options.stackCount ?? 1))
+	if (options.stackKey) {
+		const existing = activePopovers.find(
+			(active) => active.stackKey === options.stackKey
+		)
+		if (existing) {
+			stackActivePopover(existing, stackCount, options.duration)
+			return existing.obj
+		}
+	}
 	if (activePopovers.length >= MAX_VISIBLE_POPOVERS) {
+		const queued = options.stackKey
+			? queuedPopovers.find((popover) =>
+				popover.stackKey === options.stackKey
+			)
+			: undefined
+		if (queued) {
+			queued.stackCount = Math.max(
+				1,
+				Math.floor(queued.stackCount ?? 1)
+			) + stackCount
+			ensurePopoverController()
+			return
+		}
 		queuedPopovers.push(options)
 		ensurePopoverController()
 		return
@@ -105,7 +134,7 @@ export function showPopover(options: PopoverOptions) {
 	title.use(k.opacity(0))
 	fadeTargets.push({ obj: title, baseOpacity: 1 })
 	const message = container.flow.addText({
-		text: options.message,
+		text: formatStackedMessage(options.message, stackCount),
 		variant: "heading",
 		color: k.WHITE,
 		size: UI_FONT_SIZES.body,
@@ -134,6 +163,10 @@ export function showPopover(options: PopoverOptions) {
 		elapsed: 0,
 		duration,
 		fadeTargets,
+		message,
+		baseMessage: options.message,
+		stackKey: options.stackKey,
+		stackCount,
 	})
 	ensurePopoverController()
 	return popover
@@ -149,6 +182,7 @@ export function showCollectedRewardPopover(reward: Reward) {
 		sprite: reward.sprite,
 		color: k.rgb(...REWARD_RARITY_COLORS[reward.rarity]),
 		duration: 5,
+		stackKey: reward.id,
 	})
 }
 
@@ -156,11 +190,35 @@ export function showDiscoveredRewardPopover(reward: Reward) {
 	return showPopover({
 		title: `${reward.rarity.toUpperCase()} ${getDiscoveryType(reward)} DISCOVERED`,
 		message: reward.name,
-		description: "NEW BLUEPRINT ADDED TO THE PHASE STATION",
+		description: "NEW BLUEPRINT ADDED TO THE COMPENDIUM",
 		sprite: reward.sprite,
 		color: k.rgb(...REWARD_RARITY_COLORS[reward.rarity]),
 		duration: 6,
+		stackKey: reward.id,
 	})
+}
+
+function stackActivePopover(
+	active: ActivePopover,
+	count: number,
+	duration?: number
+) {
+	active.stackCount += count
+	active.message.text = formatStackedMessage(
+		active.baseMessage,
+		active.stackCount
+	)
+	active.elapsed = POPOVER_ENTER_DURATION
+	active.duration = Math.max(
+		POPOVER_ENTER_DURATION + POPOVER_EXIT_DURATION,
+		duration ?? active.duration
+	)
+	active.obj.scale = k.vec2(1)
+	setPopoverOpacity(active, 1)
+}
+
+function formatStackedMessage(message: string, count: number) {
+	return count > 1 ? `${message}  X${count}` : message
 }
 
 function getDiscoveryType(reward: Reward) {

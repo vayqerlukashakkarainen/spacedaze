@@ -16,6 +16,8 @@ import {
 	movespeed,
 	debreeValue,
 	maxHealth,
+	extraLife,
+	salvageLasso,
 } from "./shipNew";
 import {
 	followerBlasterDmg,
@@ -33,6 +35,7 @@ import {
 	criticalPayload,
 	corrosivePayload,
 	cryoRounds,
+	stunRounds,
 	kineticPulse,
 	lifesteal,
 	ricochetRounds,
@@ -105,6 +108,8 @@ const definitions: Record<string, UpgradeDefinition> = {
 
 	// Ship - Survival
 	maxHealth,
+	extraLife,
+	salvageLasso,
 
 	// Follower
 	followerBlasterDmg,
@@ -136,6 +141,7 @@ const definitions: Record<string, UpgradeDefinition> = {
 	// Projectile modifiers
 	armorPiercing,
 	cryoRounds,
+	stunRounds,
 	corrosivePayload,
 	arcCapacitor,
 	lifesteal,
@@ -177,12 +183,14 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	debreeDist: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 130, 35, 80),
 	debreeValue: policy(RewardRarity.Uncommon, ["crate", "boss"], 90, 0, 80),
 	maxHealth: policy(RewardRarity.Rare, ["crate", "boss"], 80, 0, 130),
+	extraLife: policy(RewardRarity.Legendary, ["crate"], 18, 0, 0),
+	salvageLasso: policy(RewardRarity.Legendary, [], 0, 0, 0, 2),
 	followerBlasterDmg: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 110, 25, 100),
-	followerMissiles: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 160, 4),
-	followerProjectileLink: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 150, 4),
+	followerMissiles: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 160, 2),
+	followerProjectileLink: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 150, 2),
 	followerInterceptorProtocol: policy(RewardRarity.Rare, ["crate", "boss"], 48, 0, 130),
 	followerGunship: policy(RewardRarity.Rare, ["crate", "boss"], 44, 0, 125),
-	followerMedic: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 145, 4),
+	followerMedic: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 145, 2),
 	followerSalvager: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 72, 12, 90),
 	scrapArmor: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 88, 16, 100),
 	afterburnerWake: policy(RewardRarity.Rare, ["crate", "boss"], 46, 0, 115),
@@ -204,6 +212,7 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	wreckHarvester: policy(RewardRarity.Legendary, ["crate", "boss"], 8, 0, 55, 4),
 	armorPiercing: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 130, 35, 90),
 	cryoRounds: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 30, 80),
+	stunRounds: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 110, 25, 80),
 	corrosivePayload: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 100, 20, 100),
 	arcCapacitor: policy(RewardRarity.Rare, ["crate", "boss"], 55, 0, 140),
 	lifesteal: policy(RewardRarity.Rare, ["crate", "boss"], 52, 0, 135, 2),

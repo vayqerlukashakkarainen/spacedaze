@@ -115,6 +115,7 @@ export function updateDebug() {
 			`Audio voices ${audioVoices.active} current / ${audioVoices.peak} peak  positional ${audioVoices.activePositional}/${audioVoices.peakPositional}  active ${busiestAudio}`,
 			`Enemies ${objectStats.enemies}  Projectiles ${objectStats.projectiles}`,
 			`Debris ${objectStats.debris}  Run map ${objectStats.runMap}`,
+			`Wreck parts active ${snapshot.counters.persistentShipPartsActive ?? 0}  draw ${snapshot.counters.persistentShipPartsDrawn ?? 0}/${snapshot.counters.persistentShipParts ?? 0}  rooms ${snapshot.counters.persistentShipPartRooms ?? 0}`,
 			`UI objects ${objectStats.ui}  Areas ${objectStats.areas}  Hit regions ${snapshot.counters.uiPointerRegions ?? 0}  Masks ${objectStats.masks}`,
 			`Text draw ${objectStats.textDrawing}/${objectStats.textTotal}  Emitters upd ${objectStats.emittersUpdating}/${objectStats.emittersTotal} draw ${objectStats.emittersDrawing}/${objectStats.emittersTotal} particles ${objectStats.activeParticles}`,
 			`Primitives walls ${snapshot.counters.wallPrimitives ?? 0}  UI FX ${snapshot.counters.uiEffectPrimitives ?? 0}`,

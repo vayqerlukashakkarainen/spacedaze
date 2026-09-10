@@ -23,14 +23,16 @@ import {
 } from "../services/input/inputBindingService"
 import { gameSoundService } from "../services/audio/gameSoundService"
 import { tags } from "../tags"
+import { playUiElementClose, playUiElementOpen } from "./common/modalTransition"
 import { UI_COLORS } from "./common/theme"
 
-const WHEEL_OFFSET_Y = -104
 const WHEEL_RADIUS = 70
 const ITEM_RADIUS = 17
 const ITEM_HIT_RADIUS = 23
 const SLOWED_TIMESCALE = 0.16
+const WHEEL_TRANSITION_TRAVEL = 12
 const HOLD_TO_OPEN_DURATION = 0.16
+const WHEEL_EDGE_MARGIN = WHEEL_RADIUS + ITEM_RADIUS + 7
 
 interface WeaponWheelOptions {
 	player: GameObj<PosComp>
@@ -50,8 +52,10 @@ interface WeaponWheelItem {
 
 interface ActiveWeaponWheel {
 	root: GameObj
+	panel: GameObj
 	hoveredWeaponId?: WeaponId
 	restoreTimescale: number
+	closing: boolean
 }
 
 let activeWeaponWheel: ActiveWeaponWheel | undefined
@@ -83,7 +87,7 @@ export function installWeaponWheel(
 	})
 	const favoriteController = k.onMousePress("left", () => {
 		const wheel = activeWeaponWheel
-		if (!wheel || !wheel.hoveredWeaponId) return
+		if (!wheel || wheel.closing || !wheel.hoveredWeaponId) return
 		const favorite = toggleWeaponFavorite(wheel.hoveredWeaponId)
 		gameSoundService.play("click1", {
 			volume: mainSoundVolume * 0.52,
@@ -125,20 +129,26 @@ function openWeaponWheel(options: WeaponWheelOptions) {
 	options.onOpen?.()
 	const restoreTimescale = timeScale
 	setTimescale(SLOWED_TIMESCALE, 0.08, false)
+	const wheelScreenPosition = getWheelScreenPosition()
 
 	const root = k.add([
-		k.pos(getWheelPosition(options.player)),
+		k.pos(k.toWorld(wheelScreenPosition)),
 		k.z(240),
 		k.layer(layers.gameText),
 		tags.gameLoop,
 	])
-	root.add([
+	const panel = root.add([
+		k.pos(0, 0),
+		k.scale(1),
+		k.animate(),
+	])
+	panel.add([
 		k.circle(WHEEL_RADIUS + ITEM_RADIUS + 5),
 		k.anchor("center"),
 		k.color(...UI_COLORS.background),
 		k.opacity(0.84),
 	])
-	root.add([
+	panel.add([
 		k.circle(WHEEL_RADIUS - ITEM_RADIUS - 7, { fill: false }),
 		k.anchor("center"),
 		k.outline(1, k.rgb(...UI_COLORS.border)),
@@ -146,22 +156,32 @@ function openWeaponWheel(options: WeaponWheelOptions) {
 	])
 
 	const items = weapons.map((weapon, index) =>
-		createWeaponItem(root, weapon, index, weapons.length)
+		createWeaponItem(panel, weapon, index, weapons.length)
 	)
-	const nameLabel = root.add([
+	const nameLabel = panel.add([
 		k.pos(0, -4),
 		k.text("", { font: "unscii", size: 7, width: 88, align: "center" }),
 		k.anchor("center"),
 		k.color(...UI_COLORS.text),
 	])
-	const instructionLabel = root.add([
+	const instructionLabel = panel.add([
 		k.pos(0, 10),
-		k.text("RELEASE", { font: "unscii", size: 5 }),
+		k.text("RELEASE", {
+			font: "unscii",
+			size: 5,
+			width: 82,
+			align: "center",
+			lineSpacing: 2,
+		}),
 		k.anchor("center"),
 		k.color(...UI_COLORS.muted),
 	])
 
-	activeWeaponWheel = { root, restoreTimescale }
+	activeWeaponWheel = { root, panel, restoreTimescale, closing: false }
+	playUiElementOpen(panel, {
+		pos: k.vec2(0, 0),
+		travel: WHEEL_TRANSITION_TRAVEL,
+	})
 	gameSoundService.play("click1", {
 		volume: mainSoundVolume * 0.45,
 		detune: -120,
@@ -172,11 +192,17 @@ function openWeaponWheel(options: WeaponWheelOptions) {
 			closeWeaponWheel(options, false)
 			return
 		}
-		root.pos = getWheelPosition(options.player)
-		const hovered = findHoveredItem(items, k.toWorld(k.mousePos()).sub(root.pos))
+		root.pos = k.toWorld(wheelScreenPosition)
+		const wheel = activeWeaponWheel
+		if (!wheel || wheel.root !== root || wheel.closing) return
+		const pointer = k.toWorld(k.mousePos())
+			.sub(root.pos)
+			.sub(panel.pos)
+			.scale(1 / panel.scale.x)
+		const hovered = findHoveredItem(items, pointer)
 		const hoveredWeaponId = hovered?.weapon.id
-		if (hoveredWeaponId !== activeWeaponWheel?.hoveredWeaponId) {
-			activeWeaponWheel!.hoveredWeaponId = hoveredWeaponId
+		if (hoveredWeaponId !== wheel.hoveredWeaponId) {
+			wheel.hoveredWeaponId = hoveredWeaponId
 			if (hovered) {
 				gameSoundService.play("ui_hover", {
 					volume: mainSoundVolume * 0.32,
@@ -206,7 +232,7 @@ function openWeaponWheel(options: WeaponWheelOptions) {
 		) ?? weapons[0]
 		nameLabel.text = displayedWeapon.name
 		instructionLabel.text = hovered
-			? "RELEASE EQUIP  //  LMB FAVORITE"
+			? "RELEASE EQUIP\nLMB FAVORITE"
 			: getFavoriteWeaponIds().length > 0
 				? "QUICK SWAP: FAVORITES"
 				: "QUICK SWAP: ALL"
@@ -215,14 +241,22 @@ function openWeaponWheel(options: WeaponWheelOptions) {
 
 function closeWeaponWheel(options: WeaponWheelOptions, selectHovered: boolean) {
 	const wheel = activeWeaponWheel
-	if (!wheel) return
-	activeWeaponWheel = undefined
-	if (wheel.root.exists()) k.destroy(wheel.root)
+	if (!wheel || wheel.closing) return
+	wheel.closing = true
 	setTimescale(wheel.restoreTimescale, 0.12, false)
 
-	if (!selectHovered || !wheel.hoveredWeaponId) return
-	const weapon = getWeaponDefinition(wheel.hoveredWeaponId)
-	options.onSelect(weapon)
+	if (selectHovered && wheel.hoveredWeaponId) {
+		const weapon = getWeaponDefinition(wheel.hoveredWeaponId)
+		options.onSelect(weapon)
+	}
+
+	void playUiElementClose(wheel.panel, {
+		pos: k.vec2(0, 0),
+		travel: WHEEL_TRANSITION_TRAVEL,
+	}).then(() => {
+		if (wheel.root.exists()) k.destroy(wheel.root)
+		if (activeWeaponWheel === wheel) activeWeaponWheel = undefined
+	})
 }
 
 function createWeaponItem(
@@ -273,6 +307,10 @@ function findHoveredItem(items: WeaponWheelItem[], pointer: Vec2) {
 	return closest
 }
 
-function getWheelPosition(player: GameObj<PosComp>) {
-	return player.pos.add(0, WHEEL_OFFSET_Y)
+function getWheelScreenPosition() {
+	const pointer = k.mousePos()
+	return k.vec2(
+		k.clamp(pointer.x, WHEEL_EDGE_MARGIN, k.width() - WHEEL_EDGE_MARGIN),
+		k.clamp(pointer.y, WHEEL_EDGE_MARGIN, k.height() - WHEEL_EDGE_MARGIN)
+	)
 }

@@ -29,7 +29,8 @@ const LEVEL_CELEBRATION_PARTICLES = 48
 export function showDeathScreen(
 	cause: PlayerDeathCause,
 	runSummary?: RunEndSummary,
-	onContinue?: () => void
+	onContinue?: () => void,
+	onNewRun?: () => void
 ) {
 	hideDeathScreen()
 	const screen = k.add([
@@ -80,24 +81,49 @@ export function showDeathScreen(
 		])
 	})
 
-	let continued = false
+	let actionTaken = false
 	const continueRun = () => {
-		if (continued) return
-		continued = true
+		if (actionTaken) return
+		actionTaken = true
 		onContinue?.()
 	}
-	const buttonWidth = 260
+	const startNewRun = () => {
+		if (actionTaken || !onNewRun) return
+		actionTaken = true
+		onNewRun()
+	}
 	const buttonY = Math.min(
 		k.height() - 52,
 		runSummary ? k.height() / 2 + 286 : k.height() / 2 + 130
 	)
-	createUiActionButton(screen, {
-		pos: k.vec2(k.width() / 2 - buttonWidth / 2, buttonY),
-		size: k.vec2(buttonWidth, 36),
-		text: "CONTINUE",
-		promptAction: "confirm",
-		onClick: continueRun,
-	})
+	if (onNewRun) {
+		const buttonWidth = 180
+		const buttonGap = 10
+		const buttonsX = k.width() / 2 - buttonWidth - buttonGap / 2
+		createUiActionButton(screen, {
+			pos: k.vec2(buttonsX, buttonY),
+			size: k.vec2(buttonWidth, 36),
+			text: "CONTINUE",
+			promptAction: "confirm",
+			onClick: continueRun,
+		})
+		createUiActionButton(screen, {
+			pos: k.vec2(buttonsX + buttonWidth + buttonGap, buttonY),
+			size: k.vec2(buttonWidth, 36),
+			text: "NEW RUN",
+			primary: true,
+			onClick: startNewRun,
+		})
+	} else {
+		const buttonWidth = 260
+		createUiActionButton(screen, {
+			pos: k.vec2(k.width() / 2 - buttonWidth / 2, buttonY),
+			size: k.vec2(buttonWidth, 36),
+			text: "CONTINUE",
+			promptAction: "confirm",
+			onClick: continueRun,
+		})
+	}
 	const enterController = k.onKeyPress("enter", continueRun)
 	screen.onDestroy(() => enterController.cancel())
 }

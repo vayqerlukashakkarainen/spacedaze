@@ -17,6 +17,7 @@ import { increaseRockets, rocket, rocketShards } from "./upgrades/rockets";
 import {
 	debreeDist,
 	debreeValue,
+	extraLife,
 	maxHealth,
 	movespeed,
 	sprintSpeed,
@@ -24,6 +25,7 @@ import {
 	spaceJumpUpgrades,
 	phaseRam,
 	phaseMagazine,
+	salvageLasso,
 } from "./upgrades/ship";
 import { saveGame } from "./util";
 import { upgradeService } from "./services/progression/upgradeService";
@@ -48,6 +50,7 @@ import {
 	criticalPayload,
 	corrosivePayload,
 	cryoRounds,
+	stunRounds,
 	kineticPulse,
 	lifesteal,
 	ricochetRounds,
@@ -93,6 +96,7 @@ import {
 	threatReactor,
 	wreckHarvester,
 } from "./upgrades/stackingRewards"
+import { grantExtraLifeCharge } from "./services/progression/extraLifeService"
 
 interface Upgrade {
 	name: string;
@@ -108,7 +112,9 @@ export const PERMANENT_UPGRADE_KEYS = [
 	"blaster",
 	"blasterParallel",
 	"debreeDist",
+	"extraLife",
 	"maxHealth",
+	"salvageLasso",
 ] as const;
 export type PermanentUpgradeKey = typeof PERMANENT_UPGRADE_KEYS[number];
 
@@ -139,6 +145,7 @@ export const upgrades = {
 
 	movespeed: movespeed,
 	maxHealth: maxHealth,
+	extraLife,
 
 	followerBlasterDmg: followerBlasterDmg,
 	followerMissiles: followerMissiles,
@@ -168,6 +175,7 @@ export const upgrades = {
 
 	armorPiercing,
 	cryoRounds,
+	stunRounds,
 	corrosivePayload,
 	arcCapacitor,
 	lifesteal,
@@ -191,6 +199,7 @@ export const upgrades = {
 	targetPainter,
 	mineLayer,
 	voidLance,
+	salvageLasso,
 } as const;
 
 export let loadout: Record<ToolKey, number | undefined> = {
@@ -203,6 +212,8 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	movespeed: undefined,
 	debreeValue: undefined,
 	maxHealth: undefined,
+	extraLife: undefined,
+	salvageLasso: undefined,
 	followerBlasterDmg: undefined,
 	followerMissiles: undefined,
 	followerProjectileLink: undefined,
@@ -237,6 +248,7 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	blasterParallel: undefined,
 	armorPiercing: undefined,
 	cryoRounds: undefined,
+	stunRounds: undefined,
 	corrosivePayload: undefined,
 	arcCapacitor: undefined,
 	lifesteal: undefined,
@@ -272,6 +284,8 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	movespeed: undefined,
 	debreeValue: undefined,
 	maxHealth: undefined,
+	extraLife: undefined,
+	salvageLasso: undefined,
 	followerBlasterDmg: undefined,
 	followerMissiles: undefined,
 	followerProjectileLink: undefined,
@@ -306,6 +320,7 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	blasterParallel: undefined,
 	armorPiercing: undefined,
 	cryoRounds: undefined,
+	stunRounds: undefined,
 	corrosivePayload: undefined,
 	arcCapacitor: undefined,
 	lifesteal: undefined,
@@ -404,9 +419,11 @@ const playerStatByTool: Partial<Record<ToolKey, string>> = {
 	movespeed: "speedMultiplier",
 	phaseRam: "spaceJumpDamage",
 	maxHealth: "maxHealth",
+	extraLife: "extraLives",
 	followerBlasterDmg: "followerBlasterDmg",
 	armorPiercing: "projectilePierces",
 	cryoRounds: "projectileSlowPercentage",
+	stunRounds: "projectileStunChance",
 	corrosivePayload: "projectileDotDamage",
 	arcCapacitor: "projectileChainCount",
 	lifesteal: "projectileLifesteal",
@@ -545,6 +562,7 @@ export function addLvl(key: ToolKey, rarity?: RewardRarity) {
 
 	// Apply upgrade through new system
 	upgradeService.purchaseUpgrade(key, upgradeDef.levels[nextLvl].effects);
+	if (key === "extraLife") grantExtraLifeCharge()
 
 	saveGame("slot1");
 	return nextLvl;
@@ -584,6 +602,8 @@ export function resetLevelLoadout() {
 		movespeed: undefined,
 		debreeValue: undefined,
 		maxHealth: undefined,
+		extraLife: undefined,
+		salvageLasso: undefined,
 		followerBlasterDmg: undefined,
 		followerMissiles: undefined,
 		followerProjectileLink: undefined,
@@ -618,6 +638,7 @@ export function resetLevelLoadout() {
 		blasterParallel: undefined,
 		armorPiercing: undefined,
 		cryoRounds: undefined,
+		stunRounds: undefined,
 		corrosivePayload: undefined,
 		arcCapacitor: undefined,
 		lifesteal: undefined,

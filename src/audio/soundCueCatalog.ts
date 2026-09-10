@@ -1,6 +1,16 @@
 import type { PositionalSoundOptions, SoundOptions } from "../services/audio/audioService"
 import { SOUND_ASSETS, type SoundAssetId } from "./soundCatalog"
 
+const SHIP_DESTRUCTION_ASSETS = [
+	"ship_part_destroyed_01",
+	"ship_part_destroyed_02",
+] as const
+
+const ROCK_DESTRUCTION_ASSETS = [
+	"asteroid_destroyed",
+	"rock_material_destroyed_02",
+] as const
+
 export type SoundStackingPolicy = "allow" | "ignore" | "restart" | "limit"
 
 export interface SoundCuePolicy {
@@ -14,6 +24,7 @@ export interface SoundCuePolicy {
 	stacking?: SoundStackingPolicy
 	maxVoices?: number
 	cooldownSeconds?: number
+	detuneRange?: readonly [number, number]
 }
 
 export const SEMANTIC_SOUND_CUES = {
@@ -40,11 +51,58 @@ export const SEMANTIC_SOUND_CUES = {
 			voiceLimit: 8,
 		},
 	},
-	enemy_explosion: {
-		asset: ["explosion1", "explosion2", "explosion3"],
-		group: "enemy-explosion",
+	explosive_blast: {
+		asset: [
+			"explosion_pool_01",
+			"explosion_pool_02",
+			"explosion_pool_03",
+			"explosion_pool_04",
+			"explosion_pool_05",
+		],
+		group: "explosive-blast",
 		stacking: "limit",
 		maxVoices: 6,
+		positionalDefaults: {
+			minDistance: 70,
+			maxDistance: 720,
+			voiceLimit: 6,
+		},
+	},
+	ship_part_destroyed: {
+		asset: SHIP_DESTRUCTION_ASSETS,
+		group: "ship-destruction",
+		stacking: "limit",
+		maxVoices: 5,
+		cooldownSeconds: 0.02,
+		positionalDefaults: {
+			minDistance: 70,
+			maxDistance: 680,
+			voiceLimit: 5,
+		},
+	},
+	enemy_ship_destroyed: {
+		asset: SHIP_DESTRUCTION_ASSETS,
+		group: "ship-destruction",
+		stacking: "limit",
+		maxVoices: 5,
+		cooldownSeconds: 0.02,
+		positionalDefaults: {
+			minDistance: 80,
+			maxDistance: 780,
+			voiceLimit: 5,
+		},
+	},
+	rock_material_destroyed: {
+		asset: ROCK_DESTRUCTION_ASSETS,
+		group: "rock-material-destruction",
+		stacking: "limit",
+		maxVoices: 6,
+		cooldownSeconds: 0.02,
+		positionalDefaults: {
+			minDistance: 80,
+			maxDistance: 780,
+			voiceLimit: 6,
+		},
 	},
 	player_primary_charge: {
 		asset: "primary_weapon_charge",
@@ -83,6 +141,7 @@ export const SOUND_CUE_POLICIES: Partial<Record<SoundCueId, SoundCuePolicy>> = {
 	player_game_over: { group: "player-game-over", stacking: "ignore" },
 	low_health_warning: { group: "low-health-warning", stacking: "ignore" },
 	target_lock: { group: "target-lock", stacking: "restart" },
+	lasso_throw: { group: "player-lasso", stacking: "restart" },
 	menu_spacejump_warp: { group: "space-transition", stacking: "restart" },
 	hyperspeed_jump_start: { group: "space-transition", stacking: "restart" },
 	hostile_phase_arrival: {
@@ -100,6 +159,13 @@ export const SOUND_CUE_POLICIES: Partial<Record<SoundCueId, SoundCuePolicy>> = {
 		group: "weapon-burst-driver",
 		stacking: "limit",
 		maxVoices: 6,
+	},
+	lifesteal_health_receive: {
+		group: "lifesteal-health-receive",
+		stacking: "limit",
+		maxVoices: 3,
+		cooldownSeconds: 0.045,
+		detuneRange: [-60, 60],
 	},
 }
 

@@ -1,6 +1,6 @@
 import type { Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
-import { k, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
+import { k, mainSoundVolume, velocityScale } from "../main"
 import { starsEmitterDir, trailEmitter } from "../particles"
 import { gameSoundService } from "../services/audio/gameSoundService"
 import { registerBossEncounter } from "../services/enemies/bossEncounterService"
@@ -271,9 +271,8 @@ export function spawnImpactAce(
 					definition.rewardMultiplier,
 					"boss",
 					false,
-					{ intensity: 4, starCount: 55 }
+					{ intensity: 4, starCount: 55, material: "ship" }
 				)
-				gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 				k.destroy(ace)
 			},
 		})

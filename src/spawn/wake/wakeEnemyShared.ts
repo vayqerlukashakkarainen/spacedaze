@@ -14,6 +14,7 @@ export interface WakeEnemyPart {
 	obj: GameObj
 	hitbox: number
 	hitboxOffset: Vec2
+	onDestroyed?: (part: GameObj, body: GameObj) => void
 }
 
 export function addWakeEnemyPart(
@@ -55,7 +56,10 @@ export function composeWakeEnemy(
 			reconstructed ? 0 : powerupMultiplier * profile.rewardMultiplier,
 			"enemy",
 			!reconstructed,
-			{ tier: profile.elite ? "elite" : "normal" }
+			{
+				tier: profile.elite ? "elite" : "normal",
+				material: "ship",
+			}
 		)
 		onBodyDeath?.()
 	}
@@ -79,6 +83,7 @@ export function composeWakeEnemy(
 				hitboxOffset: part.hitboxOffset,
 				isBody: false,
 				scoreOnDestroy: 0,
+				onDestroyed: part.onDestroyed,
 			})),
 		],
 	})

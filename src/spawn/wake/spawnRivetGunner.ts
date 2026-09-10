@@ -7,7 +7,7 @@ import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateSer
 import { getEnemyNavigationDirection, hasEnemyLineOfSight } from "../../services/enemies/enemyNavigationService"
 import { spawnEnemyBlaster } from "../../services/combat/projectileHelpers"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../../services/enemies/threatService"
-import { applyDirectionalSteeringLean, easeDirection } from "../../shared"
+import { easeDirection } from "../../shared"
 import { tags } from "../../tags"
 import { getEnemyVisual } from "../../visuals/enemyVisualCatalog"
 import { addWakeEnemyPart, composeWakeEnemy, handleWakeCompositeCombat } from "./wakeEnemyShared"
@@ -81,7 +81,6 @@ export function spawnRivetGunner(
 			(weapon.hidden ? 105 : 72) * profile.speedMultiplier * velocityScale() * gunner.getTimescale()
 		))
 		gunner.angle = direction.angle() + 90
-		applyDirectionalSteeringLean(gunner, gunner.moveDirection, direction, profile.scale)
 
 		if (!weapon.hidden) {
 			gunner.attackTimer -= delta * (gunner.shieldFireRateMultiplier ?? 1)

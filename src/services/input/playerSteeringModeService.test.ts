@@ -3,14 +3,26 @@ import {
 	clampTurretWorldAngle,
 	DRIFT_SPEED_MULTIPLIER,
 	easeAngle,
+	getPlayerTargetModeAimPosition,
 	getSignedAngleDelta,
+	isPlayerTargetModeActive,
 	PLAYER_TURRET_LIMIT_DEGREES,
+	setPlayerTargetModeAimPosition,
+	setPlayerTargetModeActive,
 	shouldTurnHullForStationaryAim,
 } from "./playerSteeringModeService"
-import { calculateInterceptTime } from "../player/playerTargetLockService"
+import { calculateInterceptTime } from "../player/targetInterceptService"
 
 assert.equal(PLAYER_TURRET_LIMIT_DEGREES, 45)
 assert.equal(DRIFT_SPEED_MULTIPLIER, 0.6)
+
+setPlayerTargetModeActive(true)
+assert.equal(isPlayerTargetModeActive(), true)
+setPlayerTargetModeAimPosition({ x: 12, y: 34 })
+assert.deepEqual(getPlayerTargetModeAimPosition(), { x: 12, y: 34 })
+setPlayerTargetModeActive(false)
+assert.equal(isPlayerTargetModeActive(), false)
+assert.equal(getPlayerTargetModeAimPosition(), undefined)
 
 assert.equal(getSignedAngleDelta(350, 10), 20)
 assert.equal(getSignedAngleDelta(10, 350), -20)

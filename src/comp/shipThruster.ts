@@ -23,6 +23,7 @@ export function addShipThruster(ship: GameObj<PosComp>, nozzleY: number) {
 	let elapsed = 0
 	let length = 0
 	let particleElapsed = 0
+	let workload = 0
 	let plumeColor: Color = k.WHITE
 	const plume = ship.add([
 		k.pos(0, nozzleY),
@@ -34,6 +35,15 @@ export function addShipThruster(ship: GameObj<PosComp>, nozzleY: number) {
 				// Integer-width steps keep the flame crisp instead of a smooth cone.
 				const shoulder = Math.max(1, Math.round(length * 0.25))
 				const body = Math.max(1, Math.round(length * 0.45))
+				if (workload > 0.05) {
+					const flareWidth = Math.max(4, Math.round(4 + workload * 4))
+					k.drawRect({
+						pos: k.vec2(-flareWidth / 2, -1),
+						width: flareWidth,
+						height: Math.max(2, Math.round(2 + workload * 2)),
+						color: plumeColor,
+					})
+				}
 				k.drawRect({ pos: k.vec2(-2, 0), width: 4, height: shoulder, color: plumeColor })
 				k.drawRect({ pos: k.vec2(-1, shoulder), width: 2, height: body, color: plumeColor })
 				k.drawRect({ pos: k.vec2(0, shoulder + body), width: 1, height: Math.max(1, length - shoulder - body), color: plumeColor })
@@ -75,18 +85,43 @@ export function addShipThruster(ship: GameObj<PosComp>, nozzleY: number) {
 		getExhaustPosition(gap: number = 4) {
 			return ship.toWorld(k.vec2(0, nozzleY + length + gap))
 		},
-		update(speed: number, delta: number, weight: number = 1) {
-			if (speed <= 4) {
+		update(
+			speed: number,
+			delta: number,
+			weight: number = 1,
+			workloadAmount: number = 0
+		) {
+			workload = k.clamp(workloadAmount, 0, 1)
+			if (speed <= 4 && workload <= 0.01) {
 				elapsed = 0
 				length = 0
 				particleElapsed = 0
 				plume.opacity = 0
 				return false
 			}
+			const effectiveSpeed = Math.max(
+				speed,
+				THRUSTER_REFERENCE_SPEED * workload * 0.6
+			)
+			const effectiveWeight = weight * (1 + workload * 0.75)
+			const minimumLength = Math.round(workload * 7)
+			const flashInterval = k.lerp(
+				THRUSTER_FLASH_INTERVAL,
+				THRUSTER_FLASH_INTERVAL * 0.5,
+				workload
+			)
 			elapsed += delta
 			// Square wave: opacity is always exactly zero or one, with no tween.
-			updateShared(speed, Math.floor(elapsed / THRUSTER_FLASH_INTERVAL) % 2 === 0, weight)
-			return consumeParticleEmission(speed, delta)
+			updateShared(
+				effectiveSpeed,
+				Math.floor(elapsed / flashInterval) % 2 === 0,
+				effectiveWeight,
+				minimumLength
+			)
+			return consumeParticleEmission(
+				effectiveSpeed * (1 + workload * 0.65),
+				delta
+			)
 		},
 	}
 }

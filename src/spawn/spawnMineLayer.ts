@@ -1,6 +1,7 @@
 import type { GameObj, Vec2 } from "kaplay"
+import { snareable } from "../comp/snareable"
 import { checkProjectileIntersection, playerObj } from "../game"
-import { k, layers, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
+import { k, layers, mainSoundVolume, velocityScale } from "../main"
 import { gameSoundService } from "../services/audio/gameSoundService"
 import { applyDamage } from "../services/combat/damageService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
@@ -140,9 +141,11 @@ export function spawnMineLayer(
 			1.3 * profile.rewardMultiplier,
 			"enemy",
 			true,
-			{ tier: profile.elite ? "elite" : "normal" }
+			{
+				tier: profile.elite ? "elite" : "normal",
+				material: "ship",
+			}
 		)
-		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(mineLayer)
 	})
 	mineLayer.onHurt(() => {
@@ -163,6 +166,11 @@ function spawnEnemyMine(pos: Vec2, damage: number, extraTags?: string[]) {
 		k.scale(ENEMY_MINE_VISUAL.worldScale),
 		k.color(k.WHITE),
 		k.opacity(0.9),
+		snareable({
+			mass: 0.45,
+			radius: 10,
+			releaseDrag: 1.25,
+		}),
 		{
 			armedElapsed: 0,
 			triggerElapsed: 0,
@@ -230,8 +238,8 @@ function detonateEnemyMine(mine: GameObj, damage: number) {
 			source: { name: "MINE LAYER", sprite: "room_proximity_mine" },
 		})
 	}
-	spawnExplosionEffect(explosionPos, 52)
-	gameSoundService.playPositional("explosion2", explosionPos, {
+	spawnExplosionEffect(explosionPos, 52, { persistentSmoke: true })
+	gameSoundService.playPositional("explosive_blast", explosionPos, {
 		volume: mainSoundVolume * 0.8,
 		maxDistance: 650,
 	})

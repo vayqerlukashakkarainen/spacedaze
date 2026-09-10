@@ -25,6 +25,7 @@ import { playRequirementErrorSound } from "../services/audio/uiSoundService";
 import { createNpcInteractionPrompt, UI_COLORS } from "../ui/common";
 import { getPickupVisual } from "../visuals/pickupVisualCatalog";
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation";
+import { snareable } from "../comp/snareable"
 
 const CHEST_AURA_RADIUS = 20;
 const CHEST_RING_RADIUS = 25;
@@ -50,6 +51,7 @@ export function spawnChest(
 	options: ChestOptions = {}
 ) {
 	let opened = false;
+	let snared = false
 	const rewardType = options.rewardType ?? "salvage";
 	const weaponChest = rewardType === "weapon";
 	const chestVisual = getPickupVisual(weaponChest ? "weapon-chest" : "salvage-chest");
@@ -80,7 +82,7 @@ export function spawnChest(
 		interactionPrompt: false,
 		tags: options.tags,
 		onInteract: () => {
-			if (opened || !isAvailable()) return;
+			if (opened || snared || !isAvailable()) return;
 			if (!purchased && requiresPurchase) {
 				const purchaseCost = getPurchaseCost();
 				if (!spendScore(purchaseCost)) {
@@ -105,6 +107,21 @@ export function spawnChest(
 			startChestSequence();
 		},
 	});
+	chest.use(snareable({
+		mass: 1.4,
+		radius: 15,
+		releaseDrag: 2.1,
+		canSnare: () => !opened && isAvailable(),
+		onSnareStart: () => {
+			snared = true
+			chest.isInRange = false
+			chest.setInteractRadius(0)
+		},
+		onSnareEnd: () => {
+			snared = false
+			chest.setInteractRadius(available && !opened ? 60 : 0)
+		},
+	}))
 	const interactionPrompt = createNpcInteractionPrompt({
 		target: chest,
 		offset: k.vec2(0, -48),
@@ -235,7 +252,9 @@ export function spawnChest(
 			chest.setInteractRadius(available && !opened ? 60 : 0);
 			if (available && !opened) chest.opacity = 1;
 		}
-		interactionPrompt.update(available && chest.isInRange);
+		const canInteract = available && !opened && !snared
+		chest.setInteractRadius(canInteract ? 60 : 0)
+		interactionPrompt.update(canInteract && chest.isInRange);
 		if (opened) return;
 		const pulse = k.wave(0.92, 1.08, k.time() * 2.5);
 		aura.scale = k.vec2(pulse);

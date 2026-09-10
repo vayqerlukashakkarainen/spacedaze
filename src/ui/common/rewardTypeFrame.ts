@@ -1,4 +1,4 @@
-import type { GameObj, Vec2 } from "kaplay"
+import type { Color, GameObj, Vec2 } from "kaplay"
 import { k } from "../../main"
 import type { RewardKind } from "../../types/rewardTypes"
 import type { UiAbilitySlot } from "./abilitySlotMarker"
@@ -27,6 +27,19 @@ export interface RewardTypeFrameProps {
 	z?: number
 }
 
+export interface RewardTypeFrameDrawProps {
+	pos?: Vec2
+	size: number
+	shape: RewardTypeShape
+	color: Color
+	fillOpacity: number
+	outlineOpacity: number
+	lineWidth: number
+	progress?: number
+	progressColor?: Color
+	progressLineWidth?: number
+}
+
 export function getRewardTypeShape(
 	kind: RewardKind,
 	abilitySlot?: UiAbilitySlot
@@ -44,7 +57,7 @@ export function createRewardTypeFrame(
 	parent: GameObj,
 	props: RewardTypeFrameProps
 ) {
-	const color = k.rgb(...props.color)
+	let color = k.rgb(...props.color)
 	const shape = getRewardTypeShape(props.kind, props.abilitySlot)
 	const fillOpacity = props.fillOpacity ?? 0.1
 	const outlineOpacity = props.outlineOpacity ?? 0.72
@@ -56,28 +69,51 @@ export function createRewardTypeFrame(
 		k.scale(1),
 		k.z(props.z ?? 1),
 		{
+			setFrameColor(nextColor: readonly [number, number, number]) {
+				color = k.rgb(...nextColor)
+			},
 			draw() {
-				drawRewardTypeShape(
+				drawRewardTypeFrame({
 					shape,
-					props.size,
+					size: props.size,
 					color,
 					fillOpacity,
 					outlineOpacity,
-					lineWidth
-				)
-				if (progress > 0) {
-					drawRewardTypeShapeProgress(
-						shape,
-						props.size,
-						progress,
-						progressColor,
-						props.progressLineWidth ?? lineWidth
-					)
-				}
+					lineWidth,
+					progress,
+					progressColor,
+					progressLineWidth: props.progressLineWidth,
+				})
 			},
 		},
 	])
 	return frame
+}
+
+export function drawRewardTypeFrame(props: RewardTypeFrameDrawProps) {
+	if (props.pos) {
+		k.pushTransform()
+		k.pushTranslate(props.pos)
+	}
+	drawRewardTypeShape(
+		props.shape,
+		props.size,
+		props.color,
+		props.fillOpacity,
+		props.outlineOpacity,
+		props.lineWidth
+	)
+	const progress = k.clamp(props.progress ?? 0, 0, 1)
+	if (progress > 0) {
+		drawRewardTypeShapeProgress(
+			props.shape,
+			props.size,
+			progress,
+			props.progressColor ?? props.color,
+			props.progressLineWidth ?? props.lineWidth
+		)
+	}
+	if (props.pos) k.popTransform()
 }
 
 function drawRewardTypeShape(

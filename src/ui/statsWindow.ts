@@ -22,6 +22,8 @@ const STAT_LABELS: Record<string, string> = {
 	salvagerDroneSlots: "Salvager Drones",
 	projectilePierces: "Projectile Pierces",
 	projectileSlowPercentage: "Projectile Slow %",
+	projectileStunChance: "Projectile Stun %",
+	projectileStunDuration: "Stun Duration",
 	projectileDotDamage: "Projectile DOT Damage %",
 	projectileChainCount: "Chain Targets",
 	projectileLifesteal: "Projectile Lifesteal %",

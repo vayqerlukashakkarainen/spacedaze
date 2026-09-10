@@ -11,7 +11,11 @@ import { getUnlockedWarpZones, getWarpZone } from "../world/warpZoneService"
 import { beginDebreeRun } from "../economy/debreeEconomyService"
 import { getAbilityLoadout } from "../abilities/abilityLoadoutService"
 import { getHubLevel } from "../hub/hubProgressService"
-import { loadout } from "../../upg"
+import { getToolUpgradeLvlValue, loadout } from "../../upg"
+import {
+	beginExtraLifeRun,
+	endExtraLifeRun,
+} from "../progression/extraLifeService"
 import {
 	recordTelemetryFloor,
 	startRunTelemetry,
@@ -73,6 +77,7 @@ export function beginRunSession(zoneId: string): RunFloorSelection | undefined {
 		currentFloor,
 	}
 	beginDebreeRun()
+	beginExtraLifeRun(getToolUpgradeLvlValue("extraLife") ?? 0)
 	startRunStats(getSelectedContract()?.name ?? "UNASSIGNED EXPEDITION")
 	const contract = getSelectedContract()
 	startRunTelemetry({
@@ -164,6 +169,7 @@ export function runSessionActive() {
 
 export function endRunSession() {
 	activeRun = undefined
+	endExtraLifeRun()
 }
 
 function createFloor(

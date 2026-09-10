@@ -105,6 +105,12 @@ import {
 import { chargeSalvageBattery } from "./services/progression/shipUpgradeService";
 import { tracePrologue } from "./services/narrative/prologueTraceService";
 import { spawnFlash } from "./spawn/spawnFlash";
+import {
+	beginRunSession,
+	getRunRouteSnapshot,
+} from "./services/runs/runDirectorService";
+import { getUnlockedWarpZones } from "./services/world/warpZoneService";
+import { showPopover } from "./services/ui/popoverService"
 
 export let playerObj: GameObj<
 	PosComp | SpriteComp | RotateComp | AreaComp | AnchorComp | HealthComp
@@ -323,6 +329,8 @@ export function beginPlayerDeathSequence() {
 	const deathCause = getPlayerDeathCause();
 	const diedInHub = activeLevelKey() === "hub";
 	const diedInPrologue = finishPrologueOnDeath();
+	const retryZoneId = getRunRouteSnapshot()?.zoneId ??
+		getUnlockedWarpZones()[0]?.id;
 	if (diedInPrologue) tracePrologue("death:classified-as-prologue");
 	let debreeOutcome: DebreeRunOutcome = { deposited: 0, lost: 0 };
 	let runEndSummary: RunEndSummary | undefined;
@@ -349,10 +357,66 @@ export function beginPlayerDeathSequence() {
 
 	k.wait(2, () => {
 		if (!isPlayerDying) return;
-		showDeathScreen(deathCause, runEndSummary, () => {
-			continueAfterPlayerDeath(diedInHub);
-		});
+		showDeathScreen(
+			deathCause,
+			runEndSummary,
+			() => continueAfterPlayerDeath(diedInHub),
+			!diedInHub && retryZoneId
+				? () => startNewRunAfterPlayerDeath(retryZoneId, diedInHub)
+				: undefined
+		);
 	});
+}
+
+export function respawnPlayerFromExtraLife(
+	deathPos: Vec2,
+	remainingLives: number
+) {
+	if (isPlayerDying) return false
+	playerObj = setupPlayer({
+		spawnPosition: deathPos,
+		extraLifeRespawn: true,
+		preserveRunState: true,
+	})
+	syncPlayerHealthBarCapacity(getPlayerMaxHealth())
+	updatePlayerHealthBar(getPlayerMaxHealth())
+	showPopover({
+		title: "PHASE RECALL ACTIVATED",
+		message: "SHIP RECONSTRUCTED",
+		description: `${remainingLives} RECALL ${remainingLives === 1 ? "CHARGE" : "CHARGES"} REMAINING`,
+		sprite: "phase_recall_upg1",
+		color: k.rgb(80, 180, 255),
+		duration: 3.5,
+	})
+	k.shake(6)
+	return true
+}
+
+function startNewRunAfterPlayerDeath(zoneId: string, diedInHub: boolean) {
+	if (!isPlayerDying) return;
+	hideDeathScreen();
+	clearPlayer();
+	clearGameLoopUi();
+	k.destroyAll(tags.follower);
+	resetLevelLoadout();
+	resetSession();
+	clearRunInventory();
+	clearRecoveryOffers();
+	resetPowerupRuntime();
+	loadPlayer();
+
+	const firstFloor = beginRunSession(zoneId);
+	if (!firstFloor) {
+		continueAfterPlayerDeath(diedInHub);
+		return;
+	}
+
+	audioService.stopMusic();
+	transitionToLevel(firstFloor.levelKey);
+	playerObj = setupPlayer({ arrivalTransition: true });
+	setupGameLoopUi(getPlayerMaxHealth(), hasEquippedActiveModule());
+	setTimescale(1, 0.4, false);
+	isPlayerDying = false;
 }
 
 function continueAfterPlayerDeath(diedInHub: boolean) {

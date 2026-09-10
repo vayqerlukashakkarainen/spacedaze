@@ -53,7 +53,7 @@ const HUB_UNLOCK_ICONS: Readonly<Record<string, string>> = {
 	"GHOST WEAPON CACHE": "chest_weapon_ui",
 	"SALVAGE HAULERS": "hub_salvage_hauler",
 	"SIGNAL ARRAY": "room_signal_relay",
-	"TRAINING RANGE EXPANSION": "facility_phase_station_minimal",
+	"TRAINING RANGE EXPANSION": "facility_training_range",
 	"THIRD SALVAGE GHOST CHEST": "chest_salvage_ui",
 	"MAINTENANCE WING": "hub_droid_repair",
 	"DOCKING GANTRIES": "hub_ship_ring_runner",
@@ -64,7 +64,7 @@ const HUB_UNLOCK_ICONS: Readonly<Record<string, string>> = {
 
 const HUB_FACILITY_ICONS: Readonly<Record<HubFacilityId, string>> = {
 	contractTerminal: "facility_contract_terminal_1bit",
-	trainingRange: "facility_phase_station_minimal",
+	trainingRange: "facility_training_range",
 	salvageForge: "facility_salvage_forge_1bit",
 	debriefTerminal: "facility_debrief_terminal_1bit",
 }

@@ -66,7 +66,16 @@ function track(cueId: SoundCueId, audio: AudioPlay | null) {
 }
 
 function mergeSoundOptions(cueId: SoundCueId, options?: SoundOptions) {
-	return { ...getSoundCuePolicy(cueId).defaults, ...options }
+	const policy = getSoundCuePolicy(cueId)
+	const detuneRange = policy.detuneRange
+	const randomizedDetune = detuneRange
+		? detuneRange[0] + Math.random() * (detuneRange[1] - detuneRange[0])
+		: undefined
+	return {
+		...policy.defaults,
+		...(randomizedDetune === undefined ? {} : { detune: randomizedDetune }),
+		...options,
+	}
 }
 
 function resolveAsset(cueId: SoundCueId) {

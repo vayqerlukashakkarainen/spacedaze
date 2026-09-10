@@ -162,6 +162,7 @@ export const ENEMY_VISUALS: Record<EnemyVisualId, EnemyVisualRepresentation> = {
 			{ sprite: "enemy_wake_boiler_hulk_core" },
 			{ sprite: "enemy_wake_boiler_hulk_scoop" },
 			{ sprite: "enemy_wake_boiler_hulk_vent" },
+			{ sprite: "enemy_wake_boiler_hulk_mortar" },
 		],
 		worldScale: 1,
 	},

@@ -1,4 +1,5 @@
 import type { GameObj, Vec2 } from "kaplay"
+import { snareable } from "../../comp/snareable"
 import { checkProjectileIntersection, playerObj } from "../../game"
 import { k, layers, mainSoundVolume } from "../../main"
 import { gameSoundService } from "../../services/audio/gameSoundService"
@@ -48,6 +49,11 @@ function spawnProximityMine(pos: Vec2, damage: number, extraTags?: string[]) {
 		k.scale(MINEFIELD_VISUAL.worldScale),
 		k.color(150, 150, 150),
 		k.opacity(0.9),
+		snareable({
+			mass: 0.45,
+			radius: 10,
+			releaseDrag: 1.25,
+		}),
 		tags.props,
 		tags.gameLoop,
 		tags.runtimeCullable,
@@ -108,8 +114,8 @@ function detonateMine(mine: GameObj, damage: number) {
 			},
 		})
 	}
-	spawnExplosionEffect(explosionPos, 52)
-	gameSoundService.playPositional("explosion2", explosionPos, {
+	spawnExplosionEffect(explosionPos, 52, { persistentSmoke: true })
+	gameSoundService.playPositional("explosive_blast", explosionPos, {
 		volume: mainSoundVolume * 0.8,
 		maxDistance: 650,
 	})

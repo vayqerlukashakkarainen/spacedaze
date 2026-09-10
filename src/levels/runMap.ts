@@ -1688,10 +1688,14 @@ function selectGravityShrineDestinations(
 export function spawnFloorExit(
 	pos: Vec2,
 	objectTags: string[] = [tags.runMap],
-	options: { onActivated?: () => void } = {}
+	options: {
+		onActivated?: () => void
+		finaleRequired?: boolean
+	} = {}
 ) {
+	const finaleRequired = options.finaleRequired !== false
 	currentFloorExitPosition = pos.clone();
-	let portalReady = false;
+	let portalReady = !finaleRequired;
 	let previousPhase = getRunPhase();
 	let rampShakeCooldown = 0;
 	const gravity = spawnGravityPull({
@@ -1714,8 +1718,8 @@ export function spawnFloorExit(
 		pos,
 		levelName: "level1",
 		visual: "wormhole",
-		label: "ACTIVATE EXIT",
-		portalState: "dormant",
+		label: finaleRequired ? "ACTIVATE EXIT" : "NEXT LEVEL",
+		portalState: finaleRequired ? "dormant" : "active",
 		tags: objectTags,
 		onEnter: (_portal, selectLevel, cancel) => {
 			if (narrativePrologueActive()) {
@@ -1728,7 +1732,7 @@ export function spawnFloorExit(
 				cancel();
 				return;
 			}
-			if (getRunPhase() !== "exitReady") {
+			if (finaleRequired && getRunPhase() !== "exitReady") {
 				if (activateRunFinale()) {
 					options.onActivated?.();
 					portal.setPortalInteractionEnabled(false);
@@ -1790,8 +1794,13 @@ export function spawnFloorExit(
 			});
 		},
 	});
+	if (!finaleRequired) {
+		portal.setPortalProgress(1)
+		portal.setPortalInteractionEnabled(true)
+	}
 
 	registerBatchedEntityUpdate("world", portal, () => {
+		if (!finaleRequired) return
 		const phase = getRunPhase();
 		if (phase === "transition") {
 			const progress = getRunFinaleRampProgress();

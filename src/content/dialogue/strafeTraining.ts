@@ -44,6 +44,16 @@ export const strafeTrainingDialogue = defineDialogue({
 					speaker: "BURT",
 					text: "Fly one direction. Fire in another. Federation targeting routines hate that.",
 				},
+				{
+					speaker: "BURT",
+					text: `Try it on me. Hold ${strafeBinding}, keep your cursor on me, and fire. I reinforced the important parts.`,
+				},
+			],
+			targetPracticeComplete: [
+				{
+					speaker: "BURT",
+					text: "Enough! Targeting works. Reinforcement remains a developing field.",
+				},
 			],
 			trainingGrounds: [
 				{

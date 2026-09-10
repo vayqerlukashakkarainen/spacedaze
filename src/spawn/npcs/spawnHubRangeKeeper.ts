@@ -1,4 +1,6 @@
 import { interactable, INTERACTION_PRIORITY } from "../../comp/interactable"
+import { dialogue } from "../../content/dialogue/dialogueCatalog"
+import { isSnareMotionActive, snareable } from "../../comp/snareable"
 import { timescale } from "../../comp/timescale"
 import { playerObj } from "../../game"
 import { k, layers, velocityScale, WORLD_CAMERA_SCALE } from "../../main"
@@ -16,7 +18,6 @@ import {
 	getNextNpcDialogue,
 	markNpcDialogueSeen,
 	registerNpcDialogueTrigger,
-	type NpcDialogueVariant,
 } from "../../services/narrative/npcDialogueService"
 import { registerNpcDialogueIndicator } from "../../services/narrative/npcDialogueIndicatorService"
 import { showPopover } from "../../services/ui/popoverService"
@@ -47,65 +48,6 @@ const HOSTILITY_DISPLACEMENT_DISTANCE = 96
 const HOSTILE_MOVE_SPEED = 52
 const HOSTILE_MIN_DISTANCE = 150
 const HOSTILE_MAX_DISTANCE = 250
-const DIALOGUES: readonly NpcDialogueVariant[] = [
-	{
-		id: "range-introduction",
-		minHubLevel: 2,
-		lines: [
-			{
-				speaker: "RANGE KEEPER",
-				text: "Contract traffic is active. The Wake once again contains enough pilots to create a safety concern.",
-			},
-			{
-				speaker: "RANGE KEEPER",
-				text: "I have volunteered to make it a more accurate safety concern.",
-			},
-		],
-	},
-	{
-		id: "forge-calibration",
-		minHubLevel: 3,
-		lines: [
-			{
-				speaker: "RANGE KEEPER",
-				text: "The salvage forge reconstructed my final targeting log from the Claim.",
-			},
-			{
-				speaker: "RANGE KEEPER",
-				text: "It reads: CLAIMKEEPER — MISSED. The asteroid has agreed to represent it.",
-			},
-		],
-	},
-	{
-		id: "range-expansion",
-		minHubLevel: 5,
-		lines: [
-			{
-				speaker: "RANGE KEEPER",
-				text: "The expanded range provides seventeen new firing angles.",
-			},
-			{
-				speaker: "RANGE KEEPER",
-				text: "Next time the Federation arrives, I intend to use all of them.",
-			},
-		],
-	},
-	{
-		id: "restoration-complete",
-		minHubLevel: 8,
-		lines: [
-			{
-				speaker: "RANGE KEEPER",
-				text: "Drius Wake is restored. Defensive systems report nominal operation.",
-			},
-			{
-				speaker: "RANGE KEEPER",
-				text: "If the Claimkeeper returns, it will find my calibration complete.",
-			},
-		],
-	},
-]
-
 export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 	if (getHubLevel() < 2) return
 	const trainingTarget = firingRange.targetPos
@@ -139,6 +81,14 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 			startConversation,
 			INTERACTION_PRIORITY.dialogue
 		),
+		snareable({
+			mass: 1.2,
+			radius: 14,
+			releaseDrag: 2.5,
+			returnAfterRelease: true,
+			returnSpeed: 105,
+		}),
+		tags.npc,
 		tags.props,
 		tags.gameLoop,
 	])
@@ -157,7 +107,7 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 		npcId: "ring-watcher",
 		getDialogueId: () => getNextNpcDialogue(
 			"ring-watcher",
-			DIALOGUES
+			dialogue.rangeKeeper.variants
 		)?.id,
 		isVisible: () => !talking && !watcher.isInRange,
 		offset: k.vec2(0, -52),
@@ -165,7 +115,7 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 
 	registerBatchedEntityUpdate("world", watcher, () => {
 		prompt.update(!talking && !turningHostile && watcher.isInRange)
-		if (talking || turningHostile) return
+		if (talking || turningHostile || isSnareMotionActive(watcher)) return
 		reactionCooldown = Math.max(0, reactionCooldown - k.dt())
 		const target = firingRange.getPrimaryTarget()
 		const currentTargetPos = target?.pos ?? trainingTarget
@@ -229,25 +179,18 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 
 	function startConversation() {
 		if (talking || turningHostile || !watcher.exists()) return false
-		const dialogue = getNextNpcDialogue("ring-watcher", DIALOGUES)
-		if (!dialogue) return false
+		const dialogueVariant = getNextNpcDialogue(
+			"ring-watcher",
+			dialogue.rangeKeeper.variants
+		)
+		if (!dialogueVariant) return false
 		talking = true
 		watcher.isInRange = false
 		prompt.update(false)
-		if (discoverDroid("ring-watcher")) {
-			const definition = getDroidDefinition("ring-watcher")
-			if (definition) {
-				showPopover({
-					title: "DROID DISCOVERED",
-					message: definition.name,
-					description: "NEW DROID RECORD ADDED TO THE PHASE STATION",
-					sprite: definition.sprite,
-					color: k.rgb(0, 220, 255),
-					duration: 6,
-				})
-			}
-		}
-		void playCutscene(createRingWatcherConversation(dialogue.id, dialogue.lines), {
+		void playCutscene(createRingWatcherConversation(
+			dialogueVariant.id,
+			dialogueVariant.lines
+		), {
 			resolveActor: (id) => {
 				if (id === "ringWatcher") return watcher
 				if (id === "player") return k.get(tags.player)[0]
@@ -255,12 +198,27 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 			},
 		}).then((result) => {
 			if (result === "completed") {
-				markNpcDialogueSeen("ring-watcher", dialogue.id)
+				markNpcDialogueSeen("ring-watcher", dialogueVariant.id)
+				showDroidDiscovery()
 			}
 		}).finally(() => {
 			if (watcher.exists()) talking = false
 		})
 		return true
+	}
+
+	function showDroidDiscovery() {
+		if (!discoverDroid("ring-watcher")) return
+		const definition = getDroidDefinition("ring-watcher")
+		if (!definition) return
+		showPopover({
+			title: "DROID DISCOVERED",
+			message: definition.name,
+			description: "NEW DROID RECORD ADDED TO THE COMPENDIUM",
+			sprite: definition.sprite,
+			color: k.rgb(0, 220, 255),
+			duration: 6,
+		})
 	}
 
 	function turnRangeKeeperHostile() {
@@ -288,10 +246,7 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 				duration: 1.95,
 				priority: "narrative",
 			})
-			void showDialogue([{
-				speaker: "RANGE KEEPER",
-				text: "STOP MOVING THE TARGET. YOU HAVE BECOME THE TARGET.",
-			}], {
+			void showDialogue(dialogue.rangeKeeper.hostile, {
 				channel: "comms",
 				gameplay: "live",
 				advance: "auto",

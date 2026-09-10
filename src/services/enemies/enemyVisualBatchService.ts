@@ -106,9 +106,12 @@ function drawEnemyVisuals() {
 			)
 		) return
 
+		const visualHitOffset = obj.visualHitOffset as Vec2 | undefined
 		k.drawSprite({
 			sprite: obj.sprite,
-			pos: obj.pos,
+			pos: visualHitOffset
+				? obj.pos.add(visualHitOffset)
+				: obj.pos,
 			angle: obj.visualAngle ?? obj.angle ?? 0,
 			anchor: obj.anchor ?? "center",
 			scale: obj.scale,

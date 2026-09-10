@@ -3,11 +3,9 @@ import { k, layers, subSoundVolume } from "../../main"
 import { spawnExplosionEffect } from "../../spawn/spawnFlash"
 import { tags } from "../../tags"
 import { applyDamage } from "./damageService"
-import { registerBatchedEntityUpdate } from "../core/entityUpdateService"
+import { startMechanicalDamageSmoke } from "./enemyDamageEffectService"
 import { gameSoundService } from "../audio/gameSoundService"
 
-const HEAVY_DAMAGE_THRESHOLD = 0.5
-const PART_SMOKE_INTERVAL = [0.46, 0.08] as const
 const MIN_EXPLOSION_RADIUS = 34
 const MAX_EXPLOSION_RADIUS = 72
 const PART_EXPLOSION_DAMAGE_MULTIPLIER = 0.55
@@ -21,48 +19,10 @@ interface PartExplosionOptions {
 
 type SmokeEmitter = GameObj<PosComp | ParticlesComp>
 
-const damageSmokeEmitters: Array<SmokeEmitter | undefined> = []
 const explosionSmokeEmitters: Array<SmokeEmitter | undefined> = []
 
 export function startShipPartDamageSmoke(part: GameObj, body: GameObj) {
-	if (part.shipPartDamageSmokeTracked) return
-	part.shipPartDamageSmokeTracked = true
-	let smokeTimer = 0
-
-	registerBatchedEntityUpdate("effects", part, () => {
-		if (
-			part.hidden ||
-			typeof part.hp !== "number" ||
-			typeof part.maxHP !== "number" ||
-			part.maxHP <= 0
-		) return
-		const healthRatio = k.clamp(part.hp / part.maxHP, 0, 1)
-		const intensity = k.clamp(
-			(HEAVY_DAMAGE_THRESHOLD - healthRatio) / HEAVY_DAMAGE_THRESHOLD,
-			0,
-			1
-		)
-		if (intensity <= 0) {
-			smokeTimer = 0
-			return
-		}
-
-		smokeTimer -= k.dt() * getObjectTimescale(part)
-		if (smokeTimer > 0) return
-		const explosionRadius = getPartExplosionRadius(body)
-		const emitter = getDamageSmokeEmitter(explosionRadius)
-		const position = getWorldPosition(part).add(
-			k.rand(-2.5, 2.5),
-			k.rand(-2.5, 1)
-		)
-		emitter.emitter.position = position
-		emitter.emit(1 + Math.floor(intensity * 2))
-		smokeTimer = k.lerp(
-			PART_SMOKE_INTERVAL[0],
-			PART_SMOKE_INTERVAL[1],
-			intensity
-		)
-	})
+	startMechanicalDamageSmoke(part, body)
 }
 
 export function triggerShipPartExplosion(
@@ -115,42 +75,6 @@ export function triggerShipPartExplosion(
 			visualForceOrigin: position.clone(),
 		})
 	}
-}
-
-function getDamageSmokeEmitter(explosionRadius: number) {
-	const profileIndex = getSmokeProfileIndex(explosionRadius)
-	const existing = damageSmokeEmitters[profileIndex]
-	if (existing?.exists()) return existing
-	const scale = SMOKE_SCALE_PROFILES[profileIndex]
-	const emitter = k.add([
-		k.pos(),
-		k.particles(
-			{
-				max: 180,
-				speed: [7, 24],
-				acceleration: [k.vec2(-4, -18), k.vec2(4, -32)],
-				angle: [0, 360],
-				lifeTime: [0.5, 1.15],
-				colors: [k.rgb(220, 225, 230), k.rgb(58, 64, 70)],
-				opacities: [0, 0.7, 0.42, 0],
-				scales: [0.35 * scale, 1.1 * scale, 1.9 * scale],
-				angularVelocity: [-55, 55],
-				texture: k.getSprite("particle3")!.data!.frames[0].tex,
-				quads: [k.getSprite("particle3")!.data!.frames[0].q],
-			},
-			{
-				rate: 0,
-				direction: -90,
-				spread: 65,
-				position: k.vec2(),
-			}
-		),
-		k.layer(layers.gameEffects),
-		k.z(4),
-		tags.gameLoop,
-	])
-	damageSmokeEmitters[profileIndex] = emitter
-	return emitter
 }
 
 function emitPartExplosionSmoke(position: Vec2, explosionRadius: number) {
@@ -233,8 +157,4 @@ function getSmokeProfileIndex(explosionRadius: number) {
 
 function getWorldPosition(target: GameObj) {
 	return target.worldPos?.clone() ?? target.pos.clone()
-}
-
-function getObjectTimescale(target: GameObj) {
-	return typeof target.getTimescale === "function" ? target.getTimescale() : 1
 }

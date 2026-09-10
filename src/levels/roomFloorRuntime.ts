@@ -17,11 +17,13 @@ import { CellType, type HexGrid } from "../grid/hexGrid"
 import { k, layers, mainSoundVolume, velocityScale } from "../main"
 import {
 	beginRoomFloor,
+	activateFloorCargoPuzzle,
 	clearRoomFloor,
 	enterFloorRoom,
 	extendCurrentEndlessRoomFloor,
 	getActiveRoomFloor,
 	getCurrentFloorRoom,
+	getFloorCargoPuzzleForRoom,
 	getFloorKeyCount,
 	isFloorRoomKeyLocked,
 	markCurrentRoomContentCompleted,
@@ -52,9 +54,18 @@ import { spawnImpactAce } from "../spawn/spawnImpactAce"
 import { spawnBoilerHulk } from "../spawn/wake/spawnBoilerHulk"
 import { spawnRing } from "../spawn/spawnRing"
 import { spawnDecorativeWormhole } from "../spawn/spawnLevel"
-import { spawnRunUpgradeShop } from "../spawn/rooms/spawnRunUpgradeShop"
+import {
+	spawnRunDroneShop,
+	spawnRunUpgradeShop,
+} from "../spawn/rooms/spawnRunUpgradeShop"
+import { spawnLassoComponent } from "../spawn/rooms/spawnLassoComponent"
+import {
+	spawnCargoPuzzleCrate,
+	spawnCargoPuzzleSocket,
+} from "../spawn/rooms/spawnCargoPuzzle"
 import { spawnRoomKeyPickup } from "../spawn/rooms/spawnRoomKey"
 import { spawnRoomEnvironment } from "../spawn/rooms/spawnRoomEnvironment"
+import { spawnScrapCircuitPuzzle } from "../spawn/rooms/spawnScrapCircuitPuzzle"
 import { spawnRewardPickup } from "../spawn/spawnPowerup"
 import { spawnHealthShrine } from "../spawn/shrine/spawnHealthShrine"
 import { spawnShrine } from "../spawn/shrine/spawnShrine"
@@ -64,7 +75,18 @@ import { tags } from "../tags"
 import { createNpcInteractionPrompt, UI_COLORS } from "../ui/common"
 import { playRequirementErrorSound } from "../services/audio/uiSoundService"
 import { rollMapEventReward } from "../services/economy/rewardService"
+import { getPermanentUpgradeLevel } from "../upg"
+import { getLifetimeStats } from "../services/runs/runStatsService"
+import { canDiscoverLassoComponent } from "../services/narrative/narrativeService"
 import { clearRoomCoverSources } from "../services/world/roomCoverService"
+import {
+	activatePersistentShipPartRoom,
+	clearPersistentShipParts,
+} from "../services/combat/persistentShipPartService"
+import {
+	placePlayerLassoRoomTransfer,
+	preparePlayerLassoRoomTransfer,
+} from "../services/player/playerLassoService"
 import {
 	getEnemyVisual,
 } from "../visuals/enemyVisualCatalog"
@@ -96,6 +118,7 @@ const HOSTILE_ARRIVAL_SILHOUETTE_OPACITY = 0.4
 const HOSTILE_ARRIVAL_LINE_OPACITY = 0.2
 const GRAVITY_ROOM_COLOR = [174, 112, 255] as const
 const GRAVITY_ROOM_WORMHOLE_OFFSET_Y = -18
+const OPENING_TRANSITION_DEPTH = 1
 
 let active = false
 let activeConfig: GeneratedMapConfig | undefined
@@ -108,6 +131,7 @@ export function startGeneratedRoomFloor(
 	options: {
 		endless?: boolean
 		roomCount?: number
+		maxRoomCount?: number
 	} = {}
 ) {
 	clearGeneratedRoomFloor()
@@ -118,6 +142,15 @@ export function startGeneratedRoomFloor(
 		hubLevel: getHubLevel(),
 		endless: options.endless,
 		roomCount: options.roomCount,
+		maxRoomCount: options.maxRoomCount,
+		lassoComponentAvailable:
+			getLifetimeStats().completedRuns >= 5 &&
+			canDiscoverLassoComponent() &&
+			getPermanentUpgradeLevel("salvageLasso") === undefined,
+		scrapCircuitAvailable:
+			getPermanentUpgradeLevel("salvageLasso") !== undefined,
+		cargoPuzzleAvailable:
+			getPermanentUpgradeLevel("salvageLasso") !== undefined,
 	})
 	startThreatLevel(depth)
 	spawnFloorController()
@@ -127,6 +160,7 @@ export function startGeneratedRoomFloor(
 
 export function clearGeneratedRoomFloor() {
 	clearRoomCoverSources()
+	clearPersistentShipParts()
 	if (playerObj?.has("gridCollision")) playerObj.unuse("gridCollision")
 	gridRegistry.unregister(ACTIVE_RUN_GRID_KEY)
 	destroyTaggedObjects(tags.runRoom)
@@ -150,7 +184,8 @@ export function transitionToConnectedRoom(destinationRoomId: string) {
 	if (!destination) return false
 	const travelDirection = getRoomTravelDirection(previousRoom, destination)
 	transitionCooldown = ROOM_TRANSITION_COOLDOWN
-	destroyTaggedObjects(tags.runRoom)
+	const carriedTarget = preparePlayerLassoRoomTransfer()
+	destroyTaggedObjects(tags.runRoom, carriedTarget)
 	loadCurrentRoom(previousRoom.id, false, travelDirection)
 	k.flash(k.rgb(8, 22, 30), 0.12)
 	return true
@@ -174,7 +209,8 @@ export function quickJumpToClearedRoom(destinationRoomId: string) {
 	const travelDirection = getRoomTravelDirection(previousRoom, destination)
 
 	transitionCooldown = ROOM_TRANSITION_COOLDOWN
-	destroyTaggedObjects(tags.runRoom)
+	const carriedTarget = preparePlayerLassoRoomTransfer()
+	destroyTaggedObjects(tags.runRoom, carriedTarget)
 	loadCurrentRoom(previousRoom.id, false, travelDirection)
 	k.flash(k.rgb(8, 22, 30), 0.12)
 	return true
@@ -201,6 +237,7 @@ function loadCurrentRoom(
 	grid.config.offset = k.center().sub(uncenteredCenter)
 	gridRegistry.unregister(ACTIVE_RUN_GRID_KEY)
 	gridRegistry.register(ACTIVE_RUN_GRID_KEY, grid, false)
+	activatePersistentShipPartRoom(room.id)
 	if (playerObj.has("gridCollision")) playerObj.unuse("gridCollision")
 	playerObj.use(gridCollision(ACTIVE_RUN_GRID_KEY))
 	const entryPosition = teleportArrival
@@ -212,7 +249,7 @@ function loadCurrentRoom(
 		const entryDoor = template.doors.find(
 			(door) => door.destinationRoomId === previousRoomId
 		)
-		playPlayerRespawnTransition(entryPosition, {
+		const arrivalAnimating = playPlayerRespawnTransition(entryPosition, {
 			startPosition: travelDirection
 				? entryPosition.sub(travelDirection.scale(
 					grid.config.hexSize * Math.sqrt(3) * 3
@@ -221,6 +258,9 @@ function loadCurrentRoom(
 					? grid.hexToScreen(entryDoor.coord)
 					: entryPosition.add(-ROOM_HEX_SIZE * 2, 0),
 		})
+		placePlayerLassoRoomTransfer(playerObj.pos, room.id, arrivalAnimating)
+	} else {
+		placePlayerLassoRoomTransfer(playerObj.pos, room.id, false)
 	}
 	if (
 		room.state !== "cleared" &&
@@ -297,6 +337,7 @@ function getRoomTravelDirection(
 function roomClearsOnEntry(room: RoomFloorRoom) {
 	return !roomUsesStandardEncounter(room) &&
 		room.kind !== "shrine" &&
+		room.kind !== "scrapCircuit" &&
 		room.kind !== "miniBoss" &&
 		room.kind !== "boss"
 }
@@ -305,7 +346,9 @@ function roomUsesStandardEncounter(room: RoomFloorRoom) {
 	return room.kind === "combat" ||
 		room.kind === "reward" ||
 		room.kind === "gravity" ||
-		room.kind === "event"
+		room.kind === "event" ||
+		room.kind === "lassoComponent" ||
+		room.kind === "cargoPuzzleSource"
 }
 
 function roomUsesCombatMusic(room: RoomFloorRoom) {
@@ -683,12 +726,24 @@ function spawnRoomContent(
 		onCleared(false)
 	}
 	if (room.kind === "start" || room.kind === "combat") return
+	if (room.kind === "scrapCircuit") {
+		spawnScrapCircuitPuzzle(center, {
+			difficulty: getActiveRoomFloor()?.depth ?? 1,
+			tags: objectTags,
+			onCompleted: completeContent,
+		})
+		return
+	}
 	if (room.kind === "gravity") {
 		spawnRoomGravityShrine(center, room)
 		return
 	}
 	if (room.kind === "exit" || (room.kind === "boss" && room.state === "cleared")) {
-		spawnFloorExit(center, objectTags, { onActivated: onExitActivated })
+		spawnFloorExit(center, objectTags, {
+			onActivated: onExitActivated,
+			finaleRequired:
+				getActiveRoomFloor()?.depth !== OPENING_TRANSITION_DEPTH,
+		})
 		return
 	}
 	if (room.kind === "deposit") {
@@ -702,8 +757,54 @@ function spawnRoomContent(
 	if (room.contentCompleted) return
 
 	switch (room.kind) {
+		case "cargoPuzzleSource": {
+			const puzzle = getFloorCargoPuzzleForRoom(room.id)
+			if (!puzzle) {
+				completeContent()
+				return
+			}
+			const crateCoord = template.contentSlots[0] ?? template.center
+			spawnCargoPuzzleCrate(grid.hexToScreen(crateCoord), puzzle.id)
+			return
+		}
+		case "cargoPuzzleTarget": {
+			const puzzle = getFloorCargoPuzzleForRoom(room.id)
+			if (!puzzle) {
+				completeContent()
+				return
+			}
+			const socketCoord = template.contentSlots[0] ?? template.center
+			const chestCoord = template.contentSlots[1] ?? {
+				q: template.center.q + 1,
+				r: template.center.r,
+			}
+			spawnCargoPuzzleSocket(grid.hexToScreen(socketCoord), puzzle.id, {
+				activated: puzzle.socketActivated,
+				onActivate: () => activateFloorCargoPuzzle(puzzle.id),
+			})
+			spawnChest(
+				grid.hexToScreen(chestCoord),
+				getActiveRoomFloor()?.depth ?? 1,
+				{
+					available: () => puzzle.socketActivated,
+					ghostWhenUnavailable: true,
+					onOpened: completeContent,
+					tags: objectTags,
+				}
+			)
+			return
+		}
 		case "shop":
 			spawnRunUpgradeShop(center, room, objectTags)
+			return
+		case "droneShop":
+			spawnRunDroneShop(center, room, objectTags)
+			return
+		case "lassoComponent":
+			spawnLassoComponent(center, {
+				tags: objectTags,
+				onCollected: completeContent,
+			})
 			return
 		case "reward":
 			spawnChest(center, getActiveRoomFloor()?.depth ?? 1, {
@@ -1129,15 +1230,17 @@ function spawnRoomGravityShrine(center: Vec2, room: RoomFloorRoom) {
 			maxRadius: 72,
 			color: k.rgb(174, 112, 255),
 		})
-		destroyTaggedObjects(tags.runRoom)
+		const carriedTarget = preparePlayerLassoRoomTransfer()
+		destroyTaggedObjects(tags.runRoom, carriedTarget)
 		loadCurrentRoom(room.id, true)
 		k.flash(k.rgb(90, 45, 130), 0.18)
 	}
 }
 
-function destroyTaggedObjects(tag: string) {
+function destroyTaggedObjects(tag: string, preservedObject?: GameObj) {
 	const objects = k.get<GameObj>(tag).sort((a, b) => objectDepth(b) - objectDepth(a))
 	for (const object of objects) {
+		if (object.id === preservedObject?.id) continue
 		if (object.exists()) k.destroy(object)
 	}
 }

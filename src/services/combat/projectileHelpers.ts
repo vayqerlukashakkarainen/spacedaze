@@ -1,6 +1,10 @@
 import type { GameObj, Vec2 } from "kaplay";
 import { BULLET_SPEED, k, ROCKET_SPEED } from "../../main";
 import { tags } from "../../tags";
+import {
+	getTargetWorldPosition,
+	isProjectileTargetForTags,
+} from "./targetingService";
 import { ProjectileConfig } from "../../projectiles/projectileConfig";
 import { spawnProjectile } from "./projectileService";
 import { player, session } from "../../player";
@@ -80,6 +84,10 @@ export function spawnPlayerBlaster(
 	const projectileTint = weapon.projectileTint
 		? k.rgb(...weapon.projectileTint)
 		: undefined;
+	const projectileDirection = k.Vec2.fromAngle(rot + spreadAngle - 90)
+	const projectilePos = pos.add(
+		projectileDirection.scale(weapon.projectileSpawnOffset ?? 0)
+	)
 	const isFullyChargedWeapon =
 		weapon.charge !== undefined && shotOptions.isFullyCharged === true;
 	const isFullyChargedRailLance =
@@ -121,8 +129,8 @@ export function spawnPlayerBlaster(
 		player.blasterSpeedMultiplier *
 		(shotOptions.speedMultiplier ?? 1);
 	const config: ProjectileConfig = {
-		pos,
-		dir: k.Vec2.fromAngle(rot + spreadAngle - 90),
+		pos: projectilePos,
+		dir: projectileDirection,
 		rotation: rot + spreadAngle,
 		sprite: weapon.projectileSprite ?? "bullet1",
 		tint: projectileTint,
@@ -230,7 +238,7 @@ export function spawnPlayerBlaster(
 		config.seek = {
 			enabled: true,
 			acquireDelay: weapon.targetingGuidance.acquireDelay ?? 0,
-			seekDistance: preferredTarget.pos.dist(pos) + 64,
+			seekDistance: getTargetWorldPosition(preferredTarget).dist(pos) + 64,
 			turnSpeed: weapon.targetingGuidance.turnSpeed,
 			targetTags: [tags.enemy],
 		}
@@ -329,7 +337,10 @@ function applyPreferredProjectileTarget(
 	projectile: GameObj,
 	preferredTarget?: GameObj
 ) {
-	if (!preferredTarget?.exists()) return projectile;
+	if (
+		!preferredTarget ||
+		!isProjectileTargetForTags(preferredTarget, projectile.targetTags ?? [])
+	) return projectile;
 	projectile.targetUnit = preferredTarget;
 	preferredTarget.onDestroy(() => {
 		if (
@@ -500,6 +511,13 @@ function applyPlayerProjectileModifiers(
 			slowPercentage: player.projectileSlowPercentage,
 			effectType: "stars",
 		};
+	}
+
+	if (player.projectileStunChance > 0) {
+		config.stun = {
+			chance: player.projectileStunChance,
+			duration: player.projectileStunDuration,
+		}
 	}
 
 	if (player.projectileDotDamage > 0) {

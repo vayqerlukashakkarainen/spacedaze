@@ -1,11 +1,13 @@
 import {
 	addFloorKeys,
+	activateFloorCargoPuzzle,
 	beginRoomFloor,
 	clearRoomFloor,
 	discoverAllFloorRooms,
 	enterFloorRoom,
 	getCurrentFloorRoom,
 	getFloorKeyCount,
+	getFloorCargoPuzzleForRoom,
 	getRoomFloorSnapshot,
 	isFloorRoomKeyLocked,
 	markCurrentFloorRoomCleared,
@@ -185,6 +187,38 @@ assert(dropRoom.keyRewardRolled === true, "Room-clear key drops should be rolled
 assert(
 	rollCurrentRoomClearKeyDrop() === false,
 	"A cleared room should not roll a second key drop"
+)
+
+let cargoFloor: ReturnType<typeof beginRoomFloor> | undefined
+for (let seed = 9000; seed < 9240; seed++) {
+	const candidate = beginRoomFloor(seed, 2, { cargoPuzzleAvailable: true })
+	if (candidate.cargoPuzzles.length === 0) continue
+	cargoFloor = candidate
+	break
+}
+assert(cargoFloor !== undefined, "A cargo puzzle test floor should be generated")
+const cargoPuzzle = cargoFloor!.cargoPuzzles[0]
+assert(
+	getFloorCargoPuzzleForRoom(cargoPuzzle.sourceRoomId)?.id === cargoPuzzle.id &&
+	getFloorCargoPuzzleForRoom(cargoPuzzle.targetRoomId)?.id === cargoPuzzle.id,
+	"Both cargo rooms should resolve the shared puzzle"
+)
+assert(activateFloorCargoPuzzle(cargoPuzzle.id), "The cargo socket should activate once")
+assert(cargoPuzzle.socketActivated, "Cargo activation should persist on the floor")
+assert(
+	cargoFloor!.rooms.find((room) => room.id === cargoPuzzle.sourceRoomId)
+		?.contentCompleted === true,
+	"Activating the socket should retire the source cargo"
+)
+assert(
+	!activateFloorCargoPuzzle(cargoPuzzle.id),
+	"An activated cargo socket should reject duplicate completion"
+)
+const cargoSnapshot = getRoomFloorSnapshot()!
+cargoSnapshot.cargoPuzzles[0].socketActivated = false
+assert(
+	cargoPuzzle.socketActivated,
+	"Cargo puzzle snapshots must not mutate the active floor"
 )
 
 clearRoomFloor()

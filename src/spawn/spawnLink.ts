@@ -2,6 +2,7 @@ import type { Color, GameObj, PosComp, Vec2 } from "kaplay";
 import { dt, k, layers } from "../main";
 import { tags } from "../tags";
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
+import { getTargetWorldPosition } from "../services/combat/targetingService";
 
 interface Props {
 	pos1: Vec2;
@@ -59,7 +60,9 @@ export function spawnChainProjectile(props: Props) {
 	registerBatchedEntityUpdate("effects", projectile, () => {
 		const deltaTime = dt();
 		projectile.elapsed += deltaTime;
-		const targetPos = props.target?.pos ?? props.pos2;
+		const targetPos = props.target?.exists()
+			? getTargetWorldPosition(props.target)
+			: props.pos2;
 		const toTarget = targetPos.sub(projectile.pos);
 
 		if (toTarget.len() <= 7) {

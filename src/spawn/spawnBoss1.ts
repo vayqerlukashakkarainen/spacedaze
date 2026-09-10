@@ -13,7 +13,6 @@ import {
 	k,
 	layers,
 	mainSoundVolume,
-	subSoundVolume,
 	velocityScale,
 } from "../main"
 import { starsEmitter } from "../particles"
@@ -23,6 +22,7 @@ import { getBossDefinition } from "../services/enemies/bossRegistry"
 import { applyDamage } from "../services/combat/damageService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import { setHitSoundProfile } from "../services/audio/hitSoundService"
+import { registerShipPartTarget } from "../services/combat/targetingService"
 import { hasEnemyLineOfSight } from "../services/enemies/enemyNavigationService"
 import { spawnLineTelegraph } from "../services/enemies/enemyTelegraphService"
 import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState"
@@ -208,6 +208,9 @@ export function spawnBoss1(
 			isAlive: () => crownAlive,
 		},
 	]
+	for (const part of targetableParts) {
+		registerShipPartTarget(part.obj, boss, part.hitbox)
+	}
 
 	const stopActiveField = () => {
 		gravity.radius = 0
@@ -533,9 +536,8 @@ export function spawnBoss1(
 			definition.rewardMultiplier,
 			"boss",
 			false,
-			{ intensity: 4.5, starCount: 90 }
+			{ intensity: 4.5, starCount: 90, material: "ship" }
 		)
-		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(boss)
 	})
 	boss.onHurt(() => {

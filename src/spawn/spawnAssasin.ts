@@ -193,7 +193,10 @@ export function spawnAssasin(
 				profile.rewardMultiplier,
 				"enemy",
 				true,
-				{ tier: profile.elite ? "elite" : "normal" }
+				{
+					tier: profile.elite ? "elite" : "normal",
+					material: "ship",
+				}
 			);
 		},
 		parts: [

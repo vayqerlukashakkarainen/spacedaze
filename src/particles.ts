@@ -12,6 +12,7 @@ export let railgunTrailEmitter: GameObj<PosComp | ParticlesComp>;
 export let starsEmitter: GameObj<PosComp | ParticlesComp>;
 export let starsEmitterDir: GameObj<PosComp | ParticlesComp>;
 export let explosionEmitter: GameObj<PosComp | ParticlesComp>;
+const explosionSmokeEmitters: GameObj<PosComp | ParticlesComp>[] = [];
 export let debreeEmitter: GameObj<PosComp | ParticlesComp>;
 export let debreeRocketEmitter: GameObj<PosComp | ParticlesComp>;
 export let dustTrailEmitter: GameObj<PosComp | ParticlesComp>;
@@ -43,6 +44,23 @@ const MAX_IMPACT_CHIPS = 180;
 const impactChips: ImpactChip[] = [];
 let enemyEffectFrame = -1;
 let enemyEffectCadence = 1;
+
+export function emitExplosionSmoke(position: Vec2, explosionSize: number) {
+	if (explosionSmokeEmitters.length === 0) return;
+	const count = Math.round(k.clamp(explosionSize / 12, 5, 10));
+	const scatter = Math.max(2, explosionSize * 0.2);
+	const firstSize = Math.floor(k.rand(0, explosionSmokeEmitters.length));
+
+	for (let index = 0; index < count; index++) {
+		const emitter = explosionSmokeEmitters[
+			(firstSize + index) % explosionSmokeEmitters.length
+		];
+		emitter.emitter.position = position.add(
+			k.rand(k.vec2(-scatter, -scatter), k.vec2(scatter, scatter))
+		);
+		emitter.emit(1);
+	}
+}
 
 export function emitEnemyTrail(
 	enemy: GameObj,
@@ -483,4 +501,50 @@ export function initParticles() {
 			}
 		),
 	]);
+
+	for (const profile of [
+		{ scale: 3.4, opacity: 0.34 },
+		{ scale: 5.6, opacity: 0.42 },
+		{ scale: 8.4, opacity: 0.5 },
+	]) {
+		const opacity = profile.opacity;
+		explosionSmokeEmitters.push(k.add([
+			k.pos(),
+			k.particles(
+				{
+					max: 160,
+					speed: [1, 7],
+					angle: [0, 360],
+					lifeTime: [5, 20],
+					colors: [
+						k.rgb(145, 145, 145),
+						k.rgb(72, 72, 72),
+					],
+					// Kaplay samples particle scale keyframes discretely. A fixed
+					// per-profile scale prevents a visible size reset during fade-out.
+					opacities: [
+						opacity,
+						opacity * 0.82,
+						opacity * 0.62,
+						opacity * 0.4,
+						opacity * 0.18,
+						0,
+					],
+					scales: [profile.scale],
+					damping: [0.15, 0.45],
+					angularVelocity: [-8, 8],
+					texture: k.getSprite("particle3")!.data!.frames[0].tex,
+					quads: [k.getSprite("particle3")!.data!.frames[0].q],
+				},
+				{
+					rate: 0,
+					direction: -90,
+					spread: 360,
+					position: k.vec2(),
+				}
+			),
+			k.layer(layers.gameEffects),
+			k.z(-2),
+		]));
+	}
 }

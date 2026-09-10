@@ -7,7 +7,7 @@ import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateSer
 import { getEnemyNavigationDirection, hasEnemyLineOfSight } from "../../services/enemies/enemyNavigationService"
 import { drawLightning } from "../../services/combat/lightningVisualService"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../../services/enemies/threatService"
-import { applyDirectionalSteeringLean, easeDirection } from "../../shared"
+import { easeDirection } from "../../shared"
 import { tags } from "../../tags"
 import { getEnemyVisual } from "../../visuals/enemyVisualCatalog"
 import { addWakeEnemyPart, composeWakeEnemy, handleWakeCompositeCombat } from "./wakeEnemyShared"
@@ -110,7 +110,6 @@ export function spawnTowhookRig(
 			(rig.hookCount === 0 ? 118 : 68) * profile.speedMultiplier * velocityScale() * rig.getTimescale()
 		))
 		rig.angle = direction.angle() + 90
-		applyDirectionalSteeringLean(rig, rig.moveDirection, direction, profile.scale)
 
 		rig.tetherActive = rig.hookCount > 0 &&
 			distance <= TOWHOOK_RANGE &&

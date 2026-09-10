@@ -9,7 +9,7 @@ import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
 } from "../../services/enemies/threatService"
-import { applyDirectionalSteeringLean, easeDirection } from "../../shared"
+import { easeDirection } from "../../shared"
 import { tags } from "../../tags"
 import { getEnemyVisual } from "../../visuals/enemyVisualCatalog"
 import {
@@ -210,12 +210,6 @@ function updateScrapRaiserMovement(
 			speed * speedMultiplier * velocityScale() * raiser.getTimescale()
 		))
 		raiser.angle = raiser.moveDirection.angle() + 90
-		applyDirectionalSteeringLean(
-			raiser,
-			raiser.moveDirection,
-			desired,
-			raiser.scale.x
-		)
 	}
 
 	if (

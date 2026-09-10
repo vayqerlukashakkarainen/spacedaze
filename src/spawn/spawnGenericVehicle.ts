@@ -1,7 +1,6 @@
 import { GameObj, Vec2 } from "kaplay";
 import { checkProjectileIntersection, playerObj } from "../game";
 import { k, subSoundVolume, velocityScale } from "../main";
-import { gameSoundService } from "../services/audio/gameSoundService"
 import { starsEmitterDir } from "../particles";
 import { tags } from "../tags";
 import { registerHitAnimation } from "../shared";
@@ -16,6 +15,7 @@ import {
 } from "../services/enemies/threatService";
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog";
+import { gameSoundService } from "../services/audio/gameSoundService";
 
 const GENERIC_VEHICLE_VISUAL = getEnemyVisual("generic-vehicle");
 
@@ -86,11 +86,14 @@ export function spawnGenericVehicle(
 	});
 
 	m.onDeath(() => {
+		const deathPos = m.pos.clone();
 		starsEmitterDir.emitter.position = m.pos;
 		starsEmitterDir.emitter.direction = m.angle + 90;
 
 		starsEmitterDir.emit(20);
-		gameSoundService.play("enemy_explosion", { volume: subSoundVolume });
+		gameSoundService.playPositional("enemy_ship_destroyed", deathPos, {
+			volume: subSoundVolume,
+		});
 		k.destroy(m);
 
 		addTo.killed += 1;

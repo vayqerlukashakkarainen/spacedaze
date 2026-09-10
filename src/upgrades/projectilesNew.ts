@@ -115,6 +115,37 @@ export const cryoRounds: UpgradeDefinition = {
 	),
 }
 
+export const stunRounds: UpgradeDefinition = {
+	toolKey: "stunRounds",
+	toolName: "Stun rounds",
+	category: "combat",
+	type: "passive",
+	levels: [0.05, 0.08, 0.11, 0.14, 0.17].map((chance, index) => {
+		const duration = 0.4 + index * 0.05
+		const durationLabel = duration.toFixed(2).replace(/0$/, "")
+		return {
+			name: STACK_NAMES[index],
+			desc: `${Math.round(chance * 100)}% chance for projectile hits to stun enemies for ${durationLabel} seconds`,
+			price: 18 + index * 4,
+			sprite: "stun_rounds_upg1",
+			effects: {
+				modifiers: [
+					{
+						stat: "projectileStunChance",
+						value: chance,
+						type: "base" as const,
+					},
+					{
+						stat: "projectileStunDuration",
+						value: duration,
+						type: "base" as const,
+					},
+				],
+			},
+		}
+	}),
+}
+
 export const corrosivePayload: UpgradeDefinition = {
 	toolKey: "corrosivePayload",
 	toolName: "Corrosive payload",

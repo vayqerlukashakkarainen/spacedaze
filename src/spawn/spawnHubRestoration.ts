@@ -1,12 +1,18 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { k, layers } from "../main"
-import { getHubLevel } from "../services/hub/hubProgressService"
+import {
+	getHubLevel,
+	getHubLevelDefinition,
+	getHubLifetimeDeposited,
+} from "../services/hub/hubProgressService"
 import {
 	addLocalLight,
 	updateLocalLight,
 } from "../services/world/localLightService"
+import type { SalvagePickupValue } from "../services/economy/salvagePickupService"
 import { tags } from "../tags"
 import { getCompanionVisual } from "../visuals/companionVisualCatalog"
+import { SALVAGE_PICKUP_VISUALS } from "../visuals/pickupVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { applySteeringLean, lerpAngleBetweenPos } from "../shared"
 
@@ -26,6 +32,22 @@ const HUB_LAMP_PLATFORM_SPRITES = [
 ] as const
 const HAULER_SPEED = 145
 const HAULER_CARGO_OFFSETS = [[-3, -4], [0, -6], [3, -4], [-1.5, -2], [1.5, -2]] as const
+const MAX_DEBRIS_DISPLAY_PIECES = 45
+const DEBRIS_DISPLAY_CLUSTER_RADIUS = 66
+const DEBRIS_DISPLAY_VALUES: readonly SalvagePickupValue[] = [
+	1,
+	1,
+	3,
+	1,
+	5,
+	1,
+	3,
+	1,
+	10,
+	3,
+	1,
+	5,
+] as const
 
 type HaulerPhase = "waiting" | "outbound" | "scavenging" | "returning"
 
@@ -57,6 +79,7 @@ export function spawnHubRestoration(
 		center,
 		options.initialLampLevel ?? getHubLevel()
 	)
+	const debrisDisplay = spawnRestorationDebrisDisplay(center)
 	const revealThroughLevel = (level: number) => {
 		for (let index = 0; index < lamps.length; index++) {
 			lamps[index].setLit(index < level)
@@ -68,6 +91,7 @@ export function spawnHubRestoration(
 		k.z(-1),
 		{
 			update() {
+				debrisDisplay.update()
 				const level = Math.min(HUB_RESTORATION_LAMP_COUNT, getHubLevel())
 				if (!lampLevelOverride) revealThroughLevel(level)
 				while (spawnedThroughLevel < level) {
@@ -99,6 +123,87 @@ export function spawnHubRestoration(
 				Math.min(HUB_RESTORATION_LAMP_COUNT, getHubLevel())
 			)
 		},
+	}
+}
+
+function spawnRestorationDebrisDisplay(center: Vec2) {
+	const pieces: Array<{
+		object: ReturnType<typeof k.add>
+		basePos: Vec2
+		baseAngle: number
+		phase: number
+		floatSpeed: number
+	}> = []
+	let displayedCount = -1
+
+	const syncCount = () => {
+		const deposited = getHubLifetimeDeposited()
+		const maximumDeposit = getHubLevelDefinition(
+			HUB_RESTORATION_LAMP_COUNT
+		).requiredDeposited
+		const depositProgress = k.clamp(deposited / maximumDeposit, 0, 1)
+		const nextCount = deposited <= 0
+			? 0
+			: Math.ceil(Math.sqrt(depositProgress) * MAX_DEBRIS_DISPLAY_PIECES)
+		if (nextCount === displayedCount) return
+		displayedCount = nextCount
+		while (pieces.length > nextCount) {
+			const piece = pieces.pop()
+			if (piece?.object.exists()) k.destroy(piece.object)
+		}
+		while (pieces.length < nextCount) {
+			pieces.push(spawnRestorationDebrisPiece(center, pieces.length))
+		}
+	}
+
+	const update = () => {
+		syncCount()
+		const time = k.time()
+		for (const piece of pieces) {
+			if (!piece.object.exists()) continue
+			piece.object.pos = piece.basePos.add(
+				Math.sin(time * piece.floatSpeed + piece.phase) * 1.25,
+				Math.cos(time * piece.floatSpeed * 0.72 + piece.phase) * 0.9
+			)
+			piece.object.angle = piece.baseAngle +
+				Math.sin(time * piece.floatSpeed * 0.45 + piece.phase) * 8
+		}
+	}
+
+	update()
+	return { update }
+}
+
+function spawnRestorationDebrisPiece(center: Vec2, index: number) {
+	const normalizedRadius = Math.sqrt(
+		(index + 0.5) / MAX_DEBRIS_DISPLAY_PIECES
+	)
+	const radius = DEBRIS_DISPLAY_CLUSTER_RADIUS * normalizedRadius
+	const angle = index * 137.508 + (index % 4) * 11
+	const basePos = center.add(k.Vec2.fromAngle(angle).scale(radius))
+	const baseAngle = (index * 83) % 360
+	const salvageValue = DEBRIS_DISPLAY_VALUES[
+		index % DEBRIS_DISPLAY_VALUES.length
+	]
+	const visual = SALVAGE_PICKUP_VISUALS[salvageValue]
+	const object = k.add([
+		k.pos(basePos),
+		k.sprite(visual.parts[0].sprite),
+		k.anchor("center"),
+		k.rotate(baseAngle),
+		k.scale(visual.worldScale),
+		k.color(...visual.color),
+		k.layer(layers.game2),
+		k.z(-2 + normalizedRadius),
+		tags.hubRestoration,
+		tags.gameLoop,
+	])
+	return {
+		object,
+		basePos,
+		baseAngle,
+		phase: index * 0.91,
+		floatSpeed: 0.52 + (index % 5) * 0.07,
 	}
 }
 

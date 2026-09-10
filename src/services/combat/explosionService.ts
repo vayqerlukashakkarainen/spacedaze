@@ -18,6 +18,7 @@ export interface ExplosionOptions {
 	visualScale?: number
 	visualIntensity?: number
 	visualParticleCount?: number
+	persistentSmoke?: boolean
 	damageFalloff?: number
 	falloffDistance?: number
 	canCrit?: boolean
@@ -68,6 +69,7 @@ export function createExplosion(options: ExplosionOptions) {
 			ringIntensity: context.visualIntensity,
 			particleCount: context.visualParticleCount,
 			color: context.visualColor,
+			persistentSmoke: context.persistentSmoke,
 		}
 	)
 	applyPlayerExplosionPulse(context)
@@ -84,7 +86,10 @@ export function createExplosion(options: ExplosionOptions) {
 				context.damage,
 				player.critMultiplier
 			)
-		if (!applyDamage(target, result.damage, { critical: result.critical })) continue
+		if (!applyDamage(target, result.damage, {
+			critical: result.critical,
+			visualForceOrigin: context.pos,
+		})) continue
 		context.hits.push({
 			target,
 			damage: result.damage,

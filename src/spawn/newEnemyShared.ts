@@ -1,7 +1,6 @@
 import type { GameObj } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
-import { k, subSoundVolume } from "../main"
-import { gameSoundService } from "../services/audio/gameSoundService"
+import { k } from "../main"
 import { applyDamage } from "../services/combat/damageService"
 import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState"
 import type { EnemySpawnProfile } from "../services/enemies/threatService"
@@ -46,9 +45,11 @@ export function registerEnemyLifecycle(
 			reconstructed ? 0 : powerupMultiplier * profile.rewardMultiplier,
 			"enemy",
 			!reconstructed,
-			{ tier: profile.elite ? "elite" : "normal" }
+			{
+				tier: profile.elite ? "elite" : "normal",
+				material: "ship",
+			}
 		)
-		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(enemy)
 	})
 	enemy.onHurt(() => {

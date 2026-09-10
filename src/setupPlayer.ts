@@ -6,7 +6,11 @@ import type {
 	RotateComp,
 	Vec2,
 } from "kaplay";
-import { beginPlayerDeathSequence, checkProjectileIntersection } from "./game";
+import {
+	beginPlayerDeathSequence,
+	checkProjectileIntersection,
+	respawnPlayerFromExtraLife,
+} from "./game";
 import {
 	syncPlayerHealthBarCapacity,
 	flashEmptySecondarySocket,
@@ -104,6 +108,12 @@ import {
 } from "./services/core/runtimeSpatialIndexService";
 import { isPointerOverUi } from "./services/input/uiPointerService";
 import {
+	findClosestPlayerTarget,
+	getTargetHitRadius,
+	getTargetWorldPosition,
+	isPlayerTargetable,
+} from "./services/combat/targetingService";
+import {
 	addCameraKick,
 	clearCameraBob,
 	clearCameraKick,
@@ -169,6 +179,8 @@ import {
 	DRIFT_SPEED_MULTIPLIER,
 	easeAngle,
 	getSignedAngleDelta,
+	setPlayerTargetModeAimPosition,
+	setPlayerTargetModeActive,
 	shouldTurnHullForStationaryAim,
 	TURRET_AIM_RESPONSE,
 } from "./services/input/playerSteeringModeService"
@@ -178,6 +190,7 @@ import {
 	setPlayerTargetLock,
 	updatePlayerTargetMotion,
 } from "./services/player/playerTargetLockService"
+import { consumeExtraLife } from "./services/progression/extraLifeService"
 import {
 	isInputActionDown,
 	onInputActionPress,
@@ -188,6 +201,13 @@ import {
 	installWeaponWheel,
 	weaponWheelOpen,
 } from "./ui/weaponWheel"
+import {
+	completePlayerLassoRoomTransfer,
+	getPlayerLassoThrusterLoad,
+	installPlayerLasso,
+	syncPlayerLassoRoomTransfer,
+} from "./services/player/playerLassoService"
+import { getPermanentUpgradeLevel } from "./upg"
 
 let blasters = 0;
 let bulletIndex = 1;
@@ -196,7 +216,8 @@ const playerAcceleration = 420;
 const playerDeceleration = 560;
 const cameraZoomLerpSpeed = 5;
 const strafeCameraZoomMultiplier = 1.2;
-const strafeCameraPointerWeight = 0.2;
+const normalCameraPointerWeight = 0.05;
+const strafeCameraPointerWeight = 0.25;
 const strafeTargetQueryRadius = 72;
 const strafeTargetMinimumRadius = 14;
 const strafeTargetPadding = 5;
@@ -212,9 +233,10 @@ const overclockShakeInterval = 0.12;
 const overclockShakeIntensity = 0.25;
 const lowHealthSoundThreshold = 0.5;
 const lowHealthFullVolumeThreshold = 0.3;
-const lowHealthFlashThreshold = 0.3;
-const lowHealthWarningStartVolume = 0.18;
-const lowHealthFlashInterval = 1;
+const lowHealthFlashThreshold = 0.5;
+const lowHealthWarningStartVolume = 0.1;
+const lowHealthWarningMaxVolume = 0.3;
+const lowHealthFlashInterval = [1.4, 0.28] as const;
 const lowHealthFlashDuration = 0.16;
 const afterburnerWakeInterval = 0.14;
 const phaseJumpAfterimageDuration = 0.18;
@@ -295,6 +317,8 @@ interface SetupPlayerOptions {
 	arrivalTransition?: boolean;
 	arrivalBass?: boolean;
 	spawnPosition?: Vec2;
+	extraLifeRespawn?: boolean;
+	preserveRunState?: boolean;
 }
 
 interface PlayerRespawnTransitionOptions {
@@ -330,8 +354,9 @@ function getWasdDirection() {
 
 export function setupPlayer(options: SetupPlayerOptions = {}) {
 	setPlayerTargetLock()
+	setPlayerTargetModeActive(false)
 	resetPlayerDeathCause();
-	resetPassiveUpgradeRuntime();
+	if (!options.preserveRunState) resetPassiveUpgradeRuntime();
 	clearGravitySlingState();
 	gravitySlingReleaseVelocity = k.vec2(0);
 	repairPulseGeneration++;
@@ -484,7 +509,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			? playerObj.hp / playerObj.maxHP
 			: 0
 		const lowHealth = playerObj.hp > 0 &&
-			healthRatio < lowHealthSoundThreshold
+			healthRatio <= lowHealthSoundThreshold
 		if (!lowHealth) {
 			stopLowHealthWarning()
 			return
@@ -498,7 +523,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		)
 		const warningVolume = k.lerp(
 			lowHealthWarningStartVolume,
-			1,
+			lowHealthWarningMaxVolume,
 			volumeProgress
 		)
 		if (!lowHealthWarningSound) {
@@ -521,9 +546,20 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			return
 		}
 		lowHealthFlashActive = true
+		const flashUrgency = k.clamp(
+			(lowHealthFlashThreshold - healthRatio) / lowHealthFlashThreshold,
+			0,
+			1
+		)
+		const flashInterval = k.lerp(
+			lowHealthFlashInterval[0],
+			lowHealthFlashInterval[1],
+			Math.pow(flashUrgency, 0.75)
+		)
+		lowHealthFlashTimer = Math.min(lowHealthFlashTimer, flashInterval)
 		lowHealthFlashTimer -= k.dt()
 		if (lowHealthFlashTimer > 0) return
-		lowHealthFlashTimer = lowHealthFlashInterval
+		lowHealthFlashTimer = flashInterval
 		const flashGeneration = ++lowHealthFlashGeneration
 		playerObj.color = k.rgb(255, 45, 45)
 		k.wait(lowHealthFlashDuration, () => {
@@ -711,6 +747,23 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	if (arrivalTransitionActive) {
 		setPlayerDamageInvulnerable(true);
 	}
+	if (options.extraLifeRespawn) {
+		phaseJumpInvulnerableUntil = k.time() + 1.25
+		setPlayerDamageInvulnerable(true)
+		starsEmitter.emitter.position = respawnTarget
+		starsEmitter.emit(24)
+		spawnFlash(respawnTarget, 12, k.rgb(80, 180, 255))
+		spawnRing({
+			pos: respawnTarget,
+			speed: 150,
+			intensity: 0.2,
+			maxRadius: 48,
+			effectWidth: 8,
+			outlineWidth: 2,
+			visualOpacity: 0.8,
+			color: k.rgb(80, 180, 255),
+		})
+	}
 
 	registerHitAnimation(playerObj);
 	addPlayerDamageEffects(playerObj)
@@ -720,17 +773,22 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 
 	playerObj.onDeath(() => {
 		const deathPos = playerObj.pos.clone();
+		const extraLife = consumeExtraLife()
 		k.destroy(phaseJumpCooldownTrack);
 		k.destroy(phaseJumpCooldownFill);
 		k.destroy(playerObj);
 		starsEmitter.emitter.position = deathPos;
 		starsEmitter.emit(20);
+		gameSoundService.play("explosion1", { volume: mainSoundVolume });
+		if (extraLife) {
+			respawnPlayerFromExtraLife(deathPos, extraLife.remaining)
+			return
+		}
 		spawnPlayerDeathDebris(
 			deathPos,
 			getCarriedDebree(),
 			narrativePrologueActive()
 		);
-		gameSoundService.play("explosion1", { volume: mainSoundVolume });
 		beginPlayerDeathSequence();
 	});
 	playerObj.onDestroy(() => {
@@ -741,11 +799,13 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		stopLowHealthWarning()
 		stopPrimaryChargeSound();
 		setStrafeTarget()
+		setPlayerTargetModeActive(false)
 		if (weaponSwitchLabel.exists()) k.destroy(weaponSwitchLabel)
 		for (const controller of inputControllers) controller.cancel();
 	});
 
 	playerObj.onUpdate(() => profileSection("external:playerVisuals", () => {
+		setPlayerTargetModeActive(false)
 		syncLowHealthWarning()
 		// Clear before transition early returns so jumps never leave a stale flame.
 		if (levelTransitionActive() || arrivalTransitionActive || respawnTransitionActive) {
@@ -984,6 +1044,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			);
 			const easedProgress = 1 - Math.pow(1 - progress, 3);
 			playerObj.pos = respawnStart.lerp(respawnTarget, easedProgress);
+			syncPlayerLassoRoomTransfer(playerObj.pos)
 			playerObj.angle = respawnAngle;
 			playerObj.opacity = k.lerp(0.3, 1, progress);
 			playerObj.scale = k.vec2(
@@ -1005,6 +1066,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 				playerObj.pos = respawnTarget.clone();
 				playerObj.scale = k.vec2(PLAYER_SCALE);
 				playerObj.opacity = 1;
+				completePlayerLassoRoomTransfer()
 				phaseJumpInvulnerableUntil =
 					k.time() + respawnArrivalInvulnerability;
 				starsEmitter.emitter.position = respawnTarget;
@@ -1023,11 +1085,12 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		const driftModeActive =
 			!isMobilityMoving &&
 			isStrafeTrainingUnlocked() &&
-			!combatInputBlocked() &&
+			!gameplayInputBlocked() &&
 			isInputActionDown("strafe")
 		updatePlayerSteeringModeUi(driftModeActive)
 		const pointerWorldPos = k.toWorld(k.mousePos())
-		strafeAimActive = driftModeActive && !combatInputBlocked()
+		strafeAimActive = driftModeActive
+		setPlayerTargetModeActive(strafeAimActive)
 		setStrafeTarget(
 			strafeAimActive
 				? findHoveredStrafeTarget(pointerWorldPos, strafeTarget)
@@ -1081,6 +1144,9 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			k.destroy(strafeTargetMarker)
 			strafeTargetMarker = undefined
 		}
+		setPlayerTargetModeAimPosition(
+			strafeAimActive ? strafeAimPos : undefined
+		)
 		if (!strafeAimActive) strafeTargetCritActive = false
 		strafeModeWasActive = strafeAimActive
 		const isInvulnerable =
@@ -1091,12 +1157,13 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		const cameraFollowSpeed = isMobilityMoving
 			? phaseCameraFollowSpeed
 			: normalCameraFollowSpeed;
-		const cameraTarget = driftModeActive
-			? playerObj.pos.lerp(
-				pointerWorldPos,
-				strafeCameraPointerWeight
-			)
-			: playerObj.pos
+		const cameraPointerWeight = driftModeActive
+			? strafeCameraPointerWeight
+			: normalCameraPointerWeight
+		const cameraTarget = playerObj.pos.lerp(
+			pointerWorldPos,
+			cameraPointerWeight
+		)
 		if (!currentCameraPos) currentCameraPos = playerObj.pos.clone();
 		currentCameraPos = currentCameraPos.lerp(
 			cameraTarget,
@@ -1315,10 +1382,12 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			) * 0.08 +
 			session.scrapArmorCharges * 0.1
 		)
+		const lassoThrusterLoad = getPlayerLassoThrusterLoad()
 		const emitThrusterParticle = thruster.update(
 			isMobilityMoving ? 0 : speed + slingReleaseSpeed,
 			dt(),
-			thrustWeight
+			thrustWeight,
+			lassoThrusterLoad
 		)
 
 		if (!isMobilityMoving) {
@@ -1724,6 +1793,14 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 				detune: 100,
 			})
 		},
+	}))
+
+	inputControllers.push(installPlayerLasso({
+		player: playerObj,
+		inputBlocked: combatInputBlocked,
+		isUnlocked: () => getPermanentUpgradeLevel("salvageLasso") !== undefined,
+		isStrafeModeActive: () => strafeAimActive,
+		getStrafeAimPosition: () => strafeAimPos.clone(),
 	}))
 
 	inputControllers.push(onInputActionPress("secondary", () => {
@@ -2167,21 +2244,10 @@ function findHoveredStrafeTarget(
 	pointerWorldPos: Vec2,
 	currentTarget?: GameObj<PosComp>
 ) {
-	let closestTarget: GameObj<PosComp> | undefined
-	let closestDistance = Number.POSITIVE_INFINITY
-	for (const candidate of querySpatialNearby(
+	const closestTarget = findClosestPlayerTarget(
 		pointerWorldPos,
-		strafeTargetQueryRadius,
-		{
-			allTags: [tags.unit],
-			anyTags: [tags.enemy, tags.roomVolatile],
-		}
-	)) {
-		const distance = candidate.pos.dist(pointerWorldPos)
-		if (distance >= closestDistance) continue
-		closestTarget = candidate as GameObj<PosComp>
-		closestDistance = distance
-	}
+		strafeTargetQueryRadius
+	)
 	if (closestTarget) return closestTarget
 	if (
 		currentTarget?.exists() &&
@@ -2196,9 +2262,7 @@ function findHoveredStrafeTarget(
 }
 
 function isStrafeTarget(target: GameObj) {
-	return target.is(tags.unit) && (
-		target.is(tags.enemy) || target.is(tags.roomVolatile)
-	)
+	return isPlayerTargetable(target)
 }
 
 function pointerIsOverTarget(
@@ -2206,10 +2270,8 @@ function pointerIsOverTarget(
 	target: GameObj,
 	padding = strafeTargetPadding
 ) {
-	const hitRadius = typeof target.hb === "number"
-		? target.hb
-		: 0
-	return target.pos.dist(pointerWorldPos) <=
+	const hitRadius = getTargetHitRadius(target)
+	return getTargetWorldPosition(target as GameObj<PosComp>).dist(pointerWorldPos) <=
 		Math.max(strafeTargetMinimumRadius, hitRadius) + padding
 }
 

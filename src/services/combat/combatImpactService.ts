@@ -3,6 +3,7 @@ import { k, layers } from "../../main"
 import { spawnFlash } from "../../spawn/spawnFlash"
 import { spawnRing } from "../../spawn/spawnRing"
 import { tags } from "../../tags"
+import { getScreenFlashIntensity } from "../ui/displaySettingsService"
 import { registerBatchedUiUpdate } from "../ui/uiUpdateService"
 
 interface EnemyProjectileImpactOptions {
@@ -21,6 +22,8 @@ const NORMAL_HIT_TINT = [120, 220, 255] as const
 const CRITICAL_HIT_TINT = [255, 92, 92] as const
 const PLAYER_DAMAGE_INDICATOR_RADIUS = 58
 const MAX_PLAYER_DAMAGE_INDICATORS = 4
+const PLAYER_DAMAGE_FLASH_DURATION = 0.085
+const PLAYER_DAMAGE_FLASH_OPACITY = 0.1
 const activePlayerDamageIndicators: GameObj[] = []
 
 export function applyEnemyProjectileImpact(
@@ -61,6 +64,7 @@ export function showPlayerDamageDirection(
 	incomingDirection?: Vec2
 ) {
 	if (!player.exists() || !player.pos) return
+	showPlayerDamageFlash()
 	const direction = resolvePlayerDamageDirection(
 		player.pos,
 		sourcePosition,
@@ -120,6 +124,24 @@ export function showPlayerDamageDirection(
 		indicator.opacity = 1 - Math.pow(progress, 1.8)
 		if (progress >= 1) k.destroy(indicator)
 	})
+}
+
+function showPlayerDamageFlash() {
+	const intensity = getScreenFlashIntensity()
+	if (intensity <= 0) return
+	k.add([
+		k.rect(k.width(), k.height()),
+		k.pos(0, 0),
+		k.color(150, 12, 18),
+		k.opacity(PLAYER_DAMAGE_FLASH_OPACITY * intensity),
+		k.fixed(),
+		k.layer(layers.uiEffects),
+		k.z(118),
+		k.lifespan(PLAYER_DAMAGE_FLASH_DURATION, {
+			fade: PLAYER_DAMAGE_FLASH_DURATION,
+		}),
+		tags.gameLoop,
+	])
 }
 
 function resolvePlayerDamageDirection(

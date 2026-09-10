@@ -4,6 +4,7 @@ import { dt, k } from "../main"
 import { ASTEROID_SPRITES } from "../asteroidSprites"
 import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject"
 import { getCurrentRunFloor } from "../services/runs/runDirectorService"
+import { shouldStartPrologue } from "../services/narrative/narrativeService"
 import type { Level } from "./levels"
 import { RUN_ROCK_PROJECTION_Y_SCALE } from "./runRockTiles"
 import {
@@ -12,6 +13,7 @@ import {
 } from "./roomFloorRuntime"
 
 let bgAsteroidTimer = 0
+const PROLOGUE_ROOM_COUNT = 100
 
 export const level1: Level = {
 	mapGeneration: {
@@ -25,11 +27,17 @@ export const level1: Level = {
 		bgAsteroidTimer = 0
 	},
 	onStart: () => {
+		const runFloor = getCurrentRunFloor()
+		const prologueFloor = runFloor === undefined && shouldStartPrologue()
 		startGeneratedRoomFloor(
 			level1.mapGeneration!,
-			getCurrentRunFloor()?.mapSeed ?? Math.floor(k.rand(1, 1000000)),
+			runFloor?.mapSeed ?? Math.floor(k.rand(1, 1000000)),
 			1,
-			{ endless: true, roomCount: 4 }
+			{
+				endless: prologueFloor,
+				roomCount: prologueFloor ? PROLOGUE_ROOM_COUNT : undefined,
+				maxRoomCount: prologueFloor ? PROLOGUE_ROOM_COUNT : undefined,
+			}
 		)
 	},
 	lvlUpd: () => {

@@ -35,6 +35,26 @@ export function getCurrentFloorRoom() {
 	return activeFloor?.rooms.find((room) => room.id === activeFloor?.currentRoomId)
 }
 
+export function getFloorCargoPuzzleForRoom(roomId: string) {
+	return activeFloor?.cargoPuzzles.find((puzzle) =>
+		puzzle.sourceRoomId === roomId || puzzle.targetRoomId === roomId
+	)
+}
+
+export function activateFloorCargoPuzzle(puzzleId: string) {
+	if (!activeFloor) return false
+	const puzzle = activeFloor.cargoPuzzles.find((candidate) =>
+		candidate.id === puzzleId
+	)
+	if (!puzzle || puzzle.socketActivated) return false
+	puzzle.socketActivated = true
+	const sourceRoom = activeFloor.rooms.find((room) =>
+		room.id === puzzle.sourceRoomId
+	)
+	if (sourceRoom) sourceRoom.contentCompleted = true
+	return true
+}
+
 export function extendCurrentEndlessRoomFloor() {
 	const room = getCurrentFloorRoom()
 	if (!activeFloor || !room) return []
@@ -193,6 +213,7 @@ export function getRoomFloorSnapshot(): RoomFloor | undefined {
 	if (!activeFloor) return undefined
 	return {
 		...activeFloor,
+		cargoPuzzles: activeFloor.cargoPuzzles.map((puzzle) => ({ ...puzzle })),
 		rooms: activeFloor.rooms.map((room) => ({
 			...room,
 			coord: { ...room.coord },
@@ -230,7 +251,10 @@ function findRoom(roomId: string) {
 }
 
 function roomRequiresKey(room: RoomFloorRoom) {
-	return room.keyRequired === true || room.kind === "reward" || room.kind === "shop"
+	return room.keyRequired === true ||
+		room.kind === "reward" ||
+		room.kind === "shop" ||
+		room.kind === "droneShop"
 }
 
 function deterministicChance(seed: number, salt: string, chance: number) {

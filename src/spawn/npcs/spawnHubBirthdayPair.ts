@@ -1,6 +1,8 @@
 import type { AudioPlay } from "kaplay"
+import { dialogue } from "../../content/dialogue/dialogueCatalog"
 import { interactable, INTERACTION_PRIORITY } from "../../comp/interactable"
-import { k, layers, subSoundVolume, WORLD_CAMERA_SCALE } from "../../main"
+import { snareable } from "../../comp/snareable"
+import { k, layers, WORLD_CAMERA_SCALE } from "../../main"
 import {
 	discoverDroid,
 	getDroidDefinition,
@@ -9,7 +11,6 @@ import {
 import { audioService } from "../../services/audio/audioService"
 import { gameSoundService } from "../../services/audio/gameSoundService"
 import { playCutscene, type CutsceneDefinition } from "../../services/narrative/cutsceneService"
-import type { DialogueLine } from "../../services/narrative/dialogService"
 import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import {
 	markNpcDialogueSeen,
@@ -23,36 +24,11 @@ import {
 import { showPopover } from "../../services/ui/popoverService"
 import { tags } from "../../tags"
 import { createNpcInteractionPrompt } from "../../ui/common"
-import { randomExplosion } from "../../util"
 import { spawnEnemyDeathEffect } from "../spawnEnemyDeathEffect"
 
 const INTERACT_RADIUS = 92
 const DIALOGUE_ID = "birthday-incident"
 const POST_BIRTHDAY_DIALOGUE_ID = "birthday-aftermath"
-const POST_BIRTHDAY_LINES: readonly DialogueLine[] = [
-	{ speaker: "GLOOM", text: "I hate birthdays…" },
-]
-const INTRO_LINES: readonly DialogueLine[] = [
-	{ speaker: "JUBILEE", text: "You look unusually miserable today. Even for you." },
-	{ speaker: "GLOOM", text: "I am performing inventory reconciliation." },
-	{
-		speaker: "JUBILEE",
-		text: [
-			{ text: "Wait. ", waitAfter: 0.34 },
-			{ text: "GLOOM", reference: { kind: "npc", id: "gloom" } },
-			{ text: ", your activation date is today!" },
-		],
-	},
-	{ speaker: "GLOOM", text: "That information was not intended for recreational use." },
-	{
-		speaker: "JUBILEE",
-		text: [
-			{ text: "A village that stops celebrating is just wreckage with power.", waitAfter: 0.34 },
-			{ text: " I have exactly the song for this." },
-		],
-	},
-	{ speaker: "GLOOM", text: "Do not." },
-]
 
 export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 	const gloomPos = center.add(-72, 0)
@@ -128,8 +104,6 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 		jubilee.isInRange = false
 		gloomPrompt.update(false)
 		jubileePrompt.update(false)
-		showDroidDiscovery("gloom")
-		showDroidDiscovery("jubilee")
 		void playCutscene(createBirthdayCutscene(), {
 			resolveActor: (id) => {
 				if (id === "gloom") return gloom
@@ -143,8 +117,11 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 			},
 		}).then((result) => {
 			if (result === "completed") {
+				completeBirthdayEncounter()
 				markNpcDialogueSeen("gloom", DIALOGUE_ID)
 				markNpcDialogueSeen("jubilee", DIALOGUE_ID)
+				showDroidDiscovery("gloom")
+				showDroidDiscovery("jubilee")
 				if (gloom.exists()) {
 					const aftermathPos = gloom.pos.clone()
 					k.destroy(gloom)
@@ -177,7 +154,7 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 				},
 				{
 					type: "dialogue",
-					lines: INTRO_LINES.slice(0, 2),
+					lines: dialogue.birthdayPair.introduction,
 					options: { overlayOpacity: 0 },
 				},
 				{
@@ -193,7 +170,7 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 				{ type: "wait", duration: 0.38 },
 				{
 					type: "dialogue",
-					lines: INTRO_LINES.slice(2, 3),
+					lines: dialogue.birthdayPair.discovery,
 					options: { overlayOpacity: 0 },
 				},
 				{
@@ -205,7 +182,7 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 				{ type: "wait", duration: 0.44 },
 				{
 					type: "dialogue",
-					lines: INTRO_LINES.slice(3, 5),
+					lines: dialogue.birthdayPair.celebration,
 					options: { overlayOpacity: 0 },
 				},
 				{
@@ -228,7 +205,7 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 				{ type: "wait", duration: 0.62 },
 				{
 					type: "dialogue",
-					lines: INTRO_LINES.slice(5),
+					lines: dialogue.birthdayPair.refusal,
 					options: { overlayOpacity: 0 },
 				},
 				{
@@ -271,14 +248,8 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 						if (!jubilee.exists()) return
 						const deathPos = jubilee.pos.clone()
 						jubileeAlive = false
-						completeBirthdayEncounter()
 						k.destroy(jubilee)
 						spawnEnemyDeathEffect(deathPos, 0.85)
-						audioService.playPositionalSound(randomExplosion(), deathPos, {
-							volume: subSoundVolume,
-							minDistance: 35,
-							maxDistance: 580,
-						})
 					},
 				},
 				{ type: "wait", duration: 0.45 },
@@ -293,7 +264,7 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 		showPopover({
 			title: "DROID DISCOVERED",
 			message: definition.name,
-			description: "NEW DROID RECORD ADDED TO THE PHASE STATION",
+			description: "NEW DROID RECORD ADDED TO THE COMPENDIUM",
 			sprite: definition.sprite,
 			color: k.rgb(0, 220, 255),
 			duration: 6,
@@ -348,7 +319,7 @@ function spawnPostBirthdayGloom(pos: ReturnType<typeof k.vec2>) {
 				{ type: "wait", duration: 0.68 },
 				{
 					type: "dialogue",
-					lines: POST_BIRTHDAY_LINES,
+					lines: dialogue.birthdayPair.postBirthday,
 					options: {
 						gameplay: "live",
 						advance: "manual",
@@ -393,6 +364,14 @@ function spawnBirthdayDroid(
 			onInteract,
 			interactionPriority
 		),
+		snareable({
+			mass: 0.95,
+			radius: 13,
+			releaseDrag: 2.7,
+			returnAfterRelease: true,
+			returnSpeed: 95,
+		}),
+		tags.npc,
 		tags.props,
 		tags.gameLoop,
 	])

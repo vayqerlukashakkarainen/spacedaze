@@ -90,19 +90,24 @@ export function spawnLevel(props: Props) {
 		]);
 	}
 
-	const portalLabel = m.add([
-		k.text(props.label ?? "START RUN", { size: UI_FONT_SIZES.tiny, font: "unscii" }),
-		k.pos(0, props.visual === "wormhole" ? -78 : -28),
-		k.anchor("center"),
-		k.color(k.WHITE),
-		k.layer(layers.gameText),
-	]);
+	const portalLabel = props.visual === "wormhole"
+		? undefined
+		: m.add([
+			k.text(props.label ?? "START RUN", {
+				size: UI_FONT_SIZES.tiny,
+				font: "unscii",
+			}),
+			k.pos(0, -28),
+			k.anchor("center"),
+			k.color(k.WHITE),
+			k.layer(layers.gameText),
+		]);
 	m.setPortalState = (
 		state: "dormant" | "charging" | "active",
 		label?: string
 	) => {
 		m.portalState = state;
-		if (label !== undefined) portalLabel.text = label;
+		if (label !== undefined && portalLabel) portalLabel.text = label;
 	};
 	m.setPortalProgress = (progress: number) => {
 		m.portalProgress = k.clamp(progress, 0, 1);
@@ -114,7 +119,7 @@ export function spawnLevel(props: Props) {
 		? createNpcInteractionPrompt({
 			target: m,
 			offset: k.vec2(0, -70),
-			label: { text: "ENTER WORMHOLE" },
+			label: { text: "PROCEED TO NEXT FLOOR" },
 		})
 		: undefined;
 

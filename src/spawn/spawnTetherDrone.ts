@@ -19,6 +19,7 @@ import { tags } from "../tags"
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
+import { snareable } from "../comp/snareable"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
 import { drawLightning } from "../services/combat/lightningVisualService"
 
@@ -41,6 +42,13 @@ export function spawnTetherDrone(
 		k.animate(),
 		k.scale(profile.scale),
 		timescale(),
+		snareable({
+			mass: 0.55,
+			radius: 11 * profile.scale,
+			releaseDrag: 1.25,
+			suspendTimescaleWhileMoving: true,
+			canSnare: () => !profile.elite,
+		}),
 		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{
 			hb: 11 * profile.scale,

@@ -1,6 +1,6 @@
 import { Color, Vec2 } from "kaplay";
 import { k, layers } from "../main";
-import { explosionEmitter } from "../particles";
+import { emitExplosionSmoke, explosionEmitter } from "../particles";
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
 import { loopService } from "../services/core/loopService";
 import { spawnRing } from "./spawnRing";
@@ -24,6 +24,7 @@ interface ExplosionEffectOptions {
 	ringIntensity?: number;
 	particleCount?: number;
 	color?: Color;
+	persistentSmoke?: boolean;
 }
 
 interface DelayedExplosionPulseOptions {
@@ -78,6 +79,7 @@ export function spawnExplosionEffect(
 	const color = options.color ?? k.WHITE;
 	explosionEmitter.emitter.position = pos;
 	explosionEmitter.emit(options.particleCount ?? 14);
+	if (options.persistentSmoke) emitExplosionSmoke(pos, size);
 	spawnRing({
 		pos: pos,
 		speed: 200,

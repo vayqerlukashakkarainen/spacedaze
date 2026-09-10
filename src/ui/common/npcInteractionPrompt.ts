@@ -8,6 +8,7 @@ import {
 import {
 	formatInputBindingCompact,
 	getInputBinding,
+	type InputActionId,
 } from "../../services/input/inputBindingService"
 
 interface InteractionBubbleLabel {
@@ -19,10 +20,15 @@ type InteractionBubbleLabelSource =
 	| InteractionBubbleLabel
 	| (() => InteractionBubbleLabel)
 
+type InteractionBubbleVisibilitySource = boolean | (() => boolean)
+
 interface NpcInteractionPromptOptions {
 	target: GameObj
 	offset: Vec2
 	label: InteractionBubbleLabelSource
+	inputAction?: InputActionId
+	requireInteractionTarget?: boolean
+	showKey?: InteractionBubbleVisibilitySource
 }
 
 export interface NpcInteractionPromptHandle {
@@ -223,6 +229,9 @@ export function createNpcInteractionPrompt({
 	target,
 	offset,
 	label,
+	inputAction = "interact",
+	requireInteractionTarget = true,
+	showKey = true,
 }: NpcInteractionPromptOptions) {
 	let reveal = 0
 	let requestedVisible = false
@@ -282,14 +291,14 @@ export function createNpcInteractionPrompt({
 		update(visible: boolean) {
 			const interactable = target as GameObj<InteractableComp>
 			requestedVisible = visible &&
-				interactable.isInteractionTarget &&
+				(!requireInteractionTarget || interactable.isInteractionTarget) &&
 				!interactionPromptsSuppressed()
 			if (requestedVisible) root.hidden = false
 		},
 	}
 
 	function animatePrompt() {
-		key.text = formatInputBindingCompact(getInputBinding("interact"))
+		key.text = formatInputBindingCompact(getInputBinding(inputAction))
 		if (!requestedVisible && reveal === 0) {
 			bubble.opacity = 0
 			key.opacity = 0
@@ -313,17 +322,19 @@ export function createNpcInteractionPrompt({
 			return
 		}
 		const eased = reveal * reveal * (3 - 2 * reveal)
+		const keyVisible = typeof showKey === "function" ? showKey() : showKey
 		const cameraScale = Math.max(0.001, k.getCamScale().x)
 		root.pos = target.pos.add(k.vec2(
 			offset.x / cameraScale,
 			(offset.y + (1 - eased) * ENTER_SLIDE) / cameraScale
 		))
 		root.scale = k.vec2(1 / cameraScale)
-		bubble.opacity = eased
-		key.opacity = eased
+		bubble.opacity = keyVisible ? eased : 0
+		key.opacity = keyVisible ? eased : 0
 		const nextLabel = typeof label === "function" ? label() : label
 		labelText.hidden = !nextLabel
 		if (nextLabel) {
+			labelText.pos.y = keyVisible ? -24 : 0
 			labelText.text = nextLabel.text.toUpperCase()
 			labelText.color = nextLabel.color ?? k.WHITE
 			labelText.opacity = eased

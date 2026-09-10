@@ -62,6 +62,7 @@ const defaultStats: Record<string, number> = {
 	// Survival
 	maxHealth: BASE_PLAYER_HEALTH,
 	extraHealth: 0,
+	extraLives: 0,
 
 	// Follower
 	followerBlasterDmg: 1,
@@ -75,6 +76,8 @@ const defaultStats: Record<string, number> = {
 	projectileBounceDamageRetention: 0,
 	projectileGuidanceDistance: 0,
 	projectileLifesteal: 0,
+	projectileStunChance: 0,
+	projectileStunDuration: 0,
 };
 
 function initializeStats() {

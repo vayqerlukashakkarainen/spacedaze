@@ -9,6 +9,7 @@ import { tags } from "../tags"
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
+import { snareable } from "../comp/snareable"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
 import { spawnDebree } from "./spawnDebree"
 
@@ -19,6 +20,7 @@ export function spawnSalvageScavenger(pos: Vec2, hp = 4, options: EnemySpawnOpti
 	const scavenger = k.add([
 		k.pos(pos), k.sprite(requirePrimaryVisualSprite(SALVAGE_SCAVENGER_VISUAL)), k.color(k.WHITE), k.rotate(0),
 		k.anchor("center"), k.health(profile.hp), k.animate(), k.scale(profile.scale), timescale(),
+		snareable({ mass: 0.6, radius: 11 * profile.scale, releaseDrag: 1.35, suspendTimescaleWhileMoving: true, canSnare: () => !profile.elite }),
 		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{ hb: 11 * profile.scale, damage: profile.damage, moveDirection: k.vec2(0, 1), haul: 0, targetDebris: undefined as GameObj | undefined, retreating: false },
 		tags.enemy, tags.unit, tags.enemyRolePressure,

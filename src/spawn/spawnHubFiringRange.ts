@@ -3,7 +3,7 @@ import { jitter } from "../comp/jitter"
 import { timescale } from "../comp/timescale"
 import { compose, unitComponents } from "../compose"
 import { checkProjectileComponentIntersection, playerObj } from "../game"
-import { k, layers } from "../main"
+import { k, layers, subSoundVolume } from "../main"
 import {
 	ABILITIES,
 	isAbilityDiscovered,
@@ -17,12 +17,15 @@ import {
 	getHubLevelDefinition,
 	getHubLifetimeDeposited,
 } from "../services/hub/hubProgressService"
+import { gameSoundService } from "../services/audio/gameSoundService"
+import { setHitSoundProfile } from "../services/audio/hitSoundService"
+import { spawnRockDestructionFragments } from "../services/combat/rockDestructionEffectService"
 import { tags } from "../tags"
 import type { RewardKind } from "../types/rewardTypes"
 import type { StatCategory, UpgradeDefinition } from "../types/upgradeTypes"
 import {
-	createNpcInteractionPromptPool,
 	createRewardTypeFrame,
+	createNpcInteractionPromptPool,
 	getScaledLineSpacing,
 	UI_COLORS,
 } from "../ui/common"
@@ -35,6 +38,7 @@ import { getPickupVisual } from "../visuals/pickupVisualCatalog"
 import { getTrainingUpgradePreviewSprite } from "../visuals/trainingUpgradePreviewAtlas"
 import type { VisualRepresentation } from "../visuals/visualRepresentation"
 import { onEnemyHit } from "./enemyShared"
+import { spawnEnemyDeathEffect } from "./spawnEnemyDeathEffect"
 import { spawnMeteorite } from "./spawnAsteroid"
 import { spawnExplodingFuelCell } from "./rooms/spawnRoomEnvironment"
 import { spawnHealthShrine } from "./shrine/spawnHealthShrine"
@@ -64,7 +68,9 @@ const TRAINING_FUEL_CELL_RESPAWN_DELAY = 3
 const COMPOSITE_TARGET_OFFSET_X = 130
 const COMPOSITE_TARGET_HP = 90
 const COMPOSITE_PART_HP = 14
-
+const COMPOSITE_ASTEROID_OFFSET_Y = 88
+const COMPOSITE_ASTEROID_HP = 75
+const COMPOSITE_ASTEROID_PART_HP = 24
 const TRAINING_COMPOSITE_VISUALS = [
 	getEnemyVisual("fighter"),
 	HUNTER_VISUALS.standard,
@@ -149,7 +155,6 @@ export function spawnHubFiringRange(
 	})
 	const targetPos = props.pos.add(0, TARGET_OFFSET_Y)
 
-	spawnRangeFrame(root)
 	spawnHealthShrine({
 		pos: props.pos.add(-RANGE_WIDTH / 2 + 70, TARGET_OFFSET_Y),
 		respawnOrbs: true,
@@ -232,6 +237,10 @@ export function spawnHubFiringRange(
 		TRAINING_COMPOSITE_VISUALS[1],
 		props.isHubSessionActive
 	)
+	spawnCompositeTrainingAsteroid(
+		targetPos.add(0, COMPOSITE_ASTEROID_OFFSET_Y),
+		props.isHubSessionActive
+	)
 	spawnTrainingSwarm(targetPos, props.isHubSessionActive)
 
 	return {
@@ -240,6 +249,101 @@ export function spawnHubFiringRange(
 			? primaryTarget
 			: undefined,
 	}
+}
+
+function spawnCompositeTrainingAsteroid(
+	pos: Vec2,
+	isHubSessionActive: () => boolean
+) {
+	const target = k.add([
+		k.pos(pos),
+		k.sprite("rock_fragment_32_b"),
+		k.color(k.WHITE),
+		k.anchor("center"),
+		k.rotate(-8),
+		k.health(COMPOSITE_ASTEROID_HP),
+		k.animate(),
+		timescale(),
+		jitter(),
+		{
+			hb: 36,
+			enemyDamageMaterial: "rock",
+		},
+		tags.enemy,
+		tags.enemyRoleTerrain,
+		tags.unit,
+		tags.trainingTarget,
+		tags.gameLoop,
+	])
+	const partDefinitions = [
+		{ sprite: "rock_fragment_32_a", offset: k.vec2(-17, 8), angle: -24 },
+		{ sprite: "rock_fragment_32_c", offset: k.vec2(17, 7), angle: 18 },
+	] as const
+	const parts = partDefinitions.map((definition) => target.add([
+		k.pos(definition.offset),
+		k.sprite(definition.sprite),
+		k.color(k.WHITE),
+		k.anchor("center"),
+		k.rotate(definition.angle),
+		k.health(COMPOSITE_ASTEROID_PART_HP),
+		k.animate(),
+		timescale(),
+		jitter(),
+		{
+			enemyDamageMaterial: "rock",
+		},
+		tags.part,
+		tags.gameLoop,
+	]))
+	setHitSoundProfile(target, "stone")
+
+	unitComponents[target.id] = compose({
+		material: "rock",
+		skipDefaultBodyDeath: true,
+		onBodyDeath: () => {
+			const deathPos = target.pos.clone()
+			spawnEnemyDeathEffect(deathPos, 0.9, "normal", {
+				particleScale: 0.8,
+			})
+			spawnRockDestructionFragments(deathPos, 0.9)
+			gameSoundService.playPositional("rock_material_destroyed", deathPos, {
+				volume: subSoundVolume,
+			})
+			k.wait(TARGET_RESPAWN_DELAY, () => {
+				if (!isHubSessionActive()) return
+				spawnCompositeTrainingAsteroid(pos, isHubSessionActive)
+			})
+		},
+		parts: [
+			{
+				obj: target,
+				hitbox: 12,
+				isBody: true,
+				scoreOnDestroy: 0,
+			},
+			...parts.map((part) => ({
+				obj: part,
+				hitbox: 10,
+				isBody: false,
+				scoreOnDestroy: 0,
+			})),
+		],
+	})
+	target.onDestroy(() => {
+		delete unitComponents[target.id]
+	})
+	registerBatchedEntityUpdate("enemies", target, () => {
+		const components = unitComponents[target.id]
+		if (!components) return
+		checkProjectileComponentIntersection(
+			target.pos,
+			target.hb,
+			tags.friendly,
+			components,
+			(projectile, index) => onEnemyHit(components[index].obj, projectile)
+		)
+	})
+	return target
 }
 
 function spawnCompositeTrainingTarget(
@@ -288,6 +392,13 @@ function spawnCompositeTrainingTarget(
 	unitComponents[target.id] = compose({
 		skipDefaultBodyDeath: true,
 		onBodyDeath: () => {
+			const deathPos = target.pos.clone()
+			spawnEnemyDeathEffect(deathPos, 0.75, "normal", {
+				particleScale: 0.7,
+			})
+			gameSoundService.playPositional("enemy_ship_destroyed", deathPos, {
+				volume: subSoundVolume,
+			})
 			k.wait(TARGET_RESPAWN_DELAY, () => {
 				if (!isHubSessionActive()) return
 				spawnCompositeTrainingTarget(pos, visual, isHubSessionActive)
@@ -387,28 +498,6 @@ function spawnTrainingSwarmEnemy(
 			},
 		}
 	)
-}
-
-function spawnRangeFrame(root: GameObj) {
-	root.add([
-		k.text("LIVE FIRE  //  KEEP LANE CLEAR", {
-			size: 8,
-			font: "unscii",
-		}),
-		k.pos(0, 153),
-		k.anchor("top"),
-		k.color(...UI_COLORS.danger),
-		k.layer(layers.gameText),
-	])
-	for (const x of [-220, -110, 0, 110, 220]) {
-		root.add([
-			k.rect(56, 2),
-			k.pos(x - 28, 178),
-			k.color(...UI_COLORS.danger),
-			k.opacity(0.72),
-			k.z(-2),
-		])
-	}
 }
 
 function spawnUpgradeGallery(

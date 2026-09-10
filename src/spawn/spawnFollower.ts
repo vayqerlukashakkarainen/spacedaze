@@ -6,6 +6,7 @@ import {
 } from "../game";
 import {
 	k,
+	BULLET_SPEED,
 	mainSoundVolume,
 	subSoundVolume,
 	timeScale,
@@ -39,6 +40,11 @@ import { MEDIC_DRONE_RECOVERY } from "../services/player/playerHealthBalance"
 import { getPlayerTargetLock } from "../services/player/playerTargetLockService"
 import { getCompanionVisual } from "../visuals/companionVisualCatalog"
 import {
+	easeAngle,
+	getPlayerTargetModeAimPosition,
+	isPlayerTargetModeActive,
+} from "../services/input/playerSteeringModeService"
+import {
 	requirePrimaryVisualSprite,
 	type VisualRepresentation,
 } from "../visuals/visualRepresentation"
@@ -56,6 +62,8 @@ const deploymentReleaseProgress = 0.62;
 const deploymentDistance = 48;
 const deploymentAngleStep = 137.5;
 const deploymentScreenMargin = 36;
+const STANDARD_WEAPON_PROJECTILE_SPEED_MULTIPLIER = 2.4
+const GUNSHIP_PROJECTILE_SPEED_MULTIPLIER = 5
 const interceptorRange = 150;
 const interceptorCooldown = 0.85;
 const interceptorSearchDelay = 0.08;
@@ -80,6 +88,11 @@ const droneTargetEase = 5;
 const droneVelocityEase = 7;
 const droneArrivalEase = 4;
 const droneTurnEase = 9;
+const attackFormationSpeedMultiplier = 3.4
+const FORMATION_MIN_DEPTH = 34
+const FORMATION_MAX_DEPTH = 96
+const FORMATION_MAX_LATERAL = 76
+const FORMATION_MIN_SEPARATION = 27
 const fusionScale = 1.65;
 const fusionDamageMultiplier = 2.4;
 let fusionInProgress = false;
@@ -130,6 +143,34 @@ const droneProfiles: Record<
 	},
 };
 
+function pickTrailingFormationSlot(followerIndex: number) {
+	const occupied = (k.get(tags.follower) as GameObj[])
+		.filter((follower) => follower.exists())
+		.map((follower) => k.vec2(
+			follower.attackStanceLateralOffset ?? 0,
+			follower.attackStanceDepth ?? FORMATION_MIN_DEPTH
+		))
+
+	for (let attempt = 0; attempt < 16; attempt++) {
+		const candidate = k.vec2(
+			k.rand(-FORMATION_MAX_LATERAL, FORMATION_MAX_LATERAL),
+			k.rand(FORMATION_MIN_DEPTH, FORMATION_MAX_DEPTH)
+		)
+		if (occupied.every((slot) =>
+			slot.dist(candidate) >= FORMATION_MIN_SEPARATION
+		)) {
+			return { lateral: candidate.x, depth: candidate.y }
+		}
+	}
+
+	const fallbackColumn = followerIndex % 5 - 2
+	const fallbackRow = Math.floor(followerIndex / 5)
+	return {
+		lateral: fallbackColumn * 30,
+		depth: FORMATION_MIN_DEPTH + fallbackRow * 30,
+	}
+}
+
 export function spawnFollower(props: Props) {
 	const hb = 12;
 	const followerIndex = k.get(tags.follower).length;
@@ -137,6 +178,9 @@ export function spawnFollower(props: Props) {
 	const formationOffset = k.Vec2.fromAngle(deploymentAngle).scale(
 		deploymentDistance
 	);
+	const formationSlot = pickTrailingFormationSlot(followerIndex)
+	const attackStanceLateralOffset = formationSlot.lateral
+	const attackStanceDepth = formationSlot.depth
 	const deploymentTarget = props.follow.pos.add(formationOffset);
 	const entersFromLeft = followerIndex % 2 === 0;
 	const deploymentScreenY = k.clamp(
@@ -178,6 +222,12 @@ export function spawnFollower(props: Props) {
 			lastDeploymentPos: deploymentStart.clone(),
 			entryVelocity: k.vec2(0),
 			formationOffset,
+			attackStanceLateralOffset,
+			attackStanceDepth,
+			attackStanceTargetEase: 2.6 + followerIndex % 4 * 0.55,
+			attackStanceVelocityEase: 4.2 + followerIndex % 3 * 0.7,
+			attackStanceArrivalEase: 2.8 + followerIndex % 5 * 0.35,
+			attackStanceTurnEase: 5 + followerIndex % 4 * 0.65,
 			easedTargetPos: deploymentTarget.clone(),
 			movementVelocity: k.vec2(0),
 			swarmPhase: followerIndex * 2.399,
@@ -299,7 +349,10 @@ export function spawnFollower(props: Props) {
 					k.Vec2.fromAngle(m.targetAngle()),
 					m.targetAngle() + 90,
 					m.dmg * 4 * getPackDamageMultiplier(m),
-					5,
+					Math.max(
+						GUNSHIP_PROJECTILE_SPEED_MULTIPLIER,
+						getHelperProjectileSpeedMultiplier()
+					),
 					[tags.friendly, tags.blaster],
 					player.followerProjectileLink !== undefined
 				);
@@ -348,7 +401,7 @@ export function spawnFollower(props: Props) {
 					k.Vec2.fromAngle(m.targetAngle()),
 					m.targetAngle() + 90,
 					m.dmg * getPackDamageMultiplier(m),
-					2,
+					getHelperProjectileSpeedMultiplier(),
 					[tags.friendly, tags.blaster],
 					player.followerProjectileLink !== undefined
 				);
@@ -360,7 +413,6 @@ export function spawnFollower(props: Props) {
 		starsEmitter.emitter.position = m.pos;
 		starsEmitter.emit(20);
 
-		gameSoundService.play("enemy_explosion", { volume: subSoundVolume });
 		k.destroy(m);
 		k.wait(0, refreshFollowerTypes);
 	});
@@ -374,6 +426,11 @@ export function spawnFollower(props: Props) {
 	});
 
 	return m;
+}
+
+function getHelperProjectileSpeedMultiplier() {
+	return STANDARD_WEAPON_PROJECTILE_SPEED_MULTIPLIER *
+		player.blasterSpeedMultiplier
 }
 
 function syncPlayerDirectedTarget(drone: GameObj) {
@@ -509,6 +566,10 @@ function getDroneSlotSignature() {
 }
 
 function updateDroneMovement(drone: GameObj, follow: GameObj<PosComp>) {
+	if (isPlayerTargetModeActive()) {
+		updateAttackFormationMovement(drone, follow)
+		return
+	}
 	if (drone.movementType === "intercept") {
 		updateInterceptorMovement(drone, follow);
 		return;
@@ -522,14 +583,50 @@ function updateDroneMovement(drone: GameObj, follow: GameObj<PosComp>) {
 		return;
 	}
 	if (player.droneSetBonus) {
-		const forward = k.Vec2.fromAngle((follow.angle ?? 0) - 90).scale(44);
-		const right = k.Vec2.fromAngle(follow.angle ?? 0).scale(
-			((drone.id % 5) - 2) * 16
-		);
-		updateSwarmMovement(drone, follow, forward.add(right), 0.38);
+		updateTrailingFormationMovement(drone, follow, 0.28)
 		return;
 	}
-	updateSwarmMovement(drone, follow);
+	updateTrailingFormationMovement(drone, follow)
+}
+
+function updateAttackFormationMovement(
+	drone: GameObj,
+	follow: GameObj<PosComp>
+) {
+	const forward = k.Vec2.fromAngle((follow.angle ?? 0) - 90)
+	const right = k.Vec2.fromAngle(follow.angle ?? 0)
+	const formationPosition = follow.pos
+		.add(forward.scale(-drone.attackStanceDepth))
+		.add(right.scale(drone.attackStanceLateralOffset))
+	moveDroneToward(
+		drone,
+		formationPosition,
+		drone.speed * attackFormationSpeedMultiplier *
+			(drone.fusionCore ? 1.15 : 1),
+		{
+			targetEase: drone.attackStanceTargetEase,
+			velocityEase: drone.attackStanceVelocityEase,
+			arrivalEase: drone.attackStanceArrivalEase,
+		}
+	)
+	const facingDelta = Math.max(
+		0,
+		k.dt() * drone.getTimescale() * velocityScale()
+	)
+	const aimPosition = getPlayerTargetModeAimPosition()
+	const aimDirection = aimPosition
+		? k.vec2(aimPosition.x, aimPosition.y).sub(drone.pos)
+		: undefined
+	const targetAngle = aimDirection && aimDirection.len() > 0.001
+		? aimDirection.angle() + 90
+		: follow.angle ?? drone.angle
+	drone.angle = easeAngle(
+		drone.angle,
+		targetAngle,
+		drone.attackStanceTurnEase,
+		facingDelta
+	)
+	if (drone.movementType === "salvage") updateSalvagerCargoPosition(drone)
 }
 
 function updateSwarmMovement(
@@ -588,10 +685,23 @@ function updateSwarmMovement(
 	);
 }
 
+function updateTrailingFormationMovement(
+	drone: GameObj,
+	follow: GameObj<PosComp>,
+	driftScale = 0.42
+) {
+	const forward = k.Vec2.fromAngle((follow.angle ?? 0) - 90)
+	const right = k.Vec2.fromAngle(follow.angle ?? 0)
+	const trailingOffset = forward
+		.scale(-drone.attackStanceDepth)
+		.add(right.scale(drone.attackStanceLateralOffset))
+	updateSwarmMovement(drone, follow, trailingOffset, driftScale)
+}
+
 function updateInterceptorMovement(drone: GameObj, follow: GameObj<PosComp>) {
 	const projectile = findClosestHostileProjectile(drone.pos, 320);
 	if (!projectile) {
-		updateSwarmMovement(drone, follow);
+		updateTrailingFormationMovement(drone, follow, 0.35)
 		return;
 	}
 	moveDroneToward(
@@ -602,15 +712,7 @@ function updateInterceptorMovement(drone: GameObj, follow: GameObj<PosComp>) {
 }
 
 function updateRearGuardMovement(drone: GameObj, follow: GameObj<PosComp>) {
-	const rearGuardOffset = k.Vec2.fromAngle(
-		(follow.angle ?? 0) + 90
-	).scale(52);
-	updateSwarmMovement(
-		drone,
-		follow,
-		rearGuardOffset,
-		0.55
-	);
+	updateTrailingFormationMovement(drone, follow, 0.3)
 }
 
 function updateSalvagerMovement(drone: GameObj, follow: GameObj<PosComp>) {
@@ -630,7 +732,7 @@ function updateSalvagerMovement(drone: GameObj, follow: GameObj<PosComp>) {
 		return
 	}
 	if (!debris) {
-		updateSwarmMovement(drone, follow)
+		updateTrailingFormationMovement(drone, follow)
 	} else {
 		moveDroneToward(drone, debris.pos, speed)
 		if (drone.pos.dist(debris.pos) <= 13 && cargo.load(debris)) {
@@ -663,7 +765,18 @@ function releaseSalvagerCargo(drone: GameObj, delivered: boolean) {
 	}
 }
 
-function moveDroneToward(drone: GameObj, targetPos: Vec2, speed: number) {
+interface DroneMovementTuning {
+	targetEase?: number
+	velocityEase?: number
+	arrivalEase?: number
+}
+
+function moveDroneToward(
+	drone: GameObj,
+	targetPos: Vec2,
+	speed: number,
+	tuning: DroneMovementTuning = {}
+) {
 	const scaledDt = Math.max(
 		0,
 		k.dt() * drone.getTimescale() * velocityScale()
@@ -673,16 +786,23 @@ function moveDroneToward(drone: GameObj, targetPos: Vec2, speed: number) {
 	if (!drone.easedTargetPos) drone.easedTargetPos = drone.pos.clone();
 	if (!drone.movementVelocity) drone.movementVelocity = k.vec2(0);
 
-	const targetBlend = 1 - Math.exp(-droneTargetEase * scaledDt);
+	const targetBlend = 1 - Math.exp(
+		-(tuning.targetEase ?? droneTargetEase) * scaledDt
+	);
 	drone.easedTargetPos = drone.easedTargetPos.lerp(targetPos, targetBlend);
 	const delta = drone.easedTargetPos.sub(drone.pos);
 	const distance = delta.len();
-	const desiredSpeed = Math.min(speed, distance * droneArrivalEase);
+	const desiredSpeed = Math.min(
+		speed,
+		distance * (tuning.arrivalEase ?? droneArrivalEase)
+	);
 	const desiredVelocity =
 		distance > 0.001
 			? delta.unit().scale(desiredSpeed)
 			: k.vec2(0);
-	const velocityBlend = 1 - Math.exp(-droneVelocityEase * scaledDt);
+	const velocityBlend = 1 - Math.exp(
+		-(tuning.velocityEase ?? droneVelocityEase) * scaledDt
+	);
 	drone.movementVelocity = drone.movementVelocity.lerp(
 		desiredVelocity,
 		velocityBlend

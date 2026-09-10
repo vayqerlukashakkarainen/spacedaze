@@ -10,7 +10,9 @@ import {
 import { enterMainMenu, updateMainMenuLoop } from "./ui/mainMenu";
 import {
 	clearAllUpgrades,
+	addLvl,
 	getEffectiveUpgradeLevel,
+	getPermanentUpgradeLevel,
 	getNextRunUpgradeLevel,
 	grantRunUpgrade,
 	isToolKey,
@@ -40,6 +42,7 @@ import { enterLevelEditor, updateLevelEditor } from "./levelEditor/levelEditor";
 import { setupStatsWindow } from "./ui/statsWindow";
 import {
 	hideTacticalMap,
+	showTacticalMap,
 	tacticalMapOpen,
 	toggleTacticalMap,
 } from "./ui/tacticalMap";
@@ -105,12 +108,15 @@ import {
 import {
 	hideHubFacilityPanel,
 	hubFacilityPanelOpen,
-	showPhaseStation,
 } from "./ui/hubFacilities";
 import {
 	beginRunSession,
 	runSessionActive,
 } from "./services/runs/runDirectorService";
+import {
+	beginExtraLifeRun,
+	getExtraLifeSnapshot,
+} from "./services/progression/extraLifeService";
 import { applyDamage } from "./services/combat/damageService";
 import { spawnHealthOrb } from "./spawn/spawnHealthOrb";
 import {
@@ -285,6 +291,11 @@ import {
 } from "./services/runs/runSimulationService";
 import { installDisplaySettings } from "./services/ui/displaySettingsService";
 import {
+	cinematicModeIsEnabled,
+	installCinematicModeService,
+	setCinematicModeEnabled,
+} from "./services/narrative/cinematicModeService";
+import {
 	installInputBindingService,
 	onInputActionPress,
 } from "./services/input/inputBindingService";
@@ -309,7 +320,7 @@ export const GameState = {
 };
 
 const borderOffset = -22;
-export const BULLET_SPEED = 320;
+export const BULLET_SPEED = 352;
 export const ROCKET_SPEED = 280;
 export let timeSeconds = 0;
 export const outsideBorderPos: Vec2[] = [];
@@ -372,6 +383,7 @@ k.canvas.addEventListener("dragstart", preventBrowserDefault);
 
 installDisplaySettings(k);
 installInputBindingService(k);
+installCinematicModeService(k);
 
 installDrawCallProfiler(k.canvas);
 
@@ -816,6 +828,27 @@ function registerDebugCommands() {
 	commandService.register("help", "List available commands", () => {
 		return commandService.list().join("\n");
 	});
+
+	commandService.register(
+		"cinematic",
+		"cinematic [on|off|toggle|status] - Hide HUD and pointer for recording",
+		(args) => {
+			const mode = args[0]?.toLowerCase() ?? "toggle";
+			if (!["on", "off", "toggle", "status"].includes(mode)) {
+				return "Usage: cinematic [on|off|toggle|status]";
+			}
+			if (mode === "status") {
+				return `Cinematic mode ${cinematicModeIsEnabled() ? "enabled" : "disabled"}`;
+			}
+
+			const enabled = mode === "toggle"
+				? !cinematicModeIsEnabled()
+				: mode === "on";
+			setCinematicModeEnabled(enabled);
+			hideCommandConsole();
+			return `Cinematic mode ${enabled ? "enabled" : "disabled"}`;
+		}
+	);
 
 	commandService.register(
 		"telemetry",
@@ -1287,6 +1320,23 @@ function registerDebugCommands() {
 		}
 	);
 
+	commandService.register(
+		"lives",
+		"lives [0-3] - Inspect or set Phase Recall charges for this run",
+		(args) => {
+			if (args.length === 0) {
+				const lives = getExtraLifeSnapshot();
+				return `Phase Recall ${lives.remaining} / ${lives.capacity}`;
+			}
+			const charges = Number(args[0]);
+			if (!Number.isInteger(charges) || charges < 0 || charges > 3) {
+				return "Lives must be an integer from 0-3";
+			}
+			const lives = beginExtraLifeRun(charges);
+			return `Phase Recall set to ${lives.remaining} / ${lives.capacity}`;
+		}
+	);
+
 	commandService.register("hub", "Return to the hub", () => {
 		hideCommandConsole();
 		transitionToLevel("hub");
@@ -1304,9 +1354,9 @@ function registerDebugCommands() {
 		showRecoveryShop();
 	});
 
-	commandService.register("training", "Open the Phase Station", () => {
+	commandService.register("training", "Open the Compendium", () => {
 		hideCommandConsole();
-		showPhaseStation();
+		showTacticalMap("compendium");
 	});
 
 	commandService.register("map", "map [seed] - Preview a generated run", (args) => {
@@ -1499,6 +1549,9 @@ function registerDebugCommands() {
 		"unlockall",
 		"Unlock all progression, facilities, equipment, and discoveries",
 		() => {
+			if (getPermanentUpgradeLevel("salvageLasso") === undefined) {
+				addLvl("salvageLasso");
+			}
 			const rewardBlueprintKeys = getAllRewardDefinitions()
 				.filter((reward) =>
 					reward.kind === "powerup" || reward.kind === "item"

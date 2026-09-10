@@ -120,7 +120,6 @@ export function spawnLostConvoy(props: LostConvoyProps) {
 	drone.onDeath(() => {
 		if (completed) return
 		spawnExplosionEffect(drone.pos, 38)
-		gameSoundService.play("explosion2", { volume: mainSoundVolume })
 		k.destroy(drone)
 	})
 	return drone

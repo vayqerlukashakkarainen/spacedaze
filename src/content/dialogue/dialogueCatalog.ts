@@ -6,6 +6,7 @@ import { prologueRecoveryDialogue } from "./prologueRecovery"
 import { rangeKeeperDialogue } from "./rangeKeeper"
 import { shopkeeperDialogue } from "./shopkeeper"
 import { strafeTrainingDialogue } from "./strafeTraining"
+import { lassoConstructionDialogue } from "./lassoConstruction"
 import type { DialogueLine } from "./types"
 
 export const dialogue = {
@@ -17,6 +18,7 @@ export const dialogue = {
 	rangeKeeper: rangeKeeperDialogue,
 	shopkeeper: shopkeeperDialogue,
 	strafeTraining: strafeTrainingDialogue,
+	lassoConstruction: lassoConstructionDialogue,
 } as const
 
 export function validateDialogueCatalog(root: unknown = dialogue) {

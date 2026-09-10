@@ -1,7 +1,6 @@
 import type { Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
-import { k, subSoundVolume, velocityScale } from "../main"
-import { gameSoundService } from "../services/audio/gameSoundService"
+import { k, velocityScale } from "../main"
 import { applyDamage } from "../services/combat/damageService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import {
@@ -24,6 +23,7 @@ import { tags } from "../tags"
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
+import { snareable } from "../comp/snareable"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 
 type SniperPhase = "reposition" | "aim"
@@ -45,6 +45,13 @@ export function spawnSniper(
 		k.animate(),
 		k.scale(profile.scale),
 		timescale(),
+		snareable({
+			mass: 0.7,
+			radius: 12 * profile.scale,
+			releaseDrag: 1.4,
+			suspendTimescaleWhileMoving: true,
+			canSnare: () => !profile.elite,
+		}),
 		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{
 			hb: 12 * profile.scale,
@@ -175,9 +182,11 @@ export function spawnSniper(
 			1.2 * profile.rewardMultiplier,
 			"enemy",
 			true,
-			{ tier: profile.elite ? "elite" : "normal" }
+			{
+				tier: profile.elite ? "elite" : "normal",
+				material: "ship",
+			}
 		)
-		gameSoundService.play("enemy_explosion", { volume: subSoundVolume })
 		k.destroy(sniper)
 	})
 	sniper.onHurt(() => {

@@ -1,7 +1,6 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileIntersection, playerObj } from "../game";
-import { dtScaled, k, subSoundVolume, velocityScale } from "../main";
-import { audioService } from "../services/audio/audioService";
+import { dtScaled, k, velocityScale } from "../main";
 import { registerHitAnimation } from "../shared";
 import { tags } from "../tags";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
@@ -67,6 +66,7 @@ export function spawnMeteorite(props: Props) {
 			? []
 			: [k.offscreen({ destroy: true })]),
 		{
+			enemyDamageMaterial: "rock",
 			vel: props.dir,
 			rotVel: k.rand(-4, 4),
 			speed: props.speed * profile.speedMultiplier,
@@ -129,15 +129,9 @@ export function spawnMeteorite(props: Props) {
 				true,
 				{
 					tier: profile.elite ? "elite" : "normal",
+					material: "rock",
 				}
 			);
-		audioService.playPositionalSound("asteroid_destroyed", deathPos, {
-			volume: subSoundVolume,
-			minDistance: 80,
-			maxDistance: 780,
-			panDistance: 460,
-			voiceLimit: 6,
-		});
 		k.destroy(m);
 		props.onDeath?.(deathPos);
 

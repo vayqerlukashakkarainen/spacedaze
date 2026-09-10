@@ -28,6 +28,14 @@
 
 - **Scrambled Telecommunications** — Raining-0n-Satrn. Sourced from [Freesound](https://freesound.org/people/Raining-0n-Satrn/sounds/615906/) for disturbed dialogue transmissions. Licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
 
+- **Health Pickup** — KeshaFilm. Distributed through [Pixabay](https://pixabay.com/sound-effects/film-special-effects-health-pickup-6860/) and adapted into the regular health-orb pickup cue. Licensed under the [Pixabay Content License](https://pixabay.com/service/license-summary/).
+
+- **Energy** — Leszek_Szary. Distributed through [Pixabay](https://pixabay.com/sound-effects/film-special-effects-energy-90321/) and adapted into the lifesteal health-reception cue. Licensed under the [Pixabay Content License](https://pixabay.com/service/license-summary/).
+
+- **Explosion** — Bird_man. Distributed through [Pixabay](https://pixabay.com/sound-effects/film-special-effects-explosion-91872/) and adapted into the ship-part and enemy-ship destruction pool. Licensed under the [Pixabay Content License](https://pixabay.com/service/license-summary/).
+
+- **Rock destroy** — Bertsz. Distributed through [Pixabay](https://pixabay.com/sound-effects/film-special-effects-rock-destroy-6409/) and adapted into the rock-material destruction pool. Licensed under the [Pixabay Content License](https://pixabay.com/service/license-summary/).
+
 - **Funny Cartoon Music** — MaksymMalko. Sourced from [Pixabay](https://pixabay.com/sound-effects/nature-funny-cartoon-music-532611/) for Burt's prologue recovery scene. Licensed under the [Pixabay Content License](https://pixabay.com/service/license-summary/).
 
 - **Sci-fi Portal Jump 04** — DRAGON-STUDIO. Sourced from [Pixabay](https://pixabay.com/sound-effects/film-special-effects-sci-fi-portal-jump-04-416161/) for hostile phase arrivals. Licensed under the [Pixabay Content License](https://pixabay.com/service/license-summary/).
@@ -37,6 +45,8 @@
 - **Socket wrench.wav** — Loinnats. Sourced from [Freesound](https://freesound.org/people/Loinnats/sounds/616628/) for Burt's repair sequence. Licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
 
 - **beep.mp3** — athenspublic. Published through [Pixabay](https://pixabay.com/sound-effects/technology-beep-104060/) and sourced from the original [Freesound upload](https://freesound.org/people/athenspublic/sounds/266753/) for target-lock feedback. Trimmed and licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
+
+- **Bamboo Whoosh** — DenielCZ. Distributed through [Pixabay](https://pixabay.com/sound-effects/film-special-effects-bamboo-whoosh-429156/) and trimmed for the lasso throw. Licensed under the [Pixabay Content License](https://pixabay.com/service/license-summary/).
 
 - **Happy Birthday to You Upbeat** — SergeQuadrado. Preview sourced from [Freesound](https://freesound.org/people/SergeQuadrado/sounds/541178/) for the Gloom and Jubilee hub encounter. Licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/); replace or separately license before commercial distribution.
 

@@ -23,7 +23,6 @@ const rawPlaybackAllowlist = new Set([
 	"src/services/audio/gameSoundService.ts",
 	"src/services/audio/hitSoundService.ts",
 	"src/services/combat/projectileService.ts",
-	"src/spawn/spawnAsteroid.ts",
 ])
 
 function sourceFiles(directory: string): string[] {
@@ -58,13 +57,25 @@ for (const [cueId, policy] of Object.entries(SEMANTIC_SOUND_CUES)) {
 	}
 }
 
-assert.equal(getSoundCuePolicy("enemy_explosion").maxVoices, 6)
-assert.equal(getSoundCuePolicy("enemy_explosion").group, "enemy-explosion")
 assert.equal(getSoundCuePolicy("enemy_blaster_fire").maxVoices, 8)
 assert.equal(getSoundCuePolicy("enemy_blaster_fire").group, "enemy-blaster-fire")
 assert.equal(getSoundCuePolicy("weapon_burst_driver").maxVoices, 6)
 assert.equal(getSoundCuePolicy("player_primary_charge").asset, "primary_weapon_charge")
 assert.equal(getSoundCuePolicy("chest_challenge_charge").asset, "rail_lance_charge")
+assert.equal(getSoundCuePolicy("lifesteal_health_receive").maxVoices, 3)
+assert.deepEqual(getSoundCuePolicy("lifesteal_health_receive").detuneRange, [-60, 60])
+assert.deepEqual(getSoundCuePolicy("ship_part_destroyed").asset, [
+	"ship_part_destroyed_01",
+	"ship_part_destroyed_02",
+])
+assert.deepEqual(
+	getSoundCuePolicy("enemy_ship_destroyed").asset,
+	getSoundCuePolicy("ship_part_destroyed").asset
+)
+assert.deepEqual(getSoundCuePolicy("rock_material_destroyed").asset, [
+	"asteroid_destroyed",
+	"rock_material_destroyed_02",
+])
 
 assert.deepEqual(
 	directLiteralCalls,

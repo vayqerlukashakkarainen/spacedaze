@@ -26,7 +26,7 @@ import { uiState } from "./uiState"
 import {
 	addThemedText,
 	createUiActionButton,
-	createUiBadge,
+	createUiCatalogBrowser,
 	createUiPanel,
 	createUiProgressBar,
 	playUiModalClose,
@@ -35,6 +35,7 @@ import {
 	createUiSelectableRow,
 	createUiStatList,
 	createUiSurface,
+	createUiTutorialDetail,
 	setUiTreeOpacity,
 	getScaledLineSpacing,
 	UI_COLORS,
@@ -44,20 +45,20 @@ import {
 	getPermanentUpgradeLevel,
 	getEffectiveUpgradeLevel,
 	getEffectiveUpgradeRarity,
+	getUpgradeRequirementText,
 	isToolKey,
 	isPermanentUpgradeKey,
 	PERMANENT_UPGRADE_KEYS,
 } from "../upg"
 import {
 	getAllRewardDefinitions,
+	getRewardDefinition,
 	getRewardMinimumHubLevel,
 	REWARD_RARITY_COLORS,
 	RewardRarity,
+	type RewardDefinition,
+	type RewardSource,
 } from "../services/economy/rewardService"
-import {
-	getRarityRank,
-	REWARD_RARITY_ORDER,
-} from "../services/economy/rewardQualityService"
 import {
 	purchaseBurstParticleCount,
 	spawnCurrencyBurst,
@@ -105,6 +106,12 @@ import {
 	getInputBinding,
 	type InputActionId,
 } from "../services/input/inputBindingService"
+import { isStrafeTrainingUnlocked } from "../services/narrative/narrativeService"
+import {
+	getWorldVisual,
+	type WorldVisualId,
+} from "../visuals/worldVisualCatalog"
+import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 
 let panelOpen = false
 let panelClosing = false
@@ -853,50 +860,145 @@ function destroyChildren(parent: GameObj) {
 }
 
 type PhaseStationTab =
+	| "techniques"
 	| "ship"
 	| "arsenal"
 	| "modules"
 	| "abilities"
 	| "upgrades"
+	| "buildings"
 	| "droids"
 
 const PHASE_STATION_TABS: readonly {
 	id: PhaseStationTab
 	label: string
 }[] = [
+	{ id: "techniques", label: "TECHNIQUES" },
 	{ id: "ship", label: "SHIP" },
 	{ id: "arsenal", label: "ARSENAL" },
 	{ id: "modules", label: "MODULES" },
 	{ id: "abilities", label: "ABILITIES" },
 	{ id: "upgrades", label: "UPGRADES" },
+	{ id: "buildings", label: "BUILDINGS" },
 	{ id: "droids", label: "DROIDS" },
 ]
 
-export function showPhaseStation(
-	playTransitionSound = true,
-	initialTab: PhaseStationTab = "ship"
+interface CompendiumBuilding {
+	id: string
+	name: string
+	category: string
+	status: "INTERACT" | "COMBAT" | "SUPPORT" | "TRAVERSAL" | "HAZARD"
+	visualId: WorldVisualId
+	description: string
+	operation: string
+	fieldNote: string
+}
+
+const COMPENDIUM_BUILDINGS: readonly CompendiumBuilding[] = [
+	{
+		id: "salvageRelay",
+		name: "SALVAGE RELAY",
+		category: "RUN FACILITY",
+		status: "INTERACT",
+		visualId: "debris-house",
+		description: "A Drius Wake deposit station rebuilt inside the Phase Daze.",
+		operation: "Approach and interact to transfer carried debris into the Hub reserve.",
+		fieldNote: "Deposited debris is secured for permanent spending even if the expedition is later lost.",
+	},
+	{
+		id: "battleShrine",
+		name: "BATTLE SHRINE",
+		category: "CAPTURE SHRINE",
+		status: "COMBAT",
+		visualId: "capture-shrine",
+		description: "A contested shrine that responds to a ship holding its capture field.",
+		operation: "Remain inside the marked radius while the shrine charges and hostile waves phase in.",
+		fieldNote: "Leaving the field drains capture progress. Timed shrines can expire while unattended.",
+	},
+	{
+		id: "damageShrine",
+		name: "DAMAGE SHRINE",
+		category: "WEAPON SHRINE",
+		status: "COMBAT",
+		visualId: "damage-shrine",
+		description: "A weapon trial that measures concentrated projectile damage.",
+		operation: "Fire into the shrine and reach its damage threshold before stored charge bleeds away.",
+		fieldNote: "The first hit can begin a hostile encounter. Sustained fire is more effective than scattered shots.",
+	},
+	{
+		id: "healthShrine",
+		name: "HEALTH SHRINE",
+		category: "RECOVERY SHRINE",
+		status: "SUPPORT",
+		visualId: "health-shrine",
+		description: "A medical platform that stabilizes restorative energy into health orbs.",
+		operation: "Collect the three orbiting health orbs to restore hull integrity.",
+		fieldNote: "The shrine is depleted once every orb has been recovered.",
+	},
+	{
+		id: "gravityLink",
+		name: "GRAVITY LINK",
+		category: "TRANSIT SHRINE",
+		status: "TRAVERSAL",
+		visualId: "gravity-shrine",
+		description: "Linked shrines that bend local gravity and fold the distance between their cores.",
+		operation: "Enter one shrine core to phase-jump to another node in the network.",
+		fieldNote: "Its pull affects ships, hostiles, projectiles, and loose debris before teleportation.",
+	},
+	{
+		id: "gravityAnomaly",
+		name: "GRAVITY ANOMALY",
+		category: "VOID STRUCTURE",
+		status: "HAZARD",
+		visualId: "gravity-anomaly-shrine",
+		description: "A damaged gravity shrine fused to an unstable wormhole field.",
+		operation: "Account for its persistent pull when navigating, firing, or towing salvage nearby.",
+		fieldNote: "Unlike a Gravity Link, the anomaly does not provide controlled transit.",
+	},
+]
+
+export interface CompendiumContentBounds {
+	left: number
+	top: number
+	width: number
+	bottom: number
+}
+
+export function addCompendiumContent(
+	parent: GameObj,
+	bounds: CompendiumContentBounds,
+	initialTab: PhaseStationTab = "techniques"
 ) {
-	const panelSize = k.vec2(
-		Math.min(820, k.width() - 24),
-		Math.min(620, k.height() - 32)
-	)
-	const panel = openPanel(undefined, panelSize, playTransitionSound)
-	if (!panel) return
-	const panelTop = -panelSize.y / 2
-	const panelLeft = -panelSize.x / 2
-	const innerPadding = 20
-	const innerWidth = panelSize.x - innerPadding * 2
-	const contentTop = panelTop + 154
-	const contentBottom = panelSize.y / 2 - 62
-	const tabRoot = panel.add([k.pos(0, 0)])
-	const contentRoot = panel.add([k.pos(0, 0)])
+	const panelLeft = bounds.left
+	const innerPadding = 0
+	const innerWidth = bounds.width
+	const stationTabTop = bounds.top
+	const contentTop = bounds.top + 44
+	const contentBottom = bounds.bottom
+	const tabRoot = parent.add([k.pos(0, 0)])
+	const contentRoot = parent.add([k.pos(0, 0)])
 	let activeTab: PhaseStationTab = initialTab
+	let selectedTechniqueId = getCompendiumTechniques()
+		.find((technique) => technique.discovered)?.id
+	let shipPage = 0
+	let selectedShipSystemKey = PERMANENT_UPGRADE_KEYS.find(
+		(key) => getPermanentUpgradeLevel(key) !== undefined
+	)
+	let selectedWeaponId = WEAPONS.find((weapon) => isWeaponOwned(weapon.id))?.id
 	let arsenalPage = 0
 	let modulePage = 0
+	let selectedModuleId = ACTIVE_MODULES.find((module) =>
+		getEquippedActiveModuleId() === module.id ||
+		isBlueprintDiscovered(`active:${module.id}`)
+	)?.id
 	let abilityPage = 0
+	let selectedAbilityId = [
+		...getAbilitiesForSlot("mobility"),
+		...getAbilitiesForSlot("ultimate"),
+	].find((ability) => isAbilityDiscovered(ability))?.id
 	let upgradePage = 0
-	let upgradeDetailsPage = 0
 	let selectedUpgradeKey: string | undefined
+	let selectedBuildingId = COMPENDIUM_BUILDINGS[0]?.id
 	let selectedDroidId = getDroidDefinitions()
 		.find((definition) => isDroidDiscovered(definition.id))?.id
 	const newBlueprintKeys = new Set(getUnseenBlueprintKeys())
@@ -912,44 +1014,6 @@ export function showPhaseStation(
 	}
 	markTabSeen(activeTab)
 
-	createUiSectionHeader(panel, {
-		pos: k.vec2(panelLeft + 1, panelTop + 1),
-		width: panelSize.x - 2,
-		height: 54,
-		eyebrow: "CENTRAL HUB BUILDING",
-		title: "PHASE STATION",
-		action: `HUB LEVEL ${getHubLevel()}`,
-	})
-	const hubLevelProgress = getHubLevelProgress()
-	const hubXpRemaining = Math.max(
-		0,
-		hubLevelProgress.required - hubLevelProgress.current
-	)
-	addThemedText(panel, {
-		text: `HUB LEVEL ${hubLevelProgress.level}`,
-		pos: k.vec2(panelLeft + innerPadding, panelTop + 106),
-		variant: "caption",
-		width: innerWidth,
-	})
-	addThemedText(panel, {
-		text: hubLevelProgress.progress >= 1
-			? `${hubLevelProgress.current} DEPOSITED  //  MAXIMUM LEVEL`
-			: `${hubLevelProgress.current} / ${hubLevelProgress.required} DEPOSITED  //  ${hubXpRemaining} NEEDED`,
-		pos: k.vec2(panelLeft + innerPadding, panelTop + 106),
-		variant: "muted",
-		width: innerWidth,
-		align: "right",
-	})
-	createUiProgressBar(panel, {
-		pos: k.vec2(panelLeft + innerPadding, panelTop + 126),
-		width: innerWidth,
-		height: 6,
-		value: hubLevelProgress.progress,
-		color: hubLevelProgress.progress >= 1
-			? UI_COLORS.success
-			: UI_COLORS.accent,
-	})
-
 	const render = () => {
 		destroyChildren(tabRoot)
 		destroyChildren(contentRoot)
@@ -962,7 +1026,7 @@ export function showPhaseStation(
 			createUiActionButton(tabRoot, {
 				pos: k.vec2(
 					panelLeft + innerPadding + index * (tabWidth + tabGap),
-					panelTop + 62
+					stationTabTop
 				),
 				size: k.vec2(tabWidth, 32),
 				text: tab.label,
@@ -978,13 +1042,37 @@ export function showPhaseStation(
 			})
 		})
 
-		if (activeTab === "ship") {
-			renderPermanentShipSystems(
+		if (activeTab === "techniques") {
+			renderTechniques(
 				contentRoot,
 				panelLeft + innerPadding,
 				innerWidth,
 				contentTop,
 				contentBottom,
+				selectedTechniqueId,
+				(id) => {
+					selectedTechniqueId = id
+					render()
+				}
+			)
+		}
+		if (activeTab === "ship") {
+			shipPage = renderShipCatalog(
+				contentRoot,
+				panelLeft + innerPadding,
+				innerWidth,
+				contentTop,
+				contentBottom,
+				shipPage,
+				(nextPage) => {
+					shipPage = nextPage
+					render()
+				},
+				selectedShipSystemKey,
+				(key) => {
+					selectedShipSystemKey = key
+					render()
+				},
 				newBlueprintKeys
 			)
 		}
@@ -1000,11 +1088,16 @@ export function showPhaseStation(
 					arsenalPage = nextPage
 					render()
 				},
+				selectedWeaponId,
+				(id) => {
+					selectedWeaponId = id
+					render()
+				},
 				newBlueprintKeys
 			)
 		}
 		if (activeTab === "modules") {
-			modulePage = renderActiveModules(
+			modulePage = renderModuleCatalog(
 				contentRoot,
 				panelLeft + innerPadding,
 				innerWidth,
@@ -1015,12 +1108,16 @@ export function showPhaseStation(
 					modulePage = nextPage
 					render()
 				},
-				render,
+				selectedModuleId,
+				(id) => {
+					selectedModuleId = id
+					render()
+				},
 				newBlueprintKeys
 			)
 		}
 		if (activeTab === "abilities") {
-			abilityPage = renderMobilityAndUltimateAbilities(
+			abilityPage = renderAbilityCatalog(
 				contentRoot,
 				panelLeft + innerPadding,
 				innerWidth,
@@ -1031,36 +1128,16 @@ export function showPhaseStation(
 					abilityPage = nextPage
 					render()
 				},
-				render,
+				selectedAbilityId,
+				(id) => {
+					selectedAbilityId = id
+					render()
+				},
 				newBlueprintKeys
 			)
 		}
 		if (activeTab === "upgrades") {
-			const selectedUpgrade = selectedUpgradeKey
-				? getUpgradeDefinition(selectedUpgradeKey)
-				: undefined
-			if (selectedUpgrade) {
-				renderUpgradeDetails(
-					contentRoot,
-					panelLeft + innerPadding,
-					innerWidth,
-					contentTop,
-					contentBottom,
-					selectedUpgrade,
-					upgradeDetailsPage,
-					(nextPage) => {
-						upgradeDetailsPage = nextPage
-						render()
-					},
-					() => {
-						selectedUpgradeKey = undefined
-						upgradeDetailsPage = 0
-						render()
-					}
-				)
-				return
-			}
-			upgradePage = renderUpgradeCatalog(
+			upgradePage = renderUnifiedUpgradeCatalog(
 				contentRoot,
 				panelLeft + innerPadding,
 				innerWidth,
@@ -1071,12 +1148,26 @@ export function showPhaseStation(
 					upgradePage = nextPage
 					render()
 				},
+				selectedUpgradeKey,
 				(toolKey) => {
 					selectedUpgradeKey = toolKey
-					upgradeDetailsPage = 0
 					render()
 				},
 				newBlueprintKeys,
+			)
+		}
+		if (activeTab === "buildings") {
+			renderBuildingArchive(
+				contentRoot,
+				panelLeft + innerPadding,
+				innerWidth,
+				contentTop,
+				contentBottom,
+				selectedBuildingId,
+				(id) => {
+					selectedBuildingId = id
+					render()
+				}
 			)
 		}
 		if (activeTab === "droids") {
@@ -1100,6 +1191,7 @@ export function showPhaseStation(
 }
 
 function getPhaseStationTabForBlueprint(key: string): PhaseStationTab {
+	if (key.startsWith("technique:")) return "techniques"
 	if (key.startsWith("droid:")) return "droids"
 	if (key.startsWith("weapon:")) return "arsenal"
 	if (key.startsWith("active:")) return "modules"
@@ -1110,6 +1202,398 @@ function getPhaseStationTabForBlueprint(key: string): PhaseStationTab {
 		return "ship"
 	}
 	return "upgrades"
+}
+
+const REWARD_SOURCE_UNLOCK_LABELS: Readonly<Record<RewardSource, string>> = {
+	crate: "CHEST",
+	enemy: "ENEMY",
+	boss: "BOSS",
+}
+
+function formatUnlockList(items: readonly string[]) {
+	if (items.length <= 1) return items[0] ?? ""
+	if (items.length === 2) return `${items[0]} OR ${items[1]}`
+	return `${items.slice(0, -1).join(", ")}, OR ${items.at(-1)}`
+}
+
+function getRewardUnlockRequirement(
+	definition: RewardDefinition | undefined,
+	additionalRequirement?: string
+) {
+	const requirements: string[] = []
+	const minimumHubLevel = definition
+		? getRewardMinimumHubLevel(definition)
+		: 1
+	if (getHubLevel() < minimumHubLevel) {
+		requirements.push(`HUB LEVEL ${minimumHubLevel}`)
+	}
+	if (additionalRequirement) {
+		requirements.push(additionalRequirement.toUpperCase())
+	}
+	const sources = definition?.allowedSources.filter(
+		(source) => (definition.weights[source] ?? 0) > 0
+	) ?? []
+	if (sources.length > 0) {
+		requirements.push(
+			`${formatUnlockList(sources.map(
+				(source) => REWARD_SOURCE_UNLOCK_LABELS[source]
+			))} DROP`
+		)
+	} else if (requirements.length === 0) {
+		requirements.push("EXPEDITION DISCOVERY")
+	}
+	return requirements.join(" + ")
+}
+
+function getDroidUnlockRequirement(id: DroidId) {
+	switch (id) {
+		case "ring-runner":
+			return "COMPLETE THE ASTEROID RUNNER ENCOUNTER"
+		case "ring-watcher":
+			return "COMPLETE THE RANGE KEEPER ENCOUNTER IN THE HUB"
+		case "lamp-keeper":
+			return "COMPLETE THE LAMP KEEPER ENCOUNTER IN THE HUB"
+		case "gloom":
+		case "jubilee":
+			return "DISCOVER THE BIRTHDAY ENCOUNTER IN THE HUB"
+	}
+}
+
+interface CompendiumTechnique {
+	id: string
+	name: string
+	category: string
+	description: string
+	howText: string
+	discovered: boolean
+	unlockRequirement?: string
+	tipText?: string
+	strafeModifier?: string
+	noteTitle?: string
+	noteText?: string
+	input?: string
+	inputAction?: string
+	previewVideo?: string
+}
+
+function getCompendiumTechniques(): CompendiumTechnique[] {
+	return [
+		{
+			id: "normalFlight",
+			name: "NORMAL FLIGHT",
+			category: "MOVEMENT",
+			description: "Turn the hull toward the cursor and thrust along the ship's facing direction.",
+			howText: "Aim with the cursor. Use movement input to accelerate, brake, and carve through open space.",
+			previewVideo: "videos/normal-flight-preview.mp4",
+			discovered: true,
+		},
+		{
+			id: "hubLevel",
+			name: "HUB LEVEL",
+			category: "PROGRESSION",
+			description: "Permanent station progress earned by securing salvage from expeditions.",
+			howText: `Deposit salvage at relays or extract safely. Secured salvage raises the Hub Level. Current Hub Level: ${getHubLevel()}.`,
+			tipText: "Higher Hub Levels unlock facilities, increase chest luck, and expand the rewards that can drop.",
+			noteTitle: "PERSISTENCE",
+			noteText: "Hub Level is permanent and does not reset between expeditions.",
+			discovered: true,
+		},
+		{
+			id: "strafeMode",
+			name: "STRAFE MODE",
+			category: "SHIP ORIENTATION",
+			description: "Keep the hull oriented while moving independently around a target.",
+			howText: "Press Space to toggle strafe control. Aim with the cursor while movement input translates the ship independently.",
+			tipText: "Keep the cursor over the reticle to increase critical hit chance.",
+			strafeModifier: "Movement decouples from hull orientation.",
+			input: "SPACE",
+			inputAction: "TOGGLE",
+			discovered: isStrafeTrainingUnlocked(),
+			unlockRequirement: "COMPLETE BURT'S STRAFE TRAINING",
+		},
+		{
+			id: "salvageLasso",
+			name: "LASSO TECHNIQUES",
+			category: "SALVAGE COMBAT",
+			description: "Ensnare loose objects, tow them behind the ship, or turn their momentum into a weapon.",
+			howText: "Cast near a chest, mine, fuel cell, movable cover, or ship part. Move to build tension, then cast again to release. Speed and mass increase slam damage.",
+			strafeModifier: "Releasing the lasso launches its target directly toward the reticle.",
+			input: formatInputBinding(getInputBinding("lasso")),
+			inputAction: "CAST / RELEASE",
+			discovered: getPermanentUpgradeLevel("salvageLasso") !== undefined,
+			unlockRequirement: getRewardUnlockRequirement(
+				getRewardDefinition("salvageLasso")
+			),
+		},
+		{
+			id: "explosiveObjects",
+			name: "EXPLOSIVE OBJECTS",
+			category: "ENVIRONMENT",
+			description: "Volatile objects damage anything caught inside their blast radius, including you.",
+			howText: "Shoot volatile cargo when hostiles move close. Knockback can reposition an explosive before detonation.",
+			discovered: getHubLevel() >= 2,
+			unlockRequirement: "REACH HUB LEVEL 2",
+		},
+		{
+			id: "destroyableParts",
+			name: "DESTROYABLE PARTS",
+			category: "COMBAT",
+			description: "Exposed ship components can be destroyed separately from the main hull.",
+			howText: "Target exposed ship components before breaking the hull. Destroyed parts detach, drop salvage, and can trigger a damaging explosion.",
+			discovered: true,
+		},
+		{
+			id: "chargedWeapons",
+			name: "CHARGED WEAPONS",
+			category: "COMBAT",
+			description: "Charge-capable weapons exchange firing speed for stronger projectile properties.",
+			howText: "Hold primary fire to build charge, then release. Damage, speed, size, or penetration depend on the weapon.",
+			input: "MOUSE 1",
+			inputAction: "HOLD + RELEASE",
+			discovered: WEAPONS.some((weapon) =>
+				isWeaponOwned(weapon.id) && weapon.charge !== undefined
+			),
+			unlockRequirement: "RECOVER A CHARGE-CAPABLE PRIMARY WEAPON",
+		},
+		{
+			id: "activeModules",
+			name: "ACTIVE MODULES",
+			category: "SECONDARY",
+			description: "Secondary modules provide powerful actions governed by a cooldown.",
+			howText: "Use the equipped module with its bound input. Watch its role and cooldown before committing.",
+			input: formatInputBinding(getInputBinding("secondary")),
+			inputAction: "ACTIVATE",
+			discovered: ACTIVE_MODULES.some((module) =>
+				getEquippedActiveModuleId() === module.id ||
+				isBlueprintDiscovered(`active:${module.id}`)
+			),
+			unlockRequirement: "RECOVER AN ACTIVE MODULE",
+		},
+		{
+			id: "lockedRooms",
+			name: "LOCKED ROOMS + KEYS",
+			category: "NAVIGATION",
+			description: "Treasure rooms and shops can require a recovered phase key.",
+			howText: "Recover keys from cleared rooms and enemies. Unlocking a room opens every linked path into it.",
+			input: "F",
+			inputAction: "UNLOCK",
+			discovered: getHubLevel() >= 2,
+			unlockRequirement: "REACH HUB LEVEL 2",
+		},
+	]
+}
+
+function renderTechniques(
+	root: GameObj,
+	left: number,
+	width: number,
+	top: number,
+	bottom: number,
+	selectedId: string | undefined,
+	onSelect: (id: string) => void
+) {
+	const techniques = getCompendiumTechniques()
+	const selected = techniques.find((entry) =>
+		entry.id === selectedId && entry.discovered
+	) ?? techniques.find((entry) => entry.discovered)
+	const browser = createUiCatalogBrowser(root, {
+		pos: k.vec2(left, top),
+		size: k.vec2(width, bottom - top),
+		meta: `${techniques.filter((technique) => technique.discovered).length} / ${techniques.length} DISCOVERED`,
+		listWidth: Math.min(360, width * 0.34),
+	})
+	const rowGap = 4
+	const rowHeight = Math.min(
+		64,
+		(bottom - top - browser.rowsTop - rowGap * Math.max(0, techniques.length - 1)) /
+			Math.max(1, techniques.length)
+	)
+	techniques.forEach((technique, index) => {
+		createUiSelectableRow(browser.root, {
+			pos: k.vec2(0, browser.rowsTop + index * (rowHeight + rowGap)),
+			width: browser.listWidth,
+			height: rowHeight,
+			title: technique.discovered
+				? technique.name
+				: "UNDISCOVERED TECHNIQUE",
+			meta: technique.discovered
+				? `${technique.category}  //  DISCOVERED`
+				: "UNKNOWN  //  UNDISCOVERED",
+			iconText: technique.discovered ? technique.name.slice(0, 1) : "?",
+			iconSize: 28,
+			selected: technique.discovered && selected?.id === technique.id,
+			status: technique.discovered ? ">" : "?",
+			disabled: !technique.discovered,
+			onClick: technique.discovered
+				? () => onSelect(technique.id)
+				: undefined,
+		})
+	})
+	if (!selected) return
+	createUiTutorialDetail(browser.root, {
+		pos: k.vec2(browser.detailLeft, 0),
+		size: k.vec2(browser.detailWidth, browser.detailHeight),
+		title: selected.name,
+		howTitle: "HOW IT WORKS",
+		howText: selected.howText.toUpperCase(),
+		tipTitle: selected.tipText ? "TIP" : undefined,
+		tipText: selected.tipText?.toUpperCase(),
+		inputPrompts: selected.id === "normalFlight"
+			? [
+				{ action: "move", label: "MOVE" },
+				{ action: "lock", label: "TOGGLE STRAFE" },
+			]
+			: selected.id === "destroyableParts"
+				? [{ action: "fire", label: "TARGET PARTS" }]
+				: undefined,
+		noteTitle: selected.noteTitle ?? "STRAFE MODIFIER",
+		noteText: (
+			selected.noteText ??
+			selected.strafeModifier ??
+			"No strafe modifier"
+		).toUpperCase(),
+		input: selected.input,
+		inputAction: selected.inputAction,
+		videoUrl: selected.previewVideo,
+	})
+}
+
+function renderBuildingArchive(
+	root: GameObj,
+	left: number,
+	width: number,
+	top: number,
+	bottom: number,
+	selectedBuildingId: string | undefined,
+	onSelect: (id: string) => void
+) {
+	const selected = COMPENDIUM_BUILDINGS.find(
+		(building) => building.id === selectedBuildingId
+	) ?? COMPENDIUM_BUILDINGS[0]
+	const listWidth = Math.min(320, width * 0.38)
+	const columnGap = 12
+	const detailLeft = left + listWidth + columnGap
+	const detailWidth = width - listWidth - columnGap
+	const detailHeight = bottom - top
+	const rowsTop = top + 24
+	const rowGap = 5
+	const rowHeight = Math.min(
+		68,
+		(detailHeight - 24 - rowGap * (COMPENDIUM_BUILDINGS.length - 1)) /
+			COMPENDIUM_BUILDINGS.length
+	)
+
+	addThemedText(root, {
+		text: `STRUCTURE RECORDS  //  ${COMPENDIUM_BUILDINGS.length} CATALOGUED`,
+		pos: k.vec2(left, top),
+		variant: "eyebrow",
+		width: listWidth,
+	})
+	COMPENDIUM_BUILDINGS.forEach((building, index) => {
+		const sprite = requirePrimaryVisualSprite(getWorldVisual(building.visualId))
+		const statusColor = building.status === "SUPPORT"
+			? UI_COLORS.success
+			: building.status === "COMBAT"
+				? UI_COLORS.danger
+				: building.status === "HAZARD"
+					? UI_COLORS.warning
+					: UI_COLORS.accent
+		createUiSelectableRow(root, {
+			pos: k.vec2(left, rowsTop + index * (rowHeight + rowGap)),
+			width: listWidth,
+			height: rowHeight,
+			title: building.name,
+			meta: building.category,
+			status: building.status,
+			statusColor,
+			icon: sprite,
+			iconSize: 34,
+			selected: selected?.id === building.id,
+			onClick: () => onSelect(building.id),
+		})
+	})
+
+	const detail = createUiSurface(root, {
+		pos: k.vec2(detailLeft, top),
+		size: k.vec2(detailWidth, detailHeight),
+		tone: "raised",
+	})
+	if (!selected) return
+
+	const selectedSprite = requirePrimaryVisualSprite(
+		getWorldVisual(selected.visualId)
+	)
+	const selectedStatusColor = selected.status === "SUPPORT"
+		? UI_COLORS.success
+		: selected.status === "COMBAT"
+			? UI_COLORS.danger
+			: selected.status === "HAZARD"
+				? UI_COLORS.warning
+				: UI_COLORS.accent
+	detail.add([
+		k.sprite(selectedSprite, { width: 84, height: 84 }),
+		k.pos(62, 60),
+		k.anchor("center"),
+		k.color(k.WHITE),
+	])
+	addThemedText(detail, {
+		text: selected.name,
+		pos: k.vec2(120, 18),
+		variant: "heading",
+		width: detailWidth - 138,
+	})
+	addThemedText(detail, {
+		text: selected.category,
+		pos: k.vec2(120, 44),
+		variant: "eyebrow",
+		width: detailWidth - 138,
+	})
+	addThemedText(detail, {
+		text: `STATUS  //  ${selected.status}`,
+		pos: k.vec2(120, 68),
+		variant: "caption",
+		width: detailWidth - 138,
+		color: k.rgb(...selectedStatusColor),
+	})
+	addThemedText(detail, {
+		text: "FUNCTION",
+		pos: k.vec2(18, 122),
+		variant: "eyebrow",
+		width: detailWidth - 36,
+	})
+	addThemedText(detail, {
+		text: selected.description,
+		pos: k.vec2(18, 148),
+		variant: "body",
+		width: detailWidth - 36,
+		lineHeight: 1.3,
+	})
+	addThemedText(detail, {
+		text: "OPERATION",
+		pos: k.vec2(18, 230),
+		variant: "eyebrow",
+		width: detailWidth - 36,
+	})
+	addThemedText(detail, {
+		text: selected.operation,
+		pos: k.vec2(18, 256),
+		variant: "body",
+		width: detailWidth - 36,
+		lineHeight: 1.3,
+	})
+	addThemedText(detail, {
+		text: "FIELD NOTE",
+		pos: k.vec2(18, 338),
+		variant: "eyebrow",
+		width: detailWidth - 36,
+	})
+	addThemedText(detail, {
+		text: `> ${selected.fieldNote}`,
+		pos: k.vec2(18, 364),
+		variant: "muted",
+		width: detailWidth - 36,
+		lineHeight: 1.35,
+	})
 }
 
 function renderDroidArchive(
@@ -1139,14 +1623,18 @@ function renderDroidArchive(
 	definitions.forEach((definition, index) => {
 		const discovered = isDroidDiscovered(definition.id)
 		const discoveryKey = getDroidDiscoveryKey(definition.id)
+		const unlockRequirement = getDroidUnlockRequirement(definition.id)
 		createUiSelectableRow(root, {
 			pos: k.vec2(left, rowsTop + index * 74),
 			width: listWidth,
 			height: 68,
 			title: discovered ? definition.name : "UNIDENTIFIED DROID",
-			meta: discovered ? definition.model : "NO RECORD",
-			status: discovered ? getDroidArchiveStatus(definition.id) : "UNKNOWN",
-			statusColor: discovered ? UI_COLORS.accent : UI_COLORS.muted,
+			meta: discovered ? definition.model : "LOCKED RECORD",
+			description: discovered
+				? undefined
+				: `UNLOCK: ${unlockRequirement}`,
+			status: discovered ? getDroidArchiveStatus(definition.id) : "LOCKED",
+			statusColor: discovered ? UI_COLORS.accent : UI_COLORS.danger,
 			icon: discovered ? definition.sprite : undefined,
 			iconText: discovered ? undefined : "?",
 			iconSize: 34,
@@ -1173,7 +1661,7 @@ function renderDroidArchive(
 			width: detailWidth - 36,
 		})
 		addThemedText(detail, {
-			text: "Encounter droids throughout the system to recover their archive records.",
+			text: "LOCKED RECORDS LIST THEIR DISCOVERY REQUIREMENTS ON THE LEFT.",
 			pos: k.vec2(18, 48),
 			variant: "muted",
 			width: detailWidth - 36,
@@ -1235,7 +1723,89 @@ function renderDroidArchive(
 	})
 }
 
-function renderMobilityAndUltimateAbilities(
+const COMPENDIUM_CATALOG_LIST_WIDTH_RATIO = 0.34
+const COMPENDIUM_CATALOG_LIST_WIDTH_MAX = 360
+const COMPENDIUM_CATALOG_ROW_GAP = 4
+const COMPENDIUM_CATALOG_ROW_HEIGHT_MAX = 64
+const COMPENDIUM_CATALOG_ROW_HEIGHT_MIN = 60
+const COMPENDIUM_CATALOG_ROWS_TOP = 48
+
+function createPageableCompendiumCatalog(
+	root: GameObj,
+	left: number,
+	width: number,
+	top: number,
+	bottom: number,
+	meta: string,
+	entryCount: number,
+	requestedPage: number,
+	onPageChange: (page: number) => void
+) {
+	const availableRowsHeight = Math.max(
+		COMPENDIUM_CATALOG_ROW_HEIGHT_MIN,
+		bottom - top - COMPENDIUM_CATALOG_ROWS_TOP
+	)
+	const pageSize = Math.max(
+		1,
+		Math.floor(
+			(availableRowsHeight + COMPENDIUM_CATALOG_ROW_GAP) /
+				(COMPENDIUM_CATALOG_ROW_HEIGHT_MIN + COMPENDIUM_CATALOG_ROW_GAP)
+		)
+	)
+	const pageCount = Math.max(
+		1,
+		Math.ceil(entryCount / pageSize)
+	)
+	const page = k.clamp(requestedPage, 0, pageCount - 1)
+	const pageStart = page * pageSize
+	const pageEnd = (page + 1) * pageSize
+	const visibleCount = Math.max(
+		1,
+		Math.min(pageSize, entryCount - pageStart)
+	)
+	const browser = createUiCatalogBrowser(root, {
+		pos: k.vec2(left, top),
+		size: k.vec2(width, bottom - top),
+		meta: `${meta}  //  PAGE ${page + 1} / ${pageCount}`,
+		metaRightInset: 88,
+		listWidth: Math.min(
+			COMPENDIUM_CATALOG_LIST_WIDTH_MAX,
+			width * COMPENDIUM_CATALOG_LIST_WIDTH_RATIO
+		),
+	})
+	createUiActionButton(browser.root, {
+		pos: k.vec2(browser.listWidth - 76, 10),
+		size: k.vec2(34, 20),
+		text: "<",
+		disabled: page === 0,
+		onClick: () => onPageChange(page - 1),
+	})
+	createUiActionButton(browser.root, {
+		pos: k.vec2(browser.listWidth - 36, 10),
+		size: k.vec2(34, 20),
+		text: ">",
+		disabled: page >= pageCount - 1,
+		onClick: () => onPageChange(page + 1),
+	})
+	const rowHeight = Math.min(
+		COMPENDIUM_CATALOG_ROW_HEIGHT_MAX,
+		(
+			bottom - top - browser.rowsTop -
+			COMPENDIUM_CATALOG_ROW_GAP * (visibleCount - 1)
+		) / visibleCount
+	)
+	return {
+		...browser,
+		page,
+		pageSize,
+		pageStart,
+		pageEnd,
+		rowHeight,
+		rowGap: COMPENDIUM_CATALOG_ROW_GAP,
+	}
+}
+
+function renderShipCatalog(
 	root: GameObj,
 	left: number,
 	width: number,
@@ -1243,99 +1813,295 @@ function renderMobilityAndUltimateAbilities(
 	bottom: number,
 	requestedPage: number,
 	onPageChange: (page: number) => void,
-	render: () => void,
+	selectedKey: typeof PERMANENT_UPGRADE_KEYS[number] | undefined,
+	onSelect: (key: typeof PERMANENT_UPGRADE_KEYS[number]) => void,
 	newBlueprintKeys: ReadonlySet<string>
 ) {
-	const groups = [
-		{
-			slot: "mobility" as const,
-			label: `MOBILITY  //  ${formatInputBinding(getInputBinding("mobility"))}`,
-		},
-		{
-			slot: "ultimate" as const,
-			label: `ULTIMATE  //  ${formatInputBinding(getInputBinding("ultimate"))}`,
-		},
+	const entries = PERMANENT_UPGRADE_KEYS.map((key) => ({
+		key,
+		definition: getUpgradeDefinition(key),
+		level: getPermanentUpgradeLevel(key),
+	})).filter((entry) => entry.definition !== undefined)
+	const ownedEntries = entries.filter((entry) => entry.level !== undefined)
+	const selected = entries.find((entry) =>
+		entry.key === selectedKey && entry.level !== undefined
+	) ?? ownedEntries[0]
+	const catalog = createPageableCompendiumCatalog(
+		root,
+		left,
+		width,
+		top,
+		bottom,
+		`${ownedEntries.length} / ${entries.length} UNLOCKED`,
+		entries.length,
+		requestedPage,
+		onPageChange
+	)
+	entries.slice(catalog.pageStart, catalog.pageEnd).forEach((entry, index) => {
+		const definition = entry.definition
+		if (!definition) return
+		const owned = entry.level !== undefined
+		const level = owned ? entry.level + 1 : 0
+		const unlockRequirement = getRewardUnlockRequirement(
+			getRewardDefinition(entry.key),
+			getUpgradeRequirementText(entry.key)
+		)
+		createUiSelectableRow(catalog.root, {
+			pos: k.vec2(
+				0,
+				catalog.rowsTop + index * (catalog.rowHeight + catalog.rowGap)
+			),
+			width: catalog.listWidth,
+			height: catalog.rowHeight,
+			title: owned ? definition.toolName.toUpperCase() : "UNKNOWN SYSTEM",
+			meta: owned
+				? `PERMANENT  //  LEVEL ${level} / ${definition.levels.length}`
+				: "LOCKED SHIP RECORD",
+			description: owned ? undefined : `UNLOCK: ${unlockRequirement}`,
+			status: owned ? ">" : "LOCKED",
+			statusColor: owned ? undefined : UI_COLORS.danger,
+			icon: owned ? definition.levels[0]?.sprite : undefined,
+			iconText: owned ? undefined : "?",
+			iconSize: 30,
+			notification: owned && newBlueprintKeys.has(entry.key),
+			selected: owned && selected?.key === entry.key,
+			disabled: !owned,
+			onClick: owned ? () => onSelect(entry.key) : undefined,
+		})
+	})
+	if (selected?.definition && selected.level !== undefined) {
+		const definition = selected.definition
+		const currentLevel = definition.levels[selected.level]
+		const nextLevel = definition.levels[selected.level + 1]
+		createUiTutorialDetail(catalog.root, {
+			pos: k.vec2(catalog.detailLeft, 0),
+			size: k.vec2(catalog.detailWidth, catalog.detailHeight),
+			recordLabel: `SHIP SYSTEM  //  ${String(entries.indexOf(selected) + 1).padStart(2, "0")}`,
+			title: definition.toolName.toUpperCase(),
+			description: currentLevel?.desc.toUpperCase(),
+			howTitle: "CURRENT EFFECT",
+			howText: (currentLevel?.desc ?? "SYSTEM ACTIVE").toUpperCase(),
+			noteTitle: nextLevel ? "NEXT LEVEL" : "SYSTEM STATUS",
+			noteText: nextLevel
+				? nextLevel.desc.toUpperCase()
+				: "MAXIMUM LEVEL REACHED",
+			icon: definition.levels[0]?.sprite,
+			videoFooter: "PERMANENT SHIP SYSTEM",
+			showRecording: false,
+		})
+	} else renderEmptyCatalogDetail(catalog, "SHIP SYSTEM")
+	return catalog.page
+}
+
+function renderModuleCatalog(
+	root: GameObj,
+	left: number,
+	width: number,
+	top: number,
+	bottom: number,
+	requestedPage: number,
+	onPageChange: (page: number) => void,
+	selectedId: ActiveModuleId | undefined,
+	onSelect: (id: ActiveModuleId) => void,
+	newBlueprintKeys: ReadonlySet<string>
+) {
+	const equippedModuleId = getEquippedActiveModuleId()
+	const discoveredModules = ACTIVE_MODULES.filter((module) =>
+		equippedModuleId === module.id ||
+		isBlueprintDiscovered(`active:${module.id}`)
+	)
+	const selected = discoveredModules.find((module) => module.id === selectedId) ??
+		discoveredModules[0]
+	const catalog = createPageableCompendiumCatalog(
+		root,
+		left,
+		width,
+		top,
+		bottom,
+		`${discoveredModules.length} / ${ACTIVE_MODULES.length} DISCOVERED`,
+		ACTIVE_MODULES.length,
+		requestedPage,
+		onPageChange
+	)
+	ACTIVE_MODULES.slice(catalog.pageStart, catalog.pageEnd).forEach(
+		(module, index) => {
+			const discoveryKey = `active:${module.id}`
+			const discovered = equippedModuleId === module.id ||
+				isBlueprintDiscovered(discoveryKey)
+			const equipped = equippedModuleId === module.id
+			const unlockRequirement = getRewardUnlockRequirement(
+				getRewardDefinition(discoveryKey)
+			)
+			createUiSelectableRow(catalog.root, {
+				pos: k.vec2(
+					0,
+					catalog.rowsTop + index * (catalog.rowHeight + catalog.rowGap)
+				),
+				width: catalog.listWidth,
+				height: catalog.rowHeight,
+				title: discovered ? module.name : "UNKNOWN MODULE",
+				meta: discovered
+					? `${module.rarity.toUpperCase()}  //  ${module.cooldown}S COOLDOWN`
+					: "LOCKED ACTIVE RECORD",
+				description: discovered ? undefined : `UNLOCK: ${unlockRequirement}`,
+				status: discovered ? equipped ? "EQUIPPED" : ">" : "LOCKED",
+				statusColor: equipped ? UI_COLORS.accent : discovered
+					? undefined
+					: UI_COLORS.danger,
+				icon: discovered ? module.icon : undefined,
+				iconText: discovered ? undefined : "?",
+				iconSize: 30,
+				notification: discovered && newBlueprintKeys.has(discoveryKey),
+				selected: discovered && selected?.id === module.id,
+				disabled: !discovered,
+				onClick: discovered ? () => onSelect(module.id) : undefined,
+			})
+		}
+	)
+	if (selected) {
+		createUiTutorialDetail(catalog.root, {
+			pos: k.vec2(catalog.detailLeft, 0),
+			size: k.vec2(catalog.detailWidth, catalog.detailHeight),
+			recordLabel: `ACTIVE MODULE  //  ${String(ACTIVE_MODULES.indexOf(selected) + 1).padStart(2, "0")}`,
+			title: selected.name,
+			description: selected.description.toUpperCase(),
+			howTitle: "HOW TO USE",
+			howText: `ACTIVATE THE MODULE, THEN WAIT ${selected.cooldown} SECONDS FOR IT TO RECOVER.`,
+			noteTitle: "MODULE PROFILE",
+			noteText: formatCatalogStats(selected.stats),
+			input: formatInputBinding(getInputBinding("secondary")),
+			inputAction: "ACTIVATE",
+			icon: selected.icon,
+			videoFooter: "ACTIVE MODULE DEMONSTRATION",
+			showRecording: false,
+		})
+	} else renderEmptyCatalogDetail(catalog, "ACTIVE MODULE")
+	return catalog.page
+}
+
+function renderAbilityCatalog(
+	root: GameObj,
+	left: number,
+	width: number,
+	top: number,
+	bottom: number,
+	requestedPage: number,
+	onPageChange: (page: number) => void,
+	selectedId: AbilityId | undefined,
+	onSelect: (id: AbilityId) => void,
+	newBlueprintKeys: ReadonlySet<string>
+) {
+	const entries = [
+		...getAbilitiesForSlot("mobility"),
+		...getAbilitiesForSlot("ultimate"),
 	]
-	const entries = groups.flatMap((group) =>
-		getAbilitiesForSlot(group.slot).map((ability) => ({ group, ability }))
+	const discoveredEntries = entries.filter(isAbilityDiscovered)
+	const selected = discoveredEntries.find((ability) => ability.id === selectedId) ??
+		discoveredEntries[0]
+	const catalog = createPageableCompendiumCatalog(
+		root,
+		left,
+		width,
+		top,
+		bottom,
+		`${discoveredEntries.length} / ${entries.length} DISCOVERED`,
+		entries.length,
+		requestedPage,
+		onPageChange
 	)
-	const pageSize = 5
-	const pageCount = Math.max(1, Math.ceil(entries.length / pageSize))
-	const page = k.clamp(requestedPage, 0, pageCount - 1)
-	const visibleEntries = entries.slice(page * pageSize, (page + 1) * pageSize)
-	const firstGroup = visibleEntries[0]?.group
-	const pageLabel = firstGroup && visibleEntries.every(
-		(entry) => entry.group.slot === firstGroup.slot
-	)
-		? firstGroup.label
-		: "ABILITIES"
-	addThemedText(root, {
-		text: `${pageLabel}  //  PAGE ${page + 1} / ${pageCount}`,
-		pos: k.vec2(left, top),
-		variant: "eyebrow",
-		width: width - 90,
-	})
-	createUiActionButton(root, {
-		pos: k.vec2(left + width - 78, top - 5),
-		size: k.vec2(34, 20),
-		text: "<",
-		disabled: page === 0,
-		onClick: () => onPageChange(page - 1),
-	})
-	createUiActionButton(root, {
-		pos: k.vec2(left + width - 34, top - 5),
-		size: k.vec2(34, 20),
-		text: ">",
-		disabled: page >= pageCount - 1,
-		onClick: () => onPageChange(page + 1),
-	})
-	const rowsTop = top + 24
-	const rowGap = 6
-	const rowHeight = Math.min(
-		68,
-		(bottom - rowsTop - rowGap * (pageSize - 1)) / pageSize
-	)
-	visibleEntries.forEach(({ group, ability }, index) => {
+	entries.slice(catalog.pageStart, catalog.pageEnd).forEach((ability, index) => {
 		const discoveryKey = getAbilityDiscoveryKey(ability)
 		const discovered = isAbilityDiscovered(ability)
-		const equipped = getEquippedAbilityId(group.slot) === ability.id
-		const hubLocked = getHubLevel() < ability.minimumHubLevel
-		createUiSelectableRow(root, {
-			pos: k.vec2(left, rowsTop + index * (rowHeight + rowGap)),
-			width,
-			height: rowHeight,
-			title: discovered ? ability.name : "??????",
-			notification: discovered && newBlueprintKeys.has(discoveryKey),
+		const equipped = getEquippedAbilityId(ability.slot) === ability.id
+		const unlockRequirement = getRewardUnlockRequirement(
+			getRewardDefinition(discoveryKey)
+		)
+		createUiSelectableRow(catalog.root, {
+			pos: k.vec2(
+				0,
+				catalog.rowsTop + index * (catalog.rowHeight + catalog.rowGap)
+			),
+			width: catalog.listWidth,
+			height: catalog.rowHeight,
+			title: discovered ? ability.name : "UNKNOWN ABILITY",
 			meta: discovered
-				? `${ability.rarity}  //  ${ability.resource.type.toUpperCase()}`
-				: hubLocked
-					? `LOCKED DROP  //  HUB LEVEL ${ability.minimumHubLevel}`
-					: "UNDISCOVERED",
-			description: discovered ? ability.description : "??????",
-			status: discovered
-				? equipped ? "EQUIPPED" : "EQUIP"
-				: hubLocked ? `REQUIRES HUB LEVEL ${ability.minimumHubLevel}` : "??????",
-			statusColor: discovered
-				? equipped ? UI_COLORS.accent : UI_COLORS.text
-				: hubLocked ? UI_COLORS.danger : UI_COLORS.muted,
-			selected: equipped,
+				? `${ability.slot.toUpperCase()}  //  ${ability.rarity.toUpperCase()}`
+				: "LOCKED ABILITY RECORD",
+			description: discovered ? undefined : `UNLOCK: ${unlockRequirement}`,
+			status: discovered ? equipped ? "EQUIPPED" : ">" : "LOCKED",
+			statusColor: equipped ? UI_COLORS.accent : discovered
+				? undefined
+				: UI_COLORS.danger,
 			icon: discovered ? ability.icon : undefined,
 			iconText: discovered ? undefined : "?",
-			iconSize: Math.min(30, rowHeight - 12),
+			iconSize: 30,
+			notification: discovered && newBlueprintKeys.has(discoveryKey),
+			selected: discovered && selected?.id === ability.id,
 			disabled: !discovered,
-			onClick: discovered && !equipped
-				? () => {
-					equipAbilityInSlot(group.slot, ability.id)
-					saveGame("slot1")
-					render()
-				}
-				: undefined,
+			onClick: discovered ? () => onSelect(ability.id) : undefined,
 		})
 	})
-	return page
+	if (selected) {
+		createUiTutorialDetail(catalog.root, {
+			pos: k.vec2(catalog.detailLeft, 0),
+			size: k.vec2(catalog.detailWidth, catalog.detailHeight),
+			recordLabel: `${selected.slot.toUpperCase()} ABILITY  //  ${String(entries.indexOf(selected) + 1).padStart(2, "0")}`,
+			title: selected.name,
+			description: selected.description.toUpperCase(),
+			howTitle: "HOW TO USE",
+			howText: `${selected.trigger.toUpperCase()} THE ABILITY INPUT. ${formatAbilityResource(selected.resource)}`,
+			noteTitle: "ABILITY PROFILE",
+			noteText: `${selected.rarity.toUpperCase()}  //  ${selected.tags.join("  //  ").toUpperCase()}`,
+			input: formatInputBinding(getInputBinding(selected.slot)),
+			inputAction: selected.trigger.toUpperCase(),
+			icon: selected.icon,
+			videoFooter: "ABILITY DEMONSTRATION",
+			showRecording: false,
+		})
+	} else renderEmptyCatalogDetail(catalog, "ABILITY")
+	return catalog.page
 }
 
-function renderActiveModules(
+type CompendiumUpgradeEntry =
+	| { kind: "upgrade"; id: string; definition: UpgradeDefinition }
+	| { kind: "reward"; id: string; definition: RewardDefinition }
+
+function getCompendiumUpgradeEntries(): CompendiumUpgradeEntry[] {
+	const upgrades = getAllUpgradeDefinitions()
+		.filter((definition) =>
+			!isToolKey(definition.toolKey) ||
+			!isPermanentUpgradeKey(definition.toolKey)
+		)
+		.sort((a, b) =>
+			a.category.localeCompare(b.category) ||
+			a.toolName.localeCompare(b.toolName)
+		)
+		.map((definition) => ({
+			kind: "upgrade" as const,
+			id: definition.toolKey,
+			definition,
+		}))
+	const rewards = getAllRewardDefinitions()
+		.filter((definition) =>
+			definition.kind === "powerup" || definition.kind === "item"
+		)
+		.sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name))
+		.map((definition) => ({
+			kind: "reward" as const,
+			id: definition.powerupKey ?? definition.id,
+			definition,
+		}))
+	return [...upgrades, ...rewards]
+}
+
+function isCompendiumUpgradeDiscovered(entry: CompendiumUpgradeEntry) {
+	if (entry.kind === "reward") {
+		return isBlueprintDiscovered(entry.id)
+	}
+	return isBlueprintDiscovered(entry.definition.toolKey)
+}
+
+function renderUnifiedUpgradeCatalog(
 	root: GameObj,
 	left: number,
 	width: number,
@@ -1343,129 +2109,163 @@ function renderActiveModules(
 	bottom: number,
 	requestedPage: number,
 	onPageChange: (page: number) => void,
-	render: () => void,
+	selectedId: string | undefined,
+	onSelect: (id: string) => void,
 	newBlueprintKeys: ReadonlySet<string>
 ) {
-	const pageSize = 5
-	const pageCount = Math.max(1, Math.ceil(ACTIVE_MODULES.length / pageSize))
-	const page = k.clamp(requestedPage, 0, pageCount - 1)
-	addThemedText(root, {
-		text: `ACTIVE MODULES  //  PAGE ${page + 1} / ${pageCount}`,
-		pos: k.vec2(left, top),
-		variant: "eyebrow",
-		width: width - 90,
-	})
-	createUiActionButton(root, {
-		pos: k.vec2(left + width - 78, top - 5),
-		size: k.vec2(34, 20),
-		text: "<",
-		disabled: page === 0,
-		onClick: () => onPageChange(page - 1),
-	})
-	createUiActionButton(root, {
-		pos: k.vec2(left + width - 34, top - 5),
-		size: k.vec2(34, 20),
-		text: ">",
-		disabled: page >= pageCount - 1,
-		onClick: () => onPageChange(page + 1),
-	})
-	const rowGap = 6
-	const rowsTop = top + 24
-	const rowHeight = Math.min(
-		68,
-		(bottom - rowsTop - rowGap * (pageSize - 1)) / pageSize
+	const entries = getCompendiumUpgradeEntries()
+	const discoveredEntries = entries.filter(isCompendiumUpgradeDiscovered)
+	const selected = discoveredEntries.find((entry) => entry.id === selectedId) ??
+		discoveredEntries[0]
+	const catalog = createPageableCompendiumCatalog(
+		root,
+		left,
+		width,
+		top,
+		bottom,
+		`${discoveredEntries.length} / ${entries.length} DISCOVERED`,
+		entries.length,
+		requestedPage,
+		onPageChange
 	)
-	const visibleModules = ACTIVE_MODULES.slice(
-		page * pageSize,
-		(page + 1) * pageSize
-	)
-	const equippedModuleId = getEquippedActiveModuleId()
-	for (let index = 0; index < visibleModules.length; index++) {
-		const module = visibleModules[index]
-		const equipped = equippedModuleId === module.id
-		const hubLocked = getHubLevel() < module.minimumHubLevel
-		const discovered = equipped ||
-			isBlueprintDiscovered(`active:${module.id}`)
-		createUiSelectableRow(root, {
-			pos: k.vec2(left, rowsTop + index * (rowHeight + rowGap)),
-			width,
-			height: rowHeight,
-			title: discovered ? module.name : "??????",
-			notification: discovered && newBlueprintKeys.has(`active:${module.id}`),
+	entries.slice(catalog.pageStart, catalog.pageEnd).forEach((entry, index) => {
+		const discovered = isCompendiumUpgradeDiscovered(entry)
+		const isReward = entry.kind === "reward"
+		const name = isReward
+			? entry.definition.name
+			: entry.definition.toolName
+		const category = isReward
+			? entry.definition.kind
+			: entry.definition.category
+		const rarity = isReward
+			? entry.definition.rarity
+			: entry.definition.reward?.rarity ?? RewardRarity.Common
+		const sprite = isReward
+			? entry.definition.sprite
+			: entry.definition.levels[0]?.sprite
+		const unlockRequirement = getRewardUnlockRequirement(
+			getRewardDefinition(entry.id),
+			entry.kind === "upgrade" && isToolKey(entry.definition.toolKey)
+				? getUpgradeRequirementText(entry.definition.toolKey)
+				: undefined
+		)
+		createUiSelectableRow(catalog.root, {
+			pos: k.vec2(
+				0,
+				catalog.rowsTop + index * (catalog.rowHeight + catalog.rowGap)
+			),
+			width: catalog.listWidth,
+			height: catalog.rowHeight,
+			title: discovered ? name.toUpperCase() : "UNKNOWN UPGRADE",
 			meta: discovered
-				? `${module.rarity.toUpperCase()}  //  ACTIVE MODULE  //  ${module.cooldown}S COOLDOWN`
-				: hubLocked
-					? `LOCKED DROP  //  HUB LEVEL ${module.minimumHubLevel}`
-					: "??????  //  ??????  //  ??????",
-			description: discovered ? module.description : "??????",
-			status: discovered
-				? equipped ? "EQUIPPED" : "EQUIP"
-				: hubLocked ? `REQUIRES HUB LEVEL ${module.minimumHubLevel}` : "??????",
-			statusColor: discovered
-				? equipped ? UI_COLORS.accent : UI_COLORS.text
-				: hubLocked ? UI_COLORS.danger : UI_COLORS.muted,
-			selected: equipped,
-			icon: discovered ? module.icon : undefined,
+				? `${category.toUpperCase()}  //  ${rarity.toUpperCase()}`
+				: "LOCKED UPGRADE RECORD",
+			description: discovered ? undefined : `UNLOCK: ${unlockRequirement}`,
+			status: discovered ? ">" : "LOCKED",
+			statusColor: discovered ? REWARD_RARITY_COLORS[rarity] : UI_COLORS.danger,
+			icon: discovered ? sprite : undefined,
 			iconText: discovered ? undefined : "?",
-			iconSize: Math.min(30, rowHeight - 12),
+			iconSize: 30,
+			notification: discovered && newBlueprintKeys.has(entry.id),
+			selected: discovered && selected?.id === entry.id,
 			disabled: !discovered,
-			onClick: discovered && !equipped
-				? () => {
-					equipActiveModule(module.id)
-					saveGame("slot1")
-					render()
-				}
-				: undefined,
+			onClick: discovered ? () => onSelect(entry.id) : undefined,
 		})
-	}
-	return page
+	})
+	if (selected) renderCompendiumUpgradeDetail(catalog, selected)
+	else renderEmptyCatalogDetail(catalog, "UPGRADE")
+	return catalog.page
 }
 
-function renderPermanentShipSystems(
-	root: GameObj,
-	left: number,
-	width: number,
-	top: number,
-	bottom: number,
-	newBlueprintKeys: ReadonlySet<string>
+function renderCompendiumUpgradeDetail(
+	catalog: ReturnType<typeof createPageableCompendiumCatalog>,
+	entry: CompendiumUpgradeEntry
 ) {
-	addThemedText(root, {
-		text: "PERMANENT SHIP SYSTEMS  //  UNLOCKED THROUGH CHESTS",
-		pos: k.vec2(left, top),
-		variant: "eyebrow",
-		width,
-	})
-	const rowGap = 4
-	const rowsTop = top + 22
-	const rowHeight = (
-		bottom - rowsTop - rowGap * (PERMANENT_UPGRADE_KEYS.length - 1)
-	) / PERMANENT_UPGRADE_KEYS.length
-	PERMANENT_UPGRADE_KEYS.forEach((key, index) => {
-		const definition = getUpgradeDefinition(key)
-		if (!definition) return
-		const currentLevel = getPermanentUpgradeLevel(key) ?? -1
-		const owned = currentLevel >= 0
-		const displayedLevel = definition.levels[Math.max(0, currentLevel)]
-		const level = owned ? currentLevel + 1 : 0
-		createUiSelectableRow(root, {
-			pos: k.vec2(left, rowsTop + index * (rowHeight + rowGap)),
-			width,
-			height: rowHeight,
-			title: definition.toolName.toUpperCase(),
-			notification: newBlueprintKeys.has(key),
-			meta: `LEVEL ${level} / ${definition.levels.length}`,
-			description: displayedLevel?.desc ?? "",
-			status: owned
-				? level >= definition.levels.length
-					? "LEGENDARY  //  MAX LEVEL"
-					: "LEGENDARY  //  CHEST UPGRADE"
-				: "UNLOCKED THROUGH CHESTS",
-			statusColor: REWARD_RARITY_COLORS[RewardRarity.Legendary],
-			icon: definition.levels[0]?.sprite,
-			iconSize: Math.min(26, rowHeight - 10),
-			disabled: !owned,
+	if (entry.kind === "reward") {
+		const reward = entry.definition
+		createUiTutorialDetail(catalog.root, {
+			pos: k.vec2(catalog.detailLeft, 0),
+			size: k.vec2(catalog.detailWidth, catalog.detailHeight),
+			recordLabel: `${reward.kind.toUpperCase()} RECORD`,
+			title: reward.name.toUpperCase(),
+			description: reward.description.toUpperCase(),
+			howTitle: "EFFECT",
+			howText: formatCatalogStats(reward.stats),
+			noteTitle: "DISCOVERY PROFILE",
+			noteText: `${reward.rarity.toUpperCase()}  //  ${reward.progression.persistence.toUpperCase()}  //  ${reward.progression.repeatability.toUpperCase()}`,
+			icon: reward.sprite,
+			videoFooter: "UPGRADE FIELD RECORDING",
+			showRecording: false,
 		})
+		return
+	}
+	const definition = entry.definition
+	const rarity = definition.reward?.rarity ?? RewardRarity.Common
+	const toolKey = isToolKey(definition.toolKey) ? definition.toolKey : undefined
+	const currentLevel = toolKey ? getEffectiveUpgradeLevel(toolKey) : undefined
+	const level = definition.levels[currentLevel ?? 0]
+	const nextLevel = currentLevel === undefined
+		? undefined
+		: definition.levels[currentLevel + 1]
+	createUiTutorialDetail(catalog.root, {
+		pos: k.vec2(catalog.detailLeft, 0),
+		size: k.vec2(catalog.detailWidth, catalog.detailHeight),
+		recordLabel: `${rarity.toUpperCase()} UPGRADE RECORD`,
+		title: definition.toolName.toUpperCase(),
+		description: level.desc.toUpperCase(),
+		howTitle: currentLevel === undefined ? "BASE EFFECT" : "CURRENT EFFECT",
+		howText: `${level.desc.toUpperCase()}\n\n${describeLevelEffects(level)}`,
+		noteTitle: nextLevel ? "NEXT LEVEL" : "UPGRADE PROFILE",
+		noteText: nextLevel
+			? nextLevel.desc.toUpperCase()
+			: `${definition.category.toUpperCase()}  //  ${definition.type.toUpperCase()}  //  ${definition.levels.length} LEVELS`,
+		icon: definition.levels[0]?.sprite,
+		videoFooter: "UPGRADE FIELD RECORDING",
+		showRecording: false,
 	})
+}
+
+function formatCatalogStats(stats: Readonly<Record<string, number | string>>) {
+	const entries = Object.entries(stats)
+	if (entries.length === 0) return "NO ADDITIONAL STAT RECORDS"
+	return entries
+		.map(([label, value]) => `${label.toUpperCase()}  //  ${String(value).toUpperCase()}`)
+		.join("\n")
+}
+
+function renderEmptyCatalogDetail(
+	catalog: ReturnType<typeof createPageableCompendiumCatalog>,
+	recordType: string
+) {
+	const article = /^[AEIOU]/.test(recordType) ? "AN" : "A"
+	createUiTutorialDetail(catalog.root, {
+		pos: k.vec2(catalog.detailLeft, 0),
+		size: k.vec2(catalog.detailWidth, catalog.detailHeight),
+		recordLabel: `${recordType} RECORD`,
+		title: `NO ${recordType} SELECTED`,
+		howTitle: "DISCOVERY REQUIRED",
+		howText: `RECOVER ${article} ${recordType} TO OPEN ITS FULL COMPENDIUM RECORD.`,
+		noteTitle: "ARCHIVE STATUS",
+		noteText: "UNDISCOVERED RECORDS REMAIN LISTED IN THE CATALOG.",
+		showRecording: false,
+	})
+}
+
+function formatAbilityResource(
+	resource: ReturnType<typeof getAbilitiesForSlot>[number]["resource"]
+) {
+	switch (resource.type) {
+		case "none":
+			return "NO RESOURCE COST."
+		case "cooldown":
+			return `RECOVERS AFTER ${resource.duration} SECONDS.`
+		case "charges":
+			return `${resource.count} CHARGES. EACH CHARGE RECOVERS AFTER ${resource.recharge} SECONDS.`
+		case "drain":
+			return `DRAINS FOR UP TO ${resource.duration} SECONDS AND RECOVERS OVER ${resource.recharge} SECONDS.`
+		case "meter":
+			return `REQUIRES ${resource.required} METER.`
+	}
 }
 
 function renderArsenal(
@@ -1476,493 +2276,101 @@ function renderArsenal(
 	bottom: number,
 	requestedPage: number,
 	onPageChange: (page: number) => void,
+	selectedWeaponId: string | undefined,
+	onSelect: (id: typeof WEAPONS[number]["id"]) => void,
 	newBlueprintKeys: ReadonlySet<string>
 ) {
-	const pageSize = 6
-	const pageCount = Math.max(1, Math.ceil(WEAPONS.length / pageSize))
-	const page = k.clamp(requestedPage, 0, pageCount - 1)
-	addThemedText(root, {
-		text: `PRIMARY WEAPON ARSENAL  //  PAGE ${page + 1} / ${pageCount}`,
-		pos: k.vec2(left, top),
-		variant: "eyebrow",
-		width: width - 90,
-	})
-	createUiActionButton(root, {
-		pos: k.vec2(left + width - 78, top - 5),
-		size: k.vec2(34, 20),
-		text: "<",
-		disabled: page === 0,
-		onClick: () => onPageChange(page - 1),
-	})
-	createUiActionButton(root, {
-		pos: k.vec2(left + width - 34, top - 5),
-		size: k.vec2(34, 20),
-		text: ">",
-		disabled: page >= pageCount - 1,
-		onClick: () => onPageChange(page + 1),
-	})
-	const columnGap = 12
-	const rowGap = 8
-	const columnCount = 2
-	const rowCount = 3
-	const cardsTop = top + 24
-	const cardWidth = (width - columnGap) / columnCount
-	const cardHeight = (
-		bottom - cardsTop - rowGap * (rowCount - 1)
-	) / rowCount
-	const visibleWeapons = WEAPONS.slice(page * pageSize, (page + 1) * pageSize)
+	const weapons = WEAPONS
+	const ownedWeapons = weapons.filter((weapon) => isWeaponOwned(weapon.id))
+	const selected = ownedWeapons.find((weapon) => weapon.id === selectedWeaponId) ??
+		ownedWeapons[0]
+	const browser = createPageableCompendiumCatalog(
+		root,
+		left,
+		width,
+		top,
+		bottom,
+		`${ownedWeapons.length} / ${weapons.length} UNLOCKED`,
+		weapons.length,
+		requestedPage,
+		onPageChange
+	)
+	const visibleWeapons = weapons.slice(browser.pageStart, browser.pageEnd)
 	for (let index = 0; index < visibleWeapons.length; index++) {
 		const weapon = visibleWeapons[index]
 		const owned = isWeaponOwned(weapon.id)
-		const hubLocked = getHubLevel() < weapon.minimumHubLevel
-		const column = index % columnCount
-		const row = Math.floor(index / columnCount)
-		const card = createUiSurface(root, {
+		const unlockRequirement = getRewardUnlockRequirement(
+			getRewardDefinition(`weapon:${weapon.id}`)
+		)
+		createUiSelectableRow(browser.root, {
 			pos: k.vec2(
-				left + column * (cardWidth + columnGap),
-				cardsTop + row * (cardHeight + rowGap)
+				0,
+				browser.rowsTop + index * (browser.rowHeight + browser.rowGap)
 			),
-			size: k.vec2(cardWidth, cardHeight),
-			tone: "raised",
-			borderColor: UI_COLORS.border,
+			width: browser.listWidth,
+			height: browser.rowHeight,
+			title: owned ? weapon.name : "UNKNOWN WEAPON",
+			meta: owned
+				? `${getWeaponTriggerLabel(weapon)}  //  IN ARSENAL`
+				: "LOCKED PRIMARY RECORD",
+			description: owned ? undefined : `UNLOCK: ${unlockRequirement}`,
+			icon: owned ? weapon.icon : undefined,
+			iconText: owned ? undefined : "?",
+			iconSize: 30,
+			notification: owned && newBlueprintKeys.has(`weapon:${weapon.id}`),
+			selected: owned && selected?.id === weapon.id,
+			status: owned ? ">" : "LOCKED",
+			statusColor: owned ? undefined : UI_COLORS.danger,
+			disabled: !owned,
+			onClick: owned ? () => onSelect(weapon.id) : undefined,
 		})
-		if (owned) {
-			card.add([
-				k.sprite(weapon.icon, { width: 42, height: 42 }),
-				k.pos(32, 38),
-				k.anchor("center"),
-			])
-		} else {
-			addThemedText(card, {
-				text: "?",
-				pos: k.vec2(12, 20),
-				variant: "display",
-				width: 40,
-				align: "center",
-			})
-		}
-		addThemedText(card, {
-			text: owned ? weapon.name : "??????",
-			pos: k.vec2(62, 10),
-			variant: "heading",
-			width: cardWidth - 74,
-		})
-		if (owned && newBlueprintKeys.has(`weapon:${weapon.id}`)) {
-			addThemedText(card, {
-				text: "!",
-				pos: k.vec2(cardWidth - 12, 10),
-				variant: "caption",
-				align: "right",
-				color: k.rgb(...UI_COLORS.warning),
-			})
-		}
-		addThemedText(card, {
-			text: owned
-				? weapon.description
-				: hubLocked ? `REQUIRES HUB LEVEL ${weapon.minimumHubLevel}` : "??????",
-			pos: k.vec2(62, 34),
-			variant: owned ? "body" : "muted",
-			color: !owned && hubLocked
-				? k.rgb(...UI_COLORS.danger)
-				: undefined,
-			width: cardWidth - 74,
-			lineHeight: 1.15,
-		})
-		if (owned) {
-			createUiBadge(card, {
-				pos: k.vec2(cardWidth - 112, cardHeight - 32),
-				width: 100,
-				text: "IN ARSENAL",
-			})
-		} else {
-			createUiBadge(card, {
-				pos: k.vec2(cardWidth - 112, cardHeight - 32),
-				width: 100,
-				text: hubLocked ? `HUB LVL ${weapon.minimumHubLevel}` : "??????",
-				color: UI_COLORS.muted,
-			})
-			setUiTreeOpacity(card, 0.35)
-		}
 	}
-	return page
+	if (selected) {
+		createUiTutorialDetail(browser.root, {
+			pos: k.vec2(browser.detailLeft, 0),
+			size: k.vec2(browser.detailWidth, browser.detailHeight),
+			recordLabel: `PRIMARY RECORD  //  ${String(ownedWeapons.indexOf(selected) + 1).padStart(2, "0")}`,
+			title: selected.name,
+			description: selected.description.toUpperCase(),
+			howTitle: "HOW TO USE",
+			howText: getWeaponTutorial(selected),
+			noteTitle: "WEAPON PROFILE",
+			noteText: getWeaponProfile(selected),
+			input: "MOUSE 1",
+			inputAction: getWeaponTriggerLabel(selected),
+			icon: selected.icon,
+			videoFooter: "00:05  //  TARGET DEMONSTRATION",
+		})
+	}
+	return browser.page
 }
 
-function renderUpgradeCatalog(
-	root: GameObj,
-	left: number,
-	width: number,
-	top: number,
-	bottom: number,
-	requestedPage: number,
-	onPageChange: (page: number) => void,
-	onSelect: (toolKey: string) => void,
-	newBlueprintKeys: ReadonlySet<string>
-) {
-	const upgradeEntries = getAllUpgradeDefinitions()
-		.filter((definition) =>
-			!isToolKey(definition.toolKey) ||
-			!isPermanentUpgradeKey(definition.toolKey)
-		)
-		.sort((a, b) =>
-			a.category.localeCompare(b.category) ||
-			a.toolName.localeCompare(b.toolName)
-		)
-		.map((definition) => ({ kind: "upgrade" as const, definition }))
-	const rewardEntries = getAllRewardDefinitions()
-		.filter((definition) =>
-			definition.kind === "powerup" || definition.kind === "item"
-		)
-		.sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name))
-		.map((definition) => ({ kind: "reward" as const, definition }))
-	const entries = [...upgradeEntries, ...rewardEntries]
-	const pageSize = 5
-	const pageCount = Math.max(1, Math.ceil(entries.length / pageSize))
-	const page = k.clamp(requestedPage, 0, pageCount - 1)
-	addThemedText(root, {
-		text: `UPGRADES & DISCOVERIES  //  PAGE ${page + 1} / ${pageCount}`,
-		pos: k.vec2(left, top),
-		variant: "eyebrow",
-		width: width - 90,
-	})
-	createUiActionButton(root, {
-		pos: k.vec2(left + width - 78, top - 5),
-		size: k.vec2(34, 20),
-		text: "<",
-		disabled: page === 0,
-		onClick: () => onPageChange(page - 1),
-	})
-	createUiActionButton(root, {
-		pos: k.vec2(left + width - 34, top - 5),
-		size: k.vec2(34, 20),
-		text: ">",
-		disabled: page >= pageCount - 1,
-		onClick: () => onPageChange(page + 1),
-	})
-	const rowGap = 4
-	const rowCount = pageSize
-	const rowsTop = top + 24
-	const rowHeight = Math.min(
-		68,
-		(bottom - rowsTop - rowGap * (rowCount - 1)) / rowCount
-	)
-	entries.slice(page * pageSize, (page + 1) * pageSize).forEach(
-		(entry, index) => {
-			if (entry.kind === "reward") {
-				const reward = entry.definition
-				const key = reward.powerupKey ?? reward.id
-				const discovered = isBlueprintDiscovered(key)
-				const minimumHubLevel = getRewardMinimumHubLevel(reward)
-				const hubLocked = getHubLevel() < minimumHubLevel
-				createUiSelectableRow(root, {
-					pos: k.vec2(left, rowsTop + index * (rowHeight + rowGap)),
-					width,
-					height: rowHeight,
-					title: discovered ? reward.name.toUpperCase() : "??????",
-					notification: discovered && newBlueprintKeys.has(key),
-					meta: discovered
-						? `${reward.kind.toUpperCase()}  //  ${reward.progression.persistence.toUpperCase()}`
-						: hubLocked
-							? `LOCKED DROP  //  HUB LEVEL ${minimumHubLevel}`
-							: "??????  //  ??????",
-					status: discovered
-						? `${reward.rarity.toUpperCase()}  //  FOUND`
-						: hubLocked ? `REQUIRES HUB LEVEL ${minimumHubLevel}` : "??????",
-					statusColor: discovered
-						? REWARD_RARITY_COLORS[reward.rarity]
-						: hubLocked ? UI_COLORS.danger : UI_COLORS.muted,
-					icon: discovered ? reward.sprite : undefined,
-					iconText: discovered ? undefined : "?",
-					iconSize: Math.min(26, rowHeight - 10),
-					disabled: !discovered,
-				})
-				return
-			}
-			const definition = entry.definition
-			const toolKey = isToolKey(definition.toolKey)
-				? definition.toolKey
-				: undefined
-			const permanent = toolKey !== undefined &&
-				isPermanentUpgradeKey(toolKey)
-			const discovered = permanent && toolKey
-				? getEffectiveUpgradeLevel(toolKey) !== undefined
-				: isBlueprintDiscovered(definition.toolKey)
-			const rarity = permanent
-				? RewardRarity.Legendary
-				: definition.reward?.rarity ?? RewardRarity.Common
-			const minimumHubLevel = definition.reward?.minimumHubLevel ?? 1
-			const hubLocked = getHubLevel() < minimumHubLevel
-			createUiSelectableRow(root, {
-				pos: k.vec2(left, rowsTop + index * (rowHeight + rowGap)),
-				width,
-				height: rowHeight,
-				title: discovered ? definition.toolName.toUpperCase() : "??????",
-				notification: discovered && newBlueprintKeys.has(definition.toolKey),
-				meta: discovered
-					? `${definition.category.toUpperCase()}  //  ${definition.type.toUpperCase()}`
-					: hubLocked
-						? `LOCKED DROP  //  HUB LEVEL ${minimumHubLevel}`
-						: "??????  //  ??????",
-				status: discovered
-					? `${rarity.toUpperCase()}  //  ${permanent ? "PERMANENT  //  OWNED" : "FOUND"}`
-					: hubLocked ? `REQUIRES HUB LEVEL ${minimumHubLevel}` : "??????",
-				statusColor: discovered
-					? REWARD_RARITY_COLORS[rarity]
-					: hubLocked ? UI_COLORS.danger : UI_COLORS.muted,
-				icon: discovered ? definition.levels[0]?.sprite : undefined,
-				iconText: discovered ? undefined : "?",
-				iconSize: Math.min(26, rowHeight - 10),
-				disabled: !discovered,
-				onClick: discovered
-					? () => onSelect(definition.toolKey)
-					: undefined,
-			})
-		}
-	)
-	return page
+function getWeaponTriggerLabel(weapon: typeof WEAPONS[number]) {
+	const mode = weapon.triggerModifier?.mode ?? "press"
+	return mode === "charge" ? "HOLD + RELEASE" : mode === "hold" ? "HOLD" : "FIRE"
 }
 
-function renderUpgradeDetails(
-	root: GameObj,
-	left: number,
-	width: number,
-	top: number,
-	bottom: number,
-	definition: UpgradeDefinition,
-	requestedPage: number,
-	onPageChange: (page: number) => void,
-	onBack: () => void
-) {
-	const rarity = definition.reward?.rarity ?? RewardRarity.Common
-	const rarityColor = REWARD_RARITY_COLORS[rarity]
-	const toolKey = isToolKey(definition.toolKey)
-		? definition.toolKey
-		: undefined
-	const currentLevel = toolKey
-		? getEffectiveUpgradeLevel(toolKey)
-		: undefined
-	const currentRarity = toolKey
-		? getEffectiveUpgradeRarity(toolKey)
-		: undefined
-	const hasRarityScaling = definition.levels.some(
-		(level) => (level.effects.modifiers?.length ?? 0) > 0
-	)
-	const rarityScale = hasRarityScaling
-		? REWARD_RARITY_ORDER.slice(getRarityRank(rarity))
-		: [rarity]
-	addThemedText(root, {
-		text: "UPGRADE DETAILS",
-		pos: k.vec2(left, top),
-		variant: "eyebrow",
-		width: width - 110,
-	})
-	createUiActionButton(root, {
-		pos: k.vec2(left + width - 96, top - 5),
-		size: k.vec2(96, 20),
-		text: "< BACK",
-		onClick: onBack,
-	})
-
-	const detailsTop = top + 24
-	const detailsHeight = bottom - detailsTop
-	const details = createUiSurface(root, {
-		pos: k.vec2(left, detailsTop),
-		size: k.vec2(width, detailsHeight),
-		tone: "raised",
-		borderColor: rarityColor,
-	})
-	details.add([
-		k.sprite(definition.levels[0].sprite, { width: 54, height: 54 }),
-		k.pos(42, 42),
-		k.anchor("center"),
-	])
-	addThemedText(details, {
-		text: definition.toolName.toUpperCase(),
-		pos: k.vec2(82, 18),
-		variant: "heading",
-		width: width - 104,
-	})
-	addThemedText(details, {
-		text: `BASE ${rarity.toUpperCase()}  //  ${definition.category.toUpperCase()}  //  ${definition.type.toUpperCase()}`,
-		pos: k.vec2(82, 42),
-		variant: "eyebrow",
-		width: width - 104,
-		color: k.rgb(...rarityColor),
-	})
-	addThemedText(details, {
-		text: hasRarityScaling
-			? "RARITY SCALE  //  NUMERIC EFFECTS IMPROVE PER TIER"
-			: "RARITY  //  FIXED EFFECT",
-		pos: k.vec2(20, 76),
-		variant: "eyebrow",
-		width: width - 40,
-	})
-	let rarityLeft = 20
-	for (const scaleRarity of rarityScale) {
-		const badgeText = currentRarity === scaleRarity
-			? `${scaleRarity} *`
-			: scaleRarity
-		const badge = createUiBadge(details, {
-			pos: k.vec2(rarityLeft, 92),
-			text: badgeText,
-			color: REWARD_RARITY_COLORS[scaleRarity],
-		})
-		rarityLeft += badge.width + 8
+function getWeaponTutorial(weapon: typeof WEAPONS[number]) {
+	if (weapon.charge) {
+		return "HOLD PRIMARY FIRE TO BUILD CHARGE, THEN RELEASE. PARTIAL CHARGES FIRE EARLIER; FULL CHARGES MAXIMIZE THE WEAPON'S SPECIAL PROPERTIES."
 	}
-	addThemedText(details, {
-		text: currentRarity
-			? "* CURRENT RUN RARITY"
-			: "RARITY IS ROLLED WHEN THE UPGRADE DROPS",
-		pos: k.vec2(20, 118),
-		variant: "muted",
-		width: width - 40,
-	})
-	addThemedText(details, {
-		text: "WHAT EACH LEVEL DOES",
-		pos: k.vec2(20, 138),
-		variant: "eyebrow",
-		width: width - 40,
-	})
-
-	const pageSize = 4
-	const pageCount = Math.max(1, Math.ceil(definition.levels.length / pageSize))
-	const page = k.clamp(requestedPage, 0, pageCount - 1)
-	if (pageCount > 1) {
-		addThemedText(details, {
-			text: `PAGE ${page + 1} / ${pageCount}`,
-			pos: k.vec2(width - 154, 138),
-			variant: "muted",
-			width: 54,
-			align: "right",
-		})
-		createUiActionButton(details, {
-			pos: k.vec2(width - 92, 132),
-			size: k.vec2(34, 20),
-			text: "<",
-			disabled: page === 0,
-			onClick: () => onPageChange(page - 1),
-		})
-		createUiActionButton(details, {
-			pos: k.vec2(width - 54, 132),
-			size: k.vec2(34, 20),
-			text: ">",
-			disabled: page >= pageCount - 1,
-			onClick: () => onPageChange(page + 1),
-		})
+	if (weapon.triggerModifier?.mode === "hold") {
+		return "HOLD PRIMARY FIRE TO MAINTAIN PRESSURE. CONTROL YOUR AIM AND DISTANCE WHILE THE WEAPON CONTINUES FIRING."
 	}
-	const levelsTop = 158
-	const levelGap = 6
-	const columnGap = 8
-	const visibleLevels = definition.levels.slice(
-		page * pageSize,
-		(page + 1) * pageSize
-	)
-	const columnCount = visibleLevels.length > 1 ? 2 : 1
-	const rowCount = Math.ceil(visibleLevels.length / columnCount)
-	const levelWidth = (
-		width - 40 - columnGap * (columnCount - 1)
-	) / columnCount
-	const levelLayouts = visibleLevels.map((level) =>
-		measureLevelCard(level, levelWidth)
-	)
-	const rowHeights = Array.from({ length: rowCount }, (_, row) =>
-		Math.max(
-			...levelLayouts
-				.filter((_, index) => Math.floor(index / columnCount) === row)
-				.map((layout) => layout.height)
-		)
-	)
-	const rowTops: number[] = []
-	let nextRowTop = levelsTop
-	for (const rowHeight of rowHeights) {
-		rowTops.push(nextRowTop)
-		nextRowTop += rowHeight + levelGap
-	}
-	visibleLevels.forEach((level, pageIndex) => {
-		const index = page * pageSize + pageIndex
-		const column = pageIndex % columnCount
-		const row = Math.floor(pageIndex / columnCount)
-		const isCurrent = currentLevel === index
-		const acquired = currentLevel !== undefined && currentLevel > index
-		const levelState = isCurrent
-			? "CURRENT"
-			: acquired
-				? "ACQUIRED"
-				: undefined
-		const levelColor = isCurrent && currentRarity
-			? REWARD_RARITY_COLORS[currentRarity]
-			: rarityColor
-		const layout = levelLayouts[pageIndex]
-		const levelHeight = rowHeights[row]
-		const levelCard = createUiSurface(details, {
-			pos: k.vec2(
-				20 + column * (levelWidth + columnGap),
-				rowTops[row]
-			),
-			size: k.vec2(levelWidth, levelHeight),
-			tone: "raised",
-			borderColor: isCurrent ? levelColor : UI_COLORS.border,
-		})
-		addThemedText(levelCard, {
-			text: `LEVEL ${index + 1}  //  ${level.name.toUpperCase()}`,
-			pos: k.vec2(10, 6),
-			variant: "caption",
-			width: levelWidth - 20,
-			color: k.rgb(...levelColor),
-		})
-		if (levelState) {
-			addThemedText(levelCard, {
-				text: levelState,
-				pos: k.vec2(10, 6),
-				variant: "caption",
-				width: levelWidth - 20,
-				align: "right",
-				color: k.rgb(...levelColor),
-			})
-		}
-		addThemedText(levelCard, {
-			text: level.desc,
-			pos: k.vec2(10, 20),
-			variant: "body",
-			size: UI_FONT_SIZES.micro,
-			lineHeight: 1,
-			width: levelWidth - 20,
-		})
-		addThemedText(levelCard, {
-			text: describeLevelEffects(level),
-			pos: k.vec2(10, layout.effectsTop),
-			variant: "muted",
-			size: UI_FONT_SIZES.micro,
-			width: levelWidth - 20,
-		})
-	})
+	return "PRESS PRIMARY FIRE FOR A DELIBERATE SHOT. CYCLE THE ARSENAL WHEN ANOTHER WEAPON BETTER FITS THE TARGET OR ROOM."
 }
 
-function measureLevelCard(
-	level: UpgradeDefinition["levels"][number],
-	width: number
-) {
-	const textWidth = width - 20
-	const descriptionSize = UI_FONT_SIZES.micro
-	const description = k.formatText({
-		text: level.desc,
-		font: "unscii",
-		size: descriptionSize,
-		width: textWidth,
-		lineSpacing: getScaledLineSpacing(descriptionSize, 1),
-	})
-	const effectsSize = UI_FONT_SIZES.micro
-	const effects = k.formatText({
-		text: describeLevelEffects(level),
-		font: "unscii",
-		size: effectsSize,
-		width: textWidth,
-		lineSpacing: getScaledLineSpacing(effectsSize, 1.4),
-	})
-	const effectsTop = 20 + description.height + 5
-	return {
-		effectsTop,
-		height: Math.max(58, effectsTop + effects.height + 8),
-	}
+function getWeaponProfile(weapon: typeof WEAPONS[number]) {
+	const traits: string[] = []
+	if (weapon.charge) traits.push("CHARGE")
+	if (weapon.splash) traits.push("SPLASH")
+	if (weapon.piercing) traits.push("PIERCING")
+	if (weapon.bounce) traits.push("RICOCHET")
+	if (weapon.chain) traits.push("CHAIN")
+	if (weapon.knockback) traits.push("KNOCKBACK")
+	return traits.length > 0
+		? traits.join("  //  ")
+		: "BALANCED  //  DIRECT FIRE"
 }
 
 function describeLevelEffects(

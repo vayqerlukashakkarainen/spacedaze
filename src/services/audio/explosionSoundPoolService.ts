@@ -3,7 +3,13 @@ export type ExplosionSoundPoolId = "general" | "plasmaMortar"
 const EXPLOSION_SOUND_POOLS: Readonly<
 	Record<ExplosionSoundPoolId, readonly string[]>
 > = {
-	general: ["explosion1", "explosion2", "explosion3"],
+	general: [
+		"explosion_pool_01",
+		"explosion_pool_02",
+		"explosion_pool_03",
+		"explosion_pool_04",
+		"explosion_pool_05",
+	],
 	plasmaMortar: [
 		"weapon_plasma_mortar_explosion",
 		"weapon_plasma_explosion_gearpile",

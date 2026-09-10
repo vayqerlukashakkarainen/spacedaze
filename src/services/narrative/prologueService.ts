@@ -18,7 +18,6 @@ import {
 	playCutscene,
 	type CutsceneDefinition,
 } from "./cutsceneService"
-import { applyDamage } from "../combat/damageService"
 import {
 	beginNarrativePrologue,
 	cancelNarrativePrologue,
@@ -32,7 +31,6 @@ import {
 	clearQuest,
 	failQuest,
 	startQuest,
-	updateQuestObjective,
 } from "../progression/questService"
 import { setThreatTier } from "../enemies/threatService"
 import { playZoneExplorationMusic } from "../audio/explorationMusicService"
@@ -59,12 +57,17 @@ const HUB_INTRODUCTION_BURT_ACTOR = "hub-introduction-burt"
 const HUB_INTRODUCTION_PLAYER_ACTOR = "hub-introduction-player"
 const HUB_INTRODUCTION_ACTOR_OFFSET_X = 44
 const HUB_INTRODUCTION_ACTOR_OFFSET_Y = -150
-const HUB_INTRODUCTION_OVERVIEW_ZOOM = WORLD_CAMERA_SCALE * 0.5
-const HUB_INTRODUCTION_FACILITY_ZOOM = WORLD_CAMERA_SCALE * 1.15
-const HUB_INTRODUCTION_WORMHOLE_ZOOM = WORLD_CAMERA_SCALE * 1.35
-const HUB_INTRODUCTION_ACTOR_ZOOM = WORLD_CAMERA_SCALE * 2
+const HUB_INTRODUCTION_OVERVIEW_ZOOM_MULTIPLIER = 0.5
+const HUB_INTRODUCTION_FACILITY_ZOOM_MULTIPLIER = 1.15
+const HUB_INTRODUCTION_WORMHOLE_ZOOM_MULTIPLIER = 1.35
+const HUB_INTRODUCTION_ACTOR_ZOOM_MULTIPLIER = 2
 const INTRO_BLACK_SCREEN_DURATION = 3
 const LANDING_DIALOG_DELAY = 0.6
+
+function hubIntroductionZoom(multiplier: number) {
+	return WORLD_CAMERA_SCALE * multiplier
+}
+
 const PROLOGUE_CUTSCENE: CutsceneDefinition = {
 	id: PROLOGUE_CUTSCENE_ID,
 	pauseGameplay: true,
@@ -119,7 +122,6 @@ const PROLOGUE_LANDED_COMMS: CutsceneDefinition = {
 	}],
 }
 
-let controller: GameObj | undefined
 let introOverlay: GameObj | undefined
 let spaceJumpBackdrop: SpaceJumpBackdrop | undefined
 let hyperspeedLoop: AudioPlay | null | undefined
@@ -157,8 +159,6 @@ export function finishPrologueOnDeath() {
 	clearIntroOverlay()
 	clearPrologueSpaceJump()
 	hideGameplayUi()
-	if (controller?.exists()) k.destroy(controller)
-	controller = undefined
 	setThreatTier(undefined)
 	failQuest(PROLOGUE_QUEST_ID)
 	beginPrologueEnemyEvacuation(playerObj.pos)
@@ -173,8 +173,6 @@ export function cancelPrologueExperience() {
 	clearIntroOverlay()
 	clearPrologueSpaceJump()
 	restoreGameplayUi()
-	if (controller?.exists()) k.destroy(controller)
-	controller = undefined
 	setThreatTier(undefined)
 	clearQuest(PROLOGUE_QUEST_ID)
 	cancelNarrativePrologue()
@@ -310,7 +308,9 @@ function createHubIntroductionCutscene(
 					{
 						type: "camera",
 						target: hubCenter,
-						zoom: HUB_INTRODUCTION_OVERVIEW_ZOOM,
+						zoom: hubIntroductionZoom(
+							HUB_INTRODUCTION_OVERVIEW_ZOOM_MULTIPLIER
+						),
 						duration: 1.1,
 						easing: "easeInOutCubic",
 					},
@@ -325,7 +325,7 @@ function createHubIntroductionCutscene(
 			{
 				type: "camera",
 				target: cameraPosition,
-				zoom: HUB_INTRODUCTION_ACTOR_ZOOM,
+				zoom: hubIntroductionZoom(HUB_INTRODUCTION_ACTOR_ZOOM_MULTIPLIER),
 				duration: 0.8,
 				easing: "easeInOutCubic",
 			},
@@ -358,7 +358,7 @@ function createHubIntroductionCutscene(
 			{
 				type: "camera",
 				target: hubCenter,
-				zoom: HUB_INTRODUCTION_FACILITY_ZOOM,
+				zoom: hubIntroductionZoom(HUB_INTRODUCTION_FACILITY_ZOOM_MULTIPLIER),
 				duration: 0.8,
 				easing: "easeInOutCubic",
 			},
@@ -370,7 +370,7 @@ function createHubIntroductionCutscene(
 			{
 				type: "camera",
 				target: facilityPositions.salvageForge,
-				zoom: HUB_INTRODUCTION_FACILITY_ZOOM,
+				zoom: hubIntroductionZoom(HUB_INTRODUCTION_FACILITY_ZOOM_MULTIPLIER),
 				duration: 0.75,
 				easing: "easeInOutCubic",
 			},
@@ -382,7 +382,7 @@ function createHubIntroductionCutscene(
 			{
 				type: "camera",
 				target: facilityPositions.debriefTerminal,
-				zoom: HUB_INTRODUCTION_FACILITY_ZOOM,
+				zoom: hubIntroductionZoom(HUB_INTRODUCTION_FACILITY_ZOOM_MULTIPLIER),
 				duration: 0.75,
 				easing: "easeInOutCubic",
 			},
@@ -394,7 +394,7 @@ function createHubIntroductionCutscene(
 			{
 				type: "camera",
 				target: firingRangePosition,
-				zoom: HUB_INTRODUCTION_FACILITY_ZOOM,
+				zoom: hubIntroductionZoom(HUB_INTRODUCTION_FACILITY_ZOOM_MULTIPLIER),
 				duration: 0.85,
 				easing: "easeInOutCubic",
 			},
@@ -406,7 +406,7 @@ function createHubIntroductionCutscene(
 			{
 				type: "camera",
 				target: facilityPositions.contractTerminal,
-				zoom: HUB_INTRODUCTION_FACILITY_ZOOM,
+				zoom: hubIntroductionZoom(HUB_INTRODUCTION_FACILITY_ZOOM_MULTIPLIER),
 				duration: 0.85,
 				easing: "easeInOutCubic",
 			},
@@ -418,7 +418,7 @@ function createHubIntroductionCutscene(
 			{
 				type: "camera",
 				target: wormholePosition,
-				zoom: HUB_INTRODUCTION_WORMHOLE_ZOOM,
+				zoom: hubIntroductionZoom(HUB_INTRODUCTION_WORMHOLE_ZOOM_MULTIPLIER),
 				duration: 0.8,
 				easing: "easeInOutCubic",
 			},
@@ -430,7 +430,7 @@ function createHubIntroductionCutscene(
 			{
 				type: "camera",
 				target: cameraPosition,
-				zoom: HUB_INTRODUCTION_ACTOR_ZOOM,
+				zoom: hubIntroductionZoom(HUB_INTRODUCTION_ACTOR_ZOOM_MULTIPLIER),
 				duration: 0.8,
 				easing: "easeInOutCubic",
 			},
@@ -496,49 +496,6 @@ function startPrologueCombat() {
 		title: "LOST IN THE DAZE",
 		objective: "FIND A WAY OUT",
 	})
-	let elapsed = 0
-	controller = k.add([
-		{
-			update() {
-				if (!playerObj?.exists()) return
-				elapsed += k.dt()
-				if (elapsed >= 12 && elapsed - k.dt() < 12) {
-					updateQuestObjective(
-						PROLOGUE_QUEST_ID,
-						"UNKNOWN SIGNAL DETECTED — KEEP MOVING"
-					)
-				}
-				if (elapsed >= 26 && elapsed - k.dt() < 26) {
-					updateQuestObjective(
-						PROLOGUE_QUEST_ID,
-						"PHASE STABILITY CRITICAL"
-					)
-					k.flash(k.rgb(0, 90, 120), 0.35)
-				}
-				if (elapsed < 40) return
-				k.shake(5)
-				applyDamage(playerObj, Math.max(1, playerObj.hp), {
-					source: { name: "THE DAZE", sprite: "room_rift_anchor" },
-					showNumber: false,
-				})
-			},
-			draw() {
-				if (elapsed < 26) return
-				k.drawRect({
-					pos: k.vec2(0, 0),
-					width: k.width(),
-					height: k.height(),
-					color: k.rgb(0, 95, 125),
-					opacity: k.clamp((elapsed - 26) / 40, 0, 0.22),
-				})
-			},
-		},
-		k.fixed(),
-		k.layer(layers.uiEffects),
-		k.z(50),
-		tags.prologue,
-		tags.gameLoop,
-	])
 	gameSoundService.play("swap_level", { volume: mainSoundVolume * 0.65 })
 }
 

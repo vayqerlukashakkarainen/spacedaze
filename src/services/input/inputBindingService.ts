@@ -13,6 +13,7 @@ export type InputActionId =
 	| "strafe"
 	| "primary"
 	| "primaryWheel"
+	| "lasso"
 	| "secondary"
 	| "mobility"
 	| "ultimate"
@@ -100,6 +101,12 @@ export const INPUT_ACTIONS: readonly InputActionDefinition[] = [
 		label: "PRIMARY WHEEL",
 		group: "COMBAT",
 		defaultBinding: { device: "key", input: "shift" },
+	},
+	{
+		id: "lasso",
+		label: "LASSO LINK",
+		group: "COMBAT",
+		defaultBinding: { device: "key", input: "q" },
 	},
 	{
 		id: "secondary",
