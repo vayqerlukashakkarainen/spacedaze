@@ -20,7 +20,7 @@
 - In-game asset: `light-metal-hit.wav`
 - Trimmed to the 580 ms impact, converted to mono WAV, and faded at the tail for responsive playback.
 
-## Asteroid Impacts and Destruction
+## Rock Material Impacts and Destruction
 
 "Rock Smash" by NeoSpica (Freesound), distributed through Pixabay.
 
@@ -29,6 +29,32 @@
 - License: Creative Commons Zero 1.0
 - In-game assets: `asteroid-impact-1.ogg`, `asteroid-impact-2.ogg`, `asteroid-impact-3.ogg`, `asteroid-destroyed.ogg`
 - The first three strikes are used as randomized asteroid impacts. The final breakup is used for asteroid destruction. Each segment was trimmed, converted to mono OGG, and faded at both edges.
+
+"Rock destroy" by Bertsz (Freesound), distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-rock-destroy-6409/
+- License: Pixabay Content License
+- Source file: `audio_2e8fc4a203.mp3`
+- In-game asset: `rock-material-destroyed-02.mp3`
+- Trimmed to the initial 1.2-second breakup, converted to mono, level-adjusted, and faded at both edges. It joins `asteroid-destroyed.ogg` in the randomized rock-material destruction pool.
+
+## Ship Part Destruction
+
+"explosion" by WhaTThes (Freesound), distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-explosion-47821/
+- License: Pixabay Content License
+- Original filename: `freesound_community-explosion-47821.mp3`
+- In-game asset: `ship-part-destroyed.mp3`
+- Trimmed to the initial blast, converted to mono, level-adjusted, and given a short tail fade for responsive chain reactions.
+
+"Explosion" by Bird_man (Freesound), distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-explosion-91872/
+- License: Pixabay Content License
+- Source file: `audio_a4c21536b0.mp3`
+- In-game asset: `ship-part-destroyed-02.mp3`
+- Trimmed to the initial 1.5-second blast, converted to mono, and faded at both edges. It joins `ship-part-destroyed.mp3` in the randomized pool used by detachable ship parts and enemy-ship deaths.
 
 ## Burt Strafe Module Ejection
 
@@ -48,6 +74,26 @@
 - License: Pixabay Content License
 - Original filename: `freesound_community-warning-sound-6686.mp3`
 - In-game asset: `low-health-warning.mp3`
+
+## Health Orb Pickup
+
+"Health Pickup" by KeshaFilm (Freesound), distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-health-pickup-6860/
+- License: Pixabay Content License
+- Original filename: `freesound_community-health-pickup-6860.mp3`
+- In-game asset: `health-orb-pickup.wav`
+- Trimmed to the audible pickup cue, converted to mono WAV, level-adjusted, and faded at both edges for responsive playback.
+
+## Lifesteal Health Reception
+
+"Energy" by Leszek_Szary (Freesound), distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-energy-90321/
+- License: Pixabay Content License
+- Source file: `audio_24bc565272.mp3`
+- In-game asset: `lifesteal-health-receive.wav`
+- Trimmed to the audible 336 ms energy cue, converted to mono WAV, level-matched, and faded at both edges for responsive playback.
 
 ## Player Game Over
 
@@ -123,6 +169,16 @@
 - Source: https://pixabay.com/sound-effects/film-special-effects-explosion-6055/
 - License: Pixabay Content License
 - In-game asset: `plasma-explosion-flashtrauma.mp3`
+
+## General Explosion Pool
+
+The following effects are by DRAGON-STUDIO and distributed under the Pixabay Content License. They were converted to mono MP3 and loudness-matched for randomized positional playback.
+
+- "Loud Explosion" — [source](https://pixabay.com/sound-effects/film-special-effects-loud-explosion-425457/) — `explosion-pool-01.mp3`
+- "Explosion Sound Effect" — [source](https://pixabay.com/sound-effects/film-special-effects-explosion-sound-effect-425455/) — `explosion-pool-02.mp3`
+- "Explosion FX" — [source](https://pixabay.com/sound-effects/film-special-effects-explosion-fx-425453/) — `explosion-pool-03.mp3`
+- "Explosion SFX" — [source](https://pixabay.com/sound-effects/film-special-effects-explosion-sfx-405455/) — `explosion-pool-04.mp3`
+- "Explosion Effect" — [source](https://pixabay.com/sound-effects/horror-explosion-effect-494317/) — `explosion-pool-05.mp3`
 
 ## Hyperspeed Jump
 
@@ -309,3 +365,13 @@ User-provided audio asset.
 - Original source: https://freesound.org/people/PedroGuyman/sounds/470709/
 - License: Creative Commons Zero 1.0
 - In-game asset: `active-module-carrier-launch.ogg`
+
+## Lasso Throw
+
+"Bamboo Whoosh" by DenielCZ, distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-bamboo-whoosh-429156/
+- License: Pixabay Content License
+- Original filename: `denielcz-bamboo-whoosh-429156.mp3`
+- In-game asset: `lasso-throw.wav`
+- Trimmed to remove leading silence and its inactive tail.
