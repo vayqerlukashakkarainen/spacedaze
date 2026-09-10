@@ -124,9 +124,9 @@ export function spawnHubFiringRange(
 		interactiveAbilityPickups = []
 		lockedAbilityPickups = []
 		for (const row of SLOT_ROWS) {
-			const rowAbilities = row.slot === "primary"
-				? ABILITIES.filter((ability) => ability.slot === row.slot)
-				: unlocked.filter((ability) => ability.slot === row.slot)
+			const rowAbilities = ABILITIES.filter(
+				(ability) => ability.slot === row.slot
+			)
 			spawnAbilityRow(
 				equipmentRoot,
 				row,
