@@ -12,7 +12,11 @@ import {
 import type { AbilitySlot } from "../services/abilities/abilityLoadoutService"
 import { spawnAbilityLoadoutPickup } from "../services/abilities/abilitySwapService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
-import { getHubLevel } from "../services/hub/hubProgressService"
+import {
+	getHubLevel,
+	getHubLevelDefinition,
+	getHubLifetimeDeposited,
+} from "../services/hub/hubProgressService"
 import { tags } from "../tags"
 import { UI_COLORS } from "../ui/common"
 import {
@@ -33,6 +37,8 @@ const DISCOVERY_REFRESH_INTERVAL = 0.5
 const PICKUP_SPACING = 60
 const LOCKED_PICKUP_REVEAL_RADIUS = 54
 const LOCKED_PICKUP_ICON_SIZE = 24
+const LOCKED_PICKUP_RING_RADIUS = 18
+const LOCKED_PICKUP_RING_SEGMENTS = 32
 const TRAINING_SWARM_COUNT = 5
 const TRAINING_FUEL_CELL_RESPAWN_DELAY = 3
 const COMPOSITE_TARGET_OFFSET_X = 130
@@ -105,6 +111,7 @@ export function spawnHubFiringRange(
 		const unlocked = ABILITIES.filter(isAbilityDiscovered)
 		const nextSignature = [
 			getHubLevel(),
+			getHubLifetimeDeposited(),
 			...unlocked.map((ability) => ability.id),
 		].join("|")
 		if (nextSignature === discoverySignature) return
@@ -387,9 +394,11 @@ function spawnLockedAbilityPickup(
 	position: Vec2
 ): LockedAbilityPickup {
 	const hubLevelReached = getHubLevel() >= ability.minimumHubLevel
-	const lockedColor = k.rgb(...(hubLevelReached
+	const ringColor = k.rgb(...(hubLevelReached
 		? UI_COLORS.success
 		: UI_COLORS.muted))
+	const unlockProgress = getLockedAbilityHubProgress(ability.minimumHubLevel)
+	const progressRingPoints = createProgressRingPoints(unlockProgress)
 	const pickup = k.add([
 		k.pos(position),
 		k.sprite(ability.icon, {
@@ -397,9 +406,8 @@ function spawnLockedAbilityPickup(
 			height: LOCKED_PICKUP_ICON_SIZE,
 		}),
 		k.anchor("center"),
-		k.color(18, 25, 31),
-		k.opacity(0.78),
-		k.outline(1, lockedColor),
+		k.color(...(hubLevelReached ? UI_COLORS.text : UI_COLORS.muted)),
+		k.opacity(hubLevelReached ? 0.82 : 0.58),
 		k.layer(layers.game),
 		{
 			runtimeCullRadius: LOCKED_PICKUP_REVEAL_RADIUS,
@@ -409,25 +417,34 @@ function spawnLockedAbilityPickup(
 		tags.runtimeCullable,
 	])
 	pickup.add([
-		k.circle(18),
-		k.anchor("center"),
-		k.color(8, 15, 20),
-		k.opacity(0.72),
-		k.outline(1, lockedColor),
 		k.layer(layers.gameEffects),
 		k.z(-1),
-	])
-	pickup.add([
-		k.text("?", { font: "unscii", size: 9 }),
-		k.pos(0, 1),
-		k.anchor("center"),
-		k.color(...UI_COLORS.text),
-		k.opacity(0.82),
-		k.layer(layers.gameText),
+		{
+			draw() {
+				k.drawCircle({
+					pos: k.vec2(0),
+					radius: LOCKED_PICKUP_RING_RADIUS,
+					color: k.rgb(8, 15, 20),
+					opacity: 0.72,
+					anchor: "center",
+					outline: {
+						width: 1,
+						color: ringColor,
+						opacity: 1,
+					},
+				})
+				if (hubLevelReached || progressRingPoints.length < 2) return
+				k.drawLines({
+					pts: progressRingPoints,
+					width: 2,
+					color: k.rgb(...UI_COLORS.accent),
+				})
+			},
+		},
 	])
 
 	const requirement = hubLevelReached
-		? "AVAILABLE IN WEAPON DROPS"
+		? "AVAILABLE FOR DROP"
 		: `REQUIRES HUB LEVEL ${ability.minimumHubLevel}`
 	const tooltip = pickup.add([
 		k.pos(0, -39),
@@ -464,6 +481,24 @@ function spawnLockedAbilityPickup(
 			tooltip.pos.y = -39 + (1 - easedReveal) * 5
 		},
 	}
+}
+
+function getLockedAbilityHubProgress(minimumHubLevel: number) {
+	const requiredDeposited = getHubLevelDefinition(minimumHubLevel).requiredDeposited
+	if (requiredDeposited <= 0) return 1
+	return Math.min(1, Math.max(0, getHubLifetimeDeposited() / requiredDeposited))
+}
+
+function createProgressRingPoints(progress: number) {
+	if (progress <= 0) return []
+	const segmentCount = Math.max(2, Math.ceil(LOCKED_PICKUP_RING_SEGMENTS * progress))
+	return Array.from({ length: segmentCount + 1 }, (_, index) => {
+		const angle = (-90 + 360 * progress * index / segmentCount) * Math.PI / 180
+		return k.vec2(
+			Math.cos(angle) * LOCKED_PICKUP_RING_RADIUS,
+			Math.sin(angle) * LOCKED_PICKUP_RING_RADIUS
+		)
+	})
 }
 
 function updateLockedAbilityReveals(
