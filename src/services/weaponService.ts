@@ -5,6 +5,10 @@ import {
 	getEquippedPrimaryAbilityId,
 } from "./abilityLoadoutService"
 import type { ExplosionSoundPoolId } from "./explosionSoundPoolService"
+import {
+	readProfileSection,
+	writeProfileSection,
+} from "./profileSaveService"
 
 export type WeaponId =
 	| "standardBlaster"
@@ -506,6 +510,7 @@ const DEFAULT_WEAPON_ID: WeaponId = "standardBlaster"
 const ALL_WEAPON_IDS = WEAPONS.map((weapon) => weapon.id)
 
 let ownedWeaponIds: WeaponId[] = [DEFAULT_WEAPON_ID]
+let favoriteWeaponIds = loadFavoriteWeaponIds()
 
 export function getWeaponDefinition(id: WeaponId) {
 	return WEAPONS.find((weapon) => weapon.id === id) ?? WEAPONS[0]
@@ -538,6 +543,25 @@ export function getOwnedWeaponIds() {
 	return [...ownedWeaponIds]
 }
 
+export function getFavoriteWeaponIds() {
+	return favoriteWeaponIds.filter(isWeaponOwned)
+}
+
+export function isWeaponFavorite(id: WeaponId) {
+	return favoriteWeaponIds.includes(id)
+}
+
+export function toggleWeaponFavorite(id: WeaponId) {
+	if (!isWeaponOwned(id)) return false
+	if (isWeaponFavorite(id)) {
+		favoriteWeaponIds = favoriteWeaponIds.filter((weaponId) => weaponId !== id)
+	} else {
+		favoriteWeaponIds = [...favoriteWeaponIds, id]
+	}
+	saveFavoriteWeaponIds()
+	return isWeaponFavorite(id)
+}
+
 export function isWeaponOwned(id: WeaponId) {
 	return ownedWeaponIds.includes(id)
 }
@@ -549,12 +573,19 @@ export function equipWeapon(id: WeaponId) {
 }
 
 export function cycleEquippedWeapon(direction: -1 | 1) {
-	const arsenal = ALL_WEAPON_IDS.filter(isWeaponOwned)
+	const favorites = getFavoriteWeaponIds()
+	const arsenal = favorites.length > 0
+		? favorites
+		: ALL_WEAPON_IDS.filter(isWeaponOwned)
 	if (arsenal.length === 0) return getEquippedWeapon()
 	const currentIndex = arsenal.indexOf(getEquippedPrimaryAbilityId())
-	const normalizedIndex = currentIndex >= 0 ? currentIndex : 0
+	if (currentIndex < 0) {
+		const nextId = direction > 0 ? arsenal[0] : arsenal[arsenal.length - 1]
+		equipAbility("primary", nextId)
+		return getEquippedWeapon()
+	}
 	const nextIndex = (
-		normalizedIndex + direction + arsenal.length
+		currentIndex + direction + arsenal.length
 	) % arsenal.length
 	equipAbility("primary", arsenal[nextIndex])
 	return getEquippedWeapon()
@@ -572,6 +603,8 @@ export function resetEquippedWeapon() {
 
 export function resetWeaponInventory() {
 	ownedWeaponIds = [DEFAULT_WEAPON_ID]
+	favoriteWeaponIds = []
+	saveFavoriteWeaponIds()
 	equipAbility("primary", DEFAULT_WEAPON_ID)
 }
 
@@ -593,4 +626,25 @@ export function setWeaponInventory(
 
 function isWeaponId(id: string): id is WeaponId {
 	return ALL_WEAPON_IDS.includes(id as WeaponId)
+}
+
+function loadFavoriteWeaponIds() {
+	const preferences = readProfileSection<{ favoriteWeaponIds?: unknown }>(
+		"preferences"
+	)
+	const savedFavoriteIds = preferences?.favoriteWeaponIds
+	if (!Array.isArray(savedFavoriteIds)) return []
+	return [...new Set(savedFavoriteIds.filter((id): id is WeaponId =>
+		typeof id === "string" && isWeaponId(id)
+	))]
+}
+
+function saveFavoriteWeaponIds() {
+	const preferences = readProfileSection<Record<string, unknown>>(
+		"preferences"
+	) ?? {}
+	writeProfileSection("preferences", {
+		...preferences,
+		favoriteWeaponIds: [...favoriteWeaponIds],
+	})
 }

@@ -7,9 +7,12 @@ import {
 	timeScale,
 } from "../main"
 import {
+	getFavoriteWeaponIds,
 	getOwnedWeaponIds,
 	getEquippedWeapon,
 	getWeaponDefinition,
+	isWeaponFavorite,
+	toggleWeaponFavorite,
 	type WeaponDefinition,
 	type WeaponId,
 } from "../services/weaponService"
@@ -27,11 +30,13 @@ const WHEEL_RADIUS = 70
 const ITEM_RADIUS = 17
 const ITEM_HIT_RADIUS = 23
 const SLOWED_TIMESCALE = 0.16
+const HOLD_TO_OPEN_DURATION = 0.16
 
 interface WeaponWheelOptions {
 	player: GameObj<PosComp>
 	inputBlocked: () => boolean
 	onOpen?: () => void
+	onQuickSwap: () => void
 	onSelect: (weapon: WeaponDefinition) => void
 }
 
@@ -40,6 +45,7 @@ interface WeaponWheelItem {
 	root: GameObj
 	outer: GameObj
 	inner: GameObj
+	favoriteMarker: GameObj
 }
 
 interface ActiveWeaponWheel {
@@ -57,14 +63,45 @@ export function weaponWheelOpen() {
 export function installWeaponWheel(
 	options: WeaponWheelOptions
 ): InputController {
+	let pressedAt: number | undefined
+	let holdOpened = false
 	const openController = onInputActionPress("primaryWheel", () => {
-		if (options.inputBlocked() || weaponWheelOpen()) return
-		openWeaponWheel(options)
+		if (options.inputBlocked() || weaponWheelOpen() || pressedAt !== undefined) {
+			return
+		}
+		pressedAt = k.time()
+		holdOpened = false
 	})
 	const closeController = onInputActionRelease("primaryWheel", () => {
-		closeWeaponWheel(options, true)
+		if (pressedAt === undefined) return
+		pressedAt = undefined
+		if (holdOpened) {
+			closeWeaponWheel(options, true)
+			return
+		}
+		options.onQuickSwap()
+	})
+	const favoriteController = k.onMousePress("left", () => {
+		const wheel = activeWeaponWheel
+		if (!wheel || !wheel.hoveredWeaponId) return
+		const favorite = toggleWeaponFavorite(wheel.hoveredWeaponId)
+		gameSoundService.play("click1", {
+			volume: mainSoundVolume * 0.52,
+			detune: favorite ? 180 : -180,
+		})
+	})
+	const updateController = options.player.onUpdate(() => {
+		if (pressedAt === undefined || holdOpened) return
+		if (options.inputBlocked()) {
+			pressedAt = undefined
+			return
+		}
+		if (k.time() - pressedAt < HOLD_TO_OPEN_DURATION) return
+		holdOpened = true
+		openWeaponWheel(options)
 	})
 	const destroyController = options.player.onDestroy(() => {
+		pressedAt = undefined
 		closeWeaponWheel(options, false)
 	})
 
@@ -72,7 +109,10 @@ export function installWeaponWheel(
 		cancel: () => {
 			openController.cancel()
 			closeController.cancel()
+			favoriteController.cancel()
+			updateController.cancel()
 			destroyController.cancel()
+			pressedAt = undefined
 			closeWeaponWheel(options, false)
 		},
 	}
@@ -147,21 +187,29 @@ function openWeaponWheel(options: WeaponWheelOptions) {
 		for (const item of items) {
 			const isHovered = item.weapon.id === hoveredWeaponId
 			const isEquipped = item.weapon.id === equippedWeaponId
+			const isFavorite = isWeaponFavorite(item.weapon.id)
 			item.root.scale = k.vec2(isHovered ? 1.16 : 1)
 			item.outer.color = isHovered
 				? k.WHITE
 				: isEquipped
 					? k.rgb(...UI_COLORS.accent)
-					: k.rgb(...UI_COLORS.border)
+					: isFavorite
+						? k.rgb(...UI_COLORS.warning)
+						: k.rgb(...UI_COLORS.border)
 			item.inner.color = isHovered
 				? k.rgb(...UI_COLORS.panelHover)
 				: k.rgb(...UI_COLORS.background)
+			item.favoriteMarker.opacity = isFavorite ? 1 : 0
 		}
 		const displayedWeapon = hovered?.weapon ?? weapons.find((weapon) =>
 			weapon.id === equippedWeaponId
 		) ?? weapons[0]
 		nameLabel.text = displayedWeapon.name
-		instructionLabel.text = hovered ? "RELEASE TO EQUIP" : "HOLD + AIM"
+		instructionLabel.text = hovered
+			? "RELEASE EQUIP  //  LMB FAVORITE"
+			: getFavoriteWeaponIds().length > 0
+				? "QUICK SWAP: FAVORITES"
+				: "QUICK SWAP: ALL"
 	})
 }
 
@@ -198,12 +246,19 @@ function createWeaponItem(
 		k.anchor("center"),
 		k.color(...UI_COLORS.background),
 	])
+	const favoriteMarker = root.add([
+		k.pos(11, -11),
+		k.rect(5, 5),
+		k.anchor("center"),
+		k.color(...UI_COLORS.warning),
+		k.opacity(isWeaponFavorite(weapon.id) ? 1 : 0),
+	])
 	root.add([
 		k.sprite(weapon.icon, { width: 22, height: 22 }),
 		k.anchor("center"),
 		k.color(...UI_COLORS.text),
 	])
-	return { weapon, root, outer, inner }
+	return { weapon, root, outer, inner, favoriteMarker }
 }
 
 function findHoveredItem(items: WeaponWheelItem[], pointer: Vec2) {

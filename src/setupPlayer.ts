@@ -72,6 +72,7 @@ import type { GridCollisionComp } from "./comp/gridCollision";
 import { levelTransitionActive } from "./services/levelTransitionService";
 import { getPriorityInteraction } from "./comp/interactable";
 import {
+	cycleEquippedWeapon,
 	equipWeapon,
 	getEquippedWeapon,
 	getWeaponTriggerModifier,
@@ -1647,6 +1648,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	}));
 
 	inputControllers.push(onInputActionPress("primary", () => {
+		if (weaponWheelOpen()) return
 		const weapon = getEquippedWeapon();
 		const mode = getWeaponTriggerModifier(weapon).mode;
 		if (mode === "press") {
@@ -1697,6 +1699,20 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			primaryChargeStartedAt = undefined
 			primaryChargeWeaponId = ""
 			stopPrimaryChargeSound()
+		},
+		onQuickSwap: () => {
+			const previousWeaponId = getEquippedWeapon().id
+			const weapon = cycleEquippedWeapon(1)
+			if (weapon.id === previousWeaponId) return
+			primaryChargeStartedAt = undefined
+			primaryChargeWeaponId = ""
+			stopPrimaryChargeSound()
+			spawnFlash(playerObj.pos.clone(), 5, k.rgb(75, 205, 255))
+			showWeaponSwitchLabel(weapon)
+			gameSoundService.play("click1", {
+				volume: mainSoundVolume * 0.65,
+				detune: 100,
+			})
 		},
 		onSelect: (weapon) => {
 			const previousWeaponId = getEquippedWeapon().id

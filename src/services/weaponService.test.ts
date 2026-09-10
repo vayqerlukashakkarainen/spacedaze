@@ -3,10 +3,12 @@ import { RewardRarity } from "../types/rewardTypes"
 import {
 	cycleEquippedWeapon,
 	equipWeapon,
+	getFavoriteWeaponIds,
 	getEquippedWeapon,
 	getWeaponDefinition,
 	getWeaponRewardRarity,
 	resetWeaponInventory,
+	toggleWeaponFavorite,
 	unlockWeapon,
 } from "./weaponService"
 import { discoverAbility } from "./abilityRegistry"
@@ -23,6 +25,14 @@ assert.equal(cycleEquippedWeapon(1).id, "railLance")
 assert.equal(getEquippedWeapon().charge?.maxDuration, 1.15)
 assert.equal(cycleEquippedWeapon(1).id, "standardBlaster")
 assert.equal(cycleEquippedWeapon(-1).id, "railLance")
+
+assert.equal(toggleWeaponFavorite("standardBlaster"), true)
+assert.equal(toggleWeaponFavorite("railLance"), true)
+assert.deepEqual(getFavoriteWeaponIds(), ["standardBlaster", "railLance"])
+assert.equal(cycleEquippedWeapon(1).id, "standardBlaster")
+assert.equal(toggleWeaponFavorite("standardBlaster"), false)
+assert.deepEqual(getFavoriteWeaponIds(), ["railLance"])
+assert.equal(cycleEquippedWeapon(1).id, "railLance")
 
 resetHubProgress()
 resetWeaponInventory()

@@ -6,6 +6,7 @@ export type ProfileSectionId =
 	| "narrative"
 	| "dialogue"
 	| "unlocks"
+	| "preferences"
 	| "stats"
 
 interface ProfileSaveDocument {
