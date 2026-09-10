@@ -4,7 +4,7 @@ import {
 	rollCrateReward,
 	rollCrateRewardChoices,
 	rollWeaponChestRewardChoices,
-} from "./services/rewardService"
+} from "./services/economy/rewardService"
 
 export { RewardRarity as Rarity }
 export type ChestReward = Reward

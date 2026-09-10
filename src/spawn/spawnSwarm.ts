@@ -3,18 +3,18 @@ import { timescale } from "../comp/timescale"
 import { getShipThrusterFlash } from "../comp/shipThruster"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, layers, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
-import { gameSoundService } from "../services/gameSoundService"
-import { applyDamage } from "../services/damageService"
-import { createCadencedSystem } from "../services/cadencedSystemService"
-import { createContinuousSystem } from "../services/continuousSystemService"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
-import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
+import { gameSoundService } from "../services/audio/gameSoundService"
+import { applyDamage } from "../services/combat/damageService"
+import { createCadencedSystem } from "../services/core/cadencedSystemService"
+import { createContinuousSystem } from "../services/core/continuousSystemService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemies/enemyNavigationService"
+import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState"
 import {
 	createEnemySpawnProfile,
 	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
-} from "../services/threatService"
+} from "../services/enemies/threatService"
 import {
 	applyDirectionalSteeringLean,
 	easeDirection,
@@ -24,9 +24,9 @@ import { tags } from "../tags"
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
-import { DensePool } from "../services/densePool"
+import { DensePool } from "../services/core/densePool"
 import { spawnEnemyDeathEffect } from "./spawnEnemyDeathEffect"
-import { setHitSoundProfile } from "../services/hitSoundService"
+import { setHitSoundProfile } from "../services/audio/hitSoundService"
 
 type SwarmPhase = "gather" | "stage" | "charge" | "regroup"
 

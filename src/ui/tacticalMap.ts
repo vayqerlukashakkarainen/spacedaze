@@ -32,17 +32,17 @@ import {
 	getHubLevel,
 	HUB_FACILITIES,
 	isFacilityBuilt,
-} from "../services/hubProgressService"
+} from "../services/hub/hubProgressService"
 import {
 	HUB_FACILITY_OFFSETS,
 	HUB_HALF_HEIGHT,
 	HUB_HALF_WIDTH,
 	HUB_PHASE_FIELD_OFFSET,
 	HUB_WORMHOLE_OFFSET,
-} from "../services/hubLayoutService"
-import { getHubSettlementState } from "../services/hubSettlementService"
-import { loopService } from "../services/loopService"
-import { getRoomFloorSnapshot } from "../services/roomFloorService"
+} from "../services/hub/hubLayoutService"
+import { getHubSettlementState } from "../services/hub/hubSettlementService"
+import { loopService } from "../services/core/loopService"
+import { getRoomFloorSnapshot } from "../services/world/roomFloorService"
 import { tags } from "../tags"
 import { createUiScrollable, UiScrollableControl } from "./common/scrollable"
 import {
@@ -56,18 +56,18 @@ import {
 	UI_FONT_SIZES,
 } from "./common"
 import { uiState } from "./uiState"
-import { registerBatchedUiUpdate } from "../services/uiUpdateService"
+import { registerBatchedUiUpdate } from "../services/ui/uiUpdateService"
 import { uiHitRegion } from "./common/hitRegion"
 import {
 	playShopMenuCloseSound,
 	playShopMenuOpenSound,
-} from "../services/shopMenuSoundService"
-import { audioService } from "../services/audioService"
+} from "../services/audio/shopMenuSoundService"
+import { audioService } from "../services/audio/audioService"
 import {
 	formatInputBinding,
 	getInputBinding,
 	isInputActionDown,
-} from "../services/inputBindingService"
+} from "../services/input/inputBindingService"
 
 const MAP_MARGIN = 22
 const MAP_HEADER_HEIGHT = 48

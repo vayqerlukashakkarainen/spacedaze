@@ -1,6 +1,6 @@
 import { playerObj, checkProjectileIntersection } from "../game";
 import { dt, k, layers, mainSoundVolume, velocityScale } from "../main";
-import { gameSoundService } from "../services/gameSoundService"
+import { gameSoundService } from "../services/audio/gameSoundService"
 import { starsEmitter } from "../particles";
 import { player } from "../player";
 import { PowerupKey } from "../powerups";
@@ -17,13 +17,13 @@ import {
 	REWARD_RARITY_COLORS,
 	Reward,
 	RewardRarity,
-} from "../services/rewardService";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+} from "../services/economy/rewardService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
 import {
 	recordTelemetryRewardOffered,
 	recordTelemetryRewardSelected,
 	type RewardTelemetrySource,
-} from "../services/runTelemetryService";
+} from "../services/runs/runTelemetryService";
 import { interactable } from "../comp/interactable";
 import {
 	createInteractionPrompt,
@@ -32,7 +32,7 @@ import {
 import {
 	addLocalLight,
 	updateLocalLight,
-} from "../services/localLightService";
+} from "../services/world/localLightService";
 import { getPickupVisual } from "../visuals/pickupVisualCatalog";
 
 interface RarityFeedback {

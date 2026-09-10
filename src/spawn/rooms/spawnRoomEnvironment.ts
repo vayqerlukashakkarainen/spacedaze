@@ -8,25 +8,25 @@ import { ACTIVE_RUN_GRID_KEY } from "../../grid/gridKeys"
 import { checkProjectileIntersection, playerObj } from "../../game"
 import { k, layers, mainSoundVolume, velocityScale } from "../../main"
 import { explosionEmitter, sparkEmitter } from "../../particles"
-import { applyDamage } from "../../services/damageService"
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
-import { gameSoundService } from "../../services/gameSoundService"
-import { isPlayerDamageInvulnerable } from "../../services/playerDamageState"
+import { applyDamage } from "../../services/combat/damageService"
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
+import { gameSoundService } from "../../services/audio/gameSoundService"
+import { isPlayerDamageInvulnerable } from "../../services/player/playerDamageState"
 import {
 	applyKnockbackImpulse,
 	applyProjectileDamage,
-} from "../../services/projectileService"
+} from "../../services/combat/projectileService"
 import {
 	clearRoomCoverSources,
 	registerDynamicRoomCover,
 	registerStaticRoomCover,
-} from "../../services/roomCoverService"
-import { querySpatialNearby } from "../../services/runtimeSpatialIndexService"
+} from "../../services/world/roomCoverService"
+import { querySpatialNearby } from "../../services/core/runtimeSpatialIndexService"
 import { registerHitAnimation } from "../../shared"
 import { tags } from "../../tags"
 import { ASTEROID_SPRITES } from "../../asteroidSprites"
-import { setHitSoundProfile } from "../../services/hitSoundService"
-import { bounceMovingTerrainOffGrid } from "../../services/movingTerrainService"
+import { setHitSoundProfile } from "../../services/audio/hitSoundService"
+import { bounceMovingTerrainOffGrid } from "../../services/world/movingTerrainService"
 import { spawnExplosionEffect, spawnFlash } from "../spawnFlash"
 import { spawnRing } from "../spawnRing"
 import { getWorldVisual } from "../../visuals/worldVisualCatalog"

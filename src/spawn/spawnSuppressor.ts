@@ -1,21 +1,21 @@
 import type { Vec2 } from "kaplay"
 import { playerObj } from "../game"
 import { k, velocityScale } from "../main"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import {
 	getEnemyNavigationDirection,
 	hasEnemyLineOfSight,
-} from "../services/enemyNavigationService"
-import { clearPlayerStatusEffectsFromSource } from "../services/playerStatusEffectService"
+} from "../services/enemies/enemyNavigationService"
+import { clearPlayerStatusEffectsFromSource } from "../services/player/playerStatusEffectService"
 import { ACTIVE_RUN_GRID_KEY } from "../grid/gridKeys"
 import { gridRegistry } from "../grid/gridRegistry"
 import {
 	acquireRoomCover,
 	releaseRoomCover,
 	updateRoomCoverDestination,
-} from "../services/roomCoverService"
-import { spawnEnemyBlaster } from "../services/projectileHelpers"
-import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/threatService"
+} from "../services/world/roomCoverService"
+import { spawnEnemyBlaster } from "../services/combat/projectileHelpers"
+import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/enemies/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog"

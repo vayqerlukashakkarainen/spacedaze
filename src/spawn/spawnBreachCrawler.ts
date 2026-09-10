@@ -4,9 +4,9 @@ import { k, velocityScale } from "../main"
 import {
 	damageDestructibleWallsInRadius,
 	getNearestDestructibleWall,
-} from "../services/destructibleWallService"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/threatService"
+} from "../services/world/destructibleWallService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
+import { createEnemySpawnProfile, type EnemySpawnOptions } from "../services/enemies/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog"

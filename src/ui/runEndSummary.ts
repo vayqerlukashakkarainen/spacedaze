@@ -1,21 +1,21 @@
 import { k, layers, mainSoundVolume } from "../main"
-import { gameSoundService } from "../services/gameSoundService"
+import { gameSoundService } from "../services/audio/gameSoundService"
 import {
 	getHubLevelDefinition,
 	HUB_FACILITIES,
 	HUB_LEVELS,
 	type HubFacilityId,
-} from "../services/hubProgressService"
+} from "../services/hub/hubProgressService"
 import {
 	getAllRewardDefinitions,
 	getRewardMinimumHubLevel,
 	type RewardDefinition,
-} from "../services/rewardService"
+} from "../services/economy/rewardService"
 import { getUpgradeDefinition } from "../upgrades/upgradeRegistry"
 import {
 	consumePendingRunEndSummary,
 	type RunEndSummary,
-} from "../services/runCompletionService"
+} from "../services/runs/runCompletionService"
 import {
 	addThemedText,
 	createUiActionButton,

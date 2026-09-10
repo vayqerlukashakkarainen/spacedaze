@@ -37,9 +37,9 @@ import {
 	updatePlayerHealthBar,
 } from "./ui/gameUi";
 import { Component } from "./compose";
-import { audioService } from "./services/audioService";
-import { gameSoundService } from "./services/gameSoundService"
-import { loopService } from "./services/loopService";
+import { audioService } from "./services/audio/audioService";
+import { gameSoundService } from "./services/audio/gameSoundService"
+import { loopService } from "./services/core/loopService";
 import { updatePriorityInteraction } from "./comp/interactable";
 import {
 	activeLevel,
@@ -50,36 +50,36 @@ import {
 	transitionToLevel,
 } from "./levels/levels";
 import { hideDeathScreen, showDeathScreen } from "./ui/deathScreen";
-import { getPlayerDeathCause } from "./services/damageService";
+import { getPlayerDeathCause } from "./services/combat/damageService";
 import { resetLevelLoadout } from "./upg";
 import {
 	clearRecoveryOffers,
 	clearRunInventory,
 	prepareDeathRecoveryOffers,
-} from "./services/runInventoryService";
+} from "./services/runs/runInventoryService";
 import { resetPowerupRuntime, respawnCombatDrones } from "./powerups";
 import {
 	recordDebreeCollected,
 	recordPlayerDeath,
-} from "./services/runStatsService";
+} from "./services/runs/runStatsService";
 import type { DebreeCollectionState } from "./spawn/spawnDebree";
 import {
 	findSpatialNearby,
 	forEachSpatialNearby,
 	getMaxProjectileSweepDistance,
-} from "./services/runtimeSpatialIndexService";
+} from "./services/core/runtimeSpatialIndexService";
 import {
 	findSegmentCircleIntersection,
 	type SegmentCircleIntersection,
-} from "./services/projectileCollisionService";
+} from "./services/combat/projectileCollisionService";
 import {
 	hasEquippedActiveModule,
 	resetActiveModuleCooldown,
-} from "./services/activeModuleService";
+} from "./services/abilities/activeModuleService";
 import {
 	makeStrafeTrainingAvailable,
 	shouldStartPrologue,
-} from "./services/narrativeService";
+} from "./services/narrative/narrativeService";
 import {
 	beginPrologueExperience,
 	cancelPrologueExperience,
@@ -87,23 +87,23 @@ import {
 	showHubIntroductionIfNeeded,
 	showPrologueHubRepair,
 	showPrologueRecoveryDialogue,
-} from "./services/prologueService";
-import { hideDialogue } from "./services/dialogService";
+} from "./services/narrative/prologueService";
+import { hideDialogue } from "./services/narrative/dialogService";
 import { saveGame } from "./util";
-import { recoverPlayerHealth } from "./services/playerHealthService";
-import { RUN_HULL_REINFORCEMENT_AMOUNT } from "./services/playerHealthBalance";
+import { recoverPlayerHealth } from "./services/player/playerHealthService";
+import { RUN_HULL_REINFORCEMENT_AMOUNT } from "./services/player/playerHealthBalance";
 import {
 	clearPendingRunEndSummary,
 	completeRun,
 	type RunEndSummary,
-} from "./services/runCompletionService";
+} from "./services/runs/runCompletionService";
 import { hideDebreeDepositPanel } from "./ui/debreeDepositPanel";
 import {
 	DebreeRunOutcome,
 	loseCarriedDebree,
-} from "./services/debreeEconomyService";
-import { chargeSalvageBattery } from "./services/shipUpgradeService";
-import { tracePrologue } from "./services/prologueTraceService";
+} from "./services/economy/debreeEconomyService";
+import { chargeSalvageBattery } from "./services/progression/shipUpgradeService";
+import { tracePrologue } from "./services/narrative/prologueTraceService";
 import { spawnFlash } from "./spawn/spawnFlash";
 
 export let playerObj: GameObj<

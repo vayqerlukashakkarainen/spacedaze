@@ -1,4 +1,4 @@
-import type { ProgressionEnemyId } from "../services/enemyProgressionService"
+import type { ProgressionEnemyId } from "../services/enemies/enemyProgressionService"
 import type { VisualRepresentation } from "./visualRepresentation"
 
 export interface EnemyVisualRepresentation extends VisualRepresentation {

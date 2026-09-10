@@ -33,8 +33,8 @@ import { spawnCrate } from "../spawn/spawnCrate";
 import { spawnBoss1 } from "../spawn/spawnBoss1";
 import { spawnImpactAce } from "../spawn/spawnImpactAce";
 import { spawnStationaryCannonPlatform } from "../spawn/spawnStationaryCannonPlatform";
-import { getBossHealth } from "../services/bossRegistry";
-import { getActiveBossEncounter } from "../services/bossEncounterService";
+import { getBossHealth } from "../services/enemies/bossRegistry";
+import { getActiveBossEncounter } from "../services/enemies/bossEncounterService";
 import { spawnShrine } from "../spawn/shrine/spawnShrine";
 import { spawnDamageShrine } from "../spawn/shrine/spawnDamageShrine";
 import { spawnHealthShrine } from "../spawn/shrine/spawnHealthShrine";
@@ -48,13 +48,13 @@ import {
 	getRewardDefinitions,
 	isAbilityReward,
 	rollMapEventReward,
-} from "../services/rewardService";
+} from "../services/economy/rewardService";
 import type { GeneratedMapConfig } from "./levels";
 import {
 	activateRunFinale,
 	getRunFinaleRampProgress,
 	getRunPhase,
-} from "../services/runFinaleService";
+} from "../services/runs/runFinaleService";
 import {
 	getRunRockTileFrame,
 	RUN_ROCK_TILE_ANCHOR_Y,
@@ -67,7 +67,7 @@ import {
 	getCurrentRunFloor,
 	getRunRouteSnapshot,
 	setNextRunSeed,
-} from "../services/runDirectorService";
+} from "../services/runs/runDirectorService";
 import {
 	GeneratedContentId,
 	selectGeneratedContent,
@@ -77,12 +77,12 @@ import {
 	clearDestructibleWalls,
 	DestructibleWallState,
 	registerDestructibleWall,
-} from "../services/destructibleWallService";
+} from "../services/world/destructibleWallService";
 import {
 	getRecentPlayerPath,
 	recordPlayerPathPosition,
 	resetPlayerPath,
-} from "../services/playerPathService";
+} from "../services/player/playerPathService";
 import { spawnGeneratedParallax } from "../generation/runtime/spawnGeneratedParallax";
 import { spawnExplosionEffect } from "../spawn/spawnFlash";
 import {
@@ -90,10 +90,10 @@ import {
 	explosionEmitter,
 	starsEmitter,
 } from "../particles";
-import { audioService } from "../services/audioService";
-import { gameSoundService } from "../services/gameSoundService"
+import { audioService } from "../services/audio/audioService";
+import { gameSoundService } from "../services/audio/gameSoundService"
 import { randomExplosion, saveGame } from "../util";
-import { spawnThreatEncounter } from "../services/enemyEncounterService";
+import { spawnThreatEncounter } from "../services/enemies/enemyEncounterService";
 import { spawnGravityPull } from "../spawn/spawnGravityPull";
 import { spawnGravityShrineNetwork } from "../spawn/rooms/spawnGravityShrineNetwork";
 import { spawnGravityAnomaly } from "../spawn/rooms/spawnGravityAnomaly";
@@ -105,21 +105,21 @@ import {
 	contractChallengeActive,
 	getContractChallengeMultiplier,
 	getContractChallengeRewardCount,
-} from "../services/contractService";
+} from "../services/progression/contractService";
 import {
 	deliverVolatileCargoPackage,
 	extractVolatileCargo,
-} from "../services/shipUpgradeService";
+} from "../services/progression/shipUpgradeService";
 import {
 	depositCarriedDebree,
 	extractDebreeRun,
 	getDepositedDebreeThisRun,
-} from "../services/debreeEconomyService";
+} from "../services/economy/debreeEconomyService";
 import {
 	clearPendingRunEndSummary,
 	completeRun,
 	checkpointRun,
-} from "../services/runCompletionService";
+} from "../services/runs/runCompletionService";
 import { showRunClearScreen } from "../ui/deathScreen";
 import {
 	addThreatTime,
@@ -130,20 +130,20 @@ import {
 	startThreatLevel,
 	stopThreatLevel,
 	updateThreatLevel,
-} from "../services/threatService";
+} from "../services/enemies/threatService";
 import {
 	incrementPerformanceCounter,
 	recordSectionTime,
-} from "../services/frameProfilerService";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+} from "../services/debug/frameProfilerService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
 import {
 	narrativePrologueActive,
-} from "../services/narrativeService";
-import { updateQuestObjective } from "../services/questService";
+} from "../services/narrative/narrativeService";
+import { updateQuestObjective } from "../services/progression/questService";
 import { spawnDebreeDeposit } from "../spawn/spawnDebreeDeposit";
-import { planRunVillageZones } from "../services/runVillageService";
+import { planRunVillageZones } from "../services/runs/runVillageService";
 import { spawnRunVillages } from "../spawn/spawnRunVillage";
-import { getRoomFloorSnapshot } from "../services/roomFloorService";
+import { getRoomFloorSnapshot } from "../services/world/roomFloorService";
 
 export const RUN_GRID_KEY = ACTIVE_RUN_GRID_KEY;
 const RUN_RENDER_CHUNK_SIZE = 6;

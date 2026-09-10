@@ -7,7 +7,7 @@ import {
 	setPostProcessingEnabled,
 	setScreenFlashIntensity,
 	setScreenShakeIntensity,
-} from "../services/displaySettingsService"
+} from "../services/ui/displaySettingsService"
 import {
 	beginInputBindingCapture,
 	cancelInputBindingCapture,
@@ -18,7 +18,7 @@ import {
 	resetInputBindings,
 	type InputActionId,
 	type InputController,
-} from "../services/inputBindingService"
+} from "../services/input/inputBindingService"
 import {
 	addThemedText,
 	createUiActionButton,

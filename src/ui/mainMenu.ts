@@ -6,9 +6,9 @@ import {
 	layers,
 	resetGameProfile,
 } from "../main"
-import { getLifetimeStats } from "../services/runStatsService"
-import { getHubLevel } from "../services/hubProgressService"
-import { startMainMenuSpaceJump } from "../services/mainMenuTransitionService"
+import { getLifetimeStats } from "../services/runs/runStatsService"
+import { getHubLevel } from "../services/hub/hubProgressService"
+import { startMainMenuSpaceJump } from "../services/ui/mainMenuTransitionService"
 import { createSpaceAmbience } from "../spawn/spaceAmbience"
 import { tags } from "../tags"
 import {
@@ -27,9 +27,9 @@ import {
 } from "./common"
 import type { UiConfirmationDialogController } from "./common"
 import { createUiOptionsPanel } from "./optionsPanel"
-import { registerBatchedUiUpdate } from "../services/uiUpdateService"
+import { registerBatchedUiUpdate } from "../services/ui/uiUpdateService"
 import { PLANET_CHUNK_SPRITES } from "../planetChunkSprites"
-import { audioService } from "../services/audioService"
+import { audioService } from "../services/audio/audioService"
 import { hasGameSave } from "../util"
 
 const MENU_WIDTH = 820

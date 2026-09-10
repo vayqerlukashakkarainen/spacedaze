@@ -2,18 +2,18 @@ import { Vec2 } from "kaplay";
 import { ASTEROID_SPRITES } from "../asteroidSprites";
 import { checkProjectileIntersection, playerObj } from "../game";
 import { dtScaled, k, mainSoundVolume, velocityScale } from "../main";
-import { gameSoundService } from "../services/gameSoundService"
+import { gameSoundService } from "../services/audio/gameSoundService"
 import { registerHitAnimation } from "../shared";
 import { tags } from "../tags";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
 import { timescale } from "../comp/timescale";
-import { applyDamage } from "../services/damageService";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
-import { setHitSoundProfile } from "../services/hitSoundService";
+import { applyDamage } from "../services/combat/damageService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
+import { setHitSoundProfile } from "../services/audio/hitSoundService";
 import {
 	addLocalLight,
 	updateLocalLight,
-} from "../services/localLightService";
+} from "../services/world/localLightService";
 import { spawnDebree } from "./spawnDebree";
 import { spawnExplosionEffect } from "./spawnFlash";
 import { spawnRerollTokenPickup } from "./spawnPowerup";

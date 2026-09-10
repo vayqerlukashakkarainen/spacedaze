@@ -1,25 +1,25 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileIntersection, playerObj } from "../game";
 import { dtScaled, k, subSoundVolume, velocityScale } from "../main";
-import { audioService } from "../services/audioService";
+import { audioService } from "../services/audio/audioService";
 import { registerHitAnimation } from "../shared";
 import { tags } from "../tags";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
 import { timescale } from "../comp/timescale";
 import { mass } from "../comp/mass";
 import { ASTEROID_SPRITES } from "../asteroidSprites";
-import { applyDamage } from "../services/damageService";
-import { isPlayerDamageInvulnerable } from "../services/playerDamageState";
+import { applyDamage } from "../services/combat/damageService";
+import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState";
 import {
 	createEnemySpawnProfile,
 	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
-} from "../services/threatService";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
-import { setHitSoundProfile } from "../services/hitSoundService";
+} from "../services/enemies/threatService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
+import { setHitSoundProfile } from "../services/audio/hitSoundService";
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog";
 import { gridRegistry } from "../grid/gridRegistry";
-import { bounceMovingTerrainOffGrid } from "../services/movingTerrainService";
+import { bounceMovingTerrainOffGrid } from "../services/world/movingTerrainService";
 
 const ASTEROID_VISUAL = getEnemyVisual("asteroid");
 

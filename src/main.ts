@@ -27,9 +27,9 @@ import {
 	session,
 } from "./player";
 import { initParticles, initUiEffects } from "./particles";
-import { audioService } from "./services/audioService";
-import { loopService } from "./services/loopService";
-import { upgradeService } from "./services/upgradeService";
+import { audioService } from "./services/audio/audioService";
+import { loopService } from "./services/core/loopService";
+import { upgradeService } from "./services/progression/upgradeService";
 import { spawnRing } from "./spawn/spawnRing";
 import { startChestOpeningSequence } from "./ui/chestOpening";
 import { generateCave } from "./generation/caveGenerator";
@@ -63,21 +63,21 @@ import {
 	submitCommand,
 	toggleCommandConsole,
 } from "./ui/commandConsole";
-import { commandService } from "./services/commandService";
-import { discoverAllFloorRooms } from "./services/roomFloorService";
-import { downloadCompleteGameDump } from "./services/catalogDumpService";
+import { commandService } from "./services/debug/commandService";
+import { discoverAllFloorRooms } from "./services/world/roomFloorService";
+import { downloadCompleteGameDump } from "./services/debug/catalogDumpService";
 import { playerObj } from "./game";
-import { recoverPlayerHealth } from "./services/playerHealthService";
-import { RUN_HULL_REINFORCEMENT_AMOUNT } from "./services/playerHealthBalance";
+import { recoverPlayerHealth } from "./services/player/playerHealthService";
+import { RUN_HULL_REINFORCEMENT_AMOUNT } from "./services/player/playerHealthBalance";
 import { activeLevelKey, transitionToLevel } from "./levels/levels";
 import {
 	clearSelectedContract,
-} from "./services/contractService";
+} from "./services/progression/contractService";
 import {
 	recordPlaytime,
 	recordRunSalvage,
 	resetRunStats,
-} from "./services/runStatsService";
+} from "./services/runs/runStatsService";
 import {
 	getGeneratedRunSummary,
 	revealEntireGeneratedRunMap,
@@ -96,7 +96,7 @@ import {
 	RewardRarity,
 	RewardSource,
 	type RewardKind,
-} from "./services/rewardService";
+} from "./services/economy/rewardService";
 import {
 	hideRecoveryShop,
 	recoveryShopOpen,
@@ -110,24 +110,24 @@ import {
 import {
 	beginRunSession,
 	runSessionActive,
-} from "./services/runDirectorService";
-import { applyDamage } from "./services/damageService";
+} from "./services/runs/runDirectorService";
+import { applyDamage } from "./services/combat/damageService";
 import { spawnHealthOrb } from "./spawn/spawnHealthOrb";
 import {
 	isPlayerDebugInvulnerable,
 	setPlayerDebugInvulnerable,
-} from "./services/playerDamageState";
+} from "./services/player/playerDamageState";
 import {
 	getThreatRomanNumeral,
 	getThreatSnapshot,
 	setThreatTier,
-} from "./services/threatService";
-import { spawnThreatEncounter } from "./services/enemyEncounterService";
+} from "./services/enemies/threatService";
+import { spawnThreatEncounter } from "./services/enemies/enemyEncounterService";
 import {
 	formatPlaytestBuildList,
 	getPlaytestBuild,
-} from "./services/buildService";
-import type { PlaytestBuild } from "./services/buildPresets";
+} from "./services/player/buildService";
+import type { PlaytestBuild } from "./services/player/buildPresets";
 import {
 	addCollectedPowerup,
 	clearGameLoopUi,
@@ -137,21 +137,21 @@ import {
 import {
 	clearRecoveryOffers,
 	clearRunInventory,
-} from "./services/runInventoryService";
+} from "./services/runs/runInventoryService";
 import { resetPowerupRuntime } from "./powerups";
 import {
 	getDebugEnemyTypes,
 	isDebugEnemyType,
 	spawnAllDebugEnemies,
 	spawnDebugEnemies,
-} from "./services/debugEnemySpawnService";
+} from "./services/debug/debugEnemySpawnService";
 import {
 	beginProfilerFrame,
 	frameProfilerEnabled,
 	profileSection,
 	resetFrameProfiler,
 	setFrameProfilerEnabled,
-} from "./services/frameProfilerService";
+} from "./services/debug/frameProfilerService";
 import {
 	clearDebreeStressTest,
 	clearEnemyStressTest,
@@ -165,40 +165,40 @@ import {
 	spawnEnemyStressTest,
 	spawnProjectileStressTest,
 	spawnRocketStressTest,
-} from "./services/performanceStressService";
+} from "./services/debug/performanceStressService";
 import {
 	cancelPerformanceBenchmark,
 	formatPerformanceBenchmarkReport,
 	getPerformanceBenchmarkStatus,
 	startPerformanceBenchmark,
 	updatePerformanceBenchmark,
-} from "./services/performanceBenchmarkService";
+} from "./services/debug/performanceBenchmarkService";
 import {
 	runLoop,
 	RunFrameContext,
-} from "./services/runLoopService";
+} from "./services/runs/runLoopService";
 import {
 	beginDrawCallProfilerFrame,
 	drawCallTraceRunning,
 	formatDrawCallTraceReport,
 	installDrawCallProfiler,
 	startDrawCallTrace,
-} from "./services/drawCallProfilerService";
-import { updateProjectileBatch } from "./services/projectileService";
-import { updateBatchedEntities } from "./services/entityUpdateService";
+} from "./services/debug/drawCallProfilerService";
+import { updateProjectileBatch } from "./services/combat/projectileService";
+import { updateBatchedEntities } from "./services/core/entityUpdateService";
 import {
 	rebuildRuntimeSpatialIndex,
 	updateRuntimeSpatialIndex,
-} from "./services/runtimeSpatialIndexService";
-import { updateRuntimeVisibility } from "./services/runtimeVisibilityService";
-import { updateEnemySeparation } from "./services/enemySeparationService";
-import { updateBatchedUi } from "./services/uiUpdateService";
-import { updateUiPointerRegions } from "./services/uiPointerService";
+} from "./services/core/runtimeSpatialIndexService";
+import { updateRuntimeVisibility } from "./services/core/runtimeVisibilityService";
+import { updateEnemySeparation } from "./services/enemies/enemySeparationService";
+import { updateBatchedUi } from "./services/ui/uiUpdateService";
+import { updateUiPointerRegions } from "./services/input/uiPointerService";
 import {
 	dialogBlocksGameplay,
 	dialogCapturesInput,
-} from "./services/dialogService";
-import { cutsceneBlocksGameplay } from "./services/cutsceneService";
+} from "./services/narrative/dialogService";
+import { cutsceneBlocksGameplay } from "./services/narrative/cutsceneService";
 import {
 	createLoadingScreen,
 	trackInitialAssets,
@@ -206,16 +206,16 @@ import {
 import {
 	resetNarrativeProgress,
 	shouldStartPrologue,
-} from "./services/narrativeService";
-import { formatPrologueTrace } from "./services/prologueTraceService";
+} from "./services/narrative/narrativeService";
+import { formatPrologueTrace } from "./services/narrative/prologueTraceService";
 import {
 	getAvailableNpcDialogues,
 	startNpcDialogue,
-} from "./services/npcDialogueService";
+} from "./services/narrative/npcDialogueService";
 import {
 	runtimeDebug,
 	type RuntimeDebugCategory,
-} from "./services/runtimeDebugService";
+} from "./services/debug/runtimeDebugService";
 import {
 	getHubChestLuck,
 	getHubLevel,
@@ -225,32 +225,32 @@ import {
 	restockHubGhostChests,
 	setHubLevelForDebug,
 	unlockAllHubContentForDebug,
-} from "./services/hubProgressService";
+} from "./services/hub/hubProgressService";
 import {
 	resetWarpZoneProgress,
 	unlockWarpZone,
 	WARP_ZONES,
-} from "./services/warpZoneService";
+} from "./services/world/warpZoneService";
 import {
 	resetWeaponInventory,
 	unlockWeapon,
 	WEAPONS,
-} from "./services/weaponService";
+} from "./services/player/weaponService";
 import {
 	resetAbilityLoadout,
-} from "./services/abilityLoadoutService";
+} from "./services/abilities/abilityLoadoutService";
 import {
 	resetActiveModule,
-} from "./services/activeModuleService";
-import { equipAbilityWithWorldDrop } from "./services/abilitySwapService";
+} from "./services/abilities/activeModuleService";
+import { equipAbilityWithWorldDrop } from "./services/abilities/abilitySwapService";
 import {
 	ABILITIES,
 	getAbilityDiscoveryKey,
-} from "./services/abilityRegistry";
+} from "./services/abilities/abilityRegistry";
 import { getAllUpgradeDefinitions } from "./upgrades/upgradeRegistry";
 import { spawnRewardPickup } from "./spawn/spawnPowerup";
 import { spawnDebreeValues } from "./spawn/spawnDebree";
-import { splitSalvageValue } from "./services/salvagePickupService";
+import { splitSalvageValue } from "./services/economy/salvagePickupService";
 import {
 	addAvailableDebree,
 	clearAvailableDebree,
@@ -259,11 +259,11 @@ import {
 	loadDepositedDebree,
 	resetDebreeEconomy,
 	spendAvailableDebree,
-} from "./services/debreeEconomyService";
+} from "./services/economy/debreeEconomyService";
 import {
 	clearPendingHubLevelReveal,
 	clearPendingRunEndSummary,
-} from "./services/runCompletionService";
+} from "./services/runs/runCompletionService";
 import {
 	debreeDepositPanelOpen,
 } from "./ui/debreeDepositPanel";
@@ -278,16 +278,16 @@ import {
 	recordTelemetryEnemySpawn,
 	recordTelemetrySalvageSpent,
 	sampleRunTelemetry,
-} from "./services/runTelemetryService";
+} from "./services/runs/runTelemetryService";
 import {
 	formatSyntheticRewardDiversity,
 	simulateSyntheticRuns,
-} from "./services/runSimulationService";
-import { installDisplaySettings } from "./services/displaySettingsService";
+} from "./services/runs/runSimulationService";
+import { installDisplaySettings } from "./services/ui/displaySettingsService";
 import {
 	installInputBindingService,
 	onInputActionPress,
-} from "./services/inputBindingService";
+} from "./services/input/inputBindingService";
 
 export const layers = {
 	bg: "bg",

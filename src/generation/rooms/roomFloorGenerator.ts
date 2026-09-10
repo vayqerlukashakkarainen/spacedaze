@@ -1,11 +1,11 @@
 import {
 	createSimulatedEncounterEnemies,
 	selectEncounterDefinition,
-} from "../../services/enemyEncounterCatalogService"
+} from "../../services/enemies/enemyEncounterCatalogService"
 import {
 	isEnemyProgressionUnlocked,
 	type ProgressionEnemyId,
-} from "../../services/enemyProgressionService"
+} from "../../services/enemies/enemyProgressionService"
 import { hexDistance, hexKey, hexNeighbors, type HexCoord } from "../hexUtils"
 import { SeededRNG } from "../seededRng"
 import {
@@ -13,7 +13,7 @@ import {
 	getFloorThemeIdForDepth,
 } from "../../levels/floorThemes/floorThemeDirectory"
 import type { FloorThemeId } from "../../levels/floorThemes/floorThemeDirectory"
-import { createWakeEncounterEnemies } from "../../services/wakeEncounterService"
+import { createWakeEncounterEnemies } from "../../services/enemies/wakeEncounterService"
 import type {
 	RoomEncounterPlan,
 	RoomFloor,

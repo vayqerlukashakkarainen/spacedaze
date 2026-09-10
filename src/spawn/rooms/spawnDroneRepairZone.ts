@@ -3,19 +3,19 @@ import { interactable, type InteractableComp } from "../../comp/interactable"
 import { getScore, k, layers, mainSoundVolume, spendScore } from "../../main"
 import { starsEmitter } from "../../particles"
 import { spawnRepairedCombatDrone } from "../../powerups"
-import { gameSoundService } from "../../services/gameSoundService"
+import { gameSoundService } from "../../services/audio/gameSoundService"
 import { tags } from "../../tags"
 import { getCompanionVisual } from "../../visuals/companionVisualCatalog"
 import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 import { spawnRing } from "../spawnRing"
 import { spawnRepairStation } from "./spawnRepairStation"
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import { UI_COLORS, UI_FONT_SIZES } from "../../ui/common"
 import {
 	purchaseBurstParticleCount,
 	spawnCurrencyBurst,
 } from "../spawnCurrencyBurst"
-import { playRequirementErrorSound } from "../../services/uiSoundService"
+import { playRequirementErrorSound } from "../../services/audio/uiSoundService"
 
 interface DroneRepairZoneProps {
 	pos: Vec2

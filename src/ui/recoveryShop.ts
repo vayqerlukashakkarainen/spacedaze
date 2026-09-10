@@ -14,17 +14,17 @@ import {
 	getRewardLockReason,
 	REWARD_RARITY_COLORS,
 	RewardRarity,
-} from "../services/rewardService"
+} from "../services/economy/rewardService"
 import {
 	consumeRecoveryOffer,
 	getRecoveryOffers,
 	RecoveryOffer,
-} from "../services/runInventoryService"
-import { gameSoundService } from "../services/gameSoundService"
+} from "../services/runs/runInventoryService"
+import { gameSoundService } from "../services/audio/gameSoundService"
 import {
 	playShopMenuCloseSound,
 	playShopMenuOpenSound,
-} from "../services/shopMenuSoundService"
+} from "../services/audio/shopMenuSoundService"
 import { tags } from "../tags"
 import { addCollectedPowerup } from "./gameUi"
 import { uiState } from "./uiState"
@@ -39,7 +39,7 @@ import {
 	purchaseBurstParticleCount,
 	spawnCurrencyBurst,
 } from "../spawn/spawnCurrencyBurst"
-import { playRequirementErrorSound } from "../services/uiSoundService"
+import { playRequirementErrorSound } from "../services/audio/uiSoundService"
 
 let isOpen = false
 let isClosing = false

@@ -8,14 +8,14 @@ import {
 	Vec2,
 } from "kaplay";
 import { k, layers, mainSoundVolume } from "./main";
-import { gameSoundService } from "./services/gameSoundService";
+import { gameSoundService } from "./services/audio/gameSoundService";
 import { registerHitAnimation } from "./shared";
 import { emitEnemyTrail, sparkEmitter, starsEmitter } from "./particles";
 import { spawnDebree } from "./spawn/spawnDebree";
 import { JitterComp } from "./comp/jitter";
 import { enemyOnDeath } from "./spawn/enemyShared";
-import { RewardSource } from "./services/rewardService";
-import { registerBatchedEntityUpdate } from "./services/entityUpdateService";
+import { RewardSource } from "./services/economy/rewardService";
+import { registerBatchedEntityUpdate } from "./services/core/entityUpdateService";
 import { gridRegistry } from "./grid/gridRegistry";
 import { ACTIVE_RUN_GRID_KEY } from "./grid/gridKeys";
 import { spawnFlash } from "./spawn/spawnFlash";
@@ -23,7 +23,7 @@ import { tags } from "./tags";
 import {
 	startShipPartDamageSmoke,
 	triggerShipPartExplosion,
-} from "./services/shipPartDamageService";
+} from "./services/combat/shipPartDamageService";
 
 interface Part {
 	obj: GameObj<

@@ -1,7 +1,7 @@
 import {
 	getHubSettlementState,
 	HUB_SETTLEMENT_PLOTS,
-} from "../services/hubSettlementService"
+} from "../services/hub/hubSettlementService"
 
 function assert(condition: boolean, message: string) {
 	if (!condition) throw new Error(message)

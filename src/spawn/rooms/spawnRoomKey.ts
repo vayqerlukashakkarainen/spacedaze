@@ -1,16 +1,16 @@
 import type { Vec2 } from "kaplay"
 import { k, layers, mainSoundVolume } from "../../main"
 import { starsEmitter } from "../../particles"
-import { addFloorKeys } from "../../services/roomFloorService"
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { addFloorKeys } from "../../services/world/roomFloorService"
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import {
 	addLocalLight,
 	updateLocalLight,
-} from "../../services/localLightService"
-import { gameSoundService } from "../../services/gameSoundService"
+} from "../../services/world/localLightService"
+import { gameSoundService } from "../../services/audio/gameSoundService"
 import { tags } from "../../tags"
 import { UI_COLORS } from "../../ui/common"
-import { showPopover } from "../../services/popoverService"
+import { showPopover } from "../../services/ui/popoverService"
 import { spawnFlash } from "../spawnFlash"
 import { spawnRing } from "../spawnRing"
 import { getPickupVisual } from "../../visuals/pickupVisualCatalog"

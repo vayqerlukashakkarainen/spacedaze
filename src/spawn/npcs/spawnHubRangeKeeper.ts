@@ -3,29 +3,29 @@ import { timescale } from "../../comp/timescale"
 import { playerObj } from "../../game"
 import { k, layers, velocityScale, WORLD_CAMERA_SCALE } from "../../main"
 import { discoverDroid, getDroidDefinition } from "../../npcs/droidRegistry"
-import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
+import { playCutscene, type CutsceneDefinition } from "../../services/narrative/cutsceneService"
 import {
 	showDialogue,
 	type DialogueLine,
-} from "../../services/dialogService"
-import type { EmotionId } from "../../services/emotionService"
-import { showEmotion } from "../../services/emotionService"
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
-import { getHubLevel } from "../../services/hubProgressService"
+} from "../../services/narrative/dialogService"
+import type { EmotionId } from "../../services/narrative/emotionService"
+import { showEmotion } from "../../services/narrative/emotionService"
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
+import { getHubLevel } from "../../services/hub/hubProgressService"
 import {
 	getNextNpcDialogue,
 	markNpcDialogueSeen,
 	registerNpcDialogueTrigger,
 	type NpcDialogueVariant,
-} from "../../services/npcDialogueService"
-import { registerNpcDialogueIndicator } from "../../services/npcDialogueIndicatorService"
-import { showPopover } from "../../services/popoverService"
+} from "../../services/narrative/npcDialogueService"
+import { registerNpcDialogueIndicator } from "../../services/narrative/npcDialogueIndicatorService"
+import { showPopover } from "../../services/ui/popoverService"
 import {
 	spawnBasicBlaster,
 	spawnEnemyBlaster,
-} from "../../services/projectileHelpers"
-import { hasEnemyLineOfSight } from "../../services/enemyNavigationService"
-import { createEnemySpawnProfile } from "../../services/threatService"
+} from "../../services/combat/projectileHelpers"
+import { hasEnemyLineOfSight } from "../../services/enemies/enemyNavigationService"
+import { createEnemySpawnProfile } from "../../services/enemies/threatService"
 import { jitter } from "../../comp/jitter"
 import { tags } from "../../tags"
 import { createNpcInteractionPrompt } from "../../ui/common"

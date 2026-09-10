@@ -15,13 +15,13 @@ import {
 	toggleWeaponFavorite,
 	type WeaponDefinition,
 	type WeaponId,
-} from "../services/weaponService"
+} from "../services/player/weaponService"
 import {
 	onInputActionPress,
 	onInputActionRelease,
 	type InputController,
-} from "../services/inputBindingService"
-import { gameSoundService } from "../services/gameSoundService"
+} from "../services/input/inputBindingService"
+import { gameSoundService } from "../services/audio/gameSoundService"
 import { tags } from "../tags"
 import { UI_COLORS } from "./common/theme"
 

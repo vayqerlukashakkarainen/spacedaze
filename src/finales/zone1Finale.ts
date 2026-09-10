@@ -9,7 +9,7 @@ import { tags } from "../tags";
 import { endSong, loadSongData } from "../web";
 import { spawnCrate } from "../spawn/spawnCrate";
 import { spawnSpawner } from "../spawn/spawnSpawner";
-import { audioService } from "../services/audioService";
+import { audioService } from "../services/audio/audioService";
 import type { FinaleDefinition } from "./finaleTypes";
 import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject";
 import { spawnBoss1 } from "../spawn/spawnBoss1";
@@ -17,10 +17,10 @@ import { UI_FONT_SIZES } from "../ui/common";
 import {
 	getThreatSnapshot,
 	scaleThreatSpawnCount,
-} from "../services/threatService";
-import { getRunFinaleBattleZone } from "../services/runFinaleArenaService";
-import { getBossHealth } from "../services/bossRegistry";
-import { getCurrentRunFloor } from "../services/runDirectorService";
+} from "../services/enemies/threatService";
+import { getRunFinaleBattleZone } from "../services/runs/runFinaleArenaService";
+import { getBossHealth } from "../services/enemies/bossRegistry";
+import { getCurrentRunFloor } from "../services/runs/runDirectorService";
 
 let lvlData: any = {};
 let timer = 0;

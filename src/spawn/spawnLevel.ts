@@ -4,16 +4,16 @@ import { k, layers } from "../main";
 import { tags } from "../tags";
 import { timescale } from "../comp/timescale";
 import { LevelKey } from "../levels/levels";
-import { startLevelTransition } from "../services/levelTransitionService";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
-import { audioService } from "../services/audioService";
-import { gameSoundService } from "../services/gameSoundService"
+import { startLevelTransition } from "../services/world/levelTransitionService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
+import { audioService } from "../services/audio/audioService";
+import { gameSoundService } from "../services/audio/gameSoundService"
 import { UI_FONT_SIZES } from "../ui/common";
 import { menuBlocksPostProcessing } from "../ui/uiState";
 import {
 	getPostProcessingEnabled,
 	onPostProcessingEnabledChange,
-} from "../services/displaySettingsService";
+} from "../services/ui/displaySettingsService";
 import { interactable } from "../comp/interactable";
 import { createNpcInteractionPrompt } from "../ui/common";
 

@@ -1,0 +1,170 @@
+import type {
+	GameObj,
+	OpacityComp,
+	PosComp,
+	ScaleComp,
+	Vec2,
+} from "kaplay"
+import { k, layers, mainSoundVolume } from "../../main"
+import { tags } from "../../tags"
+import { gameSoundService } from "../audio/gameSoundService"
+import {
+	createSpaceJumpStreaks,
+	drawSpaceJump,
+} from "../world/spaceJumpVisualService"
+
+type AnimatedMenuObject = GameObj<PosComp | OpacityComp>
+type AnimatedPlanet = GameObj<PosComp | ScaleComp | OpacityComp>
+
+interface MainMenuSpaceJumpOptions {
+	interfaceRoot: AnimatedMenuObject
+	planet: AnimatedPlanet
+	planetTargetPos: Vec2
+	onJump: () => void
+}
+
+const FADE_DURATION = 0.5
+const PLANET_ALIGN_DURATION = 0.58
+const JUMP_START = 0.64
+const PLANET_ZOOM_START = JUMP_START + 1
+const FLASH_START = JUMP_START + 2.84
+const FLASH_PEAK = JUMP_START + 2.9
+const FLASH_END = JUMP_START + 2.96
+const PLANET_JUMP_ZOOM = 1.04
+
+export function startMainMenuSpaceJump(
+	options: MainMenuSpaceJumpOptions
+) {
+	const interfaceStartPos = options.interfaceRoot.pos.clone()
+	const fadingObjects = collectFadingObjects(options.interfaceRoot)
+	const planetStartPos = options.planet.pos.clone()
+	const planetStartScale = options.planet.scale.clone()
+	const planetStartOpacity = options.planet.opacity
+	const streaks = createSpaceJumpStreaks(120)
+	let elapsed = 0
+	let jumped = false
+	let warpSoundStarted = false
+	let shakeTimer = 0
+
+	const effect = k.add([
+		k.pos(0, 0),
+		k.fixed(),
+		k.layer(layers.uiEffects),
+		k.z(10000),
+		tags.mainMenuTransition,
+		{
+			update() {
+				elapsed += k.dt()
+				if (!warpSoundStarted && elapsed >= JUMP_START) {
+					warpSoundStarted = true
+					gameSoundService.play("menu_spacejump_warp", {
+						volume: mainSoundVolume * 0.9,
+					})
+				}
+				const fade = easeOutCubic(k.clamp(elapsed / FADE_DURATION, 0, 1))
+				if (options.interfaceRoot.exists()) {
+					options.interfaceRoot.pos = interfaceStartPos.add(-34 * fade, 0)
+					options.interfaceRoot.hidden = fade >= 0.99
+				}
+				for (const fadingObject of fadingObjects) {
+					if (fadingObject.object.exists()) {
+						fadingObject.object.opacity = fadingObject.startOpacity * (1 - fade)
+					}
+				}
+				if (options.planet.exists()) {
+					const alignment = easeInOutCubic(
+						k.clamp(elapsed / PLANET_ALIGN_DURATION, 0, 1)
+					)
+					options.planet.pos = planetStartPos.lerp(
+						options.planetTargetPos,
+						alignment
+					)
+					options.planet.opacity = k.lerp(
+						planetStartOpacity,
+						0.92,
+						alignment
+					)
+			const jumpAcceleration = easeInQuad(
+				k.clamp(
+					(elapsed - PLANET_ZOOM_START) /
+						(FLASH_PEAK - PLANET_ZOOM_START),
+					0,
+					1
+						)
+					)
+					options.planet.scale = planetStartScale.scale(
+						k.lerp(1, PLANET_JUMP_ZOOM, jumpAcceleration)
+					)
+				}
+
+				if (elapsed > JUMP_START && elapsed < FLASH_PEAK) {
+					shakeTimer -= k.dt()
+					if (shakeTimer <= 0) {
+						const acceleration = easeInQuad(
+							k.clamp(
+								(elapsed - JUMP_START) / (FLASH_PEAK - JUMP_START),
+								0,
+								1
+							)
+						)
+						k.shake(k.lerp(0.15, 7, acceleration))
+						shakeTimer = k.lerp(0.12, 0.05, acceleration)
+					}
+				}
+
+				if (!jumped && elapsed >= FLASH_PEAK) {
+					jumped = true
+					options.onJump()
+				}
+				if (elapsed >= FLASH_END) k.destroy(this)
+			},
+			draw() {
+				const jumpRamp = easeInQuad(
+					k.clamp((elapsed - JUMP_START) / (FLASH_PEAK - JUMP_START), 0, 1)
+				)
+				const jump = elapsed <= FLASH_PEAK
+					? jumpRamp
+					: k.clamp(1 - (elapsed - FLASH_PEAK) / (FLASH_END - FLASH_PEAK), 0, 1)
+				drawSpaceJump(streaks, elapsed, jump)
+				const flashOpacity = elapsed < FLASH_PEAK
+					? k.clamp((elapsed - FLASH_START) / (FLASH_PEAK - FLASH_START), 0, 1)
+					: k.clamp(1 - (elapsed - FLASH_PEAK) / (FLASH_END - FLASH_PEAK), 0, 1)
+				if (flashOpacity > 0) {
+					k.drawRect({
+						pos: k.vec2(0, 0),
+						width: k.width(),
+						height: k.height(),
+						color: k.WHITE,
+						opacity: flashOpacity,
+					})
+				}
+			},
+		},
+	])
+	return effect
+}
+
+function collectFadingObjects(root: GameObj) {
+	return [root, ...root.get("*", { recursive: true })].map((object) => {
+		if (!object.has("opacity")) object.use(k.opacity(1))
+		const fadingObject = object as GameObj<OpacityComp>
+		return {
+			object: fadingObject,
+			startOpacity: fadingObject.opacity,
+		}
+	})
+}
+
+function easeInQuad(value: number) {
+	return value * value
+}
+
+function easeInOutCubic(value: number) {
+	return value < 0.5
+		? 4 * value * value * value
+		: 1 - Math.pow(-2 * value + 2, 3) / 2
+}
+
+function easeOutCubic(value: number) {
+	return 1 - Math.pow(1 - value, 3)
+}

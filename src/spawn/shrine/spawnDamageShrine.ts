@@ -1,14 +1,14 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileIntersection } from "../../game";
 import { dt, k, layers, mainSoundVolume } from "../../main";
-import { gameSoundService } from "../../services/gameSoundService"
+import { gameSoundService } from "../../services/audio/gameSoundService"
 import { explosionEmitter } from "../../particles";
 import { tags } from "../../tags";
 import { registerHitAnimation } from "../../shared";
-import { showDamageNumber } from "../../services/damageService";
-import { tryBounceProjectile } from "../../services/projectileService";
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService";
-import { spawnThreatEncounter } from "../../services/enemyEncounterService";
+import { showDamageNumber } from "../../services/combat/damageService";
+import { tryBounceProjectile } from "../../services/combat/projectileService";
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService";
+import { spawnThreatEncounter } from "../../services/enemies/enemyEncounterService";
 import { getWorldVisual } from "../../visuals/worldVisualCatalog";
 import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation";
 

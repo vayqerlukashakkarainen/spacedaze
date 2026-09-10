@@ -1,20 +1,20 @@
 import { GameObj, Vec2 } from "kaplay";
 import { checkProjectileIntersection, playerObj } from "../game";
 import { k, subSoundVolume, velocityScale } from "../main";
-import { gameSoundService } from "../services/gameSoundService"
+import { gameSoundService } from "../services/audio/gameSoundService"
 import { starsEmitterDir } from "../particles";
 import { tags } from "../tags";
 import { registerHitAnimation } from "../shared";
 import { onEnemyHit } from "./enemyShared";
 import { timescale } from "../comp/timescale";
-import { applyDamage } from "../services/damageService";
-import { isPlayerDamageInvulnerable } from "../services/playerDamageState";
+import { applyDamage } from "../services/combat/damageService";
+import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState";
 import {
 	createEnemySpawnProfile,
 	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
-} from "../services/threatService";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+} from "../services/enemies/threatService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog";
 
 const GENERIC_VEHICLE_VISUAL = getEnemyVisual("generic-vehicle");

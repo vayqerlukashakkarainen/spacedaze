@@ -4,7 +4,7 @@ import {
 	getInputPromptGlyph,
 	getInputPromptKeys,
 	type InputPromptAction,
-} from "../../services/inputPromptService"
+} from "../../services/input/inputPromptService"
 import { UI_COLORS, UI_FONT_SIZES } from "./theme"
 
 export interface InputPromptEntry {

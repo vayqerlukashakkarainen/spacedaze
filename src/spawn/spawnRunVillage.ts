@@ -1,6 +1,6 @@
 import type { HexGrid } from "../grid/hexGrid"
 import { k, layers } from "../main"
-import type { RunVillageZone } from "../services/runVillageService"
+import type { RunVillageZone } from "../services/runs/runVillageService"
 import { tags } from "../tags"
 import { addBuildingPlayerDepth } from "../comp/buildingPlayerDepth"
 import { RUN_VILLAGE_VISUALS } from "../visuals/worldVisualCatalog"

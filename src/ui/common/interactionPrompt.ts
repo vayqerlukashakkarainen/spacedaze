@@ -7,12 +7,12 @@ import { UI_COLORS, UI_FONT_SIZES } from "./theme"
 import {
 	interactionPromptsSuppressed,
 	registerInteractionPromptHide,
-} from "../../services/interactionPromptVisibilityService"
+} from "../../services/ui/interactionPromptVisibilityService"
 import type { InteractableComp } from "../../comp/interactable"
 import {
 	formatInputBindingCompact,
 	getInputBinding,
-} from "../../services/inputBindingService"
+} from "../../services/input/inputBindingService"
 
 export interface InteractionPromptContent {
 	title: string

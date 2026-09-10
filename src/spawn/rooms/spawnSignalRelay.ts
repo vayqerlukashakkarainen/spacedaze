@@ -1,15 +1,15 @@
 import type { Vec2 } from "kaplay"
 import { playerObj } from "../../game"
 import { k, layers, mainSoundVolume } from "../../main"
-import { addThreatTime } from "../../services/threatService"
-import { spawnThreatEncounter } from "../../services/enemyEncounterService"
-import { gameSoundService } from "../../services/gameSoundService"
+import { addThreatTime } from "../../services/enemies/threatService"
+import { spawnThreatEncounter } from "../../services/enemies/enemyEncounterService"
+import { gameSoundService } from "../../services/audio/gameSoundService"
 import { tags } from "../../tags"
 import { spawnBuilding } from "../spawnBuilding"
 import { spawnRing } from "../spawnRing"
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import { UI_FONT_SIZES } from "../../ui/common"
-import { createChargeZoneFeedback } from "../../services/chargeZoneFeedbackService"
+import { createChargeZoneFeedback } from "../../services/combat/chargeZoneFeedbackService"
 
 interface SignalRelayProps {
 	pos: Vec2

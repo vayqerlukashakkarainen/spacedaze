@@ -1,20 +1,20 @@
 import type { Vec2 } from "kaplay"
 import { playerObj } from "../../game"
 import { getScore, k, layers, mainSoundVolume, spendScore } from "../../main"
-import { addThreatTime } from "../../services/threatService"
-import { spawnThreatEncounter } from "../../services/enemyEncounterService"
-import { gameSoundService } from "../../services/gameSoundService"
+import { addThreatTime } from "../../services/enemies/threatService"
+import { spawnThreatEncounter } from "../../services/enemies/enemyEncounterService"
+import { gameSoundService } from "../../services/audio/gameSoundService"
 import { tags } from "../../tags"
 import { spawnBuilding } from "../spawnBuilding"
 import { spawnRing } from "../spawnRing"
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import { UI_FONT_SIZES } from "../../ui/common"
 import {
 	purchaseBurstParticleCount,
 	spawnCurrencyBurst,
 } from "../spawnCurrencyBurst"
-import { playRequirementErrorSound } from "../../services/uiSoundService"
-import { recoverPlayerHealth } from "../../services/playerHealthService"
+import { playRequirementErrorSound } from "../../services/audio/uiSoundService"
+import { recoverPlayerHealth } from "../../services/player/playerHealthService"
 
 interface RepairStationProps {
 	pos: Vec2

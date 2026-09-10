@@ -2,7 +2,7 @@ import type { Vec2 } from "kaplay"
 import { ASTEROID_SPRITES } from "../../asteroidSprites"
 import type { HexGrid } from "../../grid/hexGrid"
 import { k } from "../../main"
-import { getReddishBackgroundTint } from "../../services/backgroundPaletteService"
+import { getReddishBackgroundTint } from "../../services/world/backgroundPaletteService"
 import { spawnBackgroundObject } from "../../spawn/spawnBackgroundObject"
 import { SeededRNG } from "../seededRng"
 

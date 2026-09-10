@@ -1,16 +1,16 @@
 import type { Vec2 } from "kaplay"
 import { playerObj } from "../game"
 import { k, velocityScale } from "../main"
-import { spawnArtilleryBoulder } from "../services/artilleryBoulderService"
-import { applyDamage } from "../services/damageService"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
-import { spawnTargetTelegraph } from "../services/enemyTelegraphService"
-import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
+import { spawnArtilleryBoulder } from "../services/combat/artilleryBoulderService"
+import { applyDamage } from "../services/combat/damageService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemies/enemyNavigationService"
+import { spawnTargetTelegraph } from "../services/enemies/enemyTelegraphService"
+import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState"
 import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
-} from "../services/threatService"
+} from "../services/enemies/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog"

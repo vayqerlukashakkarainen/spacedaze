@@ -12,15 +12,15 @@ import {
 	generateWeaponChestRewardChoices,
 	Rarity,
 } from "../chestRewards";
-import { audioService } from "../services/audioService";
-import { gameSoundService } from "../services/gameSoundService"
+import { audioService } from "../services/audio/audioService";
+import { gameSoundService } from "../services/audio/gameSoundService"
 import { shake } from "../comp/shake";
 import {
 	applyReward,
 	getAbilityRewardDefinitionIds,
 	isAbilityReward,
 	REWARD_RARITY_COLORS,
-} from "../services/rewardService";
+} from "../services/economy/rewardService";
 import { getUiEffects } from "../particles";
 import { addCollectedPowerup } from "./gameUi";
 import {
@@ -51,8 +51,8 @@ import {
 import {
 	incrementPerformanceCounter,
 	recordSectionTime,
-} from "../services/frameProfilerService";
-import { registerBatchedUiUpdate } from "../services/uiUpdateService";
+} from "../services/debug/frameProfilerService";
+import { registerBatchedUiUpdate } from "../services/ui/uiUpdateService";
 import {
 	getRerollTokens,
 	spendRerollToken,
@@ -61,14 +61,14 @@ import {
 	purchaseBurstParticleCount,
 	spawnCurrencyBurst,
 } from "../spawn/spawnCurrencyBurst";
-import { playRequirementErrorSound } from "../services/uiSoundService";
+import { playRequirementErrorSound } from "../services/audio/uiSoundService";
 import {
 	recordTelemetryChestReroll,
 	recordTelemetryChestResult,
 	recordTelemetryChestRetry,
 	recordTelemetryRewardOffered,
-} from "../services/runTelemetryService";
-import { equipAbilityWithWorldDrop } from "../services/abilitySwapService";
+} from "../services/runs/runTelemetryService";
+import { equipAbilityWithWorldDrop } from "../services/abilities/abilitySwapService";
 import { playerObj } from "../game";
 import { getRewardStatComparisonRows } from "./rewardStatComparison";
 import { spawnRewardPickup } from "../spawn/spawnPowerup";

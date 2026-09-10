@@ -31,18 +31,18 @@ import {
 	rollFloorEnemyKeyDrop,
 	teleportToFloorRoom as teleportRoomState,
 	unlockFloorRoomWithKey,
-} from "../services/roomFloorService"
-import { spawnPlannedEnemy } from "../services/enemyEncounterService"
-import { gameSoundService } from "../services/gameSoundService"
-import { setFloorMusicCombatState } from "../services/explorationMusicService"
-import { getBossHealth } from "../services/bossRegistry"
-import { getHubLevel } from "../services/hubProgressService"
-import { resetPlayerPath } from "../services/playerPathService"
+} from "../services/world/roomFloorService"
+import { spawnPlannedEnemy } from "../services/enemies/enemyEncounterService"
+import { gameSoundService } from "../services/audio/gameSoundService"
+import { setFloorMusicCombatState } from "../services/audio/explorationMusicService"
+import { getBossHealth } from "../services/enemies/bossRegistry"
+import { getHubLevel } from "../services/hub/hubProgressService"
+import { resetPlayerPath } from "../services/player/playerPathService"
 import {
 	addLocalLight,
 	updateLocalLight,
-} from "../services/localLightService"
-import { startThreatLevel, stopThreatLevel, updateThreatLevel } from "../services/threatService"
+} from "../services/world/localLightService"
+import { startThreatLevel, stopThreatLevel, updateThreatLevel } from "../services/enemies/threatService"
 import { spawnBoss1 } from "../spawn/spawnBoss1"
 import { spawnChest } from "../spawn/spawnChest"
 import { spawnDebreeDeposit } from "../spawn/spawnDebreeDeposit"
@@ -62,9 +62,9 @@ import { getShrineLevelConfig } from "../spawn/shrine/shrineLevel"
 import { playPlayerRespawnTransition } from "../setupPlayer"
 import { tags } from "../tags"
 import { createNpcInteractionPrompt, UI_COLORS } from "../ui/common"
-import { playRequirementErrorSound } from "../services/uiSoundService"
-import { rollMapEventReward } from "../services/rewardService"
-import { clearRoomCoverSources } from "../services/roomCoverService"
+import { playRequirementErrorSound } from "../services/audio/uiSoundService"
+import { rollMapEventReward } from "../services/economy/rewardService"
+import { clearRoomCoverSources } from "../services/world/roomCoverService"
 import {
 	getEnemyVisual,
 } from "../visuals/enemyVisualCatalog"

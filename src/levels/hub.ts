@@ -1,6 +1,6 @@
 import { endSong } from "../web";
 import type { Color, Vec2 } from "kaplay";
-import { audioService } from "../services/audioService";
+import { audioService } from "../services/audio/audioService";
 import {
 	spawnDecorativeWormhole,
 	spawnLevel,
@@ -8,7 +8,7 @@ import {
 import { getScore, k, layers, spendScore } from "../main";
 import { Level } from "./levels";
 import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject";
-import { getReddishBackgroundTint } from "../services/backgroundPaletteService";
+import { getReddishBackgroundTint } from "../services/world/backgroundPaletteService";
 import { spawnChest } from "../spawn/spawnChest";
 import { playerObj, projectiles } from "../game";
 import { tags } from "../tags";
@@ -33,7 +33,7 @@ import {
 	isFacilityBuilt,
 	isFacilityUnlocked,
 	startFacilityConstruction,
-} from "../services/hubProgressService";
+} from "../services/hub/hubProgressService";
 import {
 	showPhaseStation,
 	showRunPreparation,
@@ -41,14 +41,14 @@ import {
 } from "../ui/hubFacilities";
 import { saveGame } from "../util";
 import { starsEmitter } from "../particles";
-import { beginRunSession } from "../services/runDirectorService";
-import { getUnlockedWarpZones } from "../services/warpZoneService";
+import { beginRunSession } from "../services/runs/runDirectorService";
+import { getUnlockedWarpZones } from "../services/world/warpZoneService";
 import { ASTEROID_SPRITES } from "../asteroidSprites";
 import { phaseJumpActive } from "../setupPlayer";
-import { tryBounceProjectile } from "../services/projectileService";
-import { applyDamage } from "../services/damageService";
+import { tryBounceProjectile } from "../services/combat/projectileService";
+import { applyDamage } from "../services/combat/damageService";
 import { spawnGravityPull } from "../spawn/spawnGravityPull";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
 import { PLANET_CHUNK_SPRITES } from "../planetChunkSprites";
 import {
 	purchaseBurstParticleCount,
@@ -58,28 +58,28 @@ import { showPendingRunEndSummary } from "../ui/runEndSummary";
 import { spawnHubRestoration } from "../spawn/spawnHubRestoration";
 import {
 	consumePendingHubLevelReveal,
-} from "../services/runCompletionService";
+} from "../services/runs/runCompletionService";
 import {
 	playHubRestorationLevelReveal,
-} from "../services/hubRestorationCutsceneService";
+} from "../services/hub/hubRestorationCutsceneService";
 import {
 	HubRepairCrew,
 	spawnHubRepairCrew,
 } from "../spawn/npcs/spawnHubRepairCrew";
-import { playRequirementErrorSound } from "../services/uiSoundService";
+import { playRequirementErrorSound } from "../services/audio/uiSoundService";
 import { spawnHubAsteroidRunner } from "../spawn/npcs/spawnHubAsteroidRunner";
 import { spawnHubRangeKeeper } from "../spawn/npcs/spawnHubRangeKeeper";
 import { spawnHubBirthdayPair } from "../spawn/npcs/spawnHubBirthdayPair";
 import { spawnHubLampKeeper } from "../spawn/npcs/spawnHubLampKeeper";
 import { spawnHubBurt } from "../spawn/npcs/spawnHubBurt";
-import { getHubBurtLocation } from "../services/narrativeService";
+import { getHubBurtLocation } from "../services/narrative/narrativeService";
 import { spawnHubSettlement } from "../spawn/spawnHubSettlement";
 import { spawnHubFiringRange } from "../spawn/spawnHubFiringRange";
 import { addBuildingPlayerDepth } from "../comp/buildingPlayerDepth";
 import {
 	addLocalLight,
 	updateLocalLight,
-} from "../services/localLightService";
+} from "../services/world/localLightService";
 import {
 	HUB_FACILITY_OFFSETS,
 	HUB_FIRING_RANGE_OFFSET,
@@ -87,8 +87,8 @@ import {
 	HUB_HALF_WIDTH,
 	HUB_PHASE_FIELD_OFFSET,
 	HUB_WORMHOLE_OFFSET,
-} from "../services/hubLayoutService";
-import { restoreStrafeTrainingSequence } from "../services/strafeTrainingService";
+} from "../services/hub/hubLayoutService";
+import { restoreStrafeTrainingSequence } from "../services/hub/strafeTrainingService";
 
 let lvlData: any = {};
 let bgAsteroidTimer = 0;

@@ -14,21 +14,21 @@ import {
 	getRewardDefinition,
 	getRewardDefinitions,
 	getRewardLockReason,
-} from "../../services/rewardService"
-import { addAvailableDebree } from "../../services/debreeEconomyService"
-import { getActiveRoomFloor } from "../../services/roomFloorService"
-import { selectRunUpgradeShopOffers } from "../../services/runUpgradeShopService"
-import { getThreatSnapshot } from "../../services/threatService"
-import { gameSoundService } from "../../services/gameSoundService"
-import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+} from "../../services/economy/rewardService"
+import { addAvailableDebree } from "../../services/economy/debreeEconomyService"
+import { getActiveRoomFloor } from "../../services/world/roomFloorService"
+import { selectRunUpgradeShopOffers } from "../../services/runs/runUpgradeShopService"
+import { getThreatSnapshot } from "../../services/enemies/threatService"
+import { gameSoundService } from "../../services/audio/gameSoundService"
+import { playCutscene, type CutsceneDefinition } from "../../services/narrative/cutsceneService"
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import {
 	hasSeenNpcDialogue,
 	markNpcDialogueSeen,
 	registerNpcDialogueTrigger,
-} from "../../services/npcDialogueService"
-import { registerNpcDialogueIndicator } from "../../services/npcDialogueIndicatorService"
-import { playRequirementErrorSound } from "../../services/uiSoundService"
+} from "../../services/narrative/npcDialogueService"
+import { registerNpcDialogueIndicator } from "../../services/narrative/npcDialogueIndicatorService"
+import { playRequirementErrorSound } from "../../services/audio/uiSoundService"
 import {
 	purchaseBurstParticleCount,
 	spawnCurrencyBurst,

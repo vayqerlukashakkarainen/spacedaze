@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { getEnemyProgressionRoster } from "../services/enemyProgressionService"
+import { getEnemyProgressionRoster } from "../services/enemies/enemyProgressionService"
 import { COMPANION_VISUALS } from "./companionVisualCatalog"
 import {
 	ENEMY_VISUALS,

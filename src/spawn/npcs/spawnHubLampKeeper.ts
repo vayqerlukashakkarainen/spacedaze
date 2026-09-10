@@ -1,16 +1,16 @@
 import { interactable, INTERACTION_PRIORITY } from "../../comp/interactable"
 import { k, layers, WORLD_CAMERA_SCALE } from "../../main"
 import { discoverDroid, getDroidDefinition } from "../../npcs/droidRegistry"
-import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
-import { getHubLevel } from "../../services/hubProgressService"
+import { playCutscene, type CutsceneDefinition } from "../../services/narrative/cutsceneService"
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
+import { getHubLevel } from "../../services/hub/hubProgressService"
 import {
 	markNpcDialogueSeen,
 	registerNpcDialogueTrigger,
 	type NpcDialogueVariant,
-} from "../../services/npcDialogueService"
-import { registerNpcDialogueIndicator } from "../../services/npcDialogueIndicatorService"
-import { showPopover } from "../../services/popoverService"
+} from "../../services/narrative/npcDialogueService"
+import { registerNpcDialogueIndicator } from "../../services/narrative/npcDialogueIndicatorService"
+import { showPopover } from "../../services/ui/popoverService"
 import { tags } from "../../tags"
 import { createNpcInteractionPrompt } from "../../ui/common"
 import {

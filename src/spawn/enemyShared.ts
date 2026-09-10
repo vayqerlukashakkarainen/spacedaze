@@ -5,26 +5,26 @@ import { spawnDebree } from "./spawnDebree";
 import {
 	applyProjectileDamage,
 	spawnProjectile,
-} from "../services/projectileService";
+} from "../services/combat/projectileService";
 import {
 	RewardSource,
 	rollDropReward,
-} from "../services/rewardService";
+} from "../services/economy/rewardService";
 import { spawnRewardPickup } from "./spawnPowerup";
-import { getForgeDropMultiplier } from "../services/hubProgressService";
+import { getForgeDropMultiplier } from "../services/hub/hubProgressService";
 import {
 	recordRunKill,
 	runStatsActive,
-} from "../services/runStatsService";
+} from "../services/runs/runStatsService";
 import { trySpawnHealthOrb } from "./spawnHealthOrb";
 import { trySpawnHackedAlly } from "./spawnHackedAlly";
 import { tags } from "../tags";
 import { spawnEnemyDeathEffect } from "./spawnEnemyDeathEffect";
 import type { EnemyDeathTier } from "./spawnEnemyDeathEffect";
-import { grantUltimateCharge } from "../services/ultimateAbilityService";
+import { grantUltimateCharge } from "../services/abilities/ultimateAbilityService";
 import { player } from "../player";
-import { triggerWreckHarvesterFeedback } from "../services/passiveUpgradeRuntimeService";
-import { addRunLevelXp } from "../services/runLevelService";
+import { triggerWreckHarvesterFeedback } from "../services/abilities/passiveUpgradeRuntimeService";
+import { addRunLevelXp } from "../services/runs/runLevelService";
 
 interface EnemyDeathVisualOptions {
 	intensity?: number;

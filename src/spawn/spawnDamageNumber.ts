@@ -2,7 +2,7 @@ import type { Color, Vec2 } from "kaplay"
 import { timescale } from "../comp/timescale"
 import { k, layers } from "../main"
 import { tags } from "../tags"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 const DAMAGE_NUMBER_LIFETIME = 0.65
 const DAMAGE_NUMBER_RISE_SPEED = 24
 const DAMAGE_NUMBER_SIZE = 7

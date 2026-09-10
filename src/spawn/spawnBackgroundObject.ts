@@ -1,7 +1,7 @@
 import { Color, GameObj, Vec2 } from "kaplay";
 import { dtScaled, k, layers } from "../main";
 import { tags } from "../tags";
-import { profileSection } from "../services/frameProfilerService";
+import { profileSection } from "../services/debug/frameProfilerService";
 
 interface BackgroundObjectProps {
 	pos: Vec2;

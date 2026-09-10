@@ -6,21 +6,21 @@ import {
 	getDroidDefinition,
 	type DroidId,
 } from "../../npcs/droidRegistry"
-import { audioService } from "../../services/audioService"
-import { gameSoundService } from "../../services/gameSoundService"
-import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
-import type { DialogueLine } from "../../services/dialogService"
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { audioService } from "../../services/audio/audioService"
+import { gameSoundService } from "../../services/audio/gameSoundService"
+import { playCutscene, type CutsceneDefinition } from "../../services/narrative/cutsceneService"
+import type { DialogueLine } from "../../services/narrative/dialogService"
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import {
 	markNpcDialogueSeen,
 	registerNpcDialogueTrigger,
-} from "../../services/npcDialogueService"
-import { registerNpcDialogueIndicator } from "../../services/npcDialogueIndicatorService"
+} from "../../services/narrative/npcDialogueService"
+import { registerNpcDialogueIndicator } from "../../services/narrative/npcDialogueIndicatorService"
 import {
 	completeBirthdayEncounter,
 	shouldShowBirthdayEncounter,
-} from "../../services/narrativeService"
-import { showPopover } from "../../services/popoverService"
+} from "../../services/narrative/narrativeService"
+import { showPopover } from "../../services/ui/popoverService"
 import { tags } from "../../tags"
 import { createNpcInteractionPrompt } from "../../ui/common"
 import { randomExplosion } from "../../util"

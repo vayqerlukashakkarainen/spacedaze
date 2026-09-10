@@ -1,7 +1,7 @@
 import type { Vec2 } from "kaplay"
 import { k, layers } from "../main"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { drawLightning } from "../services/lightningVisualService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
+import { drawLightning } from "../services/combat/lightningVisualService"
 import { tags } from "../tags"
 
 interface EmpDischargeProps {

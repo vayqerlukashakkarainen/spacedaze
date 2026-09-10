@@ -1,9 +1,9 @@
 import type { GameObj, PosComp, Vec2 } from "kaplay"
 import { k, layers } from "../main"
-import { applyDamage } from "../services/damageService"
+import { applyDamage } from "../services/combat/damageService"
 import { tags } from "../tags"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { forEachSpatialNearby } from "../services/runtimeSpatialIndexService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
+import { forEachSpatialNearby } from "../services/core/runtimeSpatialIndexService"
 
 interface Props {
 	pos: Vec2

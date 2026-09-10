@@ -12,49 +12,49 @@ import {
 	isAbilityReward,
 	Reward,
 	REWARD_RARITY_COLORS,
-} from "../services/rewardService";
+} from "../services/economy/rewardService";
 import { tags } from "../tags";
 import { uiState } from "./uiState";
-import { recordRunReward } from "../services/runInventoryService";
-import { discoverBlueprint } from "../services/hubProgressService";
-import { recordRunReward as recordRunRewardStat } from "../services/runStatsService";
+import { recordRunReward } from "../services/runs/runInventoryService";
+import { discoverBlueprint } from "../services/hub/hubProgressService";
+import { recordRunReward as recordRunRewardStat } from "../services/runs/runStatsService";
 import {
 	recordTelemetryRewardSelected,
 	type RewardTelemetryDetails,
-} from "../services/runTelemetryService";
+} from "../services/runs/runTelemetryService";
 import {
 	showCollectedRewardPopover,
 	showDiscoveredRewardPopover,
-} from "../services/popoverService";
+} from "../services/ui/popoverService";
 import { createUiPanel } from "./common/panel";
 import { createUiDetailCard } from "./common/detailCard";
 import { UI_COLORS, UI_FONT_SIZES } from "./common/theme";
-import { registerBatchedUiUpdate } from "../services/uiUpdateService";
+import { registerBatchedUiUpdate } from "../services/ui/uiUpdateService";
 import { uiHitRegion } from "./common/hitRegion";
 import { getRerollTokens, player } from "../player";
-import type { ActiveModuleDefinition } from "../services/activeModuleService";
+import type { ActiveModuleDefinition } from "../services/abilities/activeModuleService";
 import { getPickupVisual } from "../visuals/pickupVisualCatalog";
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation";
-import { getEquippedWeapon } from "../services/weaponService";
-import { debreeRunActive } from "../services/debreeEconomyService";
-import type { AbilityDefinition } from "../services/abilityRegistry";
-import { getAbilityDefinition } from "../services/abilityRegistry";
+import { getEquippedWeapon } from "../services/player/weaponService";
+import { debreeRunActive } from "../services/economy/debreeEconomyService";
+import type { AbilityDefinition } from "../services/abilities/abilityRegistry";
+import { getAbilityDefinition } from "../services/abilities/abilityRegistry";
 import {
 	getEquippedMobilityAbilityId,
-} from "../services/abilityLoadoutService";
-import { gameSoundService } from "../services/gameSoundService"
-import { getRunLevelSnapshot } from "../services/runLevelService";
+} from "../services/abilities/abilityLoadoutService";
+import { gameSoundService } from "../services/audio/gameSoundService"
+import { getRunLevelSnapshot } from "../services/runs/runLevelService";
 import { createUiProgressBar } from "./common/progressBar";
 import { hideRunLevelChoice, showRunLevelChoice } from "./runLevelChoice";
 import { RewardRarity } from "../types/rewardTypes";
 import {
 	getStackingRewardFeedbackSnapshot,
 	type StackingRewardFeedbackSnapshot,
-} from "../services/passiveUpgradeRuntimeService";
+} from "../services/abilities/passiveUpgradeRuntimeService";
 import {
 	getActiveRoomFloor,
 	getFloorKeyCount,
-} from "../services/roomFloorService";
+} from "../services/world/roomFloorService";
 
 let healthBarBaseFill: GameObj<RectComp> | null = null;
 let healthBarBonusFill: GameObj<RectComp> | null = null;

@@ -1,5 +1,5 @@
-import { experienceService } from "./services/experienceService";
-import { upgradeService } from "./services/upgradeService";
+import { experienceService } from "./services/progression/experienceService";
+import { upgradeService } from "./services/progression/upgradeService";
 
 // Example level-gated passive upgrades
 const levelRewards: Record<number, () => void> = {

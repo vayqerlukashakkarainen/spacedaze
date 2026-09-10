@@ -10,7 +10,7 @@ import {
 import { k, layers } from "../main";
 import { tags } from "../tags";
 import { interactable, InteractableComp } from "../comp/interactable";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
 import {
 	createInteractionPrompt,
 	type InteractionPromptSource,

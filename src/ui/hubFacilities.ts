@@ -5,7 +5,7 @@ import {
 	getSelectedContract,
 	RunContract,
 	selectContract,
-} from "../services/contractService"
+} from "../services/progression/contractService"
 import {
 	getForgeLevel,
 	getForgeUpgradeCost,
@@ -17,8 +17,8 @@ import {
 	isBlueprintDiscovered,
 	markBlueprintsSeen,
 	upgradeForge,
-} from "../services/hubProgressService"
-import { getLastRunStats } from "../services/runStatsService"
+} from "../services/hub/hubProgressService"
+import { getLastRunStats } from "../services/runs/runStatsService"
 import { setNextGeneratedRunSeed } from "../levels/runMap"
 import { saveGame } from "../util"
 import { tags } from "../tags"
@@ -53,11 +53,11 @@ import {
 	getRewardMinimumHubLevel,
 	REWARD_RARITY_COLORS,
 	RewardRarity,
-} from "../services/rewardService"
+} from "../services/economy/rewardService"
 import {
 	getRarityRank,
 	REWARD_RARITY_ORDER,
-} from "../services/rewardQualityService"
+} from "../services/economy/rewardQualityService"
 import {
 	purchaseBurstParticleCount,
 	spawnCurrencyBurst,
@@ -67,32 +67,32 @@ import {
 	getUpgradeDefinition,
 } from "../upgrades/upgradeRegistry"
 import type { UpgradeDefinition } from "../types/upgradeTypes"
-import { isWeaponOwned, WEAPONS } from "../services/weaponService"
+import { isWeaponOwned, WEAPONS } from "../services/player/weaponService"
 import {
 	ACTIVE_MODULES,
 	equipActiveModule,
 	getEquippedActiveModuleId,
 	type ActiveModuleId,
-} from "../services/activeModuleService"
+} from "../services/abilities/activeModuleService"
 import {
 	playShopMenuCloseSound,
 	playShopMenuOpenSound,
-} from "../services/shopMenuSoundService"
+} from "../services/audio/shopMenuSoundService"
 import {
 	getAbilityDefinition,
 	getAbilitiesForSlot,
 	getAbilityDiscoveryKey,
 	isAbilityDiscovered,
-} from "../services/abilityRegistry"
-import { playRequirementErrorSound } from "../services/uiSoundService"
+} from "../services/abilities/abilityRegistry"
+import { playRequirementErrorSound } from "../services/audio/uiSoundService"
 import {
 	clearAbilitySlot,
 	equipAbilityInSlot,
 	getEquippedAbilityId,
 	type AbilityId,
 	type AbilitySlot,
-} from "../services/abilityLoadoutService"
-import type { WarpZoneDefinition } from "../services/warpZoneService"
+} from "../services/abilities/abilityLoadoutService"
+import type { WarpZoneDefinition } from "../services/world/warpZoneService"
 import {
 	getDroidArchiveStatus,
 	getDroidDefinitions,
@@ -104,7 +104,7 @@ import {
 	formatInputBinding,
 	getInputBinding,
 	type InputActionId,
-} from "../services/inputBindingService"
+} from "../services/input/inputBindingService"
 
 let panelOpen = false
 let panelClosing = false

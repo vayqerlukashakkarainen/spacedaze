@@ -1,7 +1,7 @@
 import type { GameObj } from "kaplay"
 import { horizontalDirectionalVisual } from "../../comp/horizontalDirectionalVisual"
 import { k, layers } from "../../main"
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import { tags } from "../../tags"
 import { getCompanionVisual } from "../../visuals/companionVisualCatalog"
 import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"

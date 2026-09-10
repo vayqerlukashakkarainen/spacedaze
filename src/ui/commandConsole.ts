@@ -1,6 +1,6 @@
 import { GameObj, TextComp, TextInputComp } from "kaplay";
 import { k, layers } from "../main";
-import { commandService } from "../services/commandService";
+import { commandService } from "../services/debug/commandService";
 import { tags } from "../tags";
 import { uiState } from "./uiState";
 import {

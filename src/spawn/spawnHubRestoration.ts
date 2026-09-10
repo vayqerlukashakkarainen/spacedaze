@@ -1,10 +1,10 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { k, layers } from "../main"
-import { getHubLevel } from "../services/hubProgressService"
+import { getHubLevel } from "../services/hub/hubProgressService"
 import {
 	addLocalLight,
 	updateLocalLight,
-} from "../services/localLightService"
+} from "../services/world/localLightService"
 import { tags } from "../tags"
 import { getCompanionVisual } from "../visuals/companionVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"

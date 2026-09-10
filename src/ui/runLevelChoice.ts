@@ -13,7 +13,7 @@ import {
 	createDirectUpgradeReward,
 	REWARD_RARITY_COLORS,
 	type Reward,
-} from "../services/rewardService"
+} from "../services/economy/rewardService"
 import {
 	consumeRunLevelSelection,
 	drawRunLevelOfferIds,
@@ -23,7 +23,7 @@ import {
 	grantRunLevelBonus,
 	rollRunLevelBonusRarity,
 	type RunLevelBonusDefinition,
-} from "../services/runLevelService"
+} from "../services/runs/runLevelService"
 import { tags } from "../tags"
 import { addCollectedPowerup } from "./gameUi"
 import { uiState } from "./uiState"
@@ -41,29 +41,29 @@ import {
 	UI_COLORS,
 	UI_FONT_SIZES,
 } from "./common"
-import { playUiClickSound, playUiHoverSound } from "../services/uiSoundService"
+import { playUiClickSound, playUiHoverSound } from "../services/audio/uiSoundService"
 import { getUpgradeDefinition } from "../upgrades/upgradeRegistry"
 import {
 	getAbilityLoadout,
 	type AbilityId,
 	type AbilitySlot,
-} from "../services/abilityLoadoutService"
+} from "../services/abilities/abilityLoadoutService"
 import {
 	getAbilityTierValues,
 	getNextAbilityTierRarity,
 	registerAbilityTier,
 	rollAbilityTierState,
 	type AbilityTierState,
-} from "../services/abilityTierService"
+} from "../services/abilities/abilityTierService"
 import {
 	getAbilityDefinition,
 	type AbilityDefinition,
-} from "../services/abilityRegistry"
+} from "../services/abilities/abilityRegistry"
 import {
 	recordTelemetryRewardOffered,
 	recordTelemetryRewardSelected,
 	type RewardTelemetryDetails,
-} from "../services/runTelemetryService"
+} from "../services/runs/runTelemetryService"
 import { getRewardStatComparisonRows } from "./rewardStatComparison"
 
 type RunLevelChoice =

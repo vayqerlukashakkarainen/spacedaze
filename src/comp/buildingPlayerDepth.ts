@@ -1,6 +1,6 @@
 import type { GameObj } from "kaplay"
 import { playerObj } from "../game"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 
 const BUILDING_DEPTH_OFFSET = 0.2
 const DEPTH_SWITCH_PADDING = 3

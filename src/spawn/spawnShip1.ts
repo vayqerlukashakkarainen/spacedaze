@@ -2,7 +2,7 @@ import { Vec2 } from "kaplay";
 import { checkProjectileComponentIntersection, playerObj } from "../game";
 import { k, velocityScale } from "../main";
 import { emitEnemyTrail } from "../particles";
-import { spawnEnemyBlaster } from "../services/projectileHelpers";
+import { spawnEnemyBlaster } from "../services/combat/projectileHelpers";
 import { tags } from "../tags";
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog";
 
@@ -14,13 +14,13 @@ import {
 	createEnemySpawnProfile,
 	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
-} from "../services/threatService";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+} from "../services/enemies/threatService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
 import {
 	getEnemyNavigationDirection,
 	hasEnemyLineOfSight,
 	pickRandomWalkableEnemyRoute,
-} from "../services/enemyNavigationService";
+} from "../services/enemies/enemyNavigationService";
 import {
 	applyDirectionalSteeringLean,
 	easeDirection,

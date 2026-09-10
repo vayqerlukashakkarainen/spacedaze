@@ -1,7 +1,7 @@
 import { checkProjectileComponentIntersection, playerObj } from "../game";
 import { k, timeScale } from "../main";
 import { compose, unitComponents } from "../compose";
-import { spawnEnemyBlaster } from "../services/projectileHelpers";
+import { spawnEnemyBlaster } from "../services/combat/projectileHelpers";
 import {
 	lerpAngleBetweenPos,
 	steerMoveRotateAndLean,
@@ -20,13 +20,13 @@ import {
 	ENEMY_THREAT_RANK,
 	getThreatSnapshot,
 	type EnemySpawnOptions,
-} from "../services/threatService";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
-import { setHitSoundProfile } from "../services/hitSoundService";
+} from "../services/enemies/threatService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
+import { setHitSoundProfile } from "../services/audio/hitSoundService";
 import {
 	getEnemyNavigationTarget,
 	hasEnemyLineOfSight,
-} from "../services/enemyNavigationService";
+} from "../services/enemies/enemyNavigationService";
 
 export type HunterChassisId = HunterVisualId;
 

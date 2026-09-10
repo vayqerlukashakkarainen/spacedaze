@@ -4,10 +4,10 @@ import { tags } from "../tags";
 import {
 	getFrameProfilerSnapshot,
 	setFrameProfilerEnabled,
-} from "../services/frameProfilerService";
-import { getPerformanceBenchmarkStatus } from "../services/performanceBenchmarkService";
+} from "../services/debug/frameProfilerService";
+import { getPerformanceBenchmarkStatus } from "../services/debug/performanceBenchmarkService";
 import { UI_FONT_SIZES } from "../ui/common";
-import { audioService } from "../services/audioService"
+import { audioService } from "../services/audio/audioService"
 
 let debugVisible = false;
 let debugLabels: {

@@ -1,12 +1,12 @@
 import { k, layers, mainSoundVolume } from "../main"
-import type { PlayerDeathCause } from "../services/damageService"
+import type { PlayerDeathCause } from "../services/combat/damageService"
 import {
 	getHubLevelDefinition,
 	getHubLevelForDeposited,
 	HUB_LEVELS,
-} from "../services/hubProgressService"
-import type { RunEndSummary } from "../services/runCompletionService"
-import { gameSoundService } from "../services/gameSoundService"
+} from "../services/hub/hubProgressService"
+import type { RunEndSummary } from "../services/runs/runCompletionService"
+import { gameSoundService } from "../services/audio/gameSoundService"
 import { tags } from "../tags"
 import { uiState } from "./uiState"
 import {

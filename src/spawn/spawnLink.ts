@@ -1,7 +1,7 @@
 import type { Color, GameObj, PosComp, Vec2 } from "kaplay";
 import { dt, k, layers } from "../main";
 import { tags } from "../tags";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
 
 interface Props {
 	pos1: Vec2;

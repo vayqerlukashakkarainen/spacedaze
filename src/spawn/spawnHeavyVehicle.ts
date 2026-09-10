@@ -1,7 +1,7 @@
 import { Vec2 } from "kaplay";
 import { checkProjectileIntersection, playerObj } from "../game";
 import { k, mainSoundVolume, velocityScale } from "../main";
-import { gameSoundService } from "../services/gameSoundService"
+import { gameSoundService } from "../services/audio/gameSoundService"
 import { tags } from "../tags";
 import { registerHitAnimation } from "../shared";
 import { enemyOnDeath, onEnemyHit } from "./enemyShared";
@@ -9,11 +9,11 @@ import {
 	createEnemySpawnProfile,
 	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
-} from "../services/threatService";
-import { applyDamage } from "../services/damageService";
-import { isPlayerDamageInvulnerable } from "../services/playerDamageState";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
-import { setHitSoundProfile } from "../services/hitSoundService";
+} from "../services/enemies/threatService";
+import { applyDamage } from "../services/combat/damageService";
+import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
+import { setHitSoundProfile } from "../services/audio/hitSoundService";
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog";
 
 const HEAVY_VEHICLE_VISUAL = getEnemyVisual("heavy-vehicle");

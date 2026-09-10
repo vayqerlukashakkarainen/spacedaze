@@ -3,16 +3,16 @@ import { timescale } from "../comp/timescale";
 import { debrees } from "../game";
 import { dt, k, velocityScale } from "../main";
 import { tags } from "../tags";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
 import {
 	addLocalLight,
 	updateLocalLight,
-} from "../services/localLightService";
-import { scaleThreatDebreeAmount } from "../services/threatService";
+} from "../services/world/localLightService";
+import { scaleThreatDebreeAmount } from "../services/enemies/threatService";
 import {
 	splitSalvageValue,
 	type SalvagePickupValue,
-} from "../services/salvagePickupService";
+} from "../services/economy/salvagePickupService";
 import { SALVAGE_PICKUP_VISUALS } from "../visuals/pickupVisualCatalog";
 
 export interface DebreeCollectionState {

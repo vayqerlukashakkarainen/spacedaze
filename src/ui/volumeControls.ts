@@ -1,6 +1,6 @@
 import { GameObj, Vec2 } from "kaplay";
 import { k } from "../main";
-import { audioService } from "../services/audioService";
+import { audioService } from "../services/audio/audioService";
 import { createSlider, createUiSlider } from "./common/slider";
 import { createUiLabel } from "./common/label";
 import { createUiCheckbox } from "./common/checkbox";

@@ -1,6 +1,6 @@
 import type { GameObj } from "kaplay"
 import { k, layers } from "../main"
-import { registerBatchedUiUpdate } from "../services/uiUpdateService"
+import { registerBatchedUiUpdate } from "../services/ui/uiUpdateService"
 import { tags } from "../tags"
 import {
 	getFloorThemeDefinition,

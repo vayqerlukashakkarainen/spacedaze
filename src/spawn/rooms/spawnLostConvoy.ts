@@ -1,9 +1,9 @@
 import type { Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../../game"
 import { k, mainSoundVolume } from "../../main"
-import { applyProjectileDamage } from "../../services/projectileService"
-import { spawnThreatEncounter } from "../../services/enemyEncounterService"
-import { gameSoundService } from "../../services/gameSoundService"
+import { applyProjectileDamage } from "../../services/combat/projectileService"
+import { spawnThreatEncounter } from "../../services/enemies/enemyEncounterService"
+import { gameSoundService } from "../../services/audio/gameSoundService"
 import { tags } from "../../tags"
 import { timescale } from "../../comp/timescale"
 import { spawnExplosionEffect } from "../spawnFlash"
@@ -12,7 +12,7 @@ import {
 	lerpAngleBetweenPos,
 	steerMoveRotateAndLean,
 } from "../../shared"
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import { getWorldVisual } from "../../visuals/worldVisualCatalog"
 import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 

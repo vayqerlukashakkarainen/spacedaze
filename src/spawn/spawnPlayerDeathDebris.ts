@@ -1,7 +1,7 @@
 import type { Vec2 } from "kaplay"
 import { k } from "../main"
 import { tags } from "../tags"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 
 const BASE_PLAYER_DEATH_DEBRIS_COUNT = 18
 const MAX_PLAYER_DEATH_DEBRIS_COUNT = 84

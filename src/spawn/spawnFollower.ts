@@ -11,7 +11,7 @@ import {
 	timeScale,
 	velocityScale,
 } from "../main";
-import { gameSoundService } from "../services/gameSoundService"
+import { gameSoundService } from "../services/audio/gameSoundService"
 import { starsEmitter } from "../particles";
 import {
 	applySteeringLean,
@@ -22,21 +22,21 @@ import { player } from "../player";
 import {
 	spawnBasicBlaster,
 	spawnHomingRocket,
-} from "../services/projectileHelpers";
+} from "../services/combat/projectileHelpers";
 import { timescale } from "../comp/timescale";
 import { target } from "../comp/target";
-import { applyProjectileDamage } from "../services/projectileService";
+import { applyProjectileDamage } from "../services/combat/projectileService";
 import { spawnFlash } from "./spawnFlash";
 import {
 	assignDroneTypes,
 	DroneType,
-} from "../services/droneRoleService";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
-import { findClosestSpatial } from "../services/runtimeSpatialIndexService";
-import { isDebreeAvailable, SalvagerCargo } from "../services/salvagerCargoService"
-import { recoverPlayerHealth } from "../services/playerHealthService"
-import { MEDIC_DRONE_RECOVERY } from "../services/playerHealthBalance"
-import { getPlayerTargetLock } from "../services/playerTargetLockService"
+} from "../services/player/droneRoleService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
+import { findClosestSpatial } from "../services/core/runtimeSpatialIndexService";
+import { isDebreeAvailable, SalvagerCargo } from "../services/economy/salvagerCargoService"
+import { recoverPlayerHealth } from "../services/player/playerHealthService"
+import { MEDIC_DRONE_RECOVERY } from "../services/player/playerHealthBalance"
+import { getPlayerTargetLock } from "../services/player/playerTargetLockService"
 import { getCompanionVisual } from "../visuals/companionVisualCatalog"
 import {
 	requirePrimaryVisualSprite,

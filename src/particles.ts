@@ -3,7 +3,7 @@ import { k, layers } from "./main";
 import {
 	incrementPerformanceCounter,
 	setPerformanceCounter,
-} from "./services/frameProfilerService";
+} from "./services/debug/frameProfilerService";
 import { tags } from "./tags";
 
 export let trailEmitter: GameObj<PosComp | ParticlesComp>;

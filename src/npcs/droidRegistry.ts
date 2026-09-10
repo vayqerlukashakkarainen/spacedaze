@@ -1,11 +1,11 @@
 import {
 	discoverBlueprint,
 	isBlueprintDiscovered,
-} from "../services/hubProgressService"
+} from "../services/hub/hubProgressService"
 import {
 	isAsteroidRunnerEncounterComplete,
 	isBirthdayEncounterComplete,
-} from "../services/narrativeService"
+} from "../services/narrative/narrativeService"
 import type { NpcArchiveStatus, NpcDefinition, NpcId } from "./npcTypes"
 
 export type DroidId = NpcId

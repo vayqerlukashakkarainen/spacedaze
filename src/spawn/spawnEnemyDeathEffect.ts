@@ -1,7 +1,7 @@
 import type { Color, GameObj, Vec2 } from "kaplay"
 import { k, layers } from "../main"
 import { explosionEmitter } from "../particles"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import { tags } from "../tags"
 import { spawnExplosionEffect, spawnFlash } from "./spawnFlash"
 import { spawnRing } from "./spawnRing"

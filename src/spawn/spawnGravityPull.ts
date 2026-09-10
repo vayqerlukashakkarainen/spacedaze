@@ -1,8 +1,8 @@
 import type { Vec2 } from "kaplay"
 import { k } from "../main"
-import { applyRadialGravity } from "../services/radialGravityService"
+import { applyRadialGravity } from "../services/world/radialGravityService"
 import { tags } from "../tags"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 
 interface GravityPullProps {
 	pos: Vec2

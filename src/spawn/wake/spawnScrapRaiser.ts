@@ -3,12 +3,12 @@ import { jitter } from "../../comp/jitter"
 import { timescale } from "../../comp/timescale"
 import { debrees, playerObj } from "../../game"
 import { k, velocityScale } from "../../main"
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
-import { getEnemyNavigationDirection } from "../../services/enemyNavigationService"
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
+import { getEnemyNavigationDirection } from "../../services/enemies/enemyNavigationService"
 import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
-} from "../../services/threatService"
+} from "../../services/enemies/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../../shared"
 import { tags } from "../../tags"
 import { getEnemyVisual } from "../../visuals/enemyVisualCatalog"

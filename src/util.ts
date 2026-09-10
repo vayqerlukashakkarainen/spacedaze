@@ -7,20 +7,20 @@ import {
 	getOwnedWeaponIds,
 	setWeaponInventory,
 	WEAPONS,
-} from "./services/weaponService";
+} from "./services/player/weaponService";
 import { PLANET_CHUNK_SPRITES } from "./planetChunkSprites";
-import { getDepositedDebree } from "./services/debreeEconomyService";
-import { isBlueprintDiscovered } from "./services/hubProgressService";
+import { getDepositedDebree } from "./services/economy/debreeEconomyService";
+import { isBlueprintDiscovered } from "./services/hub/hubProgressService";
 import {
 	getAbilityLoadout,
 	setAbilityLoadout,
 	type AbilityLoadout,
-} from "./services/abilityLoadoutService";
+} from "./services/abilities/abilityLoadoutService";
 import {
 	getDefaultMobilityFromLegacyLoadout,
 	isAbilityIdForSlot,
 	migrateLegacyAbilityDiscoveries,
-} from "./services/abilityRegistry";
+} from "./services/abilities/abilityRegistry";
 import {
 	HUB_SETTLEMENT_ATLAS,
 	HUB_SETTLEMENT_ROCK_FOUNDATION_ATLAS,
@@ -28,7 +28,7 @@ import {
 import {
 	randomExplosionSound,
 	type ExplosionSoundPoolId,
-} from "./services/explosionSoundPoolService";
+} from "./services/audio/explosionSoundPoolService";
 import { loadAudioAssets } from "./audio/soundCatalog"
 
 const SAVE_VERSION = 2;

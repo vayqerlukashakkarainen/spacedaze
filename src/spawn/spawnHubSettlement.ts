@@ -1,8 +1,8 @@
 import { k, layers } from "../main"
-import { getHubLevel } from "../services/hubProgressService"
+import { getHubLevel } from "../services/hub/hubProgressService"
 import {
 	getHubSettlementState,
-} from "../services/hubSettlementService"
+} from "../services/hub/hubSettlementService"
 import { tags } from "../tags"
 import { addBuildingPlayerDepth } from "../comp/buildingPlayerDepth"
 

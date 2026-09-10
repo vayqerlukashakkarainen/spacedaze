@@ -3,7 +3,7 @@ import { playerObj } from "../game"
 import { dt, k } from "../main"
 import { ASTEROID_SPRITES } from "../asteroidSprites"
 import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject"
-import { getCurrentRunFloor } from "../services/runDirectorService"
+import { getCurrentRunFloor } from "../services/runs/runDirectorService"
 import type { Level } from "./levels"
 import { RUN_ROCK_PROJECTION_Y_SCALE } from "./runRockTiles"
 import {

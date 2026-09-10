@@ -1,16 +1,16 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, layers, mainSoundVolume, subSoundVolume, velocityScale } from "../main"
-import { gameSoundService } from "../services/gameSoundService"
-import { applyDamage } from "../services/damageService"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { getEnemyNavigationDirection } from "../services/enemyNavigationService"
-import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
+import { gameSoundService } from "../services/audio/gameSoundService"
+import { applyDamage } from "../services/combat/damageService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
+import { getEnemyNavigationDirection } from "../services/enemies/enemyNavigationService"
+import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState"
 import {
 	createEnemySpawnProfile,
 	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
-} from "../services/threatService"
+} from "../services/enemies/threatService"
 import {
 	applyDirectionalSteeringLean,
 	easeDirection,

@@ -1,10 +1,10 @@
 import type { Vec2 } from "kaplay"
 import { k, layers } from "../../main"
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import {
 	addLocalLight,
 	updateLocalLight,
-} from "../../services/localLightService"
+} from "../../services/world/localLightService"
 import { tags } from "../../tags"
 import { spawnHealthOrb } from "../spawnHealthOrb"
 import { getWorldVisual } from "../../visuals/worldVisualCatalog"

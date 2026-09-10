@@ -1,5 +1,5 @@
 import type { HexCoord } from "../hexUtils"
-import type { ProgressionEnemyId } from "../../services/enemyProgressionService"
+import type { ProgressionEnemyId } from "../../services/enemies/enemyProgressionService"
 import type { RewardRarity } from "../../types/rewardTypes"
 import type { FloorThemeId } from "../../levels/floorThemes/floorThemeDirectory"
 

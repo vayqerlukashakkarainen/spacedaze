@@ -1,8 +1,8 @@
 import { Color, Vec2 } from "kaplay";
 import { k, layers } from "../main";
 import { explosionEmitter } from "../particles";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
-import { loopService } from "../services/loopService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
+import { loopService } from "../services/core/loopService";
 import { spawnRing } from "./spawnRing";
 import { tags } from "../tags";
 

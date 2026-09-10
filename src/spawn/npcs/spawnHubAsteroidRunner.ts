@@ -9,20 +9,20 @@ import {
 } from "../../main"
 import { starsEmitterDir, trailEmitter } from "../../particles"
 import { getDroidDefinition, discoverDroid } from "../../npcs/droidRegistry"
-import { audioService } from "../../services/audioService"
-import { playCutscene, type CutsceneDefinition } from "../../services/cutsceneService"
-import type { DialogueLine } from "../../services/dialogService"
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService"
+import { audioService } from "../../services/audio/audioService"
+import { playCutscene, type CutsceneDefinition } from "../../services/narrative/cutsceneService"
+import type { DialogueLine } from "../../services/narrative/dialogService"
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import {
 	markNpcDialogueSeen,
 	registerNpcDialogueTrigger,
-} from "../../services/npcDialogueService"
-import { registerNpcDialogueIndicator } from "../../services/npcDialogueIndicatorService"
+} from "../../services/narrative/npcDialogueService"
+import { registerNpcDialogueIndicator } from "../../services/narrative/npcDialogueIndicatorService"
 import {
 	completeAsteroidRunnerEncounter,
 	shouldShowAsteroidRunnerEncounter,
-} from "../../services/narrativeService"
-import { showPopover } from "../../services/popoverService"
+} from "../../services/narrative/narrativeService"
+import { showPopover } from "../../services/ui/popoverService"
 import { tags } from "../../tags"
 import { createNpcInteractionPrompt } from "../../ui/common"
 import { randomExplosion } from "../../util"

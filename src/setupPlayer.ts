@@ -39,7 +39,7 @@ import {
 	spawnPlayerRocket,
 	spawnPhaseMagazineSalvo,
 	spawnPrimaryLinkedRocket,
-} from "./services/projectileHelpers";
+} from "./services/combat/projectileHelpers";
 import {
 	applySteeringLean,
 	lerpAngleBetweenPos,
@@ -47,43 +47,43 @@ import {
 	registerHitAnimation,
 } from "./shared";
 import { tags } from "./tags";
-import { audioService } from "./services/audioService";
-import { gameSoundService } from "./services/gameSoundService"
-import { loopService } from "./services/loopService";
-import { profileSection } from "./services/frameProfilerService";
+import { audioService } from "./services/audio/audioService";
+import { gameSoundService } from "./services/audio/gameSoundService"
+import { loopService } from "./services/core/loopService";
+import { profileSection } from "./services/debug/frameProfilerService";
 import {
 	applyKnockbackImpulse,
 	applyProjectileDamage,
-} from "./services/projectileService";
+} from "./services/combat/projectileService";
 import {
 	applyDamage,
 	resetPlayerDeathCause,
-} from "./services/damageService";
+} from "./services/combat/damageService";
 import { timescale } from "./comp/timescale";
 import { addShipThruster } from "./comp/shipThruster"
-import { registerBatchedEntityUpdate } from "./services/entityUpdateService"
-import { recoverPlayerHealth } from "./services/playerHealthService"
+import { registerBatchedEntityUpdate } from "./services/core/entityUpdateService"
+import { recoverPlayerHealth } from "./services/player/playerHealthService"
 import {
 	BASE_PLAYER_HEALTH,
 	HULL_UPGRADE_AMOUNT,
 	REPAIR_PULSE_RECOVERY,
-} from "./services/playerHealthBalance"
+} from "./services/player/playerHealthBalance"
 import type { GridCollisionComp } from "./comp/gridCollision";
-import { levelTransitionActive } from "./services/levelTransitionService";
+import { levelTransitionActive } from "./services/world/levelTransitionService";
 import { getPriorityInteraction } from "./comp/interactable";
 import {
 	cycleEquippedWeapon,
 	equipWeapon,
 	getEquippedWeapon,
 	getWeaponTriggerModifier,
-} from "./services/weaponService";
-import type { WeaponDefinition } from "./services/weaponService";
+} from "./services/player/weaponService";
+import type { WeaponDefinition } from "./services/player/weaponService";
 import { spawnPlayerDeathDebris } from "./spawn/spawnPlayerDeathDebris";
-import { getCarriedDebree } from "./services/debreeEconomyService";
+import { getCarriedDebree } from "./services/economy/debreeEconomyService";
 import {
 	isStrafeTrainingUnlocked,
 	narrativePrologueActive,
-} from "./services/narrativeService";
+} from "./services/narrative/narrativeService";
 import { spawnAfterburnerWake } from "./spawn/spawnAfterburnerWake";
 import { spawnEnemyDeathEffect } from "./spawn/spawnEnemyDeathEffect";
 import { spawnFlash } from "./spawn/spawnFlash";
@@ -97,12 +97,12 @@ import { spawnEmpDischarge } from "./spawn/spawnEmpDischarge"
 import {
 	resetPlayerDamageState,
 	setPlayerDamageInvulnerable,
-} from "./services/playerDamageState";
+} from "./services/player/playerDamageState";
 import {
 	forEachSpatialNearby,
 	querySpatialNearby,
-} from "./services/runtimeSpatialIndexService";
-import { isPointerOverUi } from "./services/uiPointerService";
+} from "./services/core/runtimeSpatialIndexService";
+import { isPointerOverUi } from "./services/input/uiPointerService";
 import {
 	addCameraKick,
 	clearCameraBob,
@@ -110,9 +110,9 @@ import {
 	getCameraBobScale,
 	getCameraKickOffset,
 	startCameraBob,
-} from "./services/cameraEffectService";
-import { dialogCapturesInput } from "./services/dialogService";
-import { cutsceneActive } from "./services/cutsceneService";
+} from "./services/player/cameraEffectService";
+import { dialogCapturesInput } from "./services/narrative/dialogService";
+import { cutsceneActive } from "./services/narrative/cutsceneService";
 import { uiState } from "./ui/uiState";
 import {
 	beginActiveModuleActivation,
@@ -120,49 +120,49 @@ import {
 	getEquippedActiveModule,
 	resetActiveModuleCooldown,
 	updateActiveModuleCooldown,
-} from "./services/activeModuleService";
-import { createExplosion } from "./services/explosionService";
-import { damageDestructibleWallsInRadius } from "./services/destructibleWallService";
+} from "./services/abilities/activeModuleService";
+import { createExplosion } from "./services/combat/explosionService";
+import { damageDestructibleWallsInRadius } from "./services/world/destructibleWallService";
 import { spawnGravityPull } from "./spawn/spawnGravityPull";
 import { addWormholeEffect } from "./spawn/spawnLevel";
-import { getEnemyMovementMultiplier } from "./services/enemyMovementModifierService";
+import { getEnemyMovementMultiplier } from "./services/enemies/enemyMovementModifierService";
 import {
 	clearPlayerStatusEffects,
 	getPlayerStatusMultiplier,
 	updatePlayerStatusEffects,
-} from "./services/playerStatusEffectService";
+} from "./services/player/playerStatusEffectService";
 import { spawnFollower } from "./spawn/spawnFollower";
 import { spawnActiveModuleCarrier } from "./spawn/spawnActiveModuleCarrier"
 import {
 	getEquippedMobilityAbilityId,
 	getEquippedUltimateAbilityId,
 	type AbilityId,
-} from "./services/abilityLoadoutService";
+} from "./services/abilities/abilityLoadoutService";
 import {
 	recordTelemetryAbilityFailure,
 	recordTelemetryAbilityUse,
-} from "./services/runTelemetryService";
+} from "./services/runs/runTelemetryService";
 import {
 	consumeUltimateCharge,
 	getUltimateChargeProgress,
-} from "./services/ultimateAbilityService";
+} from "./services/abilities/ultimateAbilityService";
 import {
 	getAbilityDefinition,
 	RETRO_BURST_CHARGE_COUNT,
-} from "./services/abilityRegistry";
-import { playRequirementErrorSound } from "./services/uiSoundService";
+} from "./services/abilities/abilityRegistry";
+import { playRequirementErrorSound } from "./services/audio/uiSoundService";
 import {
 	getAbilityTierValues,
 	type AbilityTierValues,
-} from "./services/abilityTierService";
+} from "./services/abilities/abilityTierService";
 import {
 	resetPassiveUpgradeRuntime,
 	updatePassiveUpgradeRuntime,
-} from "./services/passiveUpgradeRuntimeService";
+} from "./services/abilities/passiveUpgradeRuntimeService";
 import {
 	createThrusterOverdriveState,
 	updateThrusterOverdrive,
-} from "./services/thrusterOverdriveService";
+} from "./services/abilities/thrusterOverdriveService";
 import {
 	clampTurretWorldAngle,
 	DRIFT_HULL_RESPONSE,
@@ -171,19 +171,19 @@ import {
 	getSignedAngleDelta,
 	shouldTurnHullForStationaryAim,
 	TURRET_AIM_RESPONSE,
-} from "./services/playerSteeringModeService"
-import { addPlayerDamageEffects } from "./services/playerDamageEffectService"
+} from "./services/input/playerSteeringModeService"
+import { addPlayerDamageEffects } from "./services/player/playerDamageEffectService"
 import {
 	getPlayerTargetInterceptPoint,
 	setPlayerTargetLock,
 	updatePlayerTargetMotion,
-} from "./services/playerTargetLockService"
+} from "./services/player/playerTargetLockService"
 import {
 	isInputActionDown,
 	onInputActionPress,
 	onInputActionRelease,
 	type InputController,
-} from "./services/inputBindingService"
+} from "./services/input/inputBindingService"
 import {
 	installWeaponWheel,
 	weaponWheelOpen,

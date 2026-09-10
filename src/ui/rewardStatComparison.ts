@@ -6,13 +6,13 @@ import {
 import {
 	getHigherRarity,
 	scaleUpgradeEffects,
-} from "../services/rewardQualityService"
-import type { Reward } from "../services/rewardService"
+} from "../services/economy/rewardQualityService"
+import type { Reward } from "../services/economy/rewardService"
 import type { StatModifier } from "../types/upgradeTypes"
 import { getUpgradeDefinition } from "../upgrades/upgradeRegistry"
 import type { UiStatRow } from "./common"
-import { getTacticalUplinkHullThreshold } from "../services/tacticalUplinkService"
-import { BASE_PLAYER_HEALTH } from "../services/playerHealthBalance"
+import { getTacticalUplinkHullThreshold } from "../services/abilities/tacticalUplinkService"
+import { BASE_PLAYER_HEALTH } from "../services/player/playerHealthBalance"
 
 const BASE_STAT_VALUES: Readonly<Record<string, number>> = {
 	blasterCount: 1,

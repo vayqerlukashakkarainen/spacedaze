@@ -1,8 +1,8 @@
 import { k, layers } from "../main";
 import { player } from "../player";
-import { commandService } from "../services/commandService";
+import { commandService } from "../services/debug/commandService";
 import { getPlayerPowerupStatus } from "../powerups";
-import { getEquippedWeapon } from "../services/weaponService";
+import { getEquippedWeapon } from "../services/player/weaponService";
 import { uiState } from "./uiState";
 import { UI_FONT_SIZES } from "./common";
 

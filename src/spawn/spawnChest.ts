@@ -18,10 +18,10 @@ import {
 	setNextChestWorldPosition,
 	type ChestRewardType,
 } from "../ui/chestChallenge";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
-import { gameSoundService } from "../services/gameSoundService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
+import { gameSoundService } from "../services/audio/gameSoundService"
 import { spawnCurrencyBurst } from "./spawnCurrencyBurst";
-import { playRequirementErrorSound } from "../services/uiSoundService";
+import { playRequirementErrorSound } from "../services/audio/uiSoundService";
 import { createNpcInteractionPrompt, UI_COLORS } from "../ui/common";
 import { getPickupVisual } from "../visuals/pickupVisualCatalog";
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation";

@@ -8,10 +8,10 @@ import {
 	ABILITIES,
 	isAbilityDiscovered,
 	type AbilityDefinition,
-} from "../services/abilityRegistry"
-import type { AbilitySlot } from "../services/abilityLoadoutService"
-import { spawnAbilityLoadoutPickup } from "../services/abilitySwapService"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+} from "../services/abilities/abilityRegistry"
+import type { AbilitySlot } from "../services/abilities/abilityLoadoutService"
+import { spawnAbilityLoadoutPickup } from "../services/abilities/abilitySwapService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import { tags } from "../tags"
 import { UI_COLORS } from "../ui/common"
 import {

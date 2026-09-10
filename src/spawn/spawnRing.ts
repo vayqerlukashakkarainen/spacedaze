@@ -1,7 +1,7 @@
 import { Color, GameObj, PosComp, Vec2 } from "kaplay";
 import { dt, k, layers } from "../main";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
-import { forEachSpatialNearby } from "../services/runtimeSpatialIndexService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
+import { forEachSpatialNearby } from "../services/core/runtimeSpatialIndexService";
 import { tags } from "../tags";
 
 interface Props {

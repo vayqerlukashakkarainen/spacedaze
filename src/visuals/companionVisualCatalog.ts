@@ -1,4 +1,4 @@
-import type { DroneType } from "../services/droneRoleService"
+import type { DroneType } from "../services/player/droneRoleService"
 import type { VisualRepresentation } from "./visualRepresentation"
 
 export type CompanionVisualId = DroneType |

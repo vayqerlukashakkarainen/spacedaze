@@ -15,12 +15,12 @@ import { createUiOptionsPanel } from "./optionsPanel"
 import {
 	playShopMenuCloseSound,
 	playShopMenuOpenSound,
-} from "../services/shopMenuSoundService"
+} from "../services/audio/shopMenuSoundService"
 import { uiState } from "./uiState"
 import {
 	formatInputBinding,
 	getInputBinding,
-} from "../services/inputBindingService"
+} from "../services/input/inputBindingService"
 
 interface PauseMenuActions {
 	onResume: () => void

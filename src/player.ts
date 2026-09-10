@@ -5,13 +5,13 @@ import {
 	getEffectiveUpgradeLevel,
 	ToolKey,
 } from "./upg";
-import { resetUltimateCharge } from "./services/ultimateAbilityService";
-import { applyRunLevelBonuses } from "./services/runLevelService";
-import { setThreatRewardTierBonus } from "./services/threatService";
+import { resetUltimateCharge } from "./services/abilities/ultimateAbilityService";
+import { applyRunLevelBonuses } from "./services/runs/runLevelService";
+import { setThreatRewardTierBonus } from "./services/enemies/threatService";
 import {
 	BASE_PLAYER_HEALTH,
 	GLASS_REACTOR_HEALTH,
-} from "./services/playerHealthBalance";
+} from "./services/player/playerHealthBalance";
 import { PLAYER_VISUAL } from "./visuals/playerVisualCatalog";
 
 interface Ship {

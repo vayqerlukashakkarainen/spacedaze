@@ -13,8 +13,8 @@ import {
 	spawnFollower,
 } from "./spawn/spawnFollower";
 import { spawnRing } from "./spawn/spawnRing";
-import { gameSoundService } from "./services/gameSoundService"
-import { upgradeService } from "./services/upgradeService";
+import { gameSoundService } from "./services/audio/gameSoundService"
+import { upgradeService } from "./services/progression/upgradeService";
 import { tags } from "./tags";
 
 // Track active slowdown timer and accumulated duration

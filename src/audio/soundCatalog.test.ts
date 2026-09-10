@@ -18,11 +18,11 @@ for (const [id, path] of Object.entries({ ...SOUND_ASSETS, ...MUSIC_ASSETS })) {
 }
 
 const rawPlaybackAllowlist = new Set([
-	"src/services/audioService.ts",
-	"src/services/explosionService.ts",
-	"src/services/gameSoundService.ts",
-	"src/services/hitSoundService.ts",
-	"src/services/projectileService.ts",
+	"src/services/audio/audioService.ts",
+	"src/services/combat/explosionService.ts",
+	"src/services/audio/gameSoundService.ts",
+	"src/services/audio/hitSoundService.ts",
+	"src/services/combat/projectileService.ts",
 	"src/spawn/spawnAsteroid.ts",
 ])
 

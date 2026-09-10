@@ -6,8 +6,8 @@ import { uiHitRegion } from "./hitRegion";
 import {
 	playUiClickSound,
 	playUiHoverSound,
-} from "../../services/uiSoundService";
-import type { InputPromptAction } from "../../services/inputPromptService";
+} from "../../services/audio/uiSoundService";
+import type { InputPromptAction } from "../../services/input/inputPromptService";
 import { createInputPromptRow } from "./inputPrompt";
 
 export interface UiActionButtonProps {

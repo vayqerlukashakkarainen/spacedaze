@@ -1,5 +1,5 @@
 import { musicVolume } from "../main"
-import { audioService } from "../services/audioService"
+import { audioService } from "../services/audio/audioService"
 import { endSong, loadSongData } from "../web"
 import type { FinaleDefinition } from "./finaleTypes"
 

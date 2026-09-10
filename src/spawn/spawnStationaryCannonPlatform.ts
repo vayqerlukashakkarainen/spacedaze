@@ -1,14 +1,14 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, layers, mainSoundVolume, subSoundVolume } from "../main"
-import { gameSoundService } from "../services/gameSoundService"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
-import { spawnProjectile } from "../services/projectileService"
+import { gameSoundService } from "../services/audio/gameSoundService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
+import { spawnProjectile } from "../services/combat/projectileService"
 import {
 	createEnemySpawnProfile,
 	ENEMY_THREAT_RANK,
 	type EnemySpawnOptions,
-} from "../services/threatService"
+} from "../services/enemies/threatService"
 import { registerHitAnimation } from "../shared"
 import { tags } from "../tags"
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
@@ -16,7 +16,7 @@ import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { spawnExplosionEffect } from "./spawnFlash"
-import { setHitSoundProfile } from "../services/hitSoundService"
+import { setHitSoundProfile } from "../services/audio/hitSoundService"
 
 const ATTACK_RANGE = 700
 const VOLLEY_COOLDOWN = 4

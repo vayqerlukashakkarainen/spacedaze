@@ -4,11 +4,11 @@ import type { InteractableComp } from "../../comp/interactable"
 import {
 	interactionPromptsSuppressed,
 	registerInteractionPromptHide,
-} from "../../services/interactionPromptVisibilityService"
+} from "../../services/ui/interactionPromptVisibilityService"
 import {
 	formatInputBindingCompact,
 	getInputBinding,
-} from "../../services/inputBindingService"
+} from "../../services/input/inputBindingService"
 
 interface InteractionBubbleLabel {
 	text: string

@@ -7,7 +7,7 @@ import { uiHitRegion } from "./hitRegion"
 import {
 	playUiClickSound,
 	playUiHoverSound,
-} from "../../services/uiSoundService"
+} from "../../services/audio/uiSoundService"
 
 export interface UiCommandButtonProps {
 	pos: Vec2

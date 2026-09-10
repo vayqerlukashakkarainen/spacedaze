@@ -1,5 +1,5 @@
 import { Color, Vec2 } from "kaplay";
-import type { ExplosionSoundPoolId } from "../services/explosionSoundPoolService";
+import type { ExplosionSoundPoolId } from "../services/audio/explosionSoundPoolService";
 import type { SoundCueId } from "../audio/soundCueCatalog"
 
 // Core Modifiers

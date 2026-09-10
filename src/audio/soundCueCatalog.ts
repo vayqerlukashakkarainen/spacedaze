@@ -1,4 +1,4 @@
-import type { PositionalSoundOptions, SoundOptions } from "../services/audioService"
+import type { PositionalSoundOptions, SoundOptions } from "../services/audio/audioService"
 import { SOUND_ASSETS, type SoundAssetId } from "./soundCatalog"
 
 export type SoundStackingPolicy = "allow" | "ignore" | "restart" | "limit"

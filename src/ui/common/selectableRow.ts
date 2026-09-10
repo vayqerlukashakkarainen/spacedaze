@@ -3,7 +3,7 @@ import { k } from "../../main"
 import {
 	playUiClickSound,
 	playUiHoverSound,
-} from "../../services/uiSoundService"
+} from "../../services/audio/uiSoundService"
 import { uiState } from "../uiState"
 import { addThemedText } from "./text"
 import { UI_COLORS, UI_SIZES, UI_SPACING } from "./theme"

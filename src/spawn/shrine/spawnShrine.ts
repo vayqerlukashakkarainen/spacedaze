@@ -1,16 +1,16 @@
 import { Vec2 } from "kaplay";
 import { playerObj } from "../../game";
 import { dt, k, layers, mainSoundVolume } from "../../main";
-import { gameSoundService } from "../../services/gameSoundService"
+import { gameSoundService } from "../../services/audio/gameSoundService"
 import { explosionEmitter } from "../../particles";
 import { tags } from "../../tags";
-import { spawnThreatEncounter } from "../../services/enemyEncounterService";
-import { registerBatchedEntityUpdate } from "../../services/entityUpdateService";
-import { createChargeZoneFeedback } from "../../services/chargeZoneFeedbackService";
+import { spawnThreatEncounter } from "../../services/enemies/enemyEncounterService";
+import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService";
+import { createChargeZoneFeedback } from "../../services/combat/chargeZoneFeedbackService";
 import {
 	addLocalLight,
 	updateLocalLight,
-} from "../../services/localLightService";
+} from "../../services/world/localLightService";
 import { spawnRing } from "../spawnRing";
 import { getWorldVisual } from "../../visuals/worldVisualCatalog";
 import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation";

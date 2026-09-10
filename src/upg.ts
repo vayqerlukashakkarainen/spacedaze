@@ -26,7 +26,7 @@ import {
 	phaseMagazine,
 } from "./upgrades/ship";
 import { saveGame } from "./util";
-import { upgradeService } from "./services/upgradeService";
+import { upgradeService } from "./services/progression/upgradeService";
 import { getUpgradeDefinition } from "./upgrades/upgradeRegistry";
 import type {
 	UpgradeDefinition,
@@ -35,13 +35,13 @@ import type {
 import {
 	describeRequirements,
 	evaluateRequirements,
-} from "./services/upgradeRequirementService";
+} from "./services/progression/upgradeRequirementService";
 import { RewardRarity } from "./types/rewardTypes";
-import { getEquippedMobilityAbilityId } from "./services/abilityLoadoutService";
+import { getEquippedMobilityAbilityId } from "./services/abilities/abilityLoadoutService";
 import {
 	getHigherRarity,
 	scaleUpgradeEffects,
-} from "./services/rewardQualityService";
+} from "./services/economy/rewardQualityService";
 import {
 	arcCapacitor,
 	armorPiercing,

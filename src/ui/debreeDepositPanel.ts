@@ -1,11 +1,11 @@
 import type { GameObj, KEventController } from "kaplay"
 import { k, layers } from "../main"
-import { loopService } from "../services/loopService"
+import { loopService } from "../services/core/loopService"
 import {
 	depositCarriedDebree,
 	getCarriedDebree,
 	getDepositedDebree,
-} from "../services/debreeEconomyService"
+} from "../services/economy/debreeEconomyService"
 import { tags } from "../tags"
 import {
 	addThemedText,

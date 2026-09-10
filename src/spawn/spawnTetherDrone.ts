@@ -4,23 +4,23 @@ import { k, velocityScale } from "../main"
 import {
 	clearEnemyMovementMultiplier,
 	setEnemyMovementMultiplier,
-} from "../services/enemyMovementModifierService"
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService"
+} from "../services/enemies/enemyMovementModifierService"
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import {
 	getEnemyNavigationDirection,
 	hasEnemyLineOfSight,
-} from "../services/enemyNavigationService"
+} from "../services/enemies/enemyNavigationService"
 import {
 	createEnemySpawnProfile,
 	type EnemySpawnOptions,
-} from "../services/threatService"
+} from "../services/enemies/threatService"
 import { applyDirectionalSteeringLean, easeDirection } from "../shared"
 import { tags } from "../tags"
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
-import { drawLightning } from "../services/lightningVisualService"
+import { drawLightning } from "../services/combat/lightningVisualService"
 
 const TETHER_RANGE = 230
 const TETHER_DRONE_VISUAL = getEnemyVisual("tether-drone")

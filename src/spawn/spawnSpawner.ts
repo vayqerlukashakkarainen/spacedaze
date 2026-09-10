@@ -1,7 +1,7 @@
 import { Vec2 } from "kaplay";
 import { k, layers } from "../main";
 import { tags } from "../tags";
-import { registerBatchedEntityUpdate } from "../services/entityUpdateService";
+import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
 
 interface Props {
 	spawnChance: number;
