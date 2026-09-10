@@ -111,7 +111,10 @@ import { updateRocketGuidance } from "./rocketGuidanceService"
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
 const PLAYER_PROJECTILE_SCALE = PROJECTILE_VISUALS.player.worldScale;
 const PLAYER_BULLET_SCALE_MULTIPLIER = 2;
-const PLASMA_PROJECTILE_SPRITE = "plasma_mortar_projectile";
+const STANDARD_SCALE_PROJECTILE_SPRITES = new Set([
+	"impact_driver_arc_projectile",
+	"plasma_mortar_projectile",
+]);
 const ENEMY_PROJECTILE_SPEED_MULTIPLIER = 0.8;
 const KNOCKBACK_PUSH_DURATION = 0.32;
 const KNOCKBACK_FULL_STEER_STRENGTH = 60;
@@ -143,7 +146,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	const playerBulletScaleMultiplier =
 		config.tags.includes(tags.friendly) &&
 		config.tags.includes(tags.blaster) &&
-		config.sprite !== PLASMA_PROJECTILE_SPRITE
+		!STANDARD_SCALE_PROJECTILE_SPRITES.has(config.sprite)
 			? PLAYER_BULLET_SCALE_MULTIPLIER
 			: 1;
 	const projectileScale = damagesDestructibleWalls
