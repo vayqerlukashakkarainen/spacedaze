@@ -30,6 +30,16 @@
 - In-game assets: `asteroid-impact-1.ogg`, `asteroid-impact-2.ogg`, `asteroid-impact-3.ogg`, `asteroid-destroyed.ogg`
 - The first three strikes are used as randomized asteroid impacts. The final breakup is used for asteroid destruction. Each segment was trimmed, converted to mono OGG, and faded at both edges.
 
+## Ship Part Destruction
+
+"explosion" by WhaTThes (Freesound), distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-explosion-47821/
+- License: Pixabay Content License
+- Original filename: `freesound_community-explosion-47821.mp3`
+- In-game asset: `ship-part-destroyed.mp3`
+- Trimmed to the initial blast, converted to mono, level-adjusted, and given a short tail fade for responsive chain reactions.
+
 ## Burt Strafe Module Ejection
 
 "fart" by MacKaffee (Freesound), distributed through Pixabay.

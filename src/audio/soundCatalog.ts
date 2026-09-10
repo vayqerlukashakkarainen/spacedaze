@@ -29,6 +29,7 @@ export const SOUND_ASSETS = {
 	explosion2: "sounds/explosion2.wav",
 	explosion3: "sounds/explosion3.wav",
 	explosion4: "sounds/explosion4.wav",
+	ship_part_destroyed: "sounds/ship-part-destroyed.mp3",
 	hit1: "sounds/hit1.wav",
 	hit2: "sounds/hit2.wav",
 	hit_light_metal: "sounds/light-metal-hit.wav",

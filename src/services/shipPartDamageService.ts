@@ -1,9 +1,10 @@
 import type { GameObj, ParticlesComp, PosComp, Vec2 } from "kaplay"
-import { k, layers } from "../main"
+import { k, layers, subSoundVolume } from "../main"
 import { spawnExplosionEffect } from "../spawn/spawnFlash"
 import { tags } from "../tags"
 import { applyDamage } from "./damageService"
 import { registerBatchedEntityUpdate } from "./entityUpdateService"
+import { gameSoundService } from "./gameSoundService"
 
 const HEAVY_DAMAGE_THRESHOLD = 0.5
 const PART_SMOKE_INTERVAL = [0.46, 0.08] as const
@@ -83,6 +84,16 @@ export function triggerShipPartExplosion(
 		particleCount: 12,
 	})
 	emitPartExplosionSmoke(position, radius)
+	gameSoundService.playPositional("ship_part_destroyed", position, {
+		volume: subSoundVolume * k.lerp(
+			0.55,
+			0.85,
+			getExplosionScaleProgress(radius)
+		),
+		minDistance: 70,
+		maxDistance: 680,
+		voiceLimit: 5,
+	})
 	k.shake(k.clamp(radius / 18, 1.8, 4))
 
 	const targets = k.get("*", { recursive: true }) as GameObj[]
