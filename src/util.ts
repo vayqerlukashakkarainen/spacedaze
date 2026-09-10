@@ -725,7 +725,9 @@ export async function init(k: KAPLAYCtx) {
 					`sprites/enemies/hunter/hunter-${chassis}-${part}.png`,
 				] as const)
 		),
-		["enemy_wake_scrap_nipper", "sprites/enemies/wake/scrap-nipper.png"],
+		["enemy_wake_scrap_nipper_core", "sprites/enemies/wake/scrap-nipper-core.png"],
+		["enemy_wake_scrap_nipper_left_cutter", "sprites/enemies/wake/scrap-nipper-left-cutter.png"],
+		["enemy_wake_scrap_nipper_right_cutter", "sprites/enemies/wake/scrap-nipper-right-cutter.png"],
 		["enemy_wake_rivet_gunner_core", "sprites/enemies/wake/rivet-gunner-core.png"],
 		["enemy_wake_rivet_gunner_weapon", "sprites/enemies/wake/rivet-gunner-weapon.png"],
 		["enemy_wake_towhook_rig_core", "sprites/enemies/wake/towhook-rig-core.png"],
@@ -733,7 +735,9 @@ export async function init(k: KAPLAYCtx) {
 		["enemy_wake_towhook_rig_right_hook", "sprites/enemies/wake/towhook-rig-right-hook.png"],
 		["enemy_wake_patch_tender_core", "sprites/enemies/wake/patch-tender-core.png"],
 		["enemy_wake_patch_tender_welder", "sprites/enemies/wake/patch-tender-welder.png"],
-		["enemy_wake_scrap_raiser", "sprites/enemies/wake/scrap-raiser.png"],
+		["enemy_wake_scrap_raiser_core", "sprites/enemies/wake/scrap-raiser-core.png"],
+		["enemy_wake_scrap_raiser_left_collector", "sprites/enemies/wake/scrap-raiser-left-collector.png"],
+		["enemy_wake_scrap_raiser_right_collector", "sprites/enemies/wake/scrap-raiser-right-collector.png"],
 	] as const;
 	for (const [name, path] of modularEnemySprites) {
 		await k.loadSprite(name, path);

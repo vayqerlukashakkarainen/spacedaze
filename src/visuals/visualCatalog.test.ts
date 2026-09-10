@@ -34,9 +34,32 @@ function assertValidVisual(
 for (const enemy of getEnemyProgressionRoster()) {
 	assertValidVisual(`enemy:${enemy.id}`, getEnemyVisual(enemy.id))
 }
+const scaledEnemyWorldScales: Partial<Record<keyof typeof ENEMY_VISUALS, number>> = {
+	"swarm-drone": 0.6,
+	"wake-scrap-nipper": 0.75,
+}
 for (const [id, visual] of Object.entries(ENEMY_VISUALS)) {
 	assertValidVisual(`enemy:${id}`, visual, visual.parts.length > 0)
-	assert.equal(visual.worldScale, 1, `enemy:${id} must use canonical scale 1`)
+	assert.equal(
+		visual.worldScale,
+		scaledEnemyWorldScales[id as keyof typeof ENEMY_VISUALS] ?? 1,
+		`enemy:${id} must use its canonical scale`
+	)
+}
+
+for (const enemyId of [
+	"wake-scrap-nipper",
+	"wake-rivet-gunner",
+	"wake-towhook-rig",
+	"wake-patch-tender",
+	"wake-scrap-raiser",
+	"wake-boiler-hulk",
+] as const) {
+	assert.equal(
+		getEnemyVisual(enemyId).parts.length > 1,
+		true,
+		`enemy:${enemyId} must have destructible component art`
+	)
 }
 for (const [id, visual] of Object.entries(HUNTER_VISUALS)) {
 	assertValidVisual(`hunter:${id}`, visual)

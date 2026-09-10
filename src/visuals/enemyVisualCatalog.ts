@@ -120,7 +120,11 @@ export const ENEMY_VISUALS: Record<EnemyVisualId, EnemyVisualRepresentation> = {
 		worldScale: 1,
 	},
 	"wake-scrap-nipper": {
-		parts: [{ sprite: "enemy_wake_scrap_nipper" }],
+		parts: [
+			{ sprite: "enemy_wake_scrap_nipper_core" },
+			{ sprite: "enemy_wake_scrap_nipper_left_cutter" },
+			{ sprite: "enemy_wake_scrap_nipper_right_cutter" },
+		],
 		worldScale: 0.75,
 	},
 	"wake-rivet-gunner": {
@@ -146,7 +150,11 @@ export const ENEMY_VISUALS: Record<EnemyVisualId, EnemyVisualRepresentation> = {
 		worldScale: 1,
 	},
 	"wake-scrap-raiser": {
-		parts: [{ sprite: "enemy_wake_scrap_raiser" }],
+		parts: [
+			{ sprite: "enemy_wake_scrap_raiser_core" },
+			{ sprite: "enemy_wake_scrap_raiser_left_collector" },
+			{ sprite: "enemy_wake_scrap_raiser_right_collector" },
+		],
 		worldScale: 1,
 	},
 	"wake-boiler-hulk": {

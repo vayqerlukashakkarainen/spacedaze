@@ -1,4 +1,5 @@
 import type { GameObj, Vec2 } from "kaplay"
+import { jitter } from "../../comp/jitter"
 import { timescale } from "../../comp/timescale"
 import { debrees, playerObj } from "../../game"
 import { k, velocityScale } from "../../main"
@@ -11,8 +12,6 @@ import {
 import { applyDirectionalSteeringLean, easeDirection } from "../../shared"
 import { tags } from "../../tags"
 import { getEnemyVisual } from "../../visuals/enemyVisualCatalog"
-import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
-import { handleEnemyCombat, registerEnemyLifecycle } from "../newEnemyShared"
 import {
 	spawnDebreeValues,
 	type DebreeSource,
@@ -21,6 +20,11 @@ import {
 import { spawnFlash } from "../spawnFlash"
 import { spawnRivetGunner } from "./spawnRivetGunner"
 import { spawnScrapNipper } from "./spawnScrapNipper"
+import {
+	addWakeEnemyPart,
+	composeWakeEnemy,
+	handleWakeCompositeCombat,
+} from "./wakeEnemyShared"
 
 type ScrapRaiserPhase = "forage" | "reconstruct" | "recover" | "exhausted"
 
@@ -50,10 +54,11 @@ export function spawnScrapRaiser(
 		SCRAP_RAISER_VISUAL.worldScale,
 		options
 	)
+	const [coreVisual, leftCollectorVisual, rightCollectorVisual] = SCRAP_RAISER_VISUAL.parts
 	const initialDirection = playerObj.pos.sub(pos)
 	const raiser = k.add([
 		k.pos(pos),
-		k.sprite(requirePrimaryVisualSprite(SCRAP_RAISER_VISUAL)),
+		k.sprite(coreVisual.sprite),
 		k.color(k.WHITE),
 		k.rotate(initialDirection.len() > 0 ? initialDirection.angle() + 90 : 0),
 		k.anchor("center"),
@@ -62,6 +67,7 @@ export function spawnScrapRaiser(
 		k.opacity(1),
 		k.scale(profile.scale),
 		timescale(),
+		jitter(),
 		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{
 			hb: 11 * profile.scale,
@@ -76,6 +82,7 @@ export function spawnScrapRaiser(
 			storedDebree: [] as DebreeValue[],
 			storedValue: 0,
 			reconstructions: 0,
+			collectorCount: 2,
 			draw() {
 				drawStoredScrap(this)
 			},
@@ -87,8 +94,29 @@ export function spawnScrapRaiser(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
-
-	registerEnemyLifecycle(raiser, profile, 5, 1, () => {
+	const collectorHp = Math.max(1, Math.round(profile.hp * 0.4))
+	const leftCollector = addWakeEnemyPart(
+		raiser,
+		leftCollectorVisual.sprite,
+		collectorHp
+	)
+	const rightCollector = addWakeEnemyPart(
+		raiser,
+		rightCollectorVisual.sprite,
+		collectorHp
+	)
+	composeWakeEnemy(raiser, profile, [
+		{
+			obj: leftCollector,
+			hitbox: 6 * profile.scale,
+			hitboxOffset: k.vec2(-8, 1).scale(profile.scale),
+		},
+		{
+			obj: rightCollector,
+			hitbox: 6 * profile.scale,
+			hitboxOffset: k.vec2(8, 0).scale(profile.scale),
+		},
+	], 5, 1, () => {
 		if (raiser.storedDebree.length === 0) return
 		spawnDebreeValues(raiser.pos.clone(), [...raiser.storedDebree], {
 			pattern: "radial",
@@ -98,14 +126,25 @@ export function spawnScrapRaiser(
 
 	registerBatchedEntityUpdate("enemies", raiser, () => {
 		const delta = k.dt() * raiser.getTimescale()
-		raiser.phaseTimer += delta
+		const collectorCount = Number(!leftCollector.hidden) + Number(!rightCollector.hidden)
+		if (collectorCount !== raiser.collectorCount) {
+			raiser.collectorCount = collectorCount
+			if (collectorCount === 0) disableScrapRaiserCollectors(raiser)
+		}
+		raiser.phaseTimer += raiser.phase === "reconstruct" && collectorCount === 1
+			? delta * 0.65
+			: delta
 
 		if (raiser.phase === "reconstruct") {
 			raiser.opacity = k.wave(0.58, 1, k.time() * 9)
 			if (raiser.phaseTimer >= RECONSTRUCTION_DURATION) {
 				completeReconstruction(raiser, options)
 			}
-			handleEnemyCombat(raiser, "SCRAP RAISER", "enemy_wake_scrap_raiser")
+			handleWakeCompositeCombat(
+				raiser,
+				"SCRAP RAISER",
+				"enemy_wake_scrap_raiser_core"
+			)
 			return
 		}
 
@@ -120,7 +159,11 @@ export function spawnScrapRaiser(
 		}
 
 		updateScrapRaiserMovement(raiser, profile.speedMultiplier, delta)
-		handleEnemyCombat(raiser, "SCRAP RAISER", "enemy_wake_scrap_raiser")
+		handleWakeCompositeCombat(
+			raiser,
+			"SCRAP RAISER",
+			"enemy_wake_scrap_raiser_core"
+		)
 	})
 
 	return raiser
@@ -185,6 +228,7 @@ function updateScrapRaiserMovement(
 }
 
 function collectDebree(raiser: GameObj, debris: CollectibleEnemyDebree) {
+	if (raiser.collectorCount === 0) return
 	if (!isCollectibleEnemyDebree(debris)) return
 	const value = debris.salvageValue ?? 1
 	raiser.storedDebree.push(value)
@@ -195,6 +239,20 @@ function collectDebree(raiser: GameObj, debris: CollectibleEnemyDebree) {
 	if (raiser.storedValue < RECONSTRUCTION_COST) return
 	raiser.phase = "reconstruct"
 	raiser.phaseTimer = 0
+}
+
+function disableScrapRaiserCollectors(raiser: GameObj) {
+	raiser.phase = "exhausted"
+	raiser.phaseTimer = 0
+	raiser.targetDebree = undefined
+	raiser.opacity = 1
+	if (raiser.storedDebree.length === 0) return
+	spawnDebreeValues(raiser.pos.clone(), [...raiser.storedDebree], {
+		pattern: "radial",
+		source: "enemy",
+	})
+	raiser.storedDebree.length = 0
+	raiser.storedValue = 0
 }
 
 function completeReconstruction(raiser: GameObj, options: EnemySpawnOptions) {
