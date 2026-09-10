@@ -27,6 +27,10 @@ import { hasEnemyLineOfSight } from "../services/enemyNavigationService"
 import { spawnLineTelegraph } from "../services/enemyTelegraphService"
 import { isPlayerDamageInvulnerable } from "../services/playerDamageState"
 import { spawnProjectile } from "../services/projectileService"
+import {
+	startShipPartDamageSmoke,
+	triggerShipPartExplosion,
+} from "../services/shipPartDamageService"
 import { ENEMY_THREAT_RANK } from "../services/threatService"
 import { registerHitAnimation } from "../shared"
 import { tags } from "../tags"
@@ -333,6 +337,7 @@ export function spawnBoss1(
 	for (const part of [leftBattery, rightBattery, crown]) {
 		part.onHurt(() => {
 			part.animation.seek(0)
+			startShipPartDamageSmoke(part, boss)
 		})
 	}
 	registerBossEncounter(boss, definition.id, {
@@ -753,9 +758,11 @@ function destroyBossPart(
 	})
 	starsEmitter.emitter.position = worldPos
 	starsEmitter.emit(28)
-	gameSoundService.play("enemy_explosion", { volume: subSoundVolume * 0.9 })
 	boss.jitter(10)
-	k.shake(5)
+	triggerShipPartExplosion(part, boss, worldPos, {
+		damage: maxHealth * 0.075,
+		excludeIds: [boss.id],
+	})
 	if (boss.exists() && boss.hp > 0) {
 		applyDamage(boss, maxHealth * 0.075, {
 			position: worldPos,

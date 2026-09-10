@@ -20,6 +20,10 @@ import { gridRegistry } from "./grid/gridRegistry";
 import { ACTIVE_RUN_GRID_KEY } from "./grid/gridKeys";
 import { spawnFlash } from "./spawn/spawnFlash";
 import { tags } from "./tags";
+import {
+	startShipPartDamageSmoke,
+	triggerShipPartExplosion,
+} from "./services/shipPartDamageService";
 
 interface Part {
 	obj: GameObj<
@@ -68,6 +72,7 @@ export function compose(c: Compose): Component[] {
 
 		part.obj.onHurt(() => {
 			c.parts[i].obj.animation.seek(0);
+			if (!part.isBody) startShipPartDamageSmoke(part.obj, body!.obj);
 		});
 
 		part.obj.onDeath(() => {
@@ -80,7 +85,7 @@ export function compose(c: Compose): Component[] {
 					: visualPos;
 
 			spawnDebree(seamPos, part.scoreOnDestroy);
-			if (!part.isBody || !c.deferBodyDestruction) {
+			if (part.isBody && !c.deferBodyDestruction) {
 				gameSoundService.play("enemy_explosion", { volume: mainSoundVolume });
 			}
 
@@ -120,6 +125,7 @@ export function compose(c: Compose): Component[] {
 				secondaryBurst: true,
 			});
 			body!.obj.jitter(20);
+			triggerShipPartExplosion(part.obj, body!.obj, seamPos);
 		});
 
 		composed.push({
