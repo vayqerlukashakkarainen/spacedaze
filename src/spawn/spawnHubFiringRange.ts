@@ -18,7 +18,8 @@ import {
 	getHubLifetimeDeposited,
 } from "../services/hub/hubProgressService"
 import { tags } from "../tags"
-import { UI_COLORS } from "../ui/common"
+import type { RewardKind } from "../types/rewardTypes"
+import { createRewardTypeFrame, UI_COLORS } from "../ui/common"
 import {
 	HUNTER_VISUALS,
 	getEnemyVisual,
@@ -37,8 +38,7 @@ const DISCOVERY_REFRESH_INTERVAL = 0.5
 const PICKUP_SPACING = 60
 const LOCKED_PICKUP_REVEAL_RADIUS = 54
 const LOCKED_PICKUP_ICON_SIZE = 24
-const LOCKED_PICKUP_RING_RADIUS = 18
-const LOCKED_PICKUP_RING_SEGMENTS = 32
+const LOCKED_PICKUP_FRAME_SIZE = 36
 const TRAINING_SWARM_COUNT = 5
 const TRAINING_FUEL_CELL_RESPAWN_DELAY = 3
 const COMPOSITE_TARGET_OFFSET_X = 130
@@ -394,11 +394,7 @@ function spawnLockedAbilityPickup(
 	position: Vec2
 ): LockedAbilityPickup {
 	const hubLevelReached = getHubLevel() >= ability.minimumHubLevel
-	const ringColor = k.rgb(...(hubLevelReached
-		? UI_COLORS.success
-		: UI_COLORS.muted))
 	const unlockProgress = getLockedAbilityHubProgress(ability.minimumHubLevel)
-	const progressRingPoints = createProgressRingPoints(unlockProgress)
 	const pickup = k.add([
 		k.pos(position),
 		k.sprite(ability.icon, {
@@ -416,32 +412,20 @@ function spawnLockedAbilityPickup(
 		tags.gameLoop,
 		tags.runtimeCullable,
 	])
-	pickup.add([
-		k.layer(layers.gameEffects),
-		k.z(-1),
-		{
-			draw() {
-				k.drawCircle({
-					pos: k.vec2(0),
-					radius: LOCKED_PICKUP_RING_RADIUS,
-					color: k.rgb(8, 15, 20),
-					opacity: 0.72,
-					anchor: "center",
-					outline: {
-						width: 1,
-						color: ringColor,
-						opacity: 1,
-					},
-				})
-				if (hubLevelReached || progressRingPoints.length < 2) return
-				k.drawLines({
-					pts: progressRingPoints,
-					width: 2,
-					color: k.rgb(...UI_COLORS.accent),
-				})
-			},
-		},
-	])
+	const pickupFrame = createRewardTypeFrame(pickup, {
+		size: LOCKED_PICKUP_FRAME_SIZE,
+		color: hubLevelReached ? UI_COLORS.success : UI_COLORS.muted,
+		kind: getAbilityRewardKind(ability.slot),
+		abilitySlot: ability.slot,
+		fillOpacity: hubLevelReached ? 0.12 : 0.06,
+		outlineOpacity: 1,
+		lineWidth: 1,
+		progress: hubLevelReached ? undefined : unlockProgress,
+		progressColor: UI_COLORS.accent,
+		progressLineWidth: 2,
+		z: -1,
+	})
+	pickupFrame.use(k.layer(layers.gameEffects))
 
 	const requirement = hubLevelReached
 		? "AVAILABLE FOR DROP"
@@ -489,16 +473,10 @@ function getLockedAbilityHubProgress(minimumHubLevel: number) {
 	return Math.min(1, Math.max(0, getHubLifetimeDeposited() / requiredDeposited))
 }
 
-function createProgressRingPoints(progress: number) {
-	if (progress <= 0) return []
-	const segmentCount = Math.max(2, Math.ceil(LOCKED_PICKUP_RING_SEGMENTS * progress))
-	return Array.from({ length: segmentCount + 1 }, (_, index) => {
-		const angle = (-90 + 360 * progress * index / segmentCount) * Math.PI / 180
-		return k.vec2(
-			Math.cos(angle) * LOCKED_PICKUP_RING_RADIUS,
-			Math.sin(angle) * LOCKED_PICKUP_RING_RADIUS
-		)
-	})
+function getAbilityRewardKind(slot: AbilitySlot): RewardKind {
+	if (slot === "primary") return "weapon"
+	if (slot === "secondary") return "activeModule"
+	return slot
 }
 
 function updateLockedAbilityReveals(

@@ -28,6 +28,7 @@ import { interactable } from "../comp/interactable";
 import {
 	createInteractionPrompt,
 	createNpcInteractionPrompt,
+	createRewardTypeFrame,
 } from "../ui/common";
 import {
 	addLocalLight,
@@ -202,16 +203,17 @@ export function spawnRewardPickup(
 	const launchDuration = options.launch?.duration ?? 0.52;
 	const launchHeight = options.launch?.height ?? 34;
 	let launchElapsed = 0;
-	const pickupBackdrop = m.add([
-		k.circle(compactAura ? auraRadius : auraRadius - 3),
-		k.anchor("center"),
-		k.scale(1),
-		k.color(rarityColor),
-		k.opacity(compactAura ? 0.16 : feedback.auraOpacity * 0.65),
-		k.outline(compactAura ? 1 : 2, rarityColor),
-		k.z(-1),
-		k.layer(layers.gameEffects),
-	]);
+	const pickupBackdrop = createRewardTypeFrame(m, {
+		size: (compactAura ? auraRadius : auraRadius - 3) * 2,
+		color: REWARD_RARITY_COLORS[reward.rarity],
+		kind: reward.kind,
+		abilitySlot: reward.abilitySlot,
+		fillOpacity: compactAura ? 0.16 : feedback.auraOpacity * 0.65,
+		outlineOpacity: compactAura ? 0.65 : 0.9,
+		lineWidth: compactAura ? 1 : 2,
+		z: -1,
+	});
+	pickupBackdrop.use(k.layer(layers.gameEffects));
 
 	const auraRings = Array.from({
 		length: compactAura ? 0 : feedback.tier,
