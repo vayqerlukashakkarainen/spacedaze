@@ -27,8 +27,8 @@ import {
 	showDiscoveredRewardPopover,
 } from "../services/ui/popoverService";
 import { createUiPanel } from "./common/panel";
-import { createUiDetailCard } from "./common/detailCard";
 import { UI_COLORS, UI_FONT_SIZES } from "./common/theme";
+import { getScaledLineSpacing } from "./common/text";
 import { registerBatchedUiUpdate } from "../services/ui/uiUpdateService";
 import { uiHitRegion } from "./common/hitRegion";
 import { getRerollTokens, player } from "../player";
@@ -96,8 +96,7 @@ const collectedItems = new Map<
 		lastProcSerial: number;
 	}
 >();
-
-const rewardTooltipTag = "rewardTooltip";
+let rewardTooltipPool: RewardTooltipPool | undefined;
 
 const statusPanelWidth = 264;
 const statusPanelHeight = 30;
@@ -121,6 +120,39 @@ const HEALTH_BAR_HEIGHT = 7;
 const HEALTH_BAR_SEGMENTS = 10;
 const LOW_HEALTH_COLOR_THRESHOLD = 0.7;
 const LOW_HEALTH_COLOR = [255, 70, 70] as const;
+const REWARD_TOOLTIP_POOL_SIZE = 2;
+const REWARD_TOOLTIP_WIDTH = 400;
+const REWARD_TOOLTIP_MIN_HEIGHT = 72;
+const REWARD_TOOLTIP_PADDING = 12;
+const REWARD_TOOLTIP_ICON_COLUMN_WIDTH = 48;
+const REWARD_TOOLTIP_RESPONSE = 12;
+
+interface RewardTooltipContent {
+	key: string;
+	reward: Reward;
+	count: number;
+	iconX: number;
+}
+
+interface RewardTooltipSlot {
+	root: GameObj;
+	title: GameObj;
+	meta: GameObj;
+	description: GameObj;
+	sectionTitle: GameObj;
+	stats: GameObj;
+	content: RewardTooltipContent | undefined;
+	reveal: number;
+	visible: boolean;
+	height: number;
+	accent: Color;
+}
+
+interface RewardTooltipPool {
+	show(content: RewardTooltipContent): void;
+	hide(key?: string): void;
+	destroy(): void;
+}
 let displayedSalvage = Number.NaN;
 let displayedDebreeMode = "";
 let displayedRerollTokens = Number.NaN;
@@ -825,6 +857,7 @@ export function addCollectedPowerup(
 		existing.countLabel.text = `x${existing.count}`;
 		if (existing.tile.isHovering()) {
 			showRewardTooltip(
+				collectionKey,
 				existing.reward,
 				existing.count,
 				(runLoadoutPanel?.pos.x ?? 0) + existing.tile.pos.x
@@ -884,6 +917,7 @@ export function addCollectedPowerup(
 	tile.onHover(() => {
 		uiState.isOverUI = true;
 		showRewardTooltip(
+			collectionKey,
 			collectedItem.reward,
 			collectedItem.count,
 			runLoadoutPanel!.pos.x + tile.pos.x
@@ -891,7 +925,7 @@ export function addCollectedPowerup(
 	});
 	tile.onHoverEnd(() => {
 		uiState.isOverUI = false;
-		hideRewardTooltip();
+		hideRewardTooltip(collectionKey);
 	});
 }
 
@@ -998,53 +1032,274 @@ function layoutCollectedUpgrades() {
 }
 
 function showRewardTooltip(
+	key: string,
 	reward: Reward,
 	count: number,
 	iconX: number
 ) {
-	hideRewardTooltip();
-	const panelWidth = 400;
-	const rarityColor = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
+	ensureRewardTooltipPool().show({ key, reward, count, iconX });
+}
+
+function hideRewardTooltip(key?: string) {
+	rewardTooltipPool?.hide(key);
+}
+
+function ensureRewardTooltipPool() {
+	if (rewardTooltipPool) return rewardTooltipPool;
+	rewardTooltipPool = createRewardTooltipPool();
+	return rewardTooltipPool;
+}
+
+function createRewardTooltipPool(): RewardTooltipPool {
+	const slots = Array.from(
+		{ length: REWARD_TOOLTIP_POOL_SIZE },
+		() => createRewardTooltipSlot()
+	);
+	let activeKey: string | undefined;
+	let activeSlotIndex = -1;
+
+	return {
+		show(content) {
+			if (activeKey === content.key && activeSlotIndex >= 0) {
+				assignRewardTooltip(slots[activeSlotIndex], content);
+				return;
+			}
+			if (activeSlotIndex >= 0) slots[activeSlotIndex].visible = false;
+			activeSlotIndex = (activeSlotIndex + 1) % slots.length;
+			activeKey = content.key;
+			assignRewardTooltip(slots[activeSlotIndex], content);
+		},
+		hide(key) {
+			if (key !== undefined && key !== activeKey) return;
+			if (activeSlotIndex >= 0) slots[activeSlotIndex].visible = false;
+			activeKey = undefined;
+		},
+		destroy() {
+			activeKey = undefined;
+			for (const slot of slots) {
+				if (slot.root.exists()) k.destroy(slot.root);
+			}
+		},
+	};
+}
+
+function createRewardTooltipSlot(): RewardTooltipSlot {
+	let slot: RewardTooltipSlot;
 	const root = k.add([
-		k.pos(0, 0),
+		k.pos(),
 		k.fixed(),
 		k.layer(layers.uiEffects),
 		k.z(300),
 		tags.gameLoopUi,
-		rewardTooltipTag,
 	]);
-	const levelText =
-		reward.levelIndex === undefined ? "" : `  LEVEL ${reward.levelIndex + 1}`;
-	const card = createUiDetailCard(root, {
-		pos: k.vec2(0, 0),
-		width: panelWidth,
-		minHeight: 72,
-		anchor: "center",
-		title: reward.name.toUpperCase(),
-		meta: `${reward.rarity.toUpperCase()}  x${count}${levelText}`,
-		description: reward.description,
-		sectionTitle: "EFFECT",
-		rows: Object.entries(reward.stats).map(([stat, value]) =>
-			`${formatRewardStat(stat)}  ${value}`
-		),
-		icon: reward.sprite,
-		accent: rarityColor,
-		frameless: true,
-		iconBorder: true,
-	});
-	const panelHeight = card.getHeight();
-	root.pos = k.vec2(
-		k.clamp(
-			iconX,
-			panelWidth / 2 + 8,
-			k.width() - panelWidth / 2 - 8
-		),
-		(runLoadoutPanel?.pos.y ?? 0) - panelHeight / 2 - 8
-	);
+	root.hidden = true;
+	const contentWidth = REWARD_TOOLTIP_WIDTH -
+		REWARD_TOOLTIP_PADDING * 2 - REWARD_TOOLTIP_ICON_COLUMN_WIDTH;
+	const contentX = -REWARD_TOOLTIP_WIDTH / 2 + REWARD_TOOLTIP_PADDING +
+		REWARD_TOOLTIP_ICON_COLUMN_WIDTH;
+	const title = root.add([
+		k.text("", {
+			font: "unscii",
+			size: UI_FONT_SIZES.subheading,
+			width: contentWidth,
+		}),
+		k.pos(contentX, 0),
+		k.color(k.WHITE),
+		k.opacity(0),
+	]);
+	const meta = root.add([
+		k.text("", {
+			font: "unscii",
+			size: UI_FONT_SIZES.label,
+			width: contentWidth,
+		}),
+		k.pos(contentX, 0),
+		k.color(...UI_COLORS.accent),
+		k.opacity(0),
+	]);
+	const description = root.add([
+		k.text("", {
+			font: "unscii",
+			size: UI_FONT_SIZES.small,
+			width: contentWidth,
+			lineSpacing: getScaledLineSpacing(UI_FONT_SIZES.small, 1.4),
+		}),
+		k.pos(contentX, 0),
+		k.color(k.WHITE),
+		k.opacity(0),
+	]);
+	const sectionTitle = root.add([
+		k.text("EFFECT", {
+			font: "unscii",
+			size: UI_FONT_SIZES.label,
+			width: contentWidth,
+		}),
+		k.pos(contentX, 0),
+		k.color(...UI_COLORS.accent),
+		k.opacity(0),
+	]);
+	const stats = root.add([
+		k.text("", {
+			font: "unscii",
+			size: UI_FONT_SIZES.body,
+			width: contentWidth,
+			lineSpacing: getScaledLineSpacing(UI_FONT_SIZES.body, 1.25),
+		}),
+		k.pos(contentX, 0),
+		k.color(k.WHITE),
+		k.opacity(0),
+	]);
+	slot = {
+		root,
+		title,
+		meta,
+		description,
+		sectionTitle,
+		stats,
+		content: undefined,
+		reveal: 0,
+		visible: false,
+		height: REWARD_TOOLTIP_MIN_HEIGHT,
+		accent: k.rgb(...UI_COLORS.accent),
+	};
+	root.add([
+		k.z(-1),
+		{
+			draw() {
+				drawRewardTooltipSlot(slot);
+			},
+		},
+	]);
+	root.onUpdate(() => updateRewardTooltipSlot(slot));
+	return slot;
 }
 
-function hideRewardTooltip() {
-	k.destroyAll(rewardTooltipTag);
+function assignRewardTooltip(
+	slot: RewardTooltipSlot,
+	content: RewardTooltipContent
+) {
+	const { reward } = content;
+	const levelText = reward.levelIndex === undefined
+		? ""
+		: `  LEVEL ${reward.levelIndex + 1}`;
+	const rows = Object.entries(reward.stats).map(([stat, value]) =>
+		`${formatRewardStat(stat)}  ${value}`
+	);
+	slot.content = content;
+	slot.visible = true;
+	slot.root.hidden = false;
+	slot.accent = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
+	slot.title.text = reward.name.toUpperCase();
+	slot.meta.text = `${reward.rarity.toUpperCase()}  x${content.count}${levelText}`;
+	slot.meta.color = slot.accent;
+	slot.description.text = reward.description ?? "";
+	slot.description.hidden = !reward.description;
+	slot.sectionTitle.hidden = rows.length === 0;
+	slot.sectionTitle.color = slot.accent;
+	slot.stats.text = rows.join("\n");
+	slot.stats.hidden = rows.length === 0;
+	layoutRewardTooltipSlot(slot);
+}
+
+function layoutRewardTooltipSlot(slot: RewardTooltipSlot) {
+	const entries = [
+		{ obj: slot.title, gap: 3 },
+		{ obj: slot.meta, gap: 10 },
+		{ obj: slot.description, gap: slot.stats.hidden ? 0 : 12 },
+		{ obj: slot.sectionTitle, gap: 5 },
+		{ obj: slot.stats, gap: 0 },
+	].filter((entry) => !entry.obj.hidden);
+	const contentHeight = entries.reduce(
+		(total, entry) => total + entry.obj.formattedText().height + entry.gap,
+		0
+	);
+	slot.height = Math.max(
+		REWARD_TOOLTIP_MIN_HEIGHT,
+		REWARD_TOOLTIP_PADDING * 2 + contentHeight
+	);
+	let y = -slot.height / 2 + REWARD_TOOLTIP_PADDING;
+	for (const entry of entries) {
+		entry.obj.pos.y = y;
+		y += entry.obj.formattedText().height + entry.gap;
+	}
+}
+
+function updateRewardTooltipSlot(slot: RewardTooltipSlot) {
+	const target = slot.visible ? 1 : 0;
+	const blend = 1 - Math.exp(-REWARD_TOOLTIP_RESPONSE * k.dt());
+	slot.reveal = k.lerp(slot.reveal, target, blend);
+	if (Math.abs(slot.reveal - target) < 0.01) slot.reveal = target;
+	if (slot.reveal === 0) {
+		slot.root.hidden = true;
+		slot.content = undefined;
+		return;
+	}
+	const content = slot.content;
+	if (!content) return;
+	const easedReveal = slot.reveal * slot.reveal * (3 - 2 * slot.reveal);
+	slot.root.hidden = false;
+	slot.root.pos = k.vec2(
+		k.clamp(
+			content.iconX,
+			REWARD_TOOLTIP_WIDTH / 2 + 8,
+			k.width() - REWARD_TOOLTIP_WIDTH / 2 - 8
+		),
+		(runLoadoutPanel?.pos.y ?? 0) - slot.height / 2 - 8 +
+			(1 - easedReveal) * 6
+	);
+	for (const text of [
+		slot.title,
+		slot.meta,
+		slot.description,
+		slot.sectionTitle,
+		slot.stats,
+	]) {
+		text.opacity = easedReveal;
+	}
+}
+
+function drawRewardTooltipSlot(slot: RewardTooltipSlot) {
+	const content = slot.content;
+	if (!content || slot.reveal <= 0) return;
+	const left = -REWARD_TOOLTIP_WIDTH / 2;
+	const top = -slot.height / 2;
+	const opacity = slot.reveal * 0.96;
+	k.drawRect({
+		pos: k.vec2(left, top),
+		width: REWARD_TOOLTIP_WIDTH,
+		height: slot.height,
+		color: k.rgb(...UI_COLORS.panel),
+		opacity,
+	});
+	k.drawRect({
+		pos: k.vec2(left + 3, top + 3),
+		width: 3,
+		height: slot.height - 6,
+		color: slot.accent,
+		opacity: slot.reveal,
+	});
+	k.drawRect({
+		pos: k.vec2(left + 31, top + 31),
+		width: 38,
+		height: 38,
+		anchor: "center",
+		color: k.rgb(...UI_COLORS.panel),
+		opacity,
+		outline: {
+			width: 1,
+			color: slot.accent,
+			opacity: slot.reveal,
+		},
+	});
+	k.drawSprite({
+		sprite: content.reward.sprite,
+		pos: k.vec2(left + 31, top + 31),
+		width: 30,
+		height: 30,
+		anchor: "center",
+		color: slot.accent,
+		opacity: slot.reveal,
+	});
 }
 
 function formatRewardStat(stat: string) {
@@ -1056,7 +1311,8 @@ function formatRewardStat(stat: string) {
 
 export function clearGameLoopUi() {
 	hideRunLevelChoice();
-	hideRewardTooltip();
+	rewardTooltipPool?.destroy();
+	rewardTooltipPool = undefined;
 	k.destroyAll(tags.gameLoopUi);
 	healthBarBaseFill = null;
 	healthBarBonusFill = null;
