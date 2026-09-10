@@ -84,6 +84,7 @@ let open = false
 let closing = false
 let inputControllers: KEventController[] = []
 let pausedObjects = new Set<GameObj>()
+let hiddenWorldObjects = new Set<GameObj>()
 let zoneScroll: UiScrollableControl | undefined
 let activeRoot: GameObj | undefined
 let activeBackdrop: GameObj | undefined
@@ -145,10 +146,16 @@ export function showTacticalMap() {
 		MAP_MUSIC_FADE_DURATION
 	)
 	pausedObjects = new Set()
+	hiddenWorldObjects = new Set()
 	for (const obj of k.get<GameObj>(tags.gameLoop)) {
-		if (obj.paused) continue
-		obj.paused = true
-		pausedObjects.add(obj)
+		if (!obj.paused) {
+			obj.paused = true
+			pausedObjects.add(obj)
+		}
+		if (!obj.hidden) {
+			obj.hidden = true
+			hiddenWorldObjects.add(obj)
+		}
 	}
 	loopService.pauseAll()
 
@@ -476,6 +483,10 @@ function finishClosingTacticalMap() {
 		if (obj.exists()) obj.paused = false
 	}
 	pausedObjects.clear()
+	for (const obj of hiddenWorldObjects) {
+		if (obj.exists()) obj.hidden = false
+	}
+	hiddenWorldObjects.clear()
 	loopService.resumeAll()
 	activeRoot = undefined
 	activeBackdrop = undefined
