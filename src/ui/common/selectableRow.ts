@@ -1,5 +1,9 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { k } from "../../main"
+import {
+	playUiClickSound,
+	playUiHoverSound,
+} from "../../services/uiSoundService"
 import { uiState } from "../uiState"
 import { addThemedText } from "./text"
 import { UI_COLORS, UI_SIZES, UI_SPACING } from "./theme"
@@ -129,13 +133,20 @@ export function createUiSelectableRow(
 		uiState.isOverUI = true
 		hovering = true
 		syncVisual()
+		if (!props.disabled && props.onClick) playUiHoverSound()
 	})
 	row.onHoverEnd(() => {
 		uiState.isOverUI = false
 		hovering = false
 		syncVisual()
 	})
-	if (!props.disabled && props.onClick) row.onClick(props.onClick)
+	const onClick = props.onClick
+	if (!props.disabled && onClick) {
+		row.onClick(() => {
+			playUiClickSound()
+			onClick()
+		})
+	}
 
 	return {
 		obj: row,
