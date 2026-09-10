@@ -31,6 +31,7 @@ import {
 	getEnemyVisual,
 } from "../visuals/enemyVisualCatalog"
 import { getPickupVisual } from "../visuals/pickupVisualCatalog"
+import { getTrainingUpgradePreviewSprite } from "../visuals/trainingUpgradePreviewAtlas"
 import type { VisualRepresentation } from "../visuals/visualRepresentation"
 import { onEnemyHit } from "./enemyShared"
 import { spawnMeteorite } from "./spawnAsteroid"
@@ -449,7 +450,7 @@ function spawnUpgradePreview(
 	if (!firstLevel) return
 	return spawnTrainingPreviewPickup({
 		position,
-		icon: firstLevel.sprite,
+		icon: getTrainingUpgradePreviewSprite(firstLevel.sprite),
 		kind: "upgrade",
 		minimumHubLevel: getUpgradeMinimumHubLevel(upgrade),
 		availableTitle: upgrade.toolName.toUpperCase(),

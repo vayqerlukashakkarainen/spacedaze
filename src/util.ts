@@ -30,6 +30,10 @@ import {
 	type ExplosionSoundPoolId,
 } from "./services/audio/explosionSoundPoolService";
 import { loadAudioAssets } from "./audio/soundCatalog"
+import {
+	getTrainingUpgradePreviewAtlasEntries,
+	TRAINING_UPGRADE_PREVIEW_ATLAS_PATH,
+} from "./visuals/trainingUpgradePreviewAtlas"
 
 const SAVE_VERSION = 2;
 const LEGACY_SAVE_KEYS = [
@@ -175,6 +179,10 @@ export async function init(k: KAPLAYCtx) {
 		hub_ship_gloom: hubShipAtlasEntry(2),
 		hub_ship_jubilee: hubShipAtlasEntry(3),
 	});
+	await k.loadSpriteAtlas(
+		TRAINING_UPGRADE_PREVIEW_ATLAS_PATH,
+		getTrainingUpgradePreviewAtlasEntries()
+	)
 	await k.loadSpriteAtlas("sprites/player-ship-8dir.png", {
 		ship: { x: 0, y: 0, width: 24, height: 24 },
 		ship_north_east: { x: 24, y: 0, width: 24, height: 24 },
