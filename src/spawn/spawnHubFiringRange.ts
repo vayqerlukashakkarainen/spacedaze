@@ -108,7 +108,8 @@ interface TrainingPreviewProps {
 	kind: RewardKind
 	abilitySlot?: AbilitySlot
 	minimumHubLevel: number
-	availableText: string
+	availableTitle: string
+	availableDescription?: string
 	availableTextColor?: readonly [number, number, number]
 }
 
@@ -446,7 +447,8 @@ function spawnUpgradePreview(
 		icon: firstLevel.sprite,
 		kind: "upgrade",
 		minimumHubLevel: getUpgradeMinimumHubLevel(upgrade),
-		availableText: `${upgrade.toolName.toUpperCase()}\n${firstLevel.desc}`,
+		availableTitle: upgrade.toolName.toUpperCase(),
+		availableDescription: firstLevel.desc,
 	})
 }
 
@@ -503,7 +505,7 @@ function spawnLockedAbilityPickup(
 		kind: getAbilityRewardKind(ability.slot),
 		abilitySlot: ability.slot,
 		minimumHubLevel: ability.minimumHubLevel,
-		availableText: "AVAILABLE FOR DROP",
+		availableTitle: "AVAILABLE FOR DROP",
 		availableTextColor: UI_COLORS.success,
 	})
 }
@@ -545,22 +547,33 @@ function spawnTrainingPreviewPickup(
 	})
 	pickupFrame.use(k.layer(layers.gameEffects))
 
-	const requirement = hubLevelReached
-		? props.availableText
+	const title = hubLevelReached
+		? props.availableTitle
 		: `REQUIRES HUB LEVEL ${props.minimumHubLevel}`
+	const showDescription = hubLevelReached && props.availableDescription !== undefined
 	const tooltip = pickup.add([
-		k.pos(0, -39),
+		k.pos(0, showDescription ? -49 : -39),
 		k.layer(layers.gameText),
 		k.z(20),
 	])
 	tooltip.hidden = true
+	const tooltipBackground = showDescription
+		? tooltip.add([
+			k.rect(UPGRADE_TOOLTIP_WIDTH, 44),
+			k.anchor("center"),
+			k.color(...UI_COLORS.panel),
+			k.opacity(0),
+			k.z(0),
+		])
+		: undefined
 	const tooltipText = tooltip.add([
-		k.text(requirement, {
+		k.text(title, {
 			font: "unscii",
 			size: 6,
 			width: UPGRADE_TOOLTIP_WIDTH,
 			align: "center",
 		}),
+		k.pos(0, showDescription ? -13 : 0),
 		k.anchor("center"),
 		k.color(...(hubLevelReached
 			? props.availableTextColor ?? UI_COLORS.text
@@ -569,6 +582,22 @@ function spawnTrainingPreviewPickup(
 		k.scale(0.9),
 		k.z(1),
 	])
+	const tooltipDescription = showDescription
+		? tooltip.add([
+			k.text(props.availableDescription!, {
+				font: "unscii",
+				size: 6,
+				width: UPGRADE_TOOLTIP_WIDTH - 12,
+				align: "center",
+			}),
+			k.pos(0, 7),
+			k.anchor("center"),
+			k.color(...UI_COLORS.text),
+			k.opacity(0),
+			k.scale(0.9),
+			k.z(1),
+		])
+		: undefined
 	let reveal = 0
 
 	return {
@@ -580,9 +609,15 @@ function spawnTrainingPreviewPickup(
 			if (Math.abs(reveal - target) < 0.01) reveal = target
 			const easedReveal = reveal * reveal * (3 - 2 * reveal)
 			tooltip.hidden = reveal === 0
+			if (tooltipBackground) tooltipBackground.opacity = easedReveal * 0.6
 			tooltipText.opacity = easedReveal
 			tooltipText.scale = k.vec2(0.9 + easedReveal * 0.1)
-			tooltip.pos.y = -39 + (1 - easedReveal) * 5
+			if (tooltipDescription) {
+				tooltipDescription.opacity = easedReveal
+				tooltipDescription.scale = k.vec2(0.9 + easedReveal * 0.1)
+			}
+			const restingY = showDescription ? -49 : -39
+			tooltip.pos.y = restingY + (1 - easedReveal) * 5
 		},
 	}
 }
