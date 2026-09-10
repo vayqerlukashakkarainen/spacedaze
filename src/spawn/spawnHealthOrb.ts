@@ -150,9 +150,8 @@ export function spawnHealthOrb(pos: Vec2, options: HealthOrbOptions = {}) {
 			return
 		}
 		collected = true
-		gameSoundService.play("powerup1", {
-			volume: mainSoundVolume,
-			detune: -200,
+		gameSoundService.play("health_orb_pickup", {
+			volume: mainSoundVolume * 0.75,
 		})
 		options.onCollected?.()
 		k.destroy(orb)

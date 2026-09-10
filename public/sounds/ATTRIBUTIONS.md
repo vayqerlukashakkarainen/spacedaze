@@ -49,6 +49,16 @@
 - Original filename: `freesound_community-warning-sound-6686.mp3`
 - In-game asset: `low-health-warning.mp3`
 
+## Health Orb Pickup
+
+"Health Pickup" by KeshaFilm (Freesound), distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-health-pickup-6860/
+- License: Pixabay Content License
+- Original filename: `freesound_community-health-pickup-6860.mp3`
+- In-game asset: `health-orb-pickup.wav`
+- Trimmed to the audible pickup cue, converted to mono WAV, level-adjusted, and faded at both edges for responsive playback.
+
 ## Player Game Over
 
 "Game Over Arcade" by myfox14 (Freesound), distributed through Pixabay.

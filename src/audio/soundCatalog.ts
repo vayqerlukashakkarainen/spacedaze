@@ -41,6 +41,7 @@ export const SOUND_ASSETS = {
 	low_health_warning: "sounds/low-health-warning.mp3",
 	collect1: "sounds/collect1.wav",
 	salvage_pickup: "sounds/salvage-pickup.mp3",
+	health_orb_pickup: "sounds/health-orb-pickup.wav",
 	click1: "sounds/click.wav",
 	ui_hover: "sounds/ui-hover.wav",
 	ui_click: "sounds/ui-click.wav",
