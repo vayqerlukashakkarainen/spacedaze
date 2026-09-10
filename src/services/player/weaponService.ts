@@ -275,7 +275,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 	},
 	{
 		id: "breachCannon",
-		minimumHubLevel: 2,
+		minimumHubLevel: 1,
 		name: "BREACH CANNON",
 		description: "Heavy, deliberate shots that punch through two additional targets.",
 		icon: "weapon_breach_cannon",
@@ -294,7 +294,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 	},
 	{
 		id: "arcCarbine",
-		minimumHubLevel: 2,
+		minimumHubLevel: 1,
 		name: "ARC CARBINE",
 		description: "Rapid, lighter fire that arcs to one nearby target.",
 		icon: "weapon_arc_carbine",
@@ -317,7 +317,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 	},
 	{
 		id: "scatterArray",
-		minimumHubLevel: 3,
+		minimumHubLevel: 2,
 		name: "SCATTER ARRAY",
 		description: "Five short-range pellets siphon 5% of damage dealt back into hull.",
 		icon: "weapon_scatter_array",
@@ -341,7 +341,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 	},
 	{
 		id: "burstDriver",
-		minimumHubLevel: 3,
+		minimumHubLevel: 2,
 		name: "BURST DRIVER",
 		description: "Fires three accurate rounds. Each round hits 25% harder than the last.",
 		icon: "weapon_burst_driver",
@@ -370,7 +370,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 	},
 	{
 		id: "plasmaMortar",
-		minimumHubLevel: 4,
+		minimumHubLevel: 2,
 		name: "PLASMA MORTAR",
 		description: "Hold and release to launch a charged plasma shell that detonates near enemies.",
 		icon: "weapon_plasma_mortar",
@@ -418,7 +418,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 	},
 	{
 		id: "railLance",
-		minimumHubLevel: 5,
+		minimumHubLevel: 3,
 		name: "RAIL LANCE",
 		description: "Hold and release to drive a charged shot through an enemy column. Locked Strafe Mode shots steer toward their target.",
 		icon: "weapon_rail_lance",
@@ -461,7 +461,7 @@ export const WEAPONS: readonly WeaponDefinition[] = [
 	},
 	{
 		id: "railgun",
-		minimumHubLevel: 6,
+		minimumHubLevel: 3,
 		name: "MASS DRIVER",
 		description: "Charge a heavy unguided rail bolt through enemy formations. Full charge maximizes speed, force, and penetration.",
 		icon: "weapon_railgun",

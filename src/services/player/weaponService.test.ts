@@ -73,6 +73,27 @@ assert.equal(railgun.projectileScale, 3)
 assert.equal(railgun.projectileSpeedMultiplier, 4.2)
 assert.deepEqual(railgun.projectileTint, [255, 210, 55])
 
+const weaponUnlockLevels = {
+	standardBlaster: 1,
+	pulseRepeater: 1,
+	twinNeedle: 1,
+	impactDriver: 1,
+	breachCannon: 1,
+	arcCarbine: 1,
+	scatterArray: 2,
+	burstDriver: 2,
+	plasmaMortar: 2,
+	railLance: 3,
+	railgun: 3,
+} as const
+for (const [weaponId, minimumHubLevel] of Object.entries(weaponUnlockLevels)) {
+	assert.equal(
+		getWeaponDefinition(weaponId as keyof typeof weaponUnlockLevels)
+			.minimumHubLevel,
+		minimumHubLevel
+	)
+}
+
 const projectileSpeeds = {
 	standardBlaster: 2.4,
 	pulseRepeater: 2.832,
