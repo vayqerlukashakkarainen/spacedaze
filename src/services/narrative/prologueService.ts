@@ -1,4 +1,5 @@
 import type { AudioPlay, GameObj, Vec2 } from "kaplay"
+import { dialogue } from "../../content/dialogue/dialogueCatalog"
 import type { HorizontalDirectionalVisualComp } from "../../comp/horizontalDirectionalVisual"
 import { playerObj } from "../../game"
 import {
@@ -18,7 +19,6 @@ import {
 	type CutsceneDefinition,
 } from "./cutsceneService"
 import { applyDamage } from "../combat/damageService"
-import type { DialogueLine } from "./dialogService"
 import {
 	beginNarrativePrologue,
 	cancelNarrativePrologue,
@@ -41,7 +41,10 @@ import {
 	spawnSpaceJumpBackdrop,
 	type SpaceJumpBackdrop,
 } from "../world/spaceJumpVisualService"
-import { HUB_WORMHOLE_OFFSET } from "../hub/hubLayoutService"
+import {
+	HUB_FIRING_RANGE_OFFSET,
+	HUB_WORMHOLE_OFFSET,
+} from "../hub/hubLayoutService"
 import {
 	beginPrologueEnemyEvacuation,
 	cancelPrologueRecoverySequence,
@@ -56,179 +59,12 @@ const HUB_INTRODUCTION_BURT_ACTOR = "hub-introduction-burt"
 const HUB_INTRODUCTION_PLAYER_ACTOR = "hub-introduction-player"
 const HUB_INTRODUCTION_ACTOR_OFFSET_X = 44
 const HUB_INTRODUCTION_ACTOR_OFFSET_Y = -150
+const HUB_INTRODUCTION_OVERVIEW_ZOOM = WORLD_CAMERA_SCALE * 0.5
+const HUB_INTRODUCTION_FACILITY_ZOOM = WORLD_CAMERA_SCALE * 1.15
+const HUB_INTRODUCTION_WORMHOLE_ZOOM = WORLD_CAMERA_SCALE * 1.35
+const HUB_INTRODUCTION_ACTOR_ZOOM = WORLD_CAMERA_SCALE * 2
 const INTRO_BLACK_SCREEN_DURATION = 3
 const LANDING_DIALOG_DELAY = 0.6
-const INTRO_LINES: readonly DialogueLine[] = [
-	{
-		speaker: "SHIP",
-		text: [
-			{ text: "SPACEJUMP COORDINATION SYSTEM" },
-			{ text: ".", waitAfter: 0.6 },
-			{ text: ".", waitAfter: 0.6 },
-			{ text: ". ", waitAfter: 0.6 },
-			{
-				text: "FAILURE.",
-				color: [255, 70, 70],
-				flash: true,
-				sound: { id: "system_error", volume: 0.9 },
-				shake: 8,
-			},
-		],
-	},
-	{ speaker: "SHIP", text: "DESTINATION LOCK LOST." },
-	{
-		speaker: "SHIP",
-		text: [
-			{
-				text: "INCOMING TRANSMISSION.",
-				waitAfter: 0.5,
-			},
-			{
-				text: " SIGNAL...",
-				waitAfter: 0.6,
-			},
-			{
-				text: " UNKNOWN.",
-			},
-		],
-	},
-	{
-		speaker: "UNKNOWN",
-		text: "...can you hear me? Keep moving. I cannot hold your pattern for long.",
-		disturbance: true,
-	},
-	{ speaker: "SHIP", text: "FOREIGN PHASE SIGNAL DETECTED." },
-	{
-		speaker: "UNKNOWN",
-		text: "Follow the signal. Do not let the Federation lock onto you.",
-		disturbance: true,
-	},
-	{
-		speaker: "SHIP",
-		autoAdvance: true,
-		text: [
-			{ text: "LEAVING SPACE JUMP IN... " },
-			{ text: "3...", waitAfter: 0.6 },
-			{ text: " 2...", waitAfter: 0.6 },
-			{ text: " 1... ", waitAfter: 0.6 },
-		],
-	},
-]
-const LANDED_LINES: readonly DialogueLine[] = [
-	{
-		speaker: "UNKNOWN",
-		text: "Your spacejump drive is caught in a phase collapse.",
-	},
-	{
-		speaker: "UNKNOWN",
-		text: "Find the active gate. I can pull your pattern through from there.",
-	},
-	{
-		speaker: "UNKNOWN",
-		text: [
-			{ text: "Move carefully.", waitAfter: 0.4 },
-			{ text: " " },
-			{ text: "Federation", color: [255, 70, 70] },
-			{ text: " search craft are still inside the Daze." },
-		],
-	},
-]
-const HUB_LINES: readonly DialogueLine[] = [
-	{
-		speaker: "BURT",
-		text: [
-			{ text: "There you are.", waitAfter: 0.4 },
-			{ text: " Name's Burt." },
-		],
-	},
-	{
-		speaker: "BURT",
-		text: "Wake Station held your phase pattern together. I did the rest.",
-	},
-	{
-		speaker: "BURT",
-		text: "This was Drius Wake. Scavenger port. Pirate village. Home.",
-	},
-	{
-		speaker: "BURT",
-		text: [
-			{ text: "The " },
-			{ text: "Federation", color: [255, 70, 70] },
-			{ text: " called it an illegal salvage field." },
-		],
-	},
-	{
-		speaker: "BURT",
-		text: [
-			{ text: "Then the " },
-			{ text: "Claimkeeper", color: [255, 70, 70] },
-			{ text: " salvaged it. Buildings, ships, droids—everyone." },
-		],
-	},
-	{
-		speaker: "BURT",
-		text: "What it could not tow, it pushed into the Phase Void. The Daze remembers pieces.",
-	},
-	{
-		speaker: "BURT",
-		text: "The Phase Crown can rebuild those echoes if we feed it debris.",
-	},
-	{
-		speaker: "BURT",
-		text: [
-			{ text: "It anchors your pattern too.", waitAfter: 0.4 },
-			{ text: " Die in the Void and Wake Station pulls you back. Loose debris stays behind." },
-		],
-	},
-	{
-		speaker: "BURT",
-		text: "Your jump failure was not an accident. I bent your signal here. I needed a pilot.",
-	},
-	{
-		speaker: "BURT",
-		text: "Bring home what the Void remembers. I will rebuild the Wake—and your spacejump drive.",
-	},
-	{
-		speaker: "BURT",
-		text: [
-			{ text: "Be angry when we are safe.", waitAfter: 0.4 },
-			{ text: " Until then, fly." },
-		],
-	},
-]
-const HUB_LAMP_GUIDANCE_LINES: readonly DialogueLine[] = [
-	{
-		speaker: "BURT",
-		text: [
-			{ text: "See those " },
-			{ text: "lamps", color: [0, 210, 255] },
-			{ text: " around the heart of the hub?" },
-		],
-	},
-	{
-		speaker: "BURT",
-		text: "Each lamp stabilizes another district of Drius Wake. Bring debris home, and we can pull the rest out of the Daze.",
-	},
-]
-const HUB_PHASE_VOID_GUIDANCE_LINES: readonly DialogueLine[] = [
-	{
-		speaker: "BURT",
-		text: [
-			{ text: "That gate leads into the " },
-			{ text: "Phase Void", color: [180, 120, 255] },
-			{ text: ". Scavengers call it the Daze." },
-		],
-	},
-	{
-		speaker: "BURT",
-		text: "The Crown copied pieces of the Wake there during the Claim. Debris still carries their patterns.",
-	},
-	{
-		speaker: "BURT",
-		text: "Go as deep as you dare. Bring back whatever home still remembers.",
-	},
-]
-
 const PROLOGUE_CUTSCENE: CutsceneDefinition = {
 	id: PROLOGUE_CUTSCENE_ID,
 	pauseGameplay: true,
@@ -248,7 +84,7 @@ const PROLOGUE_CUTSCENE: CutsceneDefinition = {
 		},
 		{
 			type: "dialogue",
-			lines: INTRO_LINES,
+			lines: dialogue.prologue.spacejumpFailure,
 			skippable: true,
 			options: {
 				overlayOpacity: 0,
@@ -271,7 +107,7 @@ const PROLOGUE_LANDED_COMMS: CutsceneDefinition = {
 	restoreCameraOnEnd: false,
 	steps: [{
 		type: "dialogue",
-		lines: LANDED_LINES,
+		lines: dialogue.prologue.landed,
 		options: {
 			channel: "comms",
 			gameplay: "paused",
@@ -400,9 +236,9 @@ export function showPrologueHubRepair(
 export async function showHubIntroductionIfNeeded() {
 	if (!shouldShowHubIntroduction()) return false
 	const { getHubFacilityPositions } = await import("../../levels/hub")
-	const phaseStationPosition = getHubFacilityPositions().trainingRange
+	const facilityPositions = getHubFacilityPositions()
 	const result = await playCutscene(
-		createHubIntroductionCutscene(phaseStationPosition),
+		createHubIntroductionCutscene(facilityPositions),
 		{
 			resolveActor(id) {
 				if (id === HUB_INTRODUCTION_PLAYER_ACTOR) return playerObj
@@ -421,9 +257,17 @@ export async function showHubIntroductionIfNeeded() {
 	return false
 }
 
+interface HubIntroductionFacilityPositions {
+	contractTerminal: Vec2
+	trainingRange: Vec2
+	salvageForge: Vec2
+	debriefTerminal: Vec2
+}
+
 function createHubIntroductionCutscene(
-	phaseStationPosition: Vec2
+	facilityPositions: HubIntroductionFacilityPositions
 ): CutsceneDefinition {
+	const phaseStationPosition = facilityPositions.trainingRange
 	const burtPosition = phaseStationPosition.add(
 		-HUB_INTRODUCTION_ACTOR_OFFSET_X,
 		HUB_INTRODUCTION_ACTOR_OFFSET_Y
@@ -435,6 +279,7 @@ function createHubIntroductionCutscene(
 	const cameraPosition = burtPosition.lerp(playerPosition, 0.5)
 	const hubCenter = k.center()
 	const wormholePosition = hubCenter.add(...HUB_WORMHOLE_OFFSET)
+	const firingRangePosition = hubCenter.add(...HUB_FIRING_RANGE_OFFSET)
 	const dialogueOptions = {
 		gameplay: "paused" as const,
 		advance: "manual" as const,
@@ -464,11 +309,25 @@ function createHubIntroductionCutscene(
 					},
 					{
 						type: "camera",
-						target: cameraPosition,
-						zoom: WORLD_CAMERA_SCALE * 2,
-						duration: 0.55,
+						target: hubCenter,
+						zoom: HUB_INTRODUCTION_OVERVIEW_ZOOM,
+						duration: 1.1,
+						easing: "easeInOutCubic",
 					},
 				],
+			},
+			{ type: "wait", duration: 0.35 },
+			{
+				type: "dialogue",
+				lines: dialogue.prologue.hubIntroduction.overview,
+				options: dialogueOptions,
+			},
+			{
+				type: "camera",
+				target: cameraPosition,
+				zoom: HUB_INTRODUCTION_ACTOR_ZOOM,
+				duration: 0.8,
+				easing: "easeInOutCubic",
 			},
 			{
 				type: "action",
@@ -486,19 +345,7 @@ function createHubIntroductionCutscene(
 			{ type: "wait", duration: 0.32 },
 			{
 				type: "dialogue",
-				lines: HUB_LINES.slice(0, 2),
-				options: dialogueOptions,
-			},
-			{
-				type: "emotion",
-				actor: HUB_INTRODUCTION_PLAYER_ACTOR,
-				emotion: "question",
-				options: { duration: 2.2, priority: "narrative" },
-			},
-			{ type: "wait", duration: 0.38 },
-			{
-				type: "dialogue",
-				lines: HUB_LINES.slice(2, 4),
+				lines: dialogue.prologue.hubIntroduction.meeting,
 				options: dialogueOptions,
 			},
 			{
@@ -509,21 +356,83 @@ function createHubIntroductionCutscene(
 			},
 			{ type: "wait", duration: 0.35 },
 			{
+				type: "camera",
+				target: hubCenter,
+				zoom: HUB_INTRODUCTION_FACILITY_ZOOM,
+				duration: 0.8,
+				easing: "easeInOutCubic",
+			},
+			{
 				type: "dialogue",
-				lines: HUB_LINES.slice(4, 6),
+				lines: dialogue.prologue.hubIntroduction.reconstruction,
 				options: dialogueOptions,
 			},
 			{
-				type: "emotion",
-				actor: HUB_INTRODUCTION_PLAYER_ACTOR,
-				emotion: "surprised",
-				options: { duration: 2.4, priority: "narrative" },
+				type: "camera",
+				target: facilityPositions.salvageForge,
+				zoom: HUB_INTRODUCTION_FACILITY_ZOOM,
+				duration: 0.75,
+				easing: "easeInOutCubic",
 			},
-			{ type: "wait", duration: 0.42 },
 			{
 				type: "dialogue",
-				lines: HUB_LINES.slice(6, 8),
+				lines: dialogue.prologue.hubIntroduction.salvageForge,
 				options: dialogueOptions,
+			},
+			{
+				type: "camera",
+				target: facilityPositions.debriefTerminal,
+				zoom: HUB_INTRODUCTION_FACILITY_ZOOM,
+				duration: 0.75,
+				easing: "easeInOutCubic",
+			},
+			{
+				type: "dialogue",
+				lines: dialogue.prologue.hubIntroduction.debriefTerminal,
+				options: dialogueOptions,
+			},
+			{
+				type: "camera",
+				target: firingRangePosition,
+				zoom: HUB_INTRODUCTION_FACILITY_ZOOM,
+				duration: 0.85,
+				easing: "easeInOutCubic",
+			},
+			{
+				type: "dialogue",
+				lines: dialogue.prologue.hubIntroduction.trainingRange,
+				options: dialogueOptions,
+			},
+			{
+				type: "camera",
+				target: facilityPositions.contractTerminal,
+				zoom: HUB_INTRODUCTION_FACILITY_ZOOM,
+				duration: 0.85,
+				easing: "easeInOutCubic",
+			},
+			{
+				type: "dialogue",
+				lines: dialogue.prologue.hubIntroduction.contractTerminal,
+				options: dialogueOptions,
+			},
+			{
+				type: "camera",
+				target: wormholePosition,
+				zoom: HUB_INTRODUCTION_WORMHOLE_ZOOM,
+				duration: 0.8,
+				easing: "easeInOutCubic",
+			},
+			{
+				type: "dialogue",
+				lines: dialogue.prologue.hubIntroduction.phaseVoidGuidance,
+				options: dialogueOptions,
+			},
+			{
+				type: "camera",
+				target: cameraPosition,
+				zoom: HUB_INTRODUCTION_ACTOR_ZOOM,
+				duration: 0.8,
+				easing: "easeInOutCubic",
 			},
 			{
 				type: "emotion",
@@ -534,7 +443,7 @@ function createHubIntroductionCutscene(
 			{ type: "wait", duration: 0.35 },
 			{
 				type: "dialogue",
-				lines: HUB_LINES.slice(8, 9),
+				lines: dialogue.prologue.hubIntroduction.confession,
 				options: dialogueOptions,
 			},
 			{
@@ -552,39 +461,8 @@ function createHubIntroductionCutscene(
 			},
 			{ type: "wait", duration: 0.34 },
 			{
-				type: "camera",
-				target: hubCenter,
-				zoom: WORLD_CAMERA_SCALE,
-				duration: 0.8,
-				easing: "easeInOutCubic",
-			},
-			{
 				type: "dialogue",
-				lines: HUB_LAMP_GUIDANCE_LINES,
-				options: dialogueOptions,
-			},
-			{
-				type: "camera",
-				target: wormholePosition,
-				zoom: WORLD_CAMERA_SCALE * 1.5,
-				duration: 0.9,
-				easing: "easeInOutCubic",
-			},
-			{
-				type: "dialogue",
-				lines: HUB_PHASE_VOID_GUIDANCE_LINES,
-				options: dialogueOptions,
-			},
-			{
-				type: "camera",
-				target: cameraPosition,
-				zoom: WORLD_CAMERA_SCALE * 2,
-				duration: 0.75,
-				easing: "easeInOutCubic",
-			},
-			{
-				type: "dialogue",
-				lines: HUB_LINES.slice(9),
+				lines: dialogue.prologue.hubIntroduction.departure,
 				options: dialogueOptions,
 			},
 		],
