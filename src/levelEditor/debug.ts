@@ -26,6 +26,7 @@ export function initDebug() {
 
 	// Toggle debug with F1
 	k.onKeyPress("f1", () => {
+		k.debug.inspect = false;
 		toggleDebug();
 	});
 }
@@ -40,7 +41,7 @@ function createDebugLabels() {
 		k.anchor("topleft"),
 		k.color(k.WHITE),
 		k.fixed(),
-		k.layer(layers.uiEffects),
+		k.layer(layers.debug),
 		k.z(1000),
 		"debug",
 	]);

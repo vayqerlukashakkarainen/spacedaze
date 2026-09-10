@@ -298,6 +298,7 @@ export const layers = {
 	gameText: "gameText",
 	ui: "ui",
 	uiEffects: "uiEffects",
+	debug: "debug",
 };
 
 export const GameState = {
@@ -416,7 +417,6 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 	upgradeService.initialize();
 	loadGameSlot();
 	setupStatsWindow();
-	initDebug();
 	k.setLayers(
 		[
 			layers.bg,
@@ -427,9 +427,11 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 			layers.gameText,
 			layers.ui,
 			layers.uiEffects,
+			layers.debug,
 		],
 		layers.game
 	);
+	initDebug();
 
 	addBorderOffsets();
 	registerDebugCommands();
