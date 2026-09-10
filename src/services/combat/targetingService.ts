@@ -51,6 +51,20 @@ export function getTargetHitRadius(target: GameObj) {
 	return typeof target.hb === "number" ? target.hb : 0
 }
 
+export function getTargetPartWorldPositions(owner: GameObj<PosComp>) {
+	const positions: Vec2[] = []
+	for (const partTarget of targetingComponents.values()) {
+		if (partTarget.owner.id !== owner.id) continue
+		if (!isLiveTarget(partTarget.obj)) continue
+		positions.push(getTargetWorldPosition(partTarget.obj))
+	}
+	return positions
+}
+
+export function getTargetOwner(target: GameObj<PosComp>) {
+	return targetingComponents.get(target.id)?.owner ?? target
+}
+
 export function isPlayerTargetable(target: GameObj) {
 	const partTarget = targetingComponents.get(target.id)
 	if (partTarget) {

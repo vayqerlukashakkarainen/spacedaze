@@ -3,6 +3,7 @@ import {
 	clampTurretWorldAngle,
 	DRIFT_SPEED_MULTIPLIER,
 	easeAngle,
+	getMovementModeSpeedMultiplier,
 	getPlayerTargetModeAimPosition,
 	getSignedAngleDelta,
 	isPlayerTargetModeActive,
@@ -15,6 +16,10 @@ import { calculateInterceptTime } from "../player/targetInterceptService"
 
 assert.equal(PLAYER_TURRET_LIMIT_DEGREES, 45)
 assert.equal(DRIFT_SPEED_MULTIPLIER, 0.6)
+assert.equal(getMovementModeSpeedMultiplier(1.15, 1, false), 1.15)
+assert.equal(getMovementModeSpeedMultiplier(1.15, 1, true), 0.6)
+assert.equal(getMovementModeSpeedMultiplier(1, 1.15, false), 1)
+assert.equal(getMovementModeSpeedMultiplier(1, 1.15, true), 0.69)
 
 setPlayerTargetModeActive(true)
 assert.equal(isPlayerTargetModeActive(), true)

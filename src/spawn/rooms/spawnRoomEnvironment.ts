@@ -3,13 +3,20 @@ import { gridCollision } from "../../comp/gridCollision"
 import { mass } from "../../comp/mass"
 import { snareable } from "../../comp/snareable"
 import { timescale } from "../../comp/timescale"
-import type { RoomEnvironmentObjectPlan, RoomFloorRoom } from "../../generation/rooms/roomFloorTypes"
+import type {
+	RoomEnvironmentArchetypeId,
+	RoomEnvironmentObjectPlan,
+	RoomFloorRoom,
+} from "../../generation/rooms/roomFloorTypes"
 import type { HexGrid } from "../../grid/hexGrid"
 import { ACTIVE_RUN_GRID_KEY } from "../../grid/gridKeys"
 import { checkProjectileIntersection, playerObj } from "../../game"
 import { k, layers, mainSoundVolume, velocityScale } from "../../main"
 import { explosionEmitter, sparkEmitter } from "../../particles"
-import { applyDamage } from "../../services/combat/damageService"
+import {
+	applyDamage,
+	getLastCombatCredit,
+} from "../../services/combat/damageService"
 import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import { gameSoundService } from "../../services/audio/gameSoundService"
 import { isPlayerDamageInvulnerable } from "../../services/player/playerDamageState"
@@ -20,7 +27,6 @@ import {
 import {
 	clearRoomCoverSources,
 	registerDynamicRoomCover,
-	registerStaticRoomCover,
 } from "../../services/world/roomCoverService"
 import { querySpatialNearby } from "../../services/core/runtimeSpatialIndexService"
 import { registerHitAnimation } from "../../shared"
@@ -50,6 +56,14 @@ const FUEL_SMOKE_INTERVAL = [0.42, 0.08] as const
 const FUEL_FLAME_INTERVAL = [0.3, 0.045] as const
 const FUEL_CELL_VISUAL = getWorldVisual("wake-fuel-cell")
 
+const DESTRUCTIBLE_COVER_SPRITES: Partial<Record<RoomEnvironmentArchetypeId, string>> = {
+	"wake-hull-barricade": "wake_hull_barricade",
+	"wake-salvage-cluster": "wake_salvage_cluster",
+	"wake-memory-console": "wake_memory_console",
+	"wake-cable-reel": "wake_cable_reel",
+	"wake-pipe-manifold": "wake_pipe_manifold",
+}
+
 export interface ExplodingFuelCellOptions {
 	health?: number
 	orientation?: number
@@ -62,8 +76,11 @@ export function spawnRoomEnvironment(grid: HexGrid, room: RoomFloorRoom) {
 	for (const plan of room.environment?.objects ?? []) {
 		if (plan.destroyed) continue
 		const position = grid.hexToScreen(plan.coord)
-		if (plan.category === "structural") {
-			registerStaticRoomCover(plan.id, position, 25)
+		if (
+			plan.category === "structural" ||
+			plan.category === "destructible-cover"
+		) {
+			spawnDestructibleCover(grid, plan, position)
 			continue
 		}
 		if (plan.archetypeId === "wake-floating-scrap") {
@@ -86,6 +103,61 @@ export function spawnRoomEnvironment(grid: HexGrid, room: RoomFloorRoom) {
 			spawnGeneratedFuelCell(grid, plan, position)
 		}
 	}
+}
+
+function spawnDestructibleCover(
+	grid: HexGrid,
+	plan: RoomEnvironmentObjectPlan,
+	position: Vec2
+) {
+	const sprite = DESTRUCTIBLE_COVER_SPRITES[plan.archetypeId]
+	if (!sprite) return
+	const radius = getCoverRadius(plan.archetypeId)
+	const cover = k.add([
+		k.pos(position),
+		k.sprite(sprite),
+		k.anchor("center"),
+		k.rotate(plan.orientation * 60),
+		k.color(k.WHITE),
+		k.opacity(1),
+		k.health(plan.health ?? 18),
+		k.animate(),
+		timescale(),
+		{
+			hb: radius,
+		},
+		tags.props,
+		tags.unit,
+		tags.roomEnvironment,
+		tags.roomCover,
+		tags.runMap,
+		tags.runRoom,
+		tags.gameLoop,
+		tags.runtimeCullable,
+	])
+	registerHitAnimation(cover)
+	setHitSoundProfile(cover, "lightMetal")
+	registerDynamicRoomCover(plan.id, cover, radius)
+	registerEnvironmentProjectileHits(cover, false)
+	persistObjectState(grid, plan, cover)
+	cover.onDeath(() => {
+		plan.destroyed = true
+		const deathPosition = cover.pos.clone()
+		spawnExplosionEffect(deathPosition, radius * 1.8, { particleCount: 9 })
+		spawnRockDestructionFragments(deathPosition, radius / 24)
+		gameSoundService.playPositional("hit2", deathPosition, {
+			volume: mainSoundVolume * 0.55,
+			detune: -260,
+		})
+		k.destroy(cover)
+	})
+	return cover
+}
+
+function getCoverRadius(archetypeId: RoomEnvironmentObjectPlan["archetypeId"]) {
+	if (archetypeId === "wake-hull-barricade") return 25
+	if (archetypeId === "wake-pipe-manifold") return 23
+	return 17
 }
 
 function spawnFloatingScrap(
@@ -435,6 +507,7 @@ function explodeFuelCell(
 	fuel.exploding = true
 	onExplode?.()
 	const position = fuel.pos.clone()
+	const sourceCredit = getLastCombatCredit(fuel)
 	const targets = querySpatialNearby(position, FUEL_EXPLOSION_RADIUS, {
 		anyTags: [tags.player, tags.enemy, tags.roomEnvironment],
 		excludeIds: [fuel.id],
@@ -448,6 +521,9 @@ function explodeFuelCell(
 			position,
 			playerHullDamage: true,
 			source: { name: "VOLATILE FUEL CELL", sprite: "wake_fuel_cell" },
+			combatCredit: sourceCredit
+				? { ...sourceCredit, explosive: true }
+				: { kind: "environment", id: "fuelCell", explosive: true },
 		})
 		if (offset.len() > 0.001) {
 			applyKnockbackImpulse(

@@ -11,6 +11,7 @@ import {
 	hasEnemyLineOfSight,
 } from "../services/enemies/enemyNavigationService"
 import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState"
+import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 import {
 	createEnemySpawnProfile,
 	ENEMY_THREAT_RANK,
@@ -294,6 +295,7 @@ export function spawnRammer(
 			onEnemyHit(rammer, projectile)
 		})
 		if (
+			!isEnemyEmpDisrupted(rammer) &&
 			!isPlayerDamageInvulnerable() &&
 			rammer.pos.dist(playerObj.pos) < rammer.hb + 8
 		) {
@@ -315,7 +317,8 @@ export function spawnRammer(
 			{
 				tier: profile.elite ? "elite" : "normal",
 				material: "ship",
-			}
+			},
+			rammer
 		)
 		k.destroy(rammer)
 	})

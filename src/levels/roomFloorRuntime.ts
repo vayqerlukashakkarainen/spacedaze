@@ -494,12 +494,6 @@ function renderRoom(
 				),
 			}
 		})
-	const barricades = room.environment?.objects.filter((object) =>
-		object.archetypeId === "wake-hull-barricade" && !object.destroyed
-	).map((object) => ({
-		center: grid.hexToScreen(object.coord),
-		angle: object.orientation * 60,
-	})) ?? []
 	const tileScale = grid.config.hexSize / RUN_ROCK_TILE_SOURCE_RADIUS
 	const tileScaleY = tileScale * (grid.config.projectionYScale ?? 1)
 	const tileCenterOffsetY =
@@ -519,15 +513,6 @@ function renderRoom(
 							pos: wall.center.add(0, tileCenterOffsetY),
 							anchor: "center",
 							scale: k.vec2(tileScale, tileScaleY),
-						})
-					}
-					for (const barricade of barricades) {
-						k.drawSprite({
-							sprite: "wake_hull_barricade",
-							pos: barricade.center,
-							anchor: "center",
-							angle: barricade.angle,
-							color: k.WHITE,
 						})
 					}
 					staticRoomPicture = k.endPicture()

@@ -22,6 +22,9 @@ export const ENEMY_PROGRESSION = {
 	"wake-towhook-rig": { name: "TOWHOOK RIG", minRunDepth: 1, minHubLevel: 1 },
 	"wake-patch-tender": { name: "PATCH TENDER", minRunDepth: 1, minHubLevel: 1 },
 	"wake-scrap-raiser": { name: "SCRAP RAISER", minRunDepth: 1, minHubLevel: 1 },
+	"wake-clampback": { name: "CLAMPBACK", minRunDepth: 1, minHubLevel: 1 },
+	"wake-fuse-rat": { name: "FUSE RAT", minRunDepth: 1, minHubLevel: 1 },
+	"wake-shredder-skiff": { name: "SHREDDER SKIFF", minRunDepth: 1, minHubLevel: 1 },
 	"wake-boiler-hulk": { name: "BOILER HULK", minRunDepth: 1, minHubLevel: 1 },
 } as const
 
@@ -33,6 +36,9 @@ export type WakeEnemyId = Extract<ProgressionEnemyId,
 	| "wake-towhook-rig"
 	| "wake-patch-tender"
 	| "wake-scrap-raiser"
+	| "wake-clampback"
+	| "wake-fuse-rat"
+	| "wake-shredder-skiff"
 	| "wake-boiler-hulk"
 >
 

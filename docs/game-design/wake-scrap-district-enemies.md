@@ -34,6 +34,9 @@ allies from whatever is nearby.
 | Towhook Rig | Controller | Pulls the player or loose wreckage | Break the cable or change position |
 | Patch Tender | Support | Rebuilds armor with nearby scrap | Remove support before damage is undone |
 | Scrap Raiser | Support | Steals enemy debris and reconstructs destroyed attackers | Deny salvage or interrupt reconstruction |
+| Clampback | Armored pressure | Advances behind destructible armor clamps | Flank it or punish the firing opening |
+| Fuse Rat | Environmental support | Primes fuel cells, barrels, or improvised mines | Interrupt sabotage or exploit the explosion |
+| Shredder Skiff | Area denial | Consumes loose scrap and cover for a fragment cone | Reposition, then break the loaded machinery |
 | Boiler Hulk | Artillery miniboss | Turns marked areas into dangerous scrap fields | Commit during its long vent window |
 
 ### Scrap Nipper
@@ -119,6 +122,56 @@ creates either a Scrap Nipper or Rivet Gunner.
 - **Room use:** Reconstructed enemies count toward room clearance but cannot
   drop salvage, keys, health, or rewards. A Raiser can complete at most two
   reconstructions and can never create another Raiser or an elite.
+
+### Clampback
+
+A compact salvage craft advances behind two oversized hull clamps. It closes
+the clamps while moving, then opens them to fire a short-range scrap shotgun.
+Each clamp is a separate destructible part.
+
+- **Silhouette:** 32x32 broad hull with two mismatched white clamps, a narrow
+  central core, and twin lower engines.
+- **Tell:** The clamps separate and the central barrel flashes before firing.
+- **Counterplay:** Attack from the exposed side, wait for the firing opening,
+  or destroy the clamps to remove its defensive stance.
+- **Room use:** Advances through firing lanes and uses stable cover as a route
+  toward the player rather than as a permanent firing position.
+- **Elite variant — Yard Bulwark:** Closes one surviving clamp between shots,
+  but its exposed core takes increased part-explosion damage.
+
+### Fuse Rat
+
+A fast sabotage droid searches for volatile fuel cells and explosive barrels.
+It attaches an overcharger that makes the object burn before detonating. When
+no suitable prop exists, it plants a weaker improvised mine.
+
+- **Silhouette:** 32x32 narrow wedge with small tool claws, a pointed sensor,
+  and an oversized central battery.
+- **Tell:** A cyan wire joins the battery to the target while a rising spark
+  pulse marks the detonation timer.
+- **Counterplay:** Destroy the battery to interrupt sabotage, remove the Fuse
+  Rat, or herd nearby enemies into the coming blast.
+- **Room use:** Only primes destructible explosive props and never targets
+  rewards, doors, health globes, or permanent structures.
+- **Elite variant — Livewire Rat:** Can maintain two charges, but destroying
+  its battery immediately discharges both at reduced damage.
+
+### Shredder Skiff
+
+A battered grinder craft consumes loose scrap or destructible cover, then
+fires the material as a wide cone of fast fragments. Its grinder and loaded
+hopper are independent destructible parts.
+
+- **Silhouette:** 32x32 industrial skiff with a broad forward grinder, an
+  offset square hopper, and two rear engines.
+- **Tell:** Scrap visibly fills the hopper before the grinder spins and points
+  toward the final firing cone.
+- **Counterplay:** Leave the cone, break the grinder to remove the attack, or
+  destroy a loaded hopper to turn its directional explosion against enemies.
+- **Room use:** Consumes only loose combat scrap and explicitly destructible
+  cover; it cannot remove fixed room boundaries or objective props.
+- **Elite variant — Redline Shredder:** Stores two volleys and fires them in
+  opposite sweeps, while a full hopper remains vulnerable for longer.
 
 ### Boiler Hulk
 

@@ -24,6 +24,9 @@ import { spawnTowhookRig } from "../../spawn/wake/spawnTowhookRig"
 import { spawnPatchTender } from "../../spawn/wake/spawnPatchTender"
 import { spawnScrapRaiser } from "../../spawn/wake/spawnScrapRaiser"
 import { spawnBoilerHulk } from "../../spawn/wake/spawnBoilerHulk"
+import { spawnClampback } from "../../spawn/wake/spawnClampback"
+import { spawnFuseRat } from "../../spawn/wake/spawnFuseRat"
+import { spawnShredderSkiff } from "../../spawn/wake/spawnShredderSkiff"
 import { tags } from "../../tags"
 import {
 	getThreatSnapshot,
@@ -85,6 +88,9 @@ export function spawnPlannedEnemy(
 		case "wake-towhook-rig": return spawnTowhookRig(pos, 6, options)
 		case "wake-patch-tender": return spawnPatchTender(pos, 4, options)
 		case "wake-scrap-raiser": return spawnScrapRaiser(pos, 5, options)
+		case "wake-clampback": return spawnClampback(pos, 7, options)
+		case "wake-fuse-rat": return spawnFuseRat(pos, 4, options)
+		case "wake-shredder-skiff": return spawnShredderSkiff(pos, 8, options)
 		case "wake-boiler-hulk": return spawnBoilerHulk(pos, 20, options)
 	}
 }

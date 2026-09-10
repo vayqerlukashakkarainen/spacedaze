@@ -9,6 +9,7 @@ import { applyDamage } from "./damageService"
 import { applyExplosionPulse } from "./explosionPulseService"
 import { audioService } from "../audio/audioService"
 import { querySpatialNearby } from "../core/runtimeSpatialIndexService"
+import type { CombatCredit } from "../progression/combatCredit"
 
 export interface ExplosionOptions {
 	pos: Vec2
@@ -24,6 +25,7 @@ export interface ExplosionOptions {
 	canCrit?: boolean
 	targets?: GameObj[]
 	onResolved?: (explosion: ExplosionContext) => void
+	combatCredit?: CombatCredit
 }
 
 export interface ExplosionHit {
@@ -89,6 +91,7 @@ export function createExplosion(options: ExplosionOptions) {
 		if (!applyDamage(target, result.damage, {
 			critical: result.critical,
 			visualForceOrigin: context.pos,
+			combatCredit: context.combatCredit,
 		})) continue
 		context.hits.push({
 			target,

@@ -13,6 +13,7 @@ import { spawnTargetTelegraph } from "../../services/enemies/enemyTelegraphServi
 import { gameSoundService } from "../../services/audio/gameSoundService"
 import { setHitSoundProfile } from "../../services/audio/hitSoundService"
 import { isPlayerDamageInvulnerable } from "../../services/player/playerDamageState"
+import { isEnemyEmpDisrupted } from "../../services/enemies/enemyEmpService"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../../services/enemies/threatService"
 import { easeDirection, registerHitAnimation } from "../../shared"
 import { tags } from "../../tags"
@@ -340,7 +341,11 @@ function resolveScrapPlayerCollision(
 		? offset.scale(1 / distance)
 		: k.vec2(0, -1)
 	playerObj.pos = scrap.pos.add(collisionNormal.scale(minimumDistance))
-	if (scrap.contactCooldown > 0 || isPlayerDamageInvulnerable()) return
+	if (
+		isEnemyEmpDisrupted(scrap) ||
+		scrap.contactCooldown > 0 ||
+		isPlayerDamageInvulnerable()
+	) return
 	if (applyDamage(playerObj, Math.max(1, profile.damage * 0.5), {
 		position: scrap.pos,
 		incomingDirection: collisionNormal.scale(-1),
@@ -371,6 +376,7 @@ function startHulkShot(
 	profile: ReturnType<typeof createEnemySpawnProfile>,
 	extraTags?: string[]
 ) {
+	if (isEnemyEmpDisrupted(hulk)) return
 	hulk.attacking = true
 	const targetPos = playerObj.pos.clone()
 	const impactRadius = scoop.hidden ? 44 : HULK_IMPACT_RADIUS

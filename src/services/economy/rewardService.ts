@@ -53,6 +53,7 @@ import {
 	getHubChestLuck,
 	getHubLevel,
 	getHubLevelDefinition,
+	getHubLifetimeDeposited,
 } from "../hub/hubProgressService"
 import {
 	ABILITIES,
@@ -71,6 +72,13 @@ import {
 	rollAbilityTierState,
 	type AbilityTierState,
 } from "../abilities/abilityTierService"
+import {
+	describeRewardUnlockRequirement,
+	getRewardUnlockRequirementProgress,
+	getRewardUnlockRequirements,
+	meetsRewardUnlockRequirements,
+	type RewardUnlockRequirementSet,
+} from "../progression/rewardUnlockProgressService"
 
 export { RewardRarity }
 export type { RewardKind, RewardSource }
@@ -85,6 +93,8 @@ export const REWARD_RARITY_COLORS: Readonly<
 	[RewardRarity.Legendary]: [255, 185, 45],
 }
 
+export const ALTERATION_REWARD_COLOR = [80, 220, 255] as const
+
 export interface RewardDefinition {
 	id: string
 	kind: RewardKind
@@ -93,10 +103,12 @@ export interface RewardDefinition {
 	stats: Readonly<Record<string, number | string>>
 	sprite: string
 	rarity: RewardRarity
+	alteration?: boolean
 	progression: RewardProgression
 	allowedSources: readonly RewardSource[]
 	weights: Partial<Record<RewardSource, number>>
 	minimumHubLevel?: number
+	unlockRequirements?: RewardUnlockRequirementSet
 	powerupKey?: PowerupKey
 	upgradeKey?: string
 	weaponId?: WeaponId
@@ -117,6 +129,7 @@ export interface SyntheticRewardState {
 export interface RewardAvailabilityContext {
 	hubLevel?: number
 	syntheticState?: SyntheticRewardState
+	ignoreMasteryRequirements?: boolean
 }
 
 export interface Reward {
@@ -127,6 +140,7 @@ export interface Reward {
 	stats: Readonly<Record<string, number | string>>
 	sprite: string
 	rarity: RewardRarity
+	alteration?: boolean
 	progression: RewardProgression
 	quantity?: number
 	powerupKey?: PowerupKey
@@ -312,7 +326,7 @@ export function getAllRewardDefinitions(
 		...mobilityRewards,
 		...ultimateRewards,
 		...upgradeRewards,
-	].filter((definition) => {
+	].map(attachRewardUnlockRequirements).filter((definition) => {
 		return !source || definition.allowedSources.includes(source)
 	})
 }
@@ -323,6 +337,11 @@ export function canReceiveReward(
 ): boolean {
 	const hubLevel = context.hubLevel ?? getHubLevel()
 	if (hubLevel < getRewardMinimumHubLevel(definition)) return false
+	if (
+		!context.syntheticState &&
+		!context.ignoreMasteryRequirements &&
+		!meetsRewardUnlockRequirements(definition.unlockRequirements)
+	) return false
 	if (definition.abilityId) {
 		const ability = getAbilityDefinition(definition.abilityId)
 		const discovered = context.syntheticState
@@ -350,6 +369,42 @@ export function getRewardMinimumHubLevel(definition: RewardDefinition) {
 	return Math.max(1, Math.round(definition.minimumHubLevel ?? 1))
 }
 
+export function getRewardUnlockProgress(definition: RewardDefinition) {
+	const progressValues: number[] = []
+	const minimumHubLevel = getRewardMinimumHubLevel(definition)
+	if (minimumHubLevel > 1) {
+		const hubLevel = getHubLevel()
+		if (hubLevel >= minimumHubLevel) progressValues.push(1)
+		else {
+			const requiredDeposited = getHubLevelDefinition(
+				minimumHubLevel
+			).requiredDeposited
+			progressValues.push(requiredDeposited <= 0
+				? 1
+				: getHubLifetimeDeposited() / requiredDeposited
+			)
+		}
+	}
+	for (const requirement of definition.unlockRequirements?.allOf ?? []) {
+		progressValues.push(
+			getRewardUnlockRequirementProgress(requirement) / requirement.target
+		)
+	}
+	const alternatives = definition.unlockRequirements?.anyOf ?? []
+	if (alternatives.length > 0) {
+		progressValues.push(Math.max(...alternatives.map((requirement) =>
+			getRewardUnlockRequirementProgress(requirement) / requirement.target
+		)))
+	}
+	if (progressValues.length === 0) return 1
+	return k.clamp(
+		progressValues.reduce((total, value) => total + k.clamp(value, 0, 1), 0) /
+			progressValues.length,
+		0,
+		1
+	)
+}
+
 export function getRewardLockReason(
 	definition: RewardDefinition
 ): string | undefined {
@@ -357,6 +412,21 @@ export function getRewardLockReason(
 	const minimumHubLevel = getRewardMinimumHubLevel(definition)
 	if (getHubLevel() < minimumHubLevel) {
 		return `Requires Hub Level ${minimumHubLevel}`
+	}
+	const unmetMastery = definition.unlockRequirements?.allOf.find(
+		(requirement) => !meetsRewardUnlockRequirements({ allOf: [requirement] })
+	)
+	if (unmetMastery) {
+		return `Requires ${describeRewardUnlockRequirement(unmetMastery)}`
+	}
+	const alternateMastery = definition.unlockRequirements?.anyOf
+	if (
+		alternateMastery?.length &&
+		!meetsRewardUnlockRequirements({ allOf: [], anyOf: alternateMastery })
+	) {
+		return `Requires one of: ${alternateMastery.map(
+			describeRewardUnlockRequirement
+		).join(" or ")}`
 	}
 	if (definition.abilityId) return "Already discovered"
 	if (
@@ -382,20 +452,22 @@ export function getRewardDefinition(id: string): RewardDefinition | undefined {
 		(key) => key.toLowerCase() === normalizedId
 	) as PowerupKey | undefined
 	const powerup = powerupKey ? powerupRewardRegistry[powerupKey] : undefined
-	if (powerup) return powerup
+	if (powerup) return attachRewardUnlockRequirements(powerup)
 	const item = Object.values(itemRewardRegistry).find(
 		(candidate) => candidate.id.toLowerCase() === normalizedId
 	)
-	if (item) return item
+	if (item) return attachRewardUnlockRequirements(item)
 	const activeModule = ACTIVE_MODULES.find(
 		(candidate) => `active:${candidate.id}`.toLowerCase() === normalizedId
 	)
-	if (activeModule) return buildActiveModuleReward(activeModule)
+	if (activeModule) return attachRewardUnlockRequirements(
+		buildActiveModuleReward(activeModule)
+	)
 
 	const weapon = WEAPONS.find(
 		(candidate) => `weapon:${candidate.id}`.toLowerCase() === normalizedId
 	)
-	if (weapon) return buildWeaponReward(weapon)
+	if (weapon) return attachRewardUnlockRequirements(buildWeaponReward(weapon))
 
 	const ability = ABILITIES.find(
 		(candidate) =>
@@ -403,12 +475,15 @@ export function getRewardDefinition(id: string): RewardDefinition | undefined {
 			candidate.slot !== "secondary" &&
 			`${candidate.slot}:${candidate.id}`.toLowerCase() === normalizedId
 	)
-	if (ability) return buildAbilityReward(ability)
+	if (ability) return attachRewardUnlockRequirements(buildAbilityReward(ability))
 
 	const currentUpgrade = getAllUpgradeDefinitions().find(
 		(definition) => definition.toolKey.toLowerCase() === normalizedId
 	)
-	if (currentUpgrade) return buildCurrentUpgradeReward(currentUpgrade)
+	if (currentUpgrade) {
+		const reward = buildCurrentUpgradeReward(currentUpgrade)
+		return reward ? attachRewardUnlockRequirements(reward) : undefined
+	}
 
 	const match = /^(?:upgrade:)?([^:]+):(\d+)$/.exec(id)
 	if (!match) return undefined
@@ -416,7 +491,16 @@ export function getRewardDefinition(id: string): RewardDefinition | undefined {
 		(candidate) => candidate.toolKey.toLowerCase() === match[1].toLowerCase()
 	)
 	if (!definition) return undefined
-	return buildUpgradeReward(definition, Number(match[2]) - 1)
+	const reward = buildUpgradeReward(definition, Number(match[2]) - 1)
+	return reward ? attachRewardUnlockRequirements(reward) : undefined
+}
+
+function attachRewardUnlockRequirements(
+	definition: RewardDefinition
+): RewardDefinition {
+	const unlockRequirements = getRewardUnlockRequirements(definition)
+	if (!unlockRequirements) return definition
+	return { ...definition, unlockRequirements }
 }
 
 export function createReward(
@@ -832,6 +916,7 @@ function buildUpgradeReward(
 		upgradeKey: toolKey,
 		levelIndex,
 		name: rewardName,
+		alteration: definition.alteration,
 		description: requirementText
 			? `${levelDescription}\nREQUIRES: ${requirementText}`
 			: levelDescription,
@@ -860,6 +945,20 @@ function buildUpgradeReward(
 			getNextRunUpgradeLevel(toolKey) === levelIndex &&
 			(!requiresStandardDrone(toolKey) || hasStandardDrone()),
 	}
+}
+
+export function getRewardDisplayTier(
+	reward: Pick<Reward, "rarity" | "alteration">
+) {
+	return reward.alteration ? "ALTERED" : reward.rarity
+}
+
+export function getRewardDisplayColor(
+	reward: Pick<Reward, "rarity" | "alteration">
+) {
+	return reward.alteration
+		? ALTERATION_REWARD_COLOR
+		: REWARD_RARITY_COLORS[reward.rarity]
 }
 
 function requiresStandardDrone(toolKey: string) {
@@ -902,7 +1001,10 @@ function formatUpgradeStats(
 }
 
 const PROJECTILE_DAMAGE_PERCENTAGE_STATS = new Set([
+	"lassoImpactVelocityRetentionBonus",
+	"lassoSelfDamageReduction",
 	"projectileBounceDamageRetention",
+	"projectileCoreDamageMultiplier",
 	"projectileCriticalShardDamage",
 	"projectileDotDamage",
 	"projectileEchoDamage",
@@ -911,9 +1013,12 @@ const PROJECTILE_DAMAGE_PERCENTAGE_STATS = new Set([
 	"projectileGrowthDamage",
 	"projectileLifesteal",
 	"projectileMineDamage",
+	"projectilePartDamageMultiplier",
 	"projectilePaintDamage",
 	"projectileProximityDamage",
 	"projectileStunChance",
+	"projectileEmpChance",
+	"projectileEmpSlowPercentage",
 	"projectileVolatileDamage",
 ])
 
@@ -1100,6 +1205,7 @@ function toReward(
 		stats: scaledStats,
 		sprite: definition.sprite,
 		rarity,
+		alteration: definition.alteration,
 		progression: definition.progression,
 		quantity,
 		powerupKey: definition.powerupKey,

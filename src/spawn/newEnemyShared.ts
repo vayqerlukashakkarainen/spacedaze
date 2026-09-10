@@ -7,6 +7,7 @@ import type { EnemySpawnProfile } from "../services/enemies/threatService"
 import { registerHitAnimation } from "../shared"
 import { tags } from "../tags"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
+import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 
 export function handleEnemyCombat(
 	enemy: GameObj,
@@ -17,6 +18,7 @@ export function handleEnemyCombat(
 		onEnemyHit(enemy, projectile)
 	})
 	if (
+		!isEnemyEmpDisrupted(enemy) &&
 		!isPlayerDamageInvulnerable() &&
 		enemy.pos.dist(playerObj.pos) < enemy.hb + 8
 	) {
@@ -48,7 +50,8 @@ export function registerEnemyLifecycle(
 			{
 				tier: profile.elite ? "elite" : "normal",
 				material: "ship",
-			}
+			},
+			enemy
 		)
 		k.destroy(enemy)
 	})

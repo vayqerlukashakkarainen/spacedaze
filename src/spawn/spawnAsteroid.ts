@@ -9,6 +9,7 @@ import { mass } from "../comp/mass";
 import { ASTEROID_SPRITES } from "../asteroidSprites";
 import { applyDamage } from "../services/combat/damageService";
 import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState";
+import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 import {
 	createEnemySpawnProfile,
 	ENEMY_THREAT_RANK,
@@ -105,6 +106,7 @@ export function spawnMeteorite(props: Props) {
 		});
 
 		if (
+			!isEnemyEmpDisrupted(m) &&
 			!isPlayerDamageInvulnerable() &&
 			playerObj.pos.dist(m.pos) < m.hb
 		) {
@@ -130,7 +132,8 @@ export function spawnMeteorite(props: Props) {
 				{
 					tier: profile.elite ? "elite" : "normal",
 					material: "rock",
-				}
+				},
+				m
 			);
 		k.destroy(m);
 		props.onDeath?.(deathPos);

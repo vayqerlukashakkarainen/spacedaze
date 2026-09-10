@@ -11,6 +11,7 @@ import { createContinuousSystem } from "../services/core/continuousSystemService
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import { getEnemyNavigationDirection } from "../services/enemies/enemyNavigationService"
 import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState"
+import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 import {
 	createEnemySpawnProfile,
 	ENEMY_THREAT_RANK,
@@ -171,6 +172,7 @@ const swarmCollisionSystem = createCadencedSystem<SwarmCollisionEntry>({
 			)
 			if (
 				!enemy.is(tags.stressEnemy) &&
+				!isEnemyEmpDisrupted(enemy) &&
 				!isPlayerDamageInvulnerable() &&
 				enemy.pos.dist(playerObj.pos) < enemy.hb + 8
 			) {
@@ -293,7 +295,8 @@ export function spawnSwarmEnemy(
 				tier: profile.elite ? "elite" : "normal",
 				particleScale: 0.35,
 				material: "ship",
-			}
+			},
+			enemy
 		)
 		k.destroy(enemy)
 		behavior.onDeath?.()
@@ -567,6 +570,7 @@ export function spawnHiveMind(
 			onEnemyHit(hive, projectile)
 		})
 		if (
+			!isEnemyEmpDisrupted(hive) &&
 			!isPlayerDamageInvulnerable() &&
 			hive.pos.dist(playerObj.pos) < hive.hb + 8
 		) {
@@ -597,7 +601,8 @@ export function spawnHiveMind(
 			{
 				tier: profile.elite ? "elite" : "normal",
 				material: "ship",
-			}
+			},
+			hive
 		)
 		k.destroy(hive)
 	})

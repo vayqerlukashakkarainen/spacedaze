@@ -13,6 +13,66 @@ export const salvageLasso: Tool = {
 	],
 };
 
+function lassoTool(
+	toolName: string,
+	descriptions: readonly string[],
+	sprite: string,
+	values: readonly number[],
+	prices: readonly number[]
+): Tool {
+	return {
+		toolName,
+		requirements: { allOf: [{ toolKey: "salvageLasso" }] },
+		upgrades: descriptions.map((desc, index) => ({
+			name: descriptions.length === 1 ? toolName : `Level ${index + 1}`,
+			desc,
+			sprite,
+			price: prices[index],
+			value: values[index],
+		})),
+	}
+}
+
+export const kineticCoupler = lassoTool(
+	"Kinetic Coupler",
+	["Lasso impacts deal 15% more damage", "Lasso impacts deal 30% more damage", "Lasso impacts deal 45% more damage"],
+	"kinetic_coupler_upg1",
+	[1.15, 1.3, 1.45],
+	[24, 32, 42]
+)
+
+export const torqueSpool = lassoTool(
+	"Torque Spool",
+	["Pull tethered objects with 10% more acceleration", "Pull tethered objects with 20% more acceleration", "Pull tethered objects with 30% more acceleration"],
+	"torque_spool_upg1",
+	[1.1, 1.2, 1.3],
+	[22, 30, 40]
+)
+
+export const shockCradle = lassoTool(
+	"Shock Cradle",
+	["Tethered objects take 20% less collision damage", "Tethered objects take 35% less collision damage", "Tethered objects take 50% less collision damage"],
+	"shock_cradle_upg1",
+	[0.2, 0.35, 0.5],
+	[30, 40, 52]
+)
+
+export const momentumRelay = lassoTool(
+	"Momentum Relay",
+	["Thrown objects retain 70% velocity after impacts", "Thrown objects retain 80% velocity after impacts", "Thrown objects retain 90% velocity after impacts"],
+	"momentum_relay_upg1",
+	[0.1, 0.2, 0.3],
+	[38, 50, 64]
+)
+
+export const redlineCable = lassoTool(
+	"Redline Cable",
+	["Hold above 55% tension for 0.75 seconds to charge the next aimed Strafe throw"],
+	"redline_cable_upg1",
+	[1],
+	[72]
+)
+
 export const debreeDist: Tool = {
 	toolName: "Salvage magnets",
 	upgrades: [
@@ -150,18 +210,38 @@ export const phaseMagazine: Tool = {
 };
 
 export const movespeed: Tool = {
-	toolName: "Improved thrusters",
+	toolName: "Cruise thrusters",
 	upgrades: [
 		{
 			name: "Level 1",
-			desc: "Bigger thrusters, more speed",
+			desc: "Increase movement speed during normal flight by 5%",
 			sprite: "faster_speed_upg1",
 			price: 32,
 			value: 1.05,
 		},
 		{
 			name: "Level 2",
-			desc: "Bigger thrusters, more speed",
+			desc: "Increase movement speed during normal flight by 15%",
+			sprite: "faster_speed_upg1",
+			price: 32,
+			value: 1.15,
+		},
+	],
+};
+
+export const strafeSpeed: Tool = {
+	toolName: "Strafe thrusters",
+	upgrades: [
+		{
+			name: "Level 1",
+			desc: "Increase movement speed during strafe control by 5%",
+			sprite: "faster_speed_upg1",
+			price: 32,
+			value: 1.05,
+		},
+		{
+			name: "Level 2",
+			desc: "Increase movement speed during strafe control by 15%",
 			sprite: "faster_speed_upg1",
 			price: 32,
 			value: 1.15,

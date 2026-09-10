@@ -117,12 +117,61 @@ assert(
 	"Space Jump should unlock phase ram"
 )
 
+const lassoUpgradeKeys = [
+	"kineticCoupler",
+	"torqueSpool",
+	"shockCradle",
+	"momentumRelay",
+	"redlineCable",
+]
+for (const toolKey of lassoUpgradeKeys) {
+	const upgrade = getAllUpgradeDefinitions().find(
+		(definition) => definition.toolKey === toolKey
+	)
+	assert(!!upgrade, `${toolKey} should be registered`)
+	assert(
+		!evaluateRequirements(upgrade!, () => undefined).met,
+		`${toolKey} should require the Salvage Lasso`
+	)
+	assert(
+		evaluateRequirements(
+			upgrade!,
+			(candidate) => candidate === "salvageLasso" ? 0 : undefined
+		).met,
+		`Salvage Lasso should unlock ${toolKey}`
+	)
+}
+
 assert(
 	!getAllUpgradeDefinitions().some(
 		(definition) => definition.toolKey === "volatileCargo"
 	),
 	"volatile cargo should be a map objective, not an upgrade"
 )
+
+const alterationIngredients: Record<string, readonly string[]> = {
+	arcHarpoon: ["salvageLasso", "stunRounds"],
+	shrapnelGarden: ["mineLayer", "splitChamber"],
+	huntersGeometry: ["tacticalUplink", "hunterGuidance"],
+	graviticImpaler: ["gravitySling", "railLance"],
+}
+for (const [toolKey, ingredients] of Object.entries(alterationIngredients)) {
+	const upgrade = getAllUpgradeDefinitions().find(
+		(definition) => definition.toolKey === toolKey
+	)
+	assert(!!upgrade?.alteration, `${toolKey} should be a registered alteration`)
+	assert(
+		!evaluateRequirements(upgrade!, () => undefined).met,
+		`${toolKey} should stay locked without its ingredients`
+	)
+	assert(
+		evaluateRequirements(
+			upgrade!,
+			(candidate) => ingredients.includes(candidate) ? 0 : undefined
+		).met,
+		`${toolKey} should unlock when both ingredients are active`
+	)
+}
 
 const cycleErrors = validateRequirementGraph([
 	definition("a", { allOf: [{ toolKey: "b" }] }),

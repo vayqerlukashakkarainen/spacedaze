@@ -14,6 +14,8 @@ import {
 import {
 	applyReward,
 	createReward,
+	getRewardDisplayColor,
+	getRewardDisplayTier,
 	REWARD_RARITY_COLORS,
 	Reward,
 	RewardRarity,
@@ -170,7 +172,7 @@ export function spawnRewardPickup(
 	let collected = false;
 	let armed = !options.armWhenPlayerLeaves && !options.launch;
 	const feedback = RARITY_FEEDBACK[reward.rarity];
-	const rarityColor = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
+	const rarityColor = k.rgb(...getRewardDisplayColor(reward));
 	const compactAura = options.compactAura ?? true;
 	const auraRadius = compactAura ? 18 : feedback.auraRadius;
 	const components: any[] = [
@@ -207,7 +209,7 @@ export function spawnRewardPickup(
 	let launchElapsed = 0;
 	const pickupBackdrop = createRewardTypeFrame(m, {
 		size: (compactAura ? auraRadius : auraRadius - 3) * 2,
-		color: REWARD_RARITY_COLORS[reward.rarity],
+		color: getRewardDisplayColor(reward),
 		kind: reward.kind,
 		abilitySlot: reward.abilitySlot,
 		fillOpacity: compactAura ? 0.16 : feedback.auraOpacity * 0.65,
@@ -232,7 +234,7 @@ export function spawnRewardPickup(
 	const interactionGlow = options.interactionOnly && !compactAura
 		? addLocalLight(m, {
 			size: feedback.auraRadius * 2.2,
-			color: REWARD_RARITY_COLORS[reward.rarity],
+			color: getRewardDisplayColor(reward),
 			opacity: Math.max(0.35, feedback.auraOpacity),
 			pulse: {
 				scaleMin: 0.9,
@@ -293,7 +295,7 @@ export function spawnRewardPickup(
 					title: reward.name,
 					action: "EQUIP",
 					detailLeft: reward.abilitySlot ?? "EQUIPMENT",
-					detailRight: reward.rarity,
+					detailRight: getRewardDisplayTier(reward),
 				},
 			});
 

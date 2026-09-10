@@ -11,6 +11,7 @@ import {
 } from "../services/enemies/threatService";
 import { applyDamage } from "../services/combat/damageService";
 import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState";
+import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
 import { setHitSoundProfile } from "../services/audio/hitSoundService";
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog";
@@ -68,6 +69,7 @@ export function spawnHeavyVehicle(
 		});
 
 		if (
+			!isEnemyEmpDisrupted(m) &&
 			!isPlayerDamageInvulnerable() &&
 			playerObj.pos.dist(m.pos) < m.hb
 		) {
@@ -89,7 +91,8 @@ export function spawnHeavyVehicle(
 			{
 				tier: profile.elite ? "elite" : "normal",
 				material: "ship",
-			}
+			},
+			m
 		);
 		k.destroy(m);
 	});

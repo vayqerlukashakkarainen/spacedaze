@@ -63,10 +63,12 @@ function getWakePlacementRequests(
 	if (room.kind === "start") {
 		return [
 			{
-				archetypeId: "wake-hull-barricade",
-				category: "structural",
+				archetypeId: "wake-memory-console",
+				category: "destructible-cover",
 				count: 1,
+				health: getWakeDestructibleCoverHealth("wake-memory-console"),
 			},
+			...getWakeStructuralCoverRequests(1, rng),
 			{
 				archetypeId: "wake-floating-scrap",
 				category: "dynamic-cover",
@@ -79,11 +81,7 @@ function getWakePlacementRequests(
 		const trapRequest = getWakeTrapPlacementRequest(room, rng)
 		const teslaRequest = getWakeTeslaPlacementRequest(room, rng)
 		return [
-			{
-				archetypeId: "wake-hull-barricade",
-				category: "structural",
-				count: rng.nextInt(2, 4),
-			},
+			...getWakeStructuralCoverRequests(rng.nextInt(2, 4), rng),
 			...(trapRequest ? [trapRequest] : []),
 			...(teslaRequest ? [teslaRequest] : []),
 			{
@@ -102,11 +100,7 @@ function getWakePlacementRequests(
 	}
 	if (room.kind === "miniBoss") {
 		return [
-			{
-				archetypeId: "wake-hull-barricade",
-				category: "structural",
-				count: 3,
-			},
+			...getWakeStructuralCoverRequests(3, rng),
 			{
 				archetypeId: "wake-floating-scrap",
 				category: "dynamic-cover",
@@ -122,6 +116,37 @@ function getWakePlacementRequests(
 		]
 	}
 	return []
+}
+
+const WAKE_DESTRUCTIBLE_COVER_ARCHETYPES: readonly RoomEnvironmentArchetypeId[] = [
+	"wake-hull-barricade",
+	"wake-salvage-cluster",
+	"wake-cable-reel",
+	"wake-pipe-manifold",
+]
+
+function getWakeStructuralCoverRequests(
+	count: number,
+	rng: SeededRNG
+): PlacementRequest[] {
+	const shuffled = rng.shuffle([...WAKE_DESTRUCTIBLE_COVER_ARCHETYPES])
+	return Array.from({ length: count }, (_, index) => ({
+		archetypeId: shuffled[index % shuffled.length],
+		category: "destructible-cover" as const,
+		count: 1,
+		health: getWakeDestructibleCoverHealth(shuffled[index % shuffled.length]),
+	}))
+}
+
+function getWakeDestructibleCoverHealth(
+	archetypeId: RoomEnvironmentArchetypeId
+) {
+	if (archetypeId === "wake-pipe-manifold") return 28
+	if (archetypeId === "wake-salvage-cluster") return 20
+	if (archetypeId === "wake-memory-console") return 18
+	if (archetypeId === "wake-cable-reel") return 16
+	if (archetypeId === "wake-hull-barricade") return 32
+	return undefined
 }
 
 function getWakeTeslaPlacementRequest(

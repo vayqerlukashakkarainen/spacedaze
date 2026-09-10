@@ -17,6 +17,7 @@ import { LEGACY_PLAYER_DAMAGE_SCALE } from "../player/playerHealthBalance"
 import { playDamageHitSound } from "../audio/hitSoundService"
 import { playVisualHitKnockback } from "./visualHitKnockbackService"
 import { ensureEnemyLowHealthEffects } from "./enemyDamageEffectService"
+import type { CombatCredit } from "../progression/combatCredit"
 
 export interface DamageOptions {
 	critical?: boolean
@@ -26,6 +27,7 @@ export interface DamageOptions {
 	incomingDirection?: Vec2
 	visualForceOrigin?: Vec2
 	playerHullDamage?: boolean
+	combatCredit?: CombatCredit
 }
 
 export interface PlayerDeathCause {
@@ -84,6 +86,12 @@ export function applyDamage(
 		: damage
 	if (tryBlockPlayerDamage(target, appliedDamage)) return false
 	const healthBefore = target.hp
+	if (!damagesPlayer && options.combatCredit) {
+		target.lastCombatCredit = {
+			...options.combatCredit,
+			critical: options.critical || options.combatCredit.critical,
+		}
+	}
 	if (!damagesPlayer) playDamageHitSound(target, options.position)
 	if (!damagesPlayer) {
 		const visualDirection = getVisualHitDirection(target, options)
@@ -130,6 +138,11 @@ export function applyDamage(
 		}
 	}
 	return true
+}
+
+export function getLastCombatCredit(target: GameObj): CombatCredit | undefined {
+	const credit = target.lastCombatCredit as CombatCredit | undefined
+	return credit ? { ...credit } : undefined
 }
 
 function getVisualHitDirection(target: GameObj, options: DamageOptions) {

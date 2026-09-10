@@ -140,7 +140,9 @@ export function spawnCrate(props: Props) {
 				0,
 				props.powerupMultiplier,
 				"enemy",
-				false
+				false,
+				{},
+				m
 			);
 			spawnDebree(
 				deathPos,
@@ -168,7 +170,9 @@ export function spawnCrate(props: Props) {
 				props.am,
 				props.powerupMultiplier,
 				"enemy",
-				false
+				false,
+				{},
+				m
 			);
 			gameSoundService.playPositional("explosion4", deathPos, {
 				volume: mainSoundVolume,

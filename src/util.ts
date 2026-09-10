@@ -31,7 +31,9 @@ import {
 } from "./services/audio/explosionSoundPoolService";
 import { loadAudioAssets } from "./audio/soundCatalog"
 import {
+	getTrainingAlterationPreviewAtlasEntries,
 	getTrainingUpgradePreviewAtlasEntries,
+	TRAINING_ALTERATION_PREVIEW_ATLAS_PATH,
 	TRAINING_UPGRADE_PREVIEW_ATLAS_PATH,
 } from "./visuals/trainingUpgradePreviewAtlas"
 
@@ -76,6 +78,10 @@ function hubShipAtlasEntry(index: number) {
 
 export async function init(k: KAPLAYCtx) {
 	await k.loadRoot("./"); // A good idea for Itch.io publishing later
+	let audioLoadError: unknown
+	const audioAssets = loadAudioAssets(k).catch((error) => {
+		audioLoadError = error
+	})
 	// Keep the original 16px registration in place so the automatic atlas
 	// layout for neighboring sprites remains stable.
 	await k.loadSprite("ship_legacy", "sprites/ship-v2.png");
@@ -182,6 +188,10 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSpriteAtlas(
 		TRAINING_UPGRADE_PREVIEW_ATLAS_PATH,
 		getTrainingUpgradePreviewAtlasEntries()
+	)
+	await k.loadSpriteAtlas(
+		TRAINING_ALTERATION_PREVIEW_ATLAS_PATH,
+		getTrainingAlterationPreviewAtlasEntries()
 	)
 	await k.loadSpriteAtlas("sprites/player-ship-8dir.png", {
 		ship: { x: 0, y: 0, width: 24, height: 24 },
@@ -479,6 +489,11 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSprite("start_run", "sprites/upgrades/start_run.png");
 	const systemUpgradeSprites = [
+		"kinetic_coupler_upg1",
+		"torque_spool_upg1",
+		"shock_cradle_upg1",
+		"momentum_relay_upg1",
+		"redline_cable_upg1",
 		"phase_echo_upg1",
 		"salvage_battery_upg1",
 		"reactive_plating_upg1",
@@ -586,12 +601,48 @@ export async function init(k: KAPLAYCtx) {
 		"sprites/rooms/environment/wake-fuel-cell.png"
 	)
 	await k.loadSprite(
+		"wake_salvage_cluster",
+		"sprites/rooms/environment/wake-salvage-cluster.png"
+	)
+	await k.loadSprite(
+		"wake_memory_console",
+		"sprites/rooms/environment/wake-memory-console.png"
+	)
+	await k.loadSprite(
+		"wake_cable_reel",
+		"sprites/rooms/environment/wake-cable-reel.png"
+	)
+	await k.loadSprite(
+		"wake_pipe_manifold",
+		"sprites/rooms/environment/wake-pipe-manifold.png"
+	)
+	await k.loadSprite(
+		"wake_concussion_plate",
+		"sprites/rooms/traps/wake-concussion-plate.png",
+		{
+			sliceX: 7,
+			sliceY: 2,
+			anims: {
+				trigger: { from: 7, to: 13, speed: 42, loop: false },
+			},
+		}
+	)
+	await k.loadSprite(
+		"wake_slowdown_plate",
+		"sprites/rooms/traps/wake-slowdown-plate.png",
+		{
+			sliceX: 7,
+			sliceY: 2,
+			anims: {
+				trigger: { from: 7, to: 13, speed: 29, loop: false },
+			},
+		}
+	)
+	await k.loadSprite(
 		"room_tesla_coil",
 		"sprites/rooms/tesla-coil.png"
 	)
 	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
-
-	await loadAudioAssets(k)
 
 	k.loadShader(
 		"visualHitKnockback",
@@ -783,6 +834,14 @@ export async function init(k: KAPLAYCtx) {
 		["enemy_wake_scrap_raiser_core", "sprites/enemies/wake/scrap-raiser-core.png"],
 		["enemy_wake_scrap_raiser_left_collector", "sprites/enemies/wake/scrap-raiser-left-collector.png"],
 		["enemy_wake_scrap_raiser_right_collector", "sprites/enemies/wake/scrap-raiser-right-collector.png"],
+		["enemy_wake_clampback_core", "sprites/enemies/wake/clampback-core.png"],
+		["enemy_wake_clampback_left_clamp", "sprites/enemies/wake/clampback-left-clamp.png"],
+		["enemy_wake_clampback_right_clamp", "sprites/enemies/wake/clampback-right-clamp.png"],
+		["enemy_wake_fuse_rat_core", "sprites/enemies/wake/fuse-rat-core.png"],
+		["enemy_wake_fuse_rat_overcharger", "sprites/enemies/wake/fuse-rat-overcharger.png"],
+		["enemy_wake_shredder_skiff_core", "sprites/enemies/wake/shredder-skiff-core.png"],
+		["enemy_wake_shredder_skiff_grinder", "sprites/enemies/wake/shredder-skiff-grinder.png"],
+		["enemy_wake_shredder_skiff_hopper", "sprites/enemies/wake/shredder-skiff-hopper.png"],
 	] as const;
 	for (const [name, path] of modularEnemySprites) {
 		await k.loadSprite(name, path);
@@ -849,21 +908,31 @@ export async function init(k: KAPLAYCtx) {
 		"salvage_lasso",
 		"sprites/upgrades/salvage_lasso.png"
 	)
+	const alterationUpgradeSprites = [
+		"arc_harpoon_upg1",
+		"shrapnel_garden_upg1",
+		"hunters_geometry_upg1",
+		"gravitic_impaler_upg1",
+	]
+	for (const sprite of alterationUpgradeSprites) {
+		await k.loadSprite(sprite, `sprites/upgrades/${sprite}.png`)
+	}
 
 	await k.loadSprite("boss1_body", "sprites/boss/boss1/boss1_body.png");
+	await k.loadSprite("boss1_core", "sprites/boss/boss1/boss1_core.png")
 	await k.loadSprite(
-		"boss1_body_phase2",
-		"sprites/boss/boss1/boss1_body_phase2.png"
+		"boss1_core_phase2",
+		"sprites/boss/boss1/boss1_core_phase2.png"
 	)
 	await k.loadSprite(
-		"boss1_body_phase3",
-		"sprites/boss/boss1/boss1_body_phase3.png"
-	)
-	await k.loadSprite(
-		"boss1_part_target",
-		"sprites/boss/boss1/boss1_part_target.png"
+		"boss1_core_phase3",
+		"sprites/boss/boss1/boss1_core_phase3.png"
 	)
 	await k.loadSprite("boss1_blaster", "sprites/boss/boss1/boss1_blaster.png");
+	await k.loadSprite(
+		"boss1_blaster_right",
+		"sprites/boss/boss1/boss1_blaster_right.png"
+	)
 	await k.loadSprite("boss1_head", "sprites/boss/boss1/boss1_head.png");
 	// This 64x48 facility prop sits after the gameplay sprite groups so its
 	// dimensions cannot disturb their automatic atlas packing.
@@ -1035,6 +1104,8 @@ export async function init(k: KAPLAYCtx) {
 		}
 	`
 	);
+	await audioAssets
+	if (audioLoadError) throw audioLoadError
 }
 
 export function randomExplosion(poolId: ExplosionSoundPoolId = "general") {

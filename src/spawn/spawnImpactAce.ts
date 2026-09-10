@@ -23,6 +23,7 @@ import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { spawnMiniBossDeathSequence } from "./spawnEnemyDeathEffect"
+import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 
 type ImpactAceState =
 	| "approach"
@@ -240,6 +241,7 @@ export function spawnImpactAce(
 			onEnemyHit(ace, projectile)
 		})
 		if (
+			!isEnemyEmpDisrupted(ace) &&
 			!isPlayerDamageInvulnerable() &&
 			ace.pos.dist(playerObj.pos) < ace.hb + 8
 		) {
@@ -271,7 +273,8 @@ export function spawnImpactAce(
 					definition.rewardMultiplier,
 					"boss",
 					false,
-					{ intensity: 4, starCount: 55, material: "ship" }
+					{ intensity: 4, starCount: 55, material: "ship" },
+					ace
 				)
 				k.destroy(ace)
 			},
@@ -315,7 +318,7 @@ function beginCharge(ace: ReturnType<typeof k.add>, scale: number) {
 }
 
 function finishCharge(ace: ReturnType<typeof k.add>) {
-	if (ace.phaseIndex >= 2) fireRadialBurst(ace.pos, ace.damage)
+	if (ace.phaseIndex >= 2) fireRadialBurst(ace)
 	ace.chargesRemaining = Math.max(0, ace.chargesRemaining - 1)
 	setState(ace, "recover")
 }
@@ -391,8 +394,10 @@ function fireStationShot(
 		direction,
 		direction.angle() + 90,
 		ace.damage * 0.55,
-		{ name: "IMPACT ACE", sprite: IMPACT_ACE_SPRITE }
+		{ name: "IMPACT ACE", sprite: IMPACT_ACE_SPRITE },
+		ace
 	)
+	if (!projectile) return
 	projectile.speed *= ace.phaseIndex >= 2 ? 0.76 : 0.68
 }
 
@@ -424,16 +429,18 @@ function getStationWindDownDuration(phaseIndex: number) {
 	return phaseIndex >= 2 ? 0.42 : 0.68
 }
 
-function fireRadialBurst(pos: Vec2, damage: number) {
+function fireRadialBurst(ace: ReturnType<typeof k.add>) {
 	for (let index = 0; index < 10; index++) {
 		const direction = k.Vec2.fromAngle(index * 36)
 		const projectile = spawnEnemyBlaster(
-			pos.clone(),
+			ace.pos.clone(),
 			direction,
 			direction.angle() + 90,
-			damage,
-			{ name: "IMPACT ACE", sprite: IMPACT_ACE_SPRITE }
+			ace.damage,
+			{ name: "IMPACT ACE", sprite: IMPACT_ACE_SPRITE },
+			ace
 		)
+		if (!projectile) continue
 		projectile.speed *= 0.58
 	}
 }

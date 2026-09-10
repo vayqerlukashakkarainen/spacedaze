@@ -152,8 +152,10 @@ function fireSuppressorFan(suppressor: ReturnType<typeof k.add>, direction: Vec2
 		const shotDirection = k.Vec2.fromAngle(direction.angle() + offset)
 		const shot = spawnEnemyBlaster(
 			suppressor.pos.clone(), shotDirection, shotDirection.angle() + 90, suppressor.damage,
-			{ name: "SUPPRESSOR", sprite: "enemy_suppressor" }
+			{ name: "SUPPRESSOR", sprite: "enemy_suppressor" },
+			suppressor
 		)
+		if (!shot) continue
 		shot.speed *= wide ? 0.48 : 0.62
 		shot.playerStatusEffect = {
 			id: "suppressed",

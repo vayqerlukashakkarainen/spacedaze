@@ -111,8 +111,10 @@ export function spawnOrbitLancer(
 					shotDirection,
 					shotDirection.angle() + 90,
 					lancer.damage,
-					{ name: "ORBIT LANCER", sprite: "enemy_orbit_lancer" }
+					{ name: "ORBIT LANCER", sprite: "enemy_orbit_lancer" },
+					lancer
 				)
+				if (!shot) continue
 				shot.speed *= 0.82
 			}
 			lancer.fireTimer = profile.elite ? 1.15 : 1.5

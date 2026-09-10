@@ -1,5 +1,10 @@
 import { clearSelectedContract } from "../progression/contractService"
 import { recordTelemetrySalvageEarned } from "./runTelemetryService"
+import type { CombatCredit } from "../progression/combatCredit"
+import {
+	recordRewardKill,
+	resetRewardUnlockProgress,
+} from "../progression/rewardUnlockProgressService"
 
 const LAST_RUN_KEY = "spacedaze_last_run_v2"
 const LIFETIME_STATS_KEY = "spacedaze_lifetime_stats_v1"
@@ -55,6 +60,7 @@ export function resetRunStats() {
 	playtimeSinceSave = 0
 	localStorage.removeItem(LAST_RUN_KEY)
 	localStorage.removeItem(LIFETIME_STATS_KEY)
+	resetRewardUnlockProgress()
 	clearSelectedContract()
 }
 
@@ -75,9 +81,10 @@ export function runStatsActive() {
 	return activeRun !== undefined
 }
 
-export function recordRunKill() {
+export function recordRunKill(combatCredit?: CombatCredit) {
 	lifetimeStats.enemiesKilled++
 	if (activeRun) activeRun.kills++
+	recordRewardKill(combatCredit)
 	saveLifetimeStats()
 }
 

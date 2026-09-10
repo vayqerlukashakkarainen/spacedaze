@@ -1,4 +1,4 @@
-import type { GameObj, Vec2 } from "kaplay";
+import type { GameObj, PosComp, Vec2 } from "kaplay";
 import { BULLET_SPEED, k, ROCKET_SPEED } from "../../main";
 import { tags } from "../../tags";
 import {
@@ -11,6 +11,7 @@ import { player, session } from "../../player";
 import { getEquippedWeapon } from "../player/weaponService";
 import { spawnFlash } from "../../spawn/spawnFlash";
 import { getAbilityTierValues } from "../abilities/abilityTierService";
+import { isEnemyEmpDisrupted } from "../enemies/enemyEmpService"
 
 const ROCKET_ACQUIRE_DELAY = 0.2;
 const ROCKET_TURN_SPEED = 0.065;
@@ -61,7 +62,8 @@ export interface PlayerBlasterShotOptions {
 	isFullyCharged?: boolean
 	chargeRatio?: number
 	critChanceBonus?: number
-	preferredTarget?: GameObj
+	preferredTarget?: GameObj<PosComp>
+	alteredTargeting?: boolean
 	splitTargetPosition?: Vec2
 	wigglePhase?: number
 }
@@ -146,6 +148,7 @@ export function spawnPlayerBlaster(
 		speedMultiplier:
 			inheritedSpeedMultiplier * weapon.projectileSpeedMultiplier,
 		tags: [tags.friendly, tags.blaster],
+		combatCredit: { kind: "primary", id: weapon.id },
 		impact: {
 			damage: impactDamage,
 			damageMultiplier: player.blasterDmgMultiplier,
@@ -258,6 +261,25 @@ export function spawnPlayerBlaster(
 		Boolean(preferredTarget),
 		shotOptions.splitTargetPosition
 	);
+	if (shotOptions.alteredTargeting && preferredTarget) {
+		config.seek = {
+			enabled: true,
+			acquireDelay: 0,
+			seekDistance: Math.max(
+				config.seek?.seekDistance ?? 0,
+				getTargetWorldPosition(preferredTarget).dist(pos) + 180
+			),
+			turnSpeed: Math.max(config.seek?.turnSpeed ?? 0, 0.065),
+			targetTags: [tags.enemy],
+		}
+		config.piercing = {
+			maxPierces: (config.piercing?.maxPierces ?? 0) + 2,
+			damageReduction: Math.max(
+				config.piercing?.damageReduction ?? 0,
+				0.9
+			),
+		}
+	}
 	spawnFlash(
 		pos,
 		isFullyChargedWeapon ? 6 : 3,
@@ -297,6 +319,11 @@ export function spawnPrimaryLinkedRocket(
 		speed: ROCKET_SPEED,
 		speedMultiplier: 1,
 		tags: [tags.friendly, tags.rocket],
+		combatCredit: {
+			kind: "primary",
+			id: getEquippedWeapon().id,
+			explosive: true,
+		},
 		impact: {
 			damage: inheritedDamage,
 		},
@@ -371,6 +398,7 @@ export function spawnPhaseMagazineSalvo(pos: Vec2) {
 			speed: BULLET_SPEED,
 			speedMultiplier: 0.82,
 			tags: [tags.friendly, tags.blaster],
+			combatCredit: { kind: "mobility", id: "phaseJump" },
 			impact: { damage },
 			seek: {
 				enabled: true,
@@ -517,6 +545,14 @@ function applyPlayerProjectileModifiers(
 		config.stun = {
 			chance: player.projectileStunChance,
 			duration: player.projectileStunDuration,
+		}
+	}
+
+	if (player.projectileEmpChance > 0) {
+		config.emp = {
+			chance: player.projectileEmpChance,
+			duration: player.projectileEmpDuration,
+			slowPercentage: player.projectileEmpSlowPercentage,
 		}
 	}
 
@@ -735,6 +771,7 @@ export function spawnPlayerRocket(
 		speed: ROCKET_SPEED,
 		speedMultiplier: tier.speed,
 		tags: [tags.friendly, tags.rocket],
+		combatCredit: { kind: "secondary", id: "rocketPod", explosive: true },
 		impact: {
 			damage: player.rocketImpactDmg,
 			damageMultiplier: player.rocketDmgMultiplier * tier.power,
@@ -802,8 +839,10 @@ export function spawnEnemyBlaster(
 	damageSource: { name: string; sprite?: string } = {
 		name: "ENEMY SHIP",
 		sprite: "enemy_fighter_core",
-	}
+	},
+	attacker: GameObj
 ) {
+	if (isEnemyEmpDisrupted(attacker)) return undefined
 	const config: ProjectileConfig = {
 		pos,
 		dir,

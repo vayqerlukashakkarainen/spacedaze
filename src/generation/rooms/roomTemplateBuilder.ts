@@ -143,11 +143,6 @@ function applyRoomEnvironment(map: GenerationMap, room: RoomFloorRoom) {
 		if (!cell) continue
 		cell.tags.add("room_environment_object")
 		cell.tags.add(`room_environment_${object.archetypeId}`)
-		if (object.category !== "structural") continue
-		cell.solid = true
-		cell.hardness = 2
-		cell.density = 1
-		cell.tags.add("room_environment_structural")
 	}
 }
 

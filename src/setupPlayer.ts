@@ -176,8 +176,8 @@ import {
 import {
 	clampTurretWorldAngle,
 	DRIFT_HULL_RESPONSE,
-	DRIFT_SPEED_MULTIPLIER,
 	easeAngle,
+	getMovementModeSpeedMultiplier,
 	getSignedAngleDelta,
 	setPlayerTargetModeAimPosition,
 	setPlayerTargetModeActive,
@@ -185,6 +185,7 @@ import {
 	TURRET_AIM_RESPONSE,
 } from "./services/input/playerSteeringModeService"
 import { addPlayerDamageEffects } from "./services/player/playerDamageEffectService"
+import { applyEnemyEmpDisruption } from "./services/enemies/enemyEmpService"
 import {
 	getPlayerTargetInterceptPoint,
 	setPlayerTargetLock,
@@ -207,7 +208,7 @@ import {
 	installPlayerLasso,
 	syncPlayerLassoRoomTransfer,
 } from "./services/player/playerLassoService"
-import { getPermanentUpgradeLevel } from "./upg"
+import { getEffectiveUpgradeLevel, getPermanentUpgradeLevel } from "./upg"
 
 let blasters = 0;
 let bulletIndex = 1;
@@ -257,7 +258,6 @@ const respawnArrivalInvulnerability = 0.35;
 const respawnEntryStretch = 1.7;
 const arrivalPulseDuration = 0.52;
 const reactivePlatingCooldown = 3;
-const empTimescaleModifierId = 87021;
 const weaponSwitchLabelOffset = 25
 const weaponSwitchLabelFadeInDuration = 0.06
 const weaponSwitchLabelHoldDuration = 0.18
@@ -298,6 +298,8 @@ interface GravitySlingState {
 }
 let gravitySlingState: GravitySlingState | undefined;
 let gravitySlingReleaseVelocity: Vec2;
+let graviticImpalerTarget: GameObj<PosComp> | undefined
+let graviticImpalerDamageMultiplier = 1
 let nextPrimaryFireTime = 0;
 let configuredWeaponId = "";
 let overclockShakeTimer = 0;
@@ -359,6 +361,10 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	if (!options.preserveRunState) resetPassiveUpgradeRuntime();
 	clearGravitySlingState();
 	gravitySlingReleaseVelocity = k.vec2(0);
+	if (!options.preserveRunState) {
+		graviticImpalerTarget = undefined
+		graviticImpalerDamageMultiplier = 1
+	}
 	repairPulseGeneration++;
 	reactivePlatingReadyAt = 0;
 	let respawnTarget = options.spawnPosition?.clone() ?? k.center();
@@ -1132,11 +1138,18 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			}
 			strafeTargetMarker.pos = strafeAimPos.clone()
 			strafeTargetMarker.angle += 90 * dt()
+			const huntersGeometryActive = strafeTargetCritActive &&
+				getEffectiveUpgradeLevel("huntersGeometry") !== undefined
 			const markerScale = k.wave(0.9, 1.08, k.time() * 7) *
-				(strafeTargetCritActive ? strafeTargetCritScaleMultiplier : 1)
+				(strafeTargetCritActive
+					? strafeTargetCritScaleMultiplier *
+						(huntersGeometryActive ? 1.14 : 1)
+					: 1)
 			strafeTargetMarker.scale = k.vec2(markerScale)
 			strafeTargetMarker.color = strafeTargetCritActive
-				? k.rgb(0, 210, 255)
+				? huntersGeometryActive
+					? k.rgb(155, 100, 255)
+					: k.rgb(0, 210, 255)
 				: lockedTarget
 					? k.rgb(255, 70, 70)
 					: k.WHITE
@@ -1198,9 +1211,12 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			: 1;
 		const maxSpeed =
 			player.speed *
-			player.speedMultiplier *
+			getMovementModeSpeedMultiplier(
+				player.speedMultiplier,
+				player.strafeSpeedMultiplier,
+				driftModeActive
+			) *
 			player.speedPwrUpMultiplier *
-			(driftModeActive ? DRIFT_SPEED_MULTIPLIER : 1) *
 			getEnemyMovementMultiplier();
 		const controlVelocity = wasdDir.len() > 0
 			? wasdDir.unit().scale(maxSpeed)
@@ -1557,6 +1573,19 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			)
 			: 1;
 		const damageMultiplier = chargeDamageMultiplier * burstDamageMultiplier;
+		const alteredTargeting = strafeTargetCritActive &&
+			getEffectiveUpgradeLevel("huntersGeometry") !== undefined
+		const impalerTarget = weapon.id === "railLance" &&
+			getEffectiveUpgradeLevel("graviticImpaler") !== undefined &&
+			graviticImpalerTarget?.exists()
+			? graviticImpalerTarget
+			: undefined
+		const shotDamageMultiplier = damageMultiplier *
+			(impalerTarget ? graviticImpalerDamageMultiplier : 1)
+		if (impalerTarget) {
+			graviticImpalerTarget = undefined
+			graviticImpalerDamageMultiplier = 1
+		}
 		const speedMultiplier = charge
 			? k.lerp(
 				charge.minSpeedMultiplier ?? 1,
@@ -1615,18 +1644,19 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 					turretWorldAngle,
 					{
 						angleOffset,
-						damageMultiplier,
+						damageMultiplier: shotDamageMultiplier,
 						speedMultiplier,
 						playFireSound: shouldPlayFireSound,
 						fireSoundDetune,
 						isFullyCharged: chargeRatio >= 1,
 						chargeRatio,
 						critChanceBonus: strafeTargetCritActive
-							? strafeTargetCritChanceBonus
+							? strafeTargetCritChanceBonus + (alteredTargeting ? 20 : 0)
 							: 0,
-						preferredTarget: strafeTarget?.exists()
-							? strafeTarget
-							: undefined,
+						alteredTargeting,
+						preferredTarget: impalerTarget ?? (
+							strafeTarget?.exists() ? strafeTarget : undefined
+						),
 						splitTargetPosition:
 							strafeAimActive && !strafeTarget?.exists()
 								? strafeAimPos.clone()
@@ -2453,6 +2483,11 @@ function activateModule(
 					pos: explosionPos,
 					radius: 60 * tier.speed,
 					damage: 16 * tier.power,
+					combatCredit: {
+						kind: "secondary",
+						id: "scrapMine",
+						explosive: true,
+					},
 					visualIntensity: 0.55,
 					visualParticleCount: 20,
 				});
@@ -2575,6 +2610,11 @@ function activateModule(
 							pos: deploymentPos,
 							radius: 58 * tier.speed,
 							damage: 10 * tier.power,
+							combatCredit: {
+								kind: "secondary",
+								id: "gravityCharge",
+								explosive: true,
+							},
 							visualColor: gravityColor,
 							visualIntensity: 0.75,
 							visualParticleCount: 30,
@@ -2619,6 +2659,11 @@ function activateModule(
 							pos: deploymentPos,
 							radius: 70 * tier.speed,
 							damage: 28 * tier.power,
+							combatCredit: {
+								kind: "secondary",
+								id: "breachCharge",
+								explosive: true,
+							},
 							visualIntensity: 1,
 							visualParticleCount: 42,
 						})
@@ -2733,19 +2778,14 @@ function activateModule(
 		case "empBeacon": {
 			const origin = playerObj.pos.clone();
 			const radius = 150 * tier.speed;
+			const duration = 3 * tier.power;
 			const affectedTargets: Vec2[] = [];
 			spawnFlash(origin, 12, k.rgb(75, 205, 255));
 			forEachSpatialNearby(origin, radius, {
 				allTags: [tags.enemy, tags.unit],
 			}, (enemy) => {
-				if (!(enemy.timescaleModifiers instanceof Map)) return;
 				affectedTargets.push(enemy.pos.clone());
-				enemy.timescaleModifiers.set(empTimescaleModifierId, 0.05);
-				k.wait(3 * tier.power, () => {
-					if (enemy.exists() && enemy.timescaleModifiers instanceof Map) {
-						enemy.timescaleModifiers.delete(empTimescaleModifierId);
-					}
-				});
+				applyEnemyEmpDisruption(enemy, duration);
 			});
 			spawnEmpDischarge({ pos: origin, radius, targets: affectedTargets });
 			gameSoundService.play("swap_level", {
@@ -2815,6 +2855,11 @@ function spawnPhaseEcho(pos: Vec2, angle: number) {
 			pos,
 			radius: 70,
 			damage: 8,
+			combatCredit: {
+				kind: "mobility",
+				id: "phaseJump",
+				explosive: true,
+			},
 			visualIntensity: 0.45,
 			visualParticleCount: 22,
 		});
@@ -2841,6 +2886,11 @@ function activatePhaseNova(playerObj: GameObj<PosComp>) {
 		pos: origin,
 		radius,
 		damage: 45 * tier.power,
+		combatCredit: {
+			kind: "ultimate",
+			id: "phaseNova",
+			explosive: true,
+		},
 		visualIntensity: 1.4,
 		visualParticleCount: 72,
 		damageFalloff: 0.35,
@@ -3195,6 +3245,17 @@ function updateGravitySling(playerObj: GameObj<PosComp>) {
 		.unit();
 	const releaseSpeed = player.speed * player.speedMultiplier *
 		gravitySlingReleaseSpeedMultiplier * state.speedMultiplier;
+	if (
+		graviticImpalerTarget?.exists() &&
+		getEffectiveUpgradeLevel("graviticImpaler") !== undefined
+	) {
+		const baseSpeed = Math.max(1, player.speed * player.speedMultiplier)
+		graviticImpalerDamageMultiplier = 1 + k.clamp(
+			releaseSpeed / baseSpeed - 1,
+			0,
+			2
+		) * 0.5
+	}
 	playerObj.angle = k.Vec2.toAngle(releaseDirection) + 90;
 	gravitySlingReleaseVelocity = releaseDirection.scale(releaseSpeed);
 	phaseJumpInvulnerableUntil = Math.max(
@@ -3253,8 +3314,24 @@ function applyGravitySlingDamage(
 		) return;
 		const hitRadius = Math.max(12, Number(target.hb) || 0) + 10;
 		if (distanceToSegment(target.pos, start, end) > hitRadius) return;
-		if (!applyDamage(target, state.damage, { position: end })) return;
+		if (!applyDamage(target, state.damage, {
+			position: end,
+			combatCredit: { kind: "mobility", id: "gravitySling" },
+		})) return;
 		state.hitTargets.add(target.id);
+		if (
+			getEffectiveUpgradeLevel("graviticImpaler") !== undefined &&
+			!graviticImpalerTarget?.exists()
+		) {
+			graviticImpalerTarget = target as GameObj<PosComp>
+			spawnRing({
+				pos: target.pos.clone(),
+				speed: 35,
+				intensity: 0.48,
+				maxRadius: Math.max(18, Number(target.hb) || 18),
+				color: k.rgb(155, 100, 255),
+			})
+		}
 		spawnFlash(target.pos.clone(), 8, k.rgb(120, 210, 255));
 	});
 }
@@ -3341,7 +3418,9 @@ function applyPhaseRamDamage(start: Vec2, end: Vec2) {
 
 		const hitRadius = Math.max(10, Number(target.hb) || 0) + 8;
 		if (distanceToSegment(target.pos, start, end) > hitRadius) return;
-		if (!applyDamage(target, damage)) return;
+		if (!applyDamage(target, damage, {
+			combatCredit: { kind: "mobility", id: "phaseJump" },
+		})) return;
 
 		phaseJumpHitTargets.add(target.id);
 		spawnFlash(target.pos.clone(), 7, k.rgb(80, 180, 255));

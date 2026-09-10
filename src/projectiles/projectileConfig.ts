@@ -1,6 +1,7 @@
 import { Color, Vec2 } from "kaplay";
 import type { ExplosionSoundPoolId } from "../services/audio/explosionSoundPoolService";
 import type { SoundCueId } from "../audio/soundCueCatalog"
+import type { CombatCredit } from "../services/progression/combatCredit"
 
 // Core Modifiers
 
@@ -172,6 +173,12 @@ export interface StunModifier {
 	duration: number;
 }
 
+export interface EmpModifier {
+	chance: number
+	duration: number
+	slowPercentage: number
+}
+
 export interface KnockbackModifier {
 	strength: number;
 }
@@ -274,9 +281,11 @@ export interface ProjectileConfig {
 		name: string;
 		sprite?: string;
 	};
+	combatCredit?: CombatCredit;
 	damageTick?: DamageTickModifier;
 	slow?: SlowModifier;
 	stun?: StunModifier;
+	emp?: EmpModifier
 
 	// Modifiers (all optional)
 	impact?: ImpactModifier;

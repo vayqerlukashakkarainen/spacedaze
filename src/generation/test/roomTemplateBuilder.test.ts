@@ -31,9 +31,10 @@ for (let seed = 1; seed <= 100; seed++) {
 				!template.contentSlots.some((slot) => hexKey(slot) === hexKey(object.coord)),
 				`${object.id} overlaps a content spawn slot`
 			)
-			if (object.category !== "structural") {
-				assert(!cell!.solid, `${object.id} should remain traversable`)
-			}
+			assert(
+				!cell!.solid,
+				`${object.id} should not replace hex-grid terrain solidity`
+			)
 		}
 		for (const door of template.doors) {
 			const cell = template.map.getCell(door.coord)

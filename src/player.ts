@@ -17,6 +17,7 @@ import { PLAYER_VISUAL } from "./visuals/playerVisualCatalog";
 interface Ship {
 	speed: number;
 	speedMultiplier: number;
+	strafeSpeedMultiplier: number;
 	speedPwrUpMultiplier: number;
 
 	sprintSpeedMultiplier: number;
@@ -92,6 +93,9 @@ interface Ship {
 	projectileSlowPercentage: number;
 	projectileStunChance: number;
 	projectileStunDuration: number;
+	projectileEmpChance: number
+	projectileEmpDuration: number
+	projectileEmpSlowPercentage: number
 	projectileDotDamage: number;
 	projectileChainCount: number;
 	projectileLifesteal: number;
@@ -230,6 +234,7 @@ export const player: Ship = {
 	spaceJumpDamage: 0,
 	phaseMagazine: undefined,
 	speedMultiplier: 1,
+	strafeSpeedMultiplier: 1,
 	speedPwrUpMultiplier: 1,
 	followerBlasterDmg: 1,
 	followerBlasterDmgMultiplier: 1,
@@ -268,6 +273,9 @@ export const player: Ship = {
 	projectileSlowPercentage: 0,
 	projectileStunChance: 0,
 	projectileStunDuration: 0,
+	projectileEmpChance: 0,
+	projectileEmpDuration: 0,
+	projectileEmpSlowPercentage: 0,
 	projectileDotDamage: 0,
 	projectileChainCount: 0,
 	projectileLifesteal: 0,
@@ -325,6 +333,7 @@ export function loadPlayer() {
 	player.phaseMagazine = getToolUpgradeLvlValue("phaseMagazine");
 
 	player.speedMultiplier = getToolUpgradeLvlValue("movespeed") ?? 1;
+	player.strafeSpeedMultiplier = getToolUpgradeLvlValue("strafeSpeed") ?? 1;
 	player.maxHealth = getToolUpgradeLvlValue("maxHealth") ?? BASE_PLAYER_HEALTH;
 
 	player.followerBlasterDmg = getToolUpgradeLvlValue("followerBlasterDmg") ?? 1;
@@ -381,6 +390,7 @@ export function loadPlayer() {
 		"spaceJumpUpgrades",
 		"phaseMagazine",
 		"movespeed",
+		"strafeSpeed",
 		"afterburnerWake",
 		"phaseEcho",
 		"kineticRam",
@@ -403,7 +413,10 @@ export function loadPlayer() {
 		"salvageBattery",
 		"maxHealth",
 	]);
-	if (player.mobilitySetBonus) player.speedMultiplier *= 1.08;
+	if (player.mobilitySetBonus) {
+		player.speedMultiplier *= 1.08;
+		player.strafeSpeedMultiplier *= 1.08;
+	}
 	if (player.salvageSetBonus) player.debreeSeekDistanceMultiplier *= 1.35;
 	if (player.ordnanceSetBonus) {
 		player.blasterDmgMultiplier *= 1.12;
@@ -417,6 +430,11 @@ export function loadPlayer() {
 	player.projectileStunChance = getToolUpgradeLvlValue("stunRounds") ?? 0;
 	player.projectileStunDuration =
 		getToolUpgradeStatValue("stunRounds", "projectileStunDuration") ?? 0;
+	player.projectileEmpChance = getToolUpgradeLvlValue("empRounds") ?? 0
+	player.projectileEmpDuration =
+		getToolUpgradeStatValue("empRounds", "projectileEmpDuration") ?? 0
+	player.projectileEmpSlowPercentage =
+		getToolUpgradeStatValue("empRounds", "projectileEmpSlowPercentage") ?? 0
 	player.projectileDotDamage = getToolUpgradeLvlValue("corrosivePayload") ?? 0;
 	player.projectileChainCount = getToolUpgradeLvlValue("arcCapacitor") ?? 0;
 	player.projectileLifesteal = getToolUpgradeLvlValue("lifesteal") ?? 0;

@@ -15,7 +15,6 @@ import { tags } from "../../tags"
 import { spawnFlash } from "../spawnFlash"
 import { spawnRing } from "../spawnRing"
 
-const PLATE_RADIUS = 16
 const TRIGGER_RADIUS = 18
 const BLAST_RADIUS = 38
 const COOLDOWN_SECONDS = 2.4
@@ -32,20 +31,14 @@ export function spawnConcussionPlate(
 	const direction = grid.hexToScreen(
 		hexNeighbor(plan.coord, plan.orientation % 6)
 	).sub(position).unit()
-	let triggerController: ReturnType<typeof registerTrapCellTrigger> | undefined
 	const plate = k.add([
 		k.pos(position),
+		k.sprite("wake_concussion_plate", { frame: 0 }),
+		k.anchor("center"),
+		k.rotate(plan.orientation * 60),
+		k.color(k.WHITE),
 		k.layer(layers.game2),
 		k.z(-1),
-		{
-			draw() {
-				drawPlate(
-					direction,
-					triggerController?.cooldownRemaining() ?? 0,
-					triggerController?.activationFlashRemaining() ?? 0
-				)
-			},
-		},
 		tags.props,
 		tags.roomEnvironment,
 		tags.roomTrap,
@@ -55,13 +48,18 @@ export function spawnConcussionPlate(
 		tags.runtimeCullable,
 	])
 
-	triggerController = registerTrapCellTrigger({
+	registerTrapCellTrigger({
 		owner: plate,
 		position,
 		triggerRadius: TRIGGER_RADIUS,
 		cooldownSeconds: COOLDOWN_SECONDS,
 		activationFlashSeconds: BURST_DURATION,
 		onTriggered: (target) => {
+			plate.play("trigger", {
+				onEnd: () => {
+					if (plate.exists()) plate.frame = 0
+				},
+			})
 			activateConcussionPlate(position, direction, target)
 		},
 	})
@@ -116,60 +114,6 @@ function launchTrapTarget(target: TrapCellTarget, direction: Vec2) {
 	}
 	if (target.moveDirection) target.moveDirection = direction.clone()
 	applyKnockbackImpulse(target, direction, KNOCKBACK_DISTANCE)
-}
-
-function drawPlate(
-	direction: Vec2,
-	cooldown: number,
-	activationFlash: number
-) {
-	const ready = cooldown <= 0
-	const warningPulse = ready ? k.wave(0.38, 0.72, k.time() * 4.5) : 0.18
-	const flashProgress = k.clamp(activationFlash / BURST_DURATION, 0, 1)
-	const edgeColor = flashProgress > 0
-		? k.WHITE
-		: ready ? k.rgb(210, 210, 210) : k.rgb(70, 78, 84)
-	const points = Array.from({ length: 6 }, (_, index) =>
-		k.Vec2.fromAngle(index * 60 + 30).scale(PLATE_RADIUS)
-	)
-	k.drawPolygon({
-		pts: points,
-		color: k.rgb(5, 9, 12),
-		opacity: 0.9,
-	})
-	for (let index = 0; index < points.length; index++) {
-		k.drawLine({
-			p1: points[index],
-			p2: points[(index + 1) % points.length],
-			width: flashProgress > 0 ? 3 : 2,
-			color: edgeColor,
-			opacity: flashProgress > 0 ? 1 : 0.68,
-		})
-	}
-	const tangent = k.vec2(-direction.y, direction.x)
-	const arrowTip = direction.scale(10)
-	const arrowTail = direction.scale(-8)
-	k.drawLine({
-		p1: arrowTail,
-		p2: arrowTip,
-		width: 3,
-		color: ready ? k.rgb(255, 70, 70) : edgeColor,
-		opacity: flashProgress > 0 ? 1 : warningPulse,
-	})
-	k.drawLine({
-		p1: arrowTip,
-		p2: direction.scale(4).add(tangent.scale(5)),
-		width: 2,
-		color: edgeColor,
-		opacity: ready ? 0.9 : 0.28,
-	})
-	k.drawLine({
-		p1: arrowTip,
-		p2: direction.scale(4).sub(tangent.scale(5)),
-		width: 2,
-		color: edgeColor,
-		opacity: ready ? 0.9 : 0.28,
-	})
 }
 
 function spawnDirectionalBurst(position: Vec2, direction: Vec2) {

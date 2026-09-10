@@ -14,6 +14,12 @@ import {
 	phaseRam,
 	phaseMagazine,
 	movespeed,
+	strafeSpeed,
+	kineticCoupler,
+	torqueSpool,
+	shockCradle,
+	momentumRelay,
+	redlineCable,
 	debreeValue,
 	maxHealth,
 	extraLife,
@@ -32,9 +38,12 @@ import { RewardRarity, UpgradeRewardPolicy } from "../types/rewardTypes";
 import {
 	arcCapacitor,
 	armorPiercing,
+	componentShear,
+	coreBreach,
 	criticalPayload,
 	corrosivePayload,
 	cryoRounds,
+	empRounds,
 	stunRounds,
 	kineticPulse,
 	lifesteal,
@@ -81,6 +90,12 @@ import {
 	threatReactor,
 	wreckHarvester,
 } from "./stackingRewardsNew"
+import {
+	arcHarpoonDefinition,
+	graviticImpalerDefinition,
+	huntersGeometryDefinition,
+	shrapnelGardenDefinition,
+} from "./alterations"
 
 const definitions: Record<string, UpgradeDefinition> = {
 	// Blasters
@@ -101,6 +116,12 @@ const definitions: Record<string, UpgradeDefinition> = {
 	phaseRam,
 	phaseMagazine,
 	movespeed,
+	strafeSpeed,
+	kineticCoupler,
+	torqueSpool,
+	shockCradle,
+	momentumRelay,
+	redlineCable,
 
 	// Ship - Resources
 	debreeDist,
@@ -140,7 +161,10 @@ const definitions: Record<string, UpgradeDefinition> = {
 
 	// Projectile modifiers
 	armorPiercing,
+	componentShear,
+	coreBreach,
 	cryoRounds,
+	empRounds,
 	stunRounds,
 	corrosivePayload,
 	arcCapacitor,
@@ -165,6 +189,10 @@ const definitions: Record<string, UpgradeDefinition> = {
 	targetPainter,
 	mineLayer,
 	voidLance,
+	arcHarpoon: arcHarpoonDefinition,
+	shrapnelGarden: shrapnelGardenDefinition,
+	huntersGeometry: huntersGeometryDefinition,
+	graviticImpaler: graviticImpalerDefinition,
 };
 
 const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
@@ -180,6 +208,12 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	phaseRam: policy(RewardRarity.Rare, ["crate", "boss"], 55, 0, 120),
 	phaseMagazine: policy(RewardRarity.Epic, ["crate", "boss"], 24, 0, 145, 3),
 	movespeed: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 140, 35, 90),
+	strafeSpeed: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 140, 35, 90),
+	kineticCoupler: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 28, 88),
+	torqueSpool: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 28, 88),
+	shockCradle: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 88, 16, 96),
+	momentumRelay: policy(RewardRarity.Rare, ["crate", "boss"], 48, 0, 112, 2),
+	redlineCable: policy(RewardRarity.Epic, ["crate", "boss"], 22, 0, 138, 3),
 	debreeDist: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 130, 35, 80),
 	debreeValue: policy(RewardRarity.Uncommon, ["crate", "boss"], 90, 0, 80),
 	maxHealth: policy(RewardRarity.Rare, ["crate", "boss"], 80, 0, 130),
@@ -211,7 +245,10 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	resonanceCoil: policy(RewardRarity.Rare, ["crate", "boss"], 45, 0, 120, 2),
 	wreckHarvester: policy(RewardRarity.Legendary, ["crate", "boss"], 8, 0, 55, 4),
 	armorPiercing: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 130, 35, 90),
+	componentShear: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 30, 85),
+	coreBreach: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 30, 85),
 	cryoRounds: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 30, 80),
+	empRounds: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 90, 20, 95),
 	stunRounds: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 110, 25, 80),
 	corrosivePayload: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 100, 20, 100),
 	arcCapacitor: policy(RewardRarity.Rare, ["crate", "boss"], 55, 0, 140),
@@ -236,6 +273,10 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	targetPainter: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 88, 16, 95),
 	mineLayer: policy(RewardRarity.Rare, ["crate", "boss"], 44, 0, 110, 3),
 	voidLance: policy(RewardRarity.Epic, ["crate", "boss"], 10, 0, 150, 5),
+	arcHarpoon: policy(RewardRarity.Legendary, ["crate", "boss"], 12, 0, 105, 2),
+	shrapnelGarden: policy(RewardRarity.Legendary, ["crate", "boss"], 12, 0, 105, 2),
+	huntersGeometry: policy(RewardRarity.Legendary, ["crate", "boss"], 12, 0, 105, 2),
+	graviticImpaler: policy(RewardRarity.Legendary, ["crate", "boss"], 12, 0, 105, 2),
 };
 
 for (const [toolKey, reward] of Object.entries(upgradeRewardPolicies)) {

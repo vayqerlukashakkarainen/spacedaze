@@ -4,6 +4,7 @@ import { k, layers } from "../main"
 import { applyDamage } from "../services/combat/damageService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState"
+import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 import {
 	createEnemySpawnProfile,
 	ENEMY_THREAT_RANK,
@@ -134,6 +135,7 @@ export function spawnShieldDrone(
 			onEnemyHit(drone, projectile)
 		})
 		if (
+			!isEnemyEmpDisrupted(drone) &&
 			!isPlayerDamageInvulnerable() &&
 			drone.pos.dist(playerObj.pos) < drone.hb + 8
 		) {
@@ -156,7 +158,8 @@ export function spawnShieldDrone(
 			{
 				tier: profile.elite ? "elite" : "normal",
 				material: "ship",
-			}
+			},
+			drone
 		)
 		k.destroy(drone)
 	})

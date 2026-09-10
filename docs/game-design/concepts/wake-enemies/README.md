@@ -4,8 +4,10 @@ These are the approved source concepts for the playable Wake Scrap District
 roster. Runtime-ready body and component layers live in
 `public/sprites/enemies/wake`.
 
-All six concepts were generated as north-facing top-down objects using the
+All nine concepts were generated as north-facing top-down objects using the
 existing SpaceDaze enemy sprites as style references.
+
+![Wake roster expansion](wake-expansion-preview.png)
 
 | Enemy | Native size | PixelLab object | Selected candidate | Destructible-layer plan |
 | --- | ---: | --- | ---: | --- |
@@ -14,6 +16,9 @@ existing SpaceDaze enemy sprites as style references.
 | Towhook Rig | 32x32 | `d9379504-9812-4436-b706-18aef87eee03` | 4 | Separate left and right hook arms |
 | Patch Tender | 32x32 | `fb3aff08-342f-46ed-b06b-f8e3b74b427b` | 3 | Separate forward welding arm |
 | Scrap Raiser | 32x32 | `7be1a344-fd90-4a89-aa6f-63c3522107b6` | 3 | Separate left and right collector arms |
+| Clampback | 32x32 | `bbbd22f2-0f70-4aee-ba15-74371305bdfd` | Pixen | Separate left and right armor clamps |
+| Fuse Rat | 32x32 | `f35dea57-7a39-4dbd-bfff-f345744dfefd` | Pixen edit | Separate overcharger battery |
+| Shredder Skiff | 32x32 | `fe96940e-4f34-4f6f-b6f4-6a4facb44799` | 5 | Separate forward grinder and side hopper |
 | Boiler Hulk | 64x64 | `92967acd-a359-4f07-bf71-95bd34e4f6f7` | 1 | Separate scoop and vent stack |
 
 ## Concepts
@@ -55,6 +60,33 @@ The open central hopper, pointed sensor nose, and uneven collection arms make
 its salvage role readable. Both collection arms are separate components.
 Breaking one slows reconstruction, while breaking both spills stored scrap and
 prevents further reconstruction.
+
+### Clampback
+
+![Clampback](clampback.png)
+
+The paired armor clamps dominate the broad silhouette while leaving a compact
+core and scrap shotgun readable between them. Each clamp becomes an independent
+destructible part. Breaking one opens that firing side; breaking both removes
+the defensive stance and pushes the exposed core into its faster attack state.
+
+### Fuse Rat
+
+![Fuse Rat](fuse-rat.png)
+
+The narrow pointed sensor, small tool claws, and oversized central battery make
+the saboteur readable without giving it a manufactured Federation profile. The
+overcharger battery becomes its destructible part. Breaking it interrupts an
+active sabotage and prevents the Fuse Rat from priming another explosive.
+
+### Shredder Skiff
+
+![Shredder Skiff](shredder-skiff.png)
+
+The horizontal forward grinder, offset scrap hopper, and twin lower engines
+create a strong north-facing industrial silhouette. The grinder and hopper
+become separate parts. A broken grinder removes its close-range attack; a
+loaded hopper detonates outward when destroyed.
 
 ### Boiler Hulk
 

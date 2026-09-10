@@ -18,6 +18,8 @@ import { shake } from "../comp/shake";
 import {
 	applyReward,
 	getAbilityRewardDefinitionIds,
+	getRewardDisplayColor,
+	getRewardDisplayTier,
 	isAbilityReward,
 	REWARD_RARITY_COLORS,
 } from "../services/economy/rewardService";
@@ -1216,7 +1218,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			if (concealedSlot.exists()) {
 				k.destroy(concealedSlot);
 			}
-			const rarityColor = REWARD_RARITY_COLORS[reward.rarity];
+			const rarityColor = getRewardDisplayColor(reward);
 			createRewardTypeFrame(chestController.uiContainer, {
 				pos: target,
 				size: 82,
@@ -1252,7 +1254,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				}
 			);
 			chestController.uiContainer.add([
-				k.text(reward.rarity, { size: UI_FONT_SIZES.small, font: "unscii" }),
+				k.text(getRewardDisplayTier(reward), { size: UI_FONT_SIZES.small, font: "unscii" }),
 				k.pos(target.x, target.y + 52),
 				k.anchor("center"),
 				k.color(...rarityColor),
@@ -1426,7 +1428,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 					panelWidth / 2 + layout.cardX(index),
 					cardTop + cardHeight / 2
 				),
-				REWARD_RARITY_COLORS[reward.rarity],
+				getRewardDisplayColor(reward),
 				index * cardStagger
 			);
 		});
@@ -1538,7 +1540,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		}
 
 		chestController.rewards.forEach((reward, index) => {
-			const rarityColor = REWARD_RARITY_COLORS[reward.rarity];
+			const rarityColor = getRewardDisplayColor(reward);
 			const selectableIndex = selectableRewards.indexOf(reward);
 			const cardCenterX = panelWidth / 2 + layout.cardX(index);
 			const animationDelay = index * cardStagger;
@@ -1591,7 +1593,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			createUiBadge(card, {
 				pos: k.vec2((cardWidth - badgeWidth) / 2, 10),
 				width: badgeWidth,
-				text: reward.rarity,
+				text: getRewardDisplayTier(reward),
 				color: rarityColor,
 			});
 			addThemedText(card, {

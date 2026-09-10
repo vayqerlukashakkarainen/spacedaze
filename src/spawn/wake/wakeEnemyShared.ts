@@ -9,6 +9,7 @@ import { isPlayerDamageInvulnerable } from "../../services/player/playerDamageSt
 import type { EnemySpawnProfile } from "../../services/enemies/threatService"
 import { tags } from "../../tags"
 import { enemyOnDeath, onEnemyHit } from "../enemyShared"
+import { isEnemyEmpDisrupted } from "../../services/enemies/enemyEmpService"
 
 export interface WakeEnemyPart {
 	obj: GameObj
@@ -59,7 +60,8 @@ export function composeWakeEnemy(
 			{
 				tier: profile.elite ? "elite" : "normal",
 				material: "ship",
-			}
+			},
+			body
 		)
 		onBodyDeath?.()
 	}
@@ -108,6 +110,7 @@ export function handleWakeCompositeCombat(
 		)
 	}
 	if (
+		!isEnemyEmpDisrupted(body) &&
 		!isPlayerDamageInvulnerable() &&
 		body.pos.dist(playerObj.pos) < body.hb + 8
 	) {

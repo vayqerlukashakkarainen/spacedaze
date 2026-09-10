@@ -21,6 +21,118 @@ export const salvageLasso: UpgradeDefinition = {
 	],
 };
 
+const LASSO_REQUIREMENT = { allOf: [{ toolKey: "salvageLasso" }] } as const
+
+function lassoStatLevels(
+	values: readonly number[],
+	describe: (value: number) => string,
+	sprite: string,
+	stat: string,
+	prices: readonly number[]
+) {
+	return values.map((value, index) => ({
+		name: `Level ${index + 1}`,
+		desc: describe(value),
+		sprite,
+		price: prices[index],
+		effects: {
+			modifiers: [{ stat, value, type: "multiply" as const }],
+		},
+	}))
+}
+
+export const kineticCoupler: UpgradeDefinition = {
+	toolKey: "kineticCoupler",
+	toolName: "Kinetic Coupler",
+	category: "special",
+	type: "passive",
+	requirements: LASSO_REQUIREMENT,
+	levels: lassoStatLevels(
+		[1.15, 1.3, 1.45],
+		(value) => `Lasso impacts deal ${Math.round((value - 1) * 100)}% more damage`,
+		"kinetic_coupler_upg1",
+		"lassoSlamDamageMultiplier",
+		[24, 32, 42]
+	),
+}
+
+export const torqueSpool: UpgradeDefinition = {
+	toolKey: "torqueSpool",
+	toolName: "Torque Spool",
+	category: "special",
+	type: "passive",
+	requirements: LASSO_REQUIREMENT,
+	levels: lassoStatLevels(
+		[1.1, 1.2, 1.3],
+		(value) => `Pull tethered objects with ${Math.round((value - 1) * 100)}% more acceleration without reducing impact mass`,
+		"torque_spool_upg1",
+		"lassoPullAccelerationMultiplier",
+		[22, 30, 40]
+	),
+}
+
+export const shockCradle: UpgradeDefinition = {
+	toolKey: "shockCradle",
+	toolName: "Shock Cradle",
+	category: "special",
+	type: "passive",
+	requirements: LASSO_REQUIREMENT,
+	levels: [0.2, 0.35, 0.5].map((reduction, index) => ({
+		name: `Level ${index + 1}`,
+		desc: `Tethered objects take ${Math.round(reduction * 100)}% less collision damage`,
+		sprite: "shock_cradle_upg1",
+		price: [30, 40, 52][index],
+		effects: {
+			modifiers: [{
+				stat: "lassoSelfDamageReduction",
+				value: reduction,
+				type: "additive" as const,
+			}],
+		},
+	})),
+}
+
+export const momentumRelay: UpgradeDefinition = {
+	toolKey: "momentumRelay",
+	toolName: "Momentum Relay",
+	category: "special",
+	type: "passive",
+	requirements: LASSO_REQUIREMENT,
+	levels: [0.1, 0.2, 0.3].map((bonus, index) => ({
+		name: `Level ${index + 1}`,
+		desc: `Thrown objects retain ${Math.round((0.6 + bonus) * 100)}% velocity after impacts`,
+		sprite: "momentum_relay_upg1",
+		price: [38, 50, 64][index],
+		effects: {
+			modifiers: [{
+				stat: "lassoImpactVelocityRetentionBonus",
+				value: bonus,
+				type: "additive" as const,
+			}],
+		},
+	})),
+}
+
+export const redlineCable: UpgradeDefinition = {
+	toolKey: "redlineCable",
+	toolName: "Redline Cable",
+	category: "special",
+	type: "passive",
+	requirements: LASSO_REQUIREMENT,
+	levels: [{
+		name: "Redline Cable",
+		desc: "Hold above 55% tension for 0.75 seconds to charge the next aimed Strafe throw",
+		sprite: "redline_cable_upg1",
+		price: 72,
+		effects: {
+			modifiers: [
+				{ stat: "lassoRedlineLaunchSpeedMultiplier", value: 1.25, type: "multiply" },
+				{ stat: "lassoRedlineDamageMultiplier", value: 1.35, type: "multiply" },
+			],
+		},
+	}],
+}
+
 export const debreeDist: UpgradeDefinition = {
 	toolKey: "debreeDist",
 	toolName: "Salvage magnets",
@@ -226,13 +338,13 @@ export const phaseMagazine: UpgradeDefinition = {
 
 export const movespeed: UpgradeDefinition = {
 	toolKey: "movespeed",
-	toolName: "Improved thrusters",
+	toolName: "Cruise thrusters",
 	category: "movement",
 	type: "stat",
 	levels: [
 		{
 			name: "Level 1",
-			desc: "Bigger thrusters, more speed",
+			desc: "Increase movement speed during normal flight by 5%",
 			sprite: "faster_speed_upg1",
 			price: 32,
 			effects: {
@@ -241,11 +353,46 @@ export const movespeed: UpgradeDefinition = {
 		},
 		{
 			name: "Level 2",
-			desc: "Bigger thrusters, more speed",
+			desc: "Increase movement speed during normal flight by 15%",
 			sprite: "faster_speed_upg1",
 			price: 32,
 			effects: {
 				modifiers: [{ stat: "speedMultiplier", value: 1.15, type: "multiply" }],
+			},
+		},
+	],
+};
+
+export const strafeSpeed: UpgradeDefinition = {
+	toolKey: "strafeSpeed",
+	toolName: "Strafe thrusters",
+	category: "movement",
+	type: "stat",
+	levels: [
+		{
+			name: "Level 1",
+			desc: "Increase movement speed during strafe control by 5%",
+			sprite: "faster_speed_upg1",
+			price: 32,
+			effects: {
+				modifiers: [{
+					stat: "strafeSpeedMultiplier",
+					value: 1.05,
+					type: "multiply",
+				}],
+			},
+		},
+		{
+			name: "Level 2",
+			desc: "Increase movement speed during strafe control by 15%",
+			sprite: "faster_speed_upg1",
+			price: 32,
+			effects: {
+				modifiers: [{
+					stat: "strafeSpeedMultiplier",
+					value: 1.15,
+					type: "multiply",
+				}],
 			},
 		},
 	],

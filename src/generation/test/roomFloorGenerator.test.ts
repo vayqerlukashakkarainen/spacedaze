@@ -267,10 +267,10 @@ const wakeEnvironment = Array.from({ length: 8 }, (_, seedOffset) =>
 	(room) => room.environment?.objects ?? []
 )
 assert(
-	wakeEnvironment.some((object) => object.category === "structural") &&
+	wakeEnvironment.some((object) => object.category === "destructible-cover") &&
 	wakeEnvironment.some((object) => object.category === "dynamic-cover") &&
 	wakeEnvironment.some((object) => object.category === "volatile"),
-	"Wake floors should generate structural, dynamic, and volatile objects"
+	"Wake floors should generate destructible, dynamic, and volatile objects"
 )
 assert(
 	deepFloor.rooms.every((room) => room.environment?.objects.length === 0),

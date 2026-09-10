@@ -7,6 +7,7 @@
 - **Fighter and Hunter enemy ships** — Generated with PixelLab, then separated into destructible components and converted to pure black-and-white sprites with the local SpaceDaze art tools.
 
 - **Wake hull barricade and volatile fuel cell** — Generated with PixelLab for the room-environment system, then quantized against the existing asteroid palette with no dithering.
+- **Clampback, Fuse Rat, and Shredder Skiff enemy concepts** — Generated with PixelLab for the Wake Scrap District roster. The Shredder Skiff uses selected object `fe96940e-4f34-4f6f-b6f4-6a4facb44799`; generation records for all three are kept in the Wake enemy concept catalog.
 
 - **Mass Driver railgun mount** — Generated with PixelLab (object `51aa76f1-473b-44cc-84d1-6f032085352d`), then quantized against the existing Rail Lance palette with no dithering.
 

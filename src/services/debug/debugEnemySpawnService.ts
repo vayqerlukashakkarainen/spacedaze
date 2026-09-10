@@ -30,6 +30,9 @@ import { spawnRivetGunner } from "../../spawn/wake/spawnRivetGunner"
 import { spawnScrapNipper } from "../../spawn/wake/spawnScrapNipper"
 import { spawnScrapRaiser } from "../../spawn/wake/spawnScrapRaiser"
 import { spawnTowhookRig } from "../../spawn/wake/spawnTowhookRig"
+import { spawnClampback } from "../../spawn/wake/spawnClampback"
+import { spawnFuseRat } from "../../spawn/wake/spawnFuseRat"
+import { spawnShredderSkiff } from "../../spawn/wake/spawnShredderSkiff"
 import { tags } from "../../tags"
 
 export type DebugEnemyType =
@@ -60,6 +63,9 @@ export type DebugEnemyType =
 	| "rivet-gunner"
 	| "towhook-rig"
 	| "patch-tender"
+	| "clampback"
+	| "fuse-rat"
+	| "shredder-skiff"
 	| "boiler-hulk"
 
 const DEBUG_ENEMY_TYPES: readonly DebugEnemyType[] = [
@@ -90,6 +96,9 @@ const DEBUG_ENEMY_TYPES: readonly DebugEnemyType[] = [
 	"rivet-gunner",
 	"towhook-rig",
 	"patch-tender",
+	"clampback",
+	"fuse-rat",
+	"shredder-skiff",
 	"boiler-hulk",
 ]
 
@@ -266,6 +275,15 @@ function spawnDebugEnemy(type: DebugEnemyType, pos: Vec2) {
 			return
 		case "patch-tender":
 			spawnPatchTender(pos, 4, persistOptions)
+			return
+		case "clampback":
+			spawnClampback(pos, 7, persistOptions)
+			return
+		case "fuse-rat":
+			spawnFuseRat(pos, 4, persistOptions)
+			return
+		case "shredder-skiff":
+			spawnShredderSkiff(pos, 8, persistOptions)
 			return
 		case "boiler-hulk":
 			spawnBoilerHulk(pos, 20, persistOptions)

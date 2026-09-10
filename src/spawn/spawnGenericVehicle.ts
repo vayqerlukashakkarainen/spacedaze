@@ -8,6 +8,7 @@ import { onEnemyHit } from "./enemyShared";
 import { timescale } from "../comp/timescale";
 import { applyDamage } from "../services/combat/damageService";
 import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState";
+import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 import {
 	createEnemySpawnProfile,
 	ENEMY_THREAT_RANK,
@@ -71,6 +72,7 @@ export function spawnGenericVehicle(
 		});
 
 		if (
+			!isEnemyEmpDisrupted(m) &&
 			!isPlayerDamageInvulnerable() &&
 			playerObj.pos.dist(m.pos) < m.hb
 		) {

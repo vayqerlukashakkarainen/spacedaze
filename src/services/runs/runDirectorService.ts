@@ -21,6 +21,7 @@ import {
 	startRunTelemetry,
 } from "./runTelemetryService"
 import { runtimeDebug } from "../debug/runtimeDebugService"
+import { recordRewardFloorReached } from "../progression/rewardUnlockProgressService"
 
 export interface RunFloorSelection {
 	levelKey: RunLevelKey
@@ -77,6 +78,7 @@ export function beginRunSession(zoneId: string): RunFloorSelection | undefined {
 		currentFloor,
 	}
 	beginDebreeRun()
+	recordRewardFloorReached(currentFloor.depth)
 	beginExtraLifeRun(getToolUpgradeLvlValue("extraLife") ?? 0)
 	startRunStats(getSelectedContract()?.name ?? "UNASSIGNED EXPEDITION")
 	const contract = getSelectedContract()
@@ -138,6 +140,7 @@ export function advanceRunSession(): RunFloorSelection | undefined {
 		activeRun.visitedLevelKeys.push(levelKey)
 	}
 	recordTelemetryFloor(currentFloor.depth, currentFloor.levelKey, currentFloor.mapSeed)
+	recordRewardFloorReached(currentFloor.depth)
 	runtimeDebug.log("run", "run:floor-advanced", {
 		depth,
 		level: currentFloor.levelKey,

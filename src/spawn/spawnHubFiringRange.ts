@@ -1,5 +1,6 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { jitter } from "../comp/jitter"
+import { interactable } from "../comp/interactable"
 import { timescale } from "../comp/timescale"
 import { compose, unitComponents } from "../compose"
 import { checkProjectileComponentIntersection, playerObj } from "../game"
@@ -14,9 +15,16 @@ import { spawnAbilityLoadoutPickup } from "../services/abilities/abilitySwapServ
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import {
 	getHubLevel,
-	getHubLevelDefinition,
 	getHubLifetimeDeposited,
 } from "../services/hub/hubProgressService"
+import {
+	getRewardDefinition,
+	getRewardLockReason,
+	getRewardUnlockProgress,
+	REWARD_RARITY_COLORS,
+	RewardRarity,
+	type RewardDefinition,
+} from "../services/economy/rewardService"
 import { gameSoundService } from "../services/audio/gameSoundService"
 import { setHitSoundProfile } from "../services/audio/hitSoundService"
 import { spawnRockDestructionFragments } from "../services/combat/rockDestructionEffectService"
@@ -26,6 +34,8 @@ import type { StatCategory, UpgradeDefinition } from "../types/upgradeTypes"
 import {
 	createRewardTypeFrame,
 	createNpcInteractionPromptPool,
+	createUiSurface,
+	createUiProgressBar,
 	getScaledLineSpacing,
 	UI_COLORS,
 } from "../ui/common"
@@ -43,6 +53,13 @@ import { spawnMeteorite } from "./spawnAsteroid"
 import { spawnExplodingFuelCell } from "./rooms/spawnRoomEnvironment"
 import { spawnHealthShrine } from "./shrine/spawnHealthShrine"
 import { spawnSwarmEnemy, type SwarmPatrol } from "./spawnSwarm"
+import {
+	grantUpgradeForDebug,
+	isToolKey,
+	isTrainingUpgradeGrantForDebugEnabled,
+} from "../upg"
+import { loadPlayer } from "../player"
+import { showPopover } from "../services/ui/popoverService"
 
 const RANGE_WIDTH = 660
 const TARGET_OFFSET_Y = 230
@@ -115,6 +132,7 @@ interface TrainingPreviewPickup {
 	title: string
 	description?: string
 	textColor: readonly [number, number, number]
+	interactionPrompt?: { update(visible: boolean): void }
 }
 
 interface TrainingPreviewTooltipPool {
@@ -128,9 +146,13 @@ interface TrainingPreviewProps {
 	kind: RewardKind
 	abilitySlot?: AbilitySlot
 	minimumHubLevel: number
+	rewardDefinition?: RewardDefinition
 	availableTitle: string
 	availableDescription?: string
 	availableTextColor?: readonly [number, number, number]
+	onInteract?: () => void
+	interactionPromptPool?: ReturnType<typeof createNpcInteractionPromptPool>
+	interactionPromptLabel?: string
 }
 
 export function spawnHubFiringRange(
@@ -173,6 +195,7 @@ export function spawnHubFiringRange(
 		const nextSignature = [
 			getHubLevel(),
 			getHubLifetimeDeposited(),
+			isTrainingUpgradeGrantForDebugEnabled(),
 			...unlocked.map((ability) => ability.id),
 		].join("|")
 		if (nextSignature === discoverySignature) return
@@ -189,7 +212,8 @@ export function spawnHubFiringRange(
 			equipmentRoot,
 			props.pos,
 			displayObjects,
-			previewPickups
+			previewPickups,
+			equipmentPromptPool
 		)
 		for (const row of SLOT_ROWS) {
 			const rowAbilities = ABILITIES.filter(
@@ -504,7 +528,8 @@ function spawnUpgradeGallery(
 	root: GameObj,
 	rangePos: Vec2,
 	displayObjects: GameObj[],
-	previewPickups: TrainingPreviewPickup[]
+	previewPickups: TrainingPreviewPickup[],
+	interactionPromptPool: ReturnType<typeof createNpcInteractionPromptPool>
 ) {
 	const upgrades = getAllUpgradeDefinitions()
 	let rowY = UPGRADE_GALLERY_TOP
@@ -534,7 +559,8 @@ function spawnUpgradeGallery(
 				rangePos.add(
 					UPGRADE_GALLERY_START_X + column * UPGRADE_GALLERY_COLUMN_SPACING,
 					rowY + row * UPGRADE_GALLERY_ROW_SPACING
-				)
+				),
+				interactionPromptPool
 			)
 			if (!preview) return
 			displayObjects.push(preview.object)
@@ -550,17 +576,47 @@ function spawnUpgradeGallery(
 
 function spawnUpgradePreview(
 	upgrade: UpgradeDefinition,
-	position: Vec2
+	position: Vec2,
+	interactionPromptPool: ReturnType<typeof createNpcInteractionPromptPool>
 ): TrainingPreviewPickup | undefined {
 	const firstLevel = upgrade.levels[0]
 	if (!firstLevel) return
+	const canGrant = isTrainingUpgradeGrantForDebugEnabled() &&
+		isToolKey(upgrade.toolKey)
 	return spawnTrainingPreviewPickup({
 		position,
 		icon: getTrainingUpgradePreviewSprite(firstLevel.sprite),
 		kind: "upgrade",
 		minimumHubLevel: getUpgradeMinimumHubLevel(upgrade),
+		rewardDefinition: getRewardDefinition(upgrade.toolKey),
 		availableTitle: upgrade.toolName.toUpperCase(),
 		availableDescription: firstLevel.desc,
+		onInteract: canGrant ? () => grantTrainingUpgrade(upgrade) : undefined,
+		interactionPromptPool: canGrant ? interactionPromptPool : undefined,
+		interactionPromptLabel: "ADD LEVEL",
+	})
+}
+
+function grantTrainingUpgrade(upgrade: UpgradeDefinition) {
+	if (!isToolKey(upgrade.toolKey)) return
+	const level = grantUpgradeForDebug(
+		upgrade.toolKey,
+		upgrade.reward?.rarity
+	)
+	if (level === undefined) {
+		playRequirementErrorSound()
+		return
+	}
+	loadPlayer()
+	const levelDefinition = upgrade.levels[level]
+	showPopover({
+		title: "TRAINING UPGRADE ADDED",
+		message: `${upgrade.toolName}  //  ${levelDefinition.name}`,
+		sprite: levelDefinition.sprite,
+		color: k.rgb(...REWARD_RARITY_COLORS[
+			upgrade.reward?.rarity ?? RewardRarity.Common
+		]),
+		duration: 1.8,
 	})
 }
 
@@ -619,6 +675,9 @@ function spawnLockedAbilityPickup(
 		kind: getAbilityRewardKind(ability.slot),
 		abilitySlot: ability.slot,
 		minimumHubLevel: ability.minimumHubLevel,
+		rewardDefinition: getRewardDefinition(
+			`${ability.slot}:${ability.id}`
+		),
 		availableTitle: "AVAILABLE FOR DROP",
 		availableTextColor: UI_COLORS.success,
 	})
@@ -627,8 +686,10 @@ function spawnLockedAbilityPickup(
 function spawnTrainingPreviewPickup(
 	props: TrainingPreviewProps
 ): TrainingPreviewPickup {
-	const hubLevelReached = getHubLevel() >= props.minimumHubLevel
-	const unlockProgress = getHubUnlockProgress(props.minimumHubLevel)
+	const unlockProgress = props.rewardDefinition
+		? getRewardUnlockProgress(props.rewardDefinition)
+		: getHubLevel() >= props.minimumHubLevel ? 1 : 0
+	const requirementsReached = unlockProgress >= 1
 	const pickup = k.add([
 		k.pos(props.position),
 		k.sprite(props.icon, {
@@ -636,8 +697,8 @@ function spawnTrainingPreviewPickup(
 			height: LOCKED_PICKUP_ICON_SIZE,
 		}),
 		k.anchor("center"),
-		k.color(...(hubLevelReached ? UI_COLORS.text : UI_COLORS.muted)),
-		k.opacity(hubLevelReached ? 0.82 : 0.58),
+		k.color(...(requirementsReached ? UI_COLORS.text : UI_COLORS.muted)),
+		k.opacity(requirementsReached ? 0.82 : 0.58),
 		k.layer(layers.game),
 		{
 			runtimeCullRadius: LOCKED_PICKUP_REVEAL_RADIUS,
@@ -645,40 +706,58 @@ function spawnTrainingPreviewPickup(
 		tags.props,
 		tags.gameLoop,
 		tags.runtimeCullable,
+		...(props.onInteract ? [interactable(30, props.onInteract)] : []),
 	])
+	const interactionPrompt = props.interactionPromptPool && props.onInteract
+		? props.interactionPromptPool.createPrompt({
+			target: pickup,
+			offset: k.vec2(0, -28),
+			label: { text: props.interactionPromptLabel ?? "INTERACT" },
+		})
+		: undefined
 	const pickupFrame = createRewardTypeFrame(pickup, {
 		size: LOCKED_PICKUP_FRAME_SIZE,
-		color: hubLevelReached ? UI_COLORS.success : UI_COLORS.muted,
+		color: requirementsReached ? UI_COLORS.success : UI_COLORS.muted,
 		kind: props.kind,
 		abilitySlot: props.abilitySlot,
-		fillOpacity: hubLevelReached ? 0.12 : 0.06,
+		fillOpacity: requirementsReached ? 0.12 : 0.06,
 		outlineOpacity: 1,
 		lineWidth: 1,
-		progress: hubLevelReached ? undefined : unlockProgress,
+		progress: requirementsReached ? undefined : unlockProgress,
 		progressColor: UI_COLORS.accent,
 		progressLineWidth: 2,
 		z: -1,
 	})
 	pickupFrame.use(k.layer(layers.gameEffects))
+	const progressBar = createUiProgressBar(pickup, {
+		pos: k.vec2(
+			-LOCKED_PICKUP_FRAME_SIZE / 2,
+			LOCKED_PICKUP_FRAME_SIZE / 2 + 4
+		),
+		width: LOCKED_PICKUP_FRAME_SIZE,
+		height: 2,
+		value: unlockProgress,
+		color: requirementsReached ? UI_COLORS.success : UI_COLORS.accent,
+	})
+	progressBar.obj.use(k.layer(layers.gameEffects))
 
-	const title = hubLevelReached
+	const title = requirementsReached
 		? props.availableTitle
-		: `REQUIRES HUB LEVEL ${props.minimumHubLevel}`
-	const showDescription = hubLevelReached && props.availableDescription !== undefined
+		: props.rewardDefinition?.name.toUpperCase() ?? props.availableTitle
+	const description = requirementsReached
+		? props.availableDescription
+		: props.rewardDefinition
+			? getRewardLockReason(props.rewardDefinition)?.toUpperCase()
+			: `REQUIRES HUB LEVEL ${props.minimumHubLevel}`
 	return {
 		object: pickup,
 		title,
-		description: showDescription ? props.availableDescription : undefined,
-		textColor: hubLevelReached
+		description,
+		textColor: requirementsReached
 			? props.availableTextColor ?? UI_COLORS.text
 			: UI_COLORS.text,
+		interactionPrompt,
 	}
-}
-
-function getHubUnlockProgress(minimumHubLevel: number) {
-	const requiredDeposited = getHubLevelDefinition(minimumHubLevel).requiredDeposited
-	if (requiredDeposited <= 0) return 1
-	return Math.min(1, Math.max(0, getHubLifetimeDeposited() / requiredDeposited))
 }
 
 function getUpgradeMinimumHubLevel(upgrade: UpgradeDefinition) {
@@ -709,13 +788,14 @@ function createTrainingPreviewTooltipPool(): TrainingPreviewTooltipPool {
 			k.z(20),
 		])
 		root.hidden = true
-		const background = root.add([
-			k.rect(UPGRADE_TOOLTIP_WIDTH, 50),
-			k.anchor("center"),
-			k.color(...UI_COLORS.panel),
-			k.opacity(0),
-			k.z(0),
-		])
+		const background = createUiSurface(root, {
+			pos: k.vec2(),
+			size: k.vec2(UPGRADE_TOOLTIP_WIDTH, 50),
+			anchor: "center",
+			tone: "raised",
+			opacity: 0,
+		})
+		background.use(k.z(0))
 		const title = root.add([
 			k.text("", {
 				font: "unscii",
@@ -785,7 +865,8 @@ function createTrainingPreviewTooltipPool(): TrainingPreviewTooltipPool {
 		slot.pickup = pickup
 		slot.visible = true
 		slot.root.hidden = false
-		slot.background.hidden = !showDescription
+		slot.background.hidden = false
+		slot.background.height = showDescription ? 50 : 28
 		slot.title.text = pickup.title
 		slot.title.pos.y = showDescription ? -13 : 0
 		slot.title.color = k.rgb(...pickup.textColor)
@@ -828,6 +909,11 @@ function updateTrainingPreviewReveals(
 	interactivePickups: readonly GameObj[],
 	tooltipPool: TrainingPreviewTooltipPool
 ) {
+	for (const pickup of pickups) {
+		pickup.interactionPrompt?.update(
+			pickup.object.exists() && pickup.object.isInRange === true
+		)
+	}
 	let nearest: TrainingPreviewPickup | undefined
 	let nearestDistance = LOCKED_PICKUP_REVEAL_RADIUS
 	const interactionPromptVisible = interactivePickups.some((pickup) =>

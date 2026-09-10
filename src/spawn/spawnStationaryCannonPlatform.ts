@@ -3,6 +3,7 @@ import { checkProjectileIntersection, playerObj } from "../game"
 import { k, layers, mainSoundVolume } from "../main"
 import { gameSoundService } from "../services/audio/gameSoundService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
+import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 import { spawnProjectile } from "../services/combat/projectileService"
 import {
 	createEnemySpawnProfile,
@@ -85,7 +86,11 @@ export function spawnStationaryCannonPlatform(
 
 		const distance = platform.pos.dist(playerObj.pos)
 		platform.attackTimer -= delta * (profile.elite ? 1.2 : 1)
-		if (platform.attackTimer <= 0 && distance <= ATTACK_RANGE) {
+		if (
+			!isEnemyEmpDisrupted(platform) &&
+			platform.attackTimer <= 0 &&
+			distance <= ATTACK_RANGE
+		) {
 			fireVolley(platform, profile.damage, profile.speedMultiplier, options.tags)
 			platform.attackTimer = VOLLEY_COOLDOWN
 		}
@@ -194,7 +199,8 @@ function updateDeathAnimation(
 		2.2 * rewardMultiplier,
 		"enemy",
 		false,
-		{ tier: platform.is(tags.elite) ? "elite" : "normal" }
+		{ tier: platform.is(tags.elite) ? "elite" : "normal" },
+		platform
 	)
 	k.destroy(platform)
 }

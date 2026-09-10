@@ -190,7 +190,8 @@ export function spawnShip1(
 				{
 					name: profile.elite ? "ELITE FIGHTER" : "FIGHTER",
 					sprite: FIGHTER_BODY.sprite,
-				}
+				},
+				m
 			);
 		}
 

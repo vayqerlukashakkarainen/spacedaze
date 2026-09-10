@@ -22,6 +22,11 @@ interface TelegraphOptions {
 	onComplete?: () => void
 }
 
+interface LineTelegraphOptions extends TelegraphOptions {
+	getStart?: () => Vec2 | undefined
+	getEnd?: () => Vec2 | undefined
+}
+
 export function spawnTargetTelegraph(
 	pos: Vec2,
 	radius: number,
@@ -48,17 +53,21 @@ export function spawnTargetTelegraph(
 export function spawnLineTelegraph(
 	start: Vec2,
 	end: Vec2,
-	options: TelegraphOptions
+	options: LineTelegraphOptions
 ) {
 	const telegraph = k.add([
 		k.pos(start),
-		{ elapsed: 0 },
+		{ elapsed: 0, lineEnd: end.clone() },
 		tags.props,
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
 	registerVisual(telegraph, "line", options.duration, { end })
 	registerBatchedEntityUpdate("effects", telegraph, () => {
+		const nextStart = options.getStart?.()
+		const nextEnd = options.getEnd?.()
+		if (nextStart) telegraph.pos = nextStart
+		if (nextEnd) telegraph.lineEnd = nextEnd
 		telegraph.elapsed += k.dt()
 		if (telegraph.elapsed < options.duration) return
 		options.onComplete?.()
@@ -118,10 +127,11 @@ function drawVisual(visual: TelegraphVisual) {
 		})
 		return
 	}
-	if (!visual.end) return
+	const lineEnd = obj.lineEnd ?? visual.end
+	if (!lineEnd) return
 	k.drawLine({
 		p1: obj.pos,
-		p2: visual.end,
+		p2: lineEnd,
 		width: k.lerp(1, 3, progress),
 		color: k.WHITE,
 		opacity: k.wave(0.18, 0.8, k.time() * 10),

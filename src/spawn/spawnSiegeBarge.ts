@@ -19,6 +19,7 @@ import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
 import { spawnExplosionEffect } from "./spawnFlash"
+import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 
 const IMPACT_RADIUS = 54
 const SIEGE_BARGE_VISUAL = getEnemyVisual("siege-barge")
@@ -87,7 +88,11 @@ export function spawnSiegeBarge(
 
 		if (!barge.attacking) {
 			barge.attackTimer -= delta * (barge.shieldFireRateMultiplier ?? 1)
-			if (barge.attackTimer <= 0 && distance < 620) {
+			if (
+				!isEnemyEmpDisrupted(barge) &&
+				barge.attackTimer <= 0 &&
+				distance < 620
+			) {
 				barge.attacking = true
 				const targetPos = playerObj.pos.clone()
 				const impactDelay = profile.elite ? 0.78 : 1.05

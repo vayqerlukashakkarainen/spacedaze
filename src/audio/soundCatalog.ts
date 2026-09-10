@@ -119,10 +119,11 @@ export function isMusicAssetId(value: string): value is MusicAssetId {
 }
 
 export async function loadAudioAssets(k: KAPLAYCtx) {
-	for (const [id, path] of Object.entries(SOUND_ASSETS)) {
-		await k.loadSound(id, path)
-	}
+	const soundAssets = Object.entries(SOUND_ASSETS).map(([id, path]) =>
+		k.loadSound(id, path)
+	)
 	for (const [id, path] of Object.entries(MUSIC_ASSETS)) {
-		await k.loadMusic(id, path)
+		k.loadMusic(id, path)
 	}
+	await Promise.all(soundAssets)
 }

@@ -20,6 +20,12 @@ import {
 	extraLife,
 	maxHealth,
 	movespeed,
+	strafeSpeed,
+	kineticCoupler,
+	torqueSpool,
+	shockCradle,
+	momentumRelay,
+	redlineCable,
 	sprintSpeed,
 	spaceJump,
 	spaceJumpUpgrades,
@@ -47,9 +53,12 @@ import {
 import {
 	arcCapacitor,
 	armorPiercing,
+	componentShear,
+	coreBreach,
 	criticalPayload,
 	corrosivePayload,
 	cryoRounds,
+	empRounds,
 	stunRounds,
 	kineticPulse,
 	lifesteal,
@@ -97,6 +106,13 @@ import {
 	wreckHarvester,
 } from "./upgrades/stackingRewards"
 import { grantExtraLifeCharge } from "./services/progression/extraLifeService"
+import {
+	arcHarpoon,
+	graviticImpaler,
+	huntersGeometry,
+	shrapnelGarden,
+} from "./upgrades/alterations"
+import { getEquippedWeapon } from "./services/player/weaponService"
 
 interface Upgrade {
 	name: string;
@@ -107,6 +123,14 @@ interface Upgrade {
 }
 
 export type ToolKey = keyof typeof upgrades;
+
+export const ALTERATION_UPGRADE_KEYS = [
+	"arcHarpoon",
+	"shrapnelGarden",
+	"huntersGeometry",
+	"graviticImpaler",
+] as const satisfies readonly ToolKey[]
+const MAX_RUN_ALTERATIONS = 2
 
 export const PERMANENT_UPGRADE_KEYS = [
 	"blaster",
@@ -144,6 +168,12 @@ export const upgrades = {
 	phaseMagazine,
 
 	movespeed: movespeed,
+	strafeSpeed,
+	kineticCoupler,
+	torqueSpool,
+	shockCradle,
+	momentumRelay,
+	redlineCable,
 	maxHealth: maxHealth,
 	extraLife,
 
@@ -174,7 +204,10 @@ export const upgrades = {
 	wreckHarvester,
 
 	armorPiercing,
+	componentShear,
+	coreBreach,
 	cryoRounds,
+	empRounds,
 	stunRounds,
 	corrosivePayload,
 	arcCapacitor,
@@ -200,6 +233,10 @@ export const upgrades = {
 	mineLayer,
 	voidLance,
 	salvageLasso,
+	arcHarpoon,
+	shrapnelGarden,
+	huntersGeometry,
+	graviticImpaler,
 } as const;
 
 export let loadout: Record<ToolKey, number | undefined> = {
@@ -210,6 +247,12 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	debreeDist: undefined,
 	nrOfRockets: undefined,
 	movespeed: undefined,
+	strafeSpeed: undefined,
+	kineticCoupler: undefined,
+	torqueSpool: undefined,
+	shockCradle: undefined,
+	momentumRelay: undefined,
+	redlineCable: undefined,
 	debreeValue: undefined,
 	maxHealth: undefined,
 	extraLife: undefined,
@@ -247,7 +290,10 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	phaseMagazine: undefined,
 	blasterParallel: undefined,
 	armorPiercing: undefined,
+	componentShear: undefined,
+	coreBreach: undefined,
 	cryoRounds: undefined,
+	empRounds: undefined,
 	stunRounds: undefined,
 	corrosivePayload: undefined,
 	arcCapacitor: undefined,
@@ -272,6 +318,10 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	targetPainter: undefined,
 	mineLayer: undefined,
 	voidLance: undefined,
+	arcHarpoon: undefined,
+	shrapnelGarden: undefined,
+	huntersGeometry: undefined,
+	graviticImpaler: undefined,
 };
 
 export let levelLoadout: Record<ToolKey, number | undefined> = {
@@ -282,6 +332,12 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	debreeDist: undefined,
 	nrOfRockets: undefined,
 	movespeed: undefined,
+	strafeSpeed: undefined,
+	kineticCoupler: undefined,
+	torqueSpool: undefined,
+	shockCradle: undefined,
+	momentumRelay: undefined,
+	redlineCable: undefined,
 	debreeValue: undefined,
 	maxHealth: undefined,
 	extraLife: undefined,
@@ -319,7 +375,10 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	phaseMagazine: undefined,
 	blasterParallel: undefined,
 	armorPiercing: undefined,
+	componentShear: undefined,
+	coreBreach: undefined,
 	cryoRounds: undefined,
+	empRounds: undefined,
 	stunRounds: undefined,
 	corrosivePayload: undefined,
 	arcCapacitor: undefined,
@@ -344,6 +403,10 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	targetPainter: undefined,
 	mineLayer: undefined,
 	voidLance: undefined,
+	arcHarpoon: undefined,
+	shrapnelGarden: undefined,
+	huntersGeometry: undefined,
+	graviticImpaler: undefined,
 };
 
 export let loadoutRarity: Partial<Record<ToolKey, RewardRarity>> = {};
@@ -417,12 +480,20 @@ const playerStatByTool: Partial<Record<ToolKey, string>> = {
 	debreeValue: "debreeValueMultiplier",
 	sprintSpeed: "sprintSpeedMultiplier",
 	movespeed: "speedMultiplier",
+	strafeSpeed: "strafeSpeedMultiplier",
+	kineticCoupler: "lassoSlamDamageMultiplier",
+	torqueSpool: "lassoPullAccelerationMultiplier",
+	shockCradle: "lassoSelfDamageReduction",
+	momentumRelay: "lassoImpactVelocityRetentionBonus",
 	phaseRam: "spaceJumpDamage",
 	maxHealth: "maxHealth",
 	extraLife: "extraLives",
 	followerBlasterDmg: "followerBlasterDmg",
 	armorPiercing: "projectilePierces",
+	componentShear: "projectilePartDamageMultiplier",
+	coreBreach: "projectileCoreDamageMultiplier",
 	cryoRounds: "projectileSlowPercentage",
+	empRounds: "projectileEmpChance",
 	stunRounds: "projectileStunChance",
 	corrosivePayload: "projectileDotDamage",
 	arcCapacitor: "projectileChainCount",
@@ -498,6 +569,8 @@ function resolveUpgradeOrAbilityLevel(toolKey: string) {
 		mobilityAbilityId === "thrusterOverdrive"
 	) return 0
 	if (toolKey === "spaceJump" && mobilityAbilityId === "phaseJump") return 0;
+	if (toolKey === "gravitySling" && mobilityAbilityId === "gravitySling") return 0
+	if (toolKey === "railLance" && getEquippedWeapon().id === "railLance") return 0
 	return isToolKey(toolKey) ? getEffectiveUpgradeLevel(toolKey) : undefined;
 }
 
@@ -516,6 +589,8 @@ export function describeUpgradeRequirements(
 
 function getUpgradeName(toolKey: string) {
 	if (toolKey === "thrusterOverdrive") return "THRUSTER OVERDRIVE"
+	if (toolKey === "gravitySling") return "GRAVITY SLING"
+	if (toolKey === "railLance") return "RAIL LANCE"
 	return getUpgradeDefinition(toolKey)?.toolName ?? toolKey;
 }
 
@@ -523,6 +598,13 @@ export function getNextRunUpgradeLevel(key: ToolKey): number | undefined {
 	const definition = getUpgradeDefinition(key);
 	if (!definition) return undefined;
 	if (!evaluateUpgradeRequirements(definition).met) return undefined;
+	if (
+		definition.alteration &&
+		getEffectiveUpgradeLevel(key) === undefined &&
+		ALTERATION_UPGRADE_KEYS.filter(
+			(alterationKey) => levelLoadout[alterationKey] !== undefined
+		).length >= MAX_RUN_ALTERATIONS
+	) return undefined
 
 	const currentLevel = getEffectiveUpgradeLevel(key) ?? -1;
 	const nextLevel = currentLevel + 1;
@@ -544,6 +626,48 @@ export function grantRunUpgrade(
 		);
 	}
 	return nextLevel;
+}
+
+let trainingUpgradeGrantForDebugEnabled = false
+
+export function enableTrainingUpgradeGrantForDebug() {
+	trainingUpgradeGrantForDebugEnabled = true
+}
+
+export function isTrainingUpgradeGrantForDebugEnabled() {
+	return trainingUpgradeGrantForDebugEnabled
+}
+
+export function grantUpgradeForDebug(
+	key: ToolKey,
+	rarity?: RewardRarity
+): number | undefined {
+	const definition = getUpgradeDefinition(key)
+	if (!definition) return undefined
+	const nextLevel = (getEffectiveUpgradeLevel(key) ?? -1) + 1
+	const level = definition.levels[nextLevel]
+	if (!level) return undefined
+
+	if (!isPermanentUpgradeKey(key)) {
+		levelLoadout[key] = nextLevel
+		if (rarity) {
+			levelLoadoutRarity[key] = getHigherRarity(
+				levelLoadoutRarity[key],
+				rarity
+			)
+		}
+		return nextLevel
+	}
+
+	loadout[key] = nextLevel
+	loadoutRarity[key] = getHigherRarity(
+		loadoutRarity[key],
+		rarity ?? RewardRarity.Legendary
+	)
+	upgradeService.purchaseUpgrade(key, level.effects)
+	if (key === "extraLife") grantExtraLifeCharge()
+	saveGame("slot1")
+	return nextLevel
 }
 
 export function addLvl(key: ToolKey, rarity?: RewardRarity) {
@@ -600,6 +724,12 @@ export function resetLevelLoadout() {
 		debreeDist: undefined,
 		nrOfRockets: undefined,
 		movespeed: undefined,
+		strafeSpeed: undefined,
+		kineticCoupler: undefined,
+		torqueSpool: undefined,
+		shockCradle: undefined,
+		momentumRelay: undefined,
+		redlineCable: undefined,
 		debreeValue: undefined,
 		maxHealth: undefined,
 		extraLife: undefined,
@@ -637,7 +767,10 @@ export function resetLevelLoadout() {
 		phaseMagazine: undefined,
 		blasterParallel: undefined,
 		armorPiercing: undefined,
+		componentShear: undefined,
+		coreBreach: undefined,
 		cryoRounds: undefined,
+		empRounds: undefined,
 		stunRounds: undefined,
 		corrosivePayload: undefined,
 		arcCapacitor: undefined,
@@ -662,6 +795,10 @@ export function resetLevelLoadout() {
 		targetPainter: undefined,
 		mineLayer: undefined,
 		voidLance: undefined,
+		arcHarpoon: undefined,
+		shrapnelGarden: undefined,
+		huntersGeometry: undefined,
+		graviticImpaler: undefined,
 	};
 }
 

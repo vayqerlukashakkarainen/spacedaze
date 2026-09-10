@@ -25,6 +25,7 @@ import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { snareable } from "../comp/snareable"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
+import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 
 type SniperPhase = "reposition" | "aim"
 const SNIPER_VISUAL = getEnemyVisual("sniper")
@@ -147,11 +148,14 @@ export function spawnSniper(
 						sniper.facingDirection,
 						sniper.angle,
 						sniper.damage,
-						{ name: "SNIPER", sprite: "enemy_sniper" }
+						{ name: "SNIPER", sprite: "enemy_sniper" },
+						sniper
 					)
-					shot.speed = 520 * profile.speedMultiplier
-					shot.color = k.rgb(255, 70, 150)
-					shot.scale = k.vec2(1.35)
+					if (shot) {
+						shot.speed = 520 * profile.speedMultiplier
+						shot.color = k.rgb(255, 70, 150)
+						shot.scale = k.vec2(1.35)
+					}
 					sniper.phase = "reposition"
 					sniper.phaseTimer = 0
 					sniper.strafeDirection *= -1
@@ -164,6 +168,7 @@ export function spawnSniper(
 			onEnemyHit(sniper, projectile)
 		})
 		if (
+			!isEnemyEmpDisrupted(sniper) &&
 			!isPlayerDamageInvulnerable() &&
 			sniper.pos.dist(playerObj.pos) < sniper.hb + 8
 		) {
@@ -185,7 +190,8 @@ export function spawnSniper(
 			{
 				tier: profile.elite ? "elite" : "normal",
 				material: "ship",
-			}
+			},
+			sniper
 		)
 		k.destroy(sniper)
 	})

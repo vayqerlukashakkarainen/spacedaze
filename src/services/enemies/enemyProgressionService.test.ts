@@ -6,7 +6,18 @@ import {
 
 const roster = getEnemyProgressionRoster()
 
-assert.equal(roster.length, 24)
+assert.equal(roster.length, 27)
+for (const enemyId of [
+	"wake-clampback",
+	"wake-fuse-rat",
+	"wake-shredder-skiff",
+] as const) {
+	assert.equal(
+		roster.some((enemy) => enemy.id === enemyId),
+		true,
+		`${enemyId} should be included in enemy progression`
+	)
+}
 assert.equal(
 	isEnemyProgressionUnlocked("wake-scrap-raiser", { runDepth: 1, hubLevel: 1 }),
 	true

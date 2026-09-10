@@ -20,6 +20,8 @@ interface EnemyProjectileImpactOptions {
 const HIT_TINT_DURATION = 0.065
 const NORMAL_HIT_TINT = [120, 220, 255] as const
 const CRITICAL_HIT_TINT = [255, 92, 92] as const
+const PART_DAMAGE_TINT = [255, 48, 48] as const
+const PART_DAMAGE_TINT_DURATION = 0.085
 const PLAYER_DAMAGE_INDICATOR_RADIUS = 58
 const MAX_PLAYER_DAMAGE_INDICATORS = 4
 const PLAYER_DAMAGE_FLASH_DURATION = 0.085
@@ -55,6 +57,34 @@ export function applyEnemyProjectileImpact(
 	applyEnemyHitTint(target, color)
 	applyEnemyHitRecoil(target, direction, options)
 	applyWeaponImpactShake(options)
+}
+
+export function applyEnemyPartDamageFlash(target: GameObj) {
+	if (!target.exists() || !target.tags.includes(tags.part)) return
+	const token = (target.partDamageFlashToken ?? 0) + 1
+	const alreadyFlashing = target.partDamageFlashBaseColor !== undefined
+	const hadColor = alreadyFlashing
+		? target.partDamageFlashHadColor === true
+		: target.has("color")
+	const original = alreadyFlashing
+		? target.partDamageFlashBaseColor
+		: hadColor
+			? k.rgb(target.color.r, target.color.g, target.color.b)
+			: k.WHITE
+
+	target.partDamageFlashToken = token
+	target.partDamageFlashBaseColor = original
+	target.partDamageFlashHadColor = hadColor
+	if (!target.has("color")) target.use(k.color(k.WHITE))
+	target.color = k.rgb(...PART_DAMAGE_TINT)
+
+	k.wait(PART_DAMAGE_TINT_DURATION, () => {
+		if (!target.exists() || target.partDamageFlashToken !== token) return
+		if (target.partDamageFlashHadColor) target.color = original
+		else if (target.has("color")) target.unuse("color")
+		delete target.partDamageFlashBaseColor
+		delete target.partDamageFlashHadColor
+	})
 }
 
 export function showPlayerDamageDirection(

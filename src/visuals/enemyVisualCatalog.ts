@@ -157,6 +157,29 @@ export const ENEMY_VISUALS: Record<EnemyVisualId, EnemyVisualRepresentation> = {
 		],
 		worldScale: 1,
 	},
+	"wake-clampback": {
+		parts: [
+			{ sprite: "enemy_wake_clampback_core" },
+			{ sprite: "enemy_wake_clampback_left_clamp" },
+			{ sprite: "enemy_wake_clampback_right_clamp" },
+		],
+		worldScale: 1,
+	},
+	"wake-fuse-rat": {
+		parts: [
+			{ sprite: "enemy_wake_fuse_rat_core" },
+			{ sprite: "enemy_wake_fuse_rat_overcharger" },
+		],
+		worldScale: 1,
+	},
+	"wake-shredder-skiff": {
+		parts: [
+			{ sprite: "enemy_wake_shredder_skiff_core" },
+			{ sprite: "enemy_wake_shredder_skiff_grinder" },
+			{ sprite: "enemy_wake_shredder_skiff_hopper" },
+		],
+		worldScale: 1,
+	},
 	"wake-boiler-hulk": {
 		parts: [
 			{ sprite: "enemy_wake_boiler_hulk_core" },
@@ -171,9 +194,14 @@ export const ENEMY_VISUALS: Record<EnemyVisualId, EnemyVisualRepresentation> = {
 		worldScale: 1,
 	},
 	"federation-dreadnought": {
-		parts: [{ sprite: "boss1_body" }],
-		worldScale: 1,
-		phaseSprites: ["boss1_body", "boss1_body_phase2", "boss1_body_phase3"],
+		parts: [
+			{ sprite: "boss1_core" },
+			{ sprite: "boss1_blaster", offset: [-50, -5] },
+			{ sprite: "boss1_blaster_right", offset: [50, -5] },
+			{ sprite: "boss1_head", offset: [0, -37] },
+		],
+		worldScale: 1.25,
+		phaseSprites: ["boss1_core", "boss1_core_phase2", "boss1_core_phase3"],
 	},
 	"stationary-cannon-platform": {
 		parts: [{ sprite: "enemy_stationary_cannon_platform" }],

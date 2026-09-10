@@ -7,6 +7,7 @@ import { applyDamage } from "../services/combat/damageService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import { getEnemyNavigationDirection } from "../services/enemies/enemyNavigationService"
 import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState"
+import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 import {
 	createEnemySpawnProfile,
 	ENEMY_THREAT_RANK,
@@ -103,7 +104,11 @@ export function spawnMineLayer(
 		}
 
 		mineLayer.mineTimer -= delta
-		if (mineLayer.mineTimer <= 0 && distance < 440) {
+		if (
+			!isEnemyEmpDisrupted(mineLayer) &&
+			mineLayer.mineTimer <= 0 &&
+			distance < 440
+		) {
 			spawnEnemyMine(
 				mineLayer.pos.clone(),
 				mineLayer.damage,
@@ -123,6 +128,7 @@ export function spawnMineLayer(
 			onEnemyHit(mineLayer, projectile)
 		})
 		if (
+			!isEnemyEmpDisrupted(mineLayer) &&
 			!isPlayerDamageInvulnerable() &&
 			mineLayer.pos.dist(playerObj.pos) < mineLayer.hb + 8
 		) {
@@ -144,7 +150,8 @@ export function spawnMineLayer(
 			{
 				tier: profile.elite ? "elite" : "normal",
 				material: "ship",
-			}
+			},
+			mineLayer
 		)
 		k.destroy(mineLayer)
 	})

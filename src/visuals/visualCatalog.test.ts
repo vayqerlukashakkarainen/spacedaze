@@ -37,6 +37,7 @@ for (const enemy of getEnemyProgressionRoster()) {
 const scaledEnemyWorldScales: Partial<Record<keyof typeof ENEMY_VISUALS, number>> = {
 	"swarm-drone": 0.6,
 	"wake-scrap-nipper": 0.75,
+	"federation-dreadnought": 1.25,
 }
 for (const [id, visual] of Object.entries(ENEMY_VISUALS)) {
 	assertValidVisual(`enemy:${id}`, visual, visual.parts.length > 0)
@@ -53,7 +54,11 @@ for (const enemyId of [
 	"wake-towhook-rig",
 	"wake-patch-tender",
 	"wake-scrap-raiser",
+	"wake-clampback",
+	"wake-fuse-rat",
+	"wake-shredder-skiff",
 	"wake-boiler-hulk",
+	"federation-dreadnought",
 ] as const) {
 	assert.equal(
 		getEnemyVisual(enemyId).parts.length > 1,

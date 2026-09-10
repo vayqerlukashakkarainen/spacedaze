@@ -103,7 +103,8 @@ export function spawnRivetGunner(
 					{
 						name: profile.elite ? "ELITE RIVET GUNNER" : "RIVET GUNNER",
 						sprite: "enemy_wake_rivet_gunner_core",
-					}
+					},
+					gunner
 				)
 				gunner.pos = gunner.pos.sub(direction.scale(3))
 				gunner.shotsRemaining--

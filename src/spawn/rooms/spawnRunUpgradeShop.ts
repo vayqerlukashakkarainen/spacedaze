@@ -43,6 +43,16 @@ import { spawnRewardPickup } from "../spawnPowerup"
 
 const SHOPKEEPER_DIALOGUE_ID = "void-profit"
 const SHOPKEEPER_INTERACT_RADIUS = 86
+const DRONE_SHOP_AMBIENT_DRONE_COUNT = 4
+const DRONE_SHOP_ORBIT_RADIUS_X = 205
+const DRONE_SHOP_ORBIT_RADIUS_Y = 118
+const DRONE_SHOP_ORBIT_SPEED = 18
+const DRONE_SHOP_AMBIENT_VISUALS = [
+	"combat",
+	"interceptor",
+	"medic",
+	"missile",
+] as const
 const DRONE_SPECIALIZATION_KEYS = new Set([
 	"followerMissiles",
 	"followerInterceptorProtocol",
@@ -66,7 +76,45 @@ export function spawnRunDroneShop(
 	objectTags: string[]
 ) {
 	ensureDroneShopOffers(room)
+	spawnDroneShopAmbientDrones(pos, objectTags)
 	return spawnRunShop(pos, room, objectTags)
+}
+
+function spawnDroneShopAmbientDrones(pos: Vec2, objectTags: string[]) {
+	for (let index = 0; index < DRONE_SHOP_AMBIENT_DRONE_COUNT; index++) {
+		const visual = getCompanionVisual(DRONE_SHOP_AMBIENT_VISUALS[index])
+		const phase = index * 360 / DRONE_SHOP_AMBIENT_DRONE_COUNT
+		const drone = k.add([
+			k.pos(pos),
+			k.sprite(requirePrimaryVisualSprite(visual), { width: 18, height: 18 }),
+			k.anchor("center"),
+			k.rotate(0),
+			k.color(k.WHITE),
+			k.opacity(0.82),
+			k.layer(layers.game),
+			k.z(8),
+			tags.props,
+			tags.gameLoop,
+			tags.runtimeCullable,
+			...objectTags,
+		])
+
+		registerBatchedEntityUpdate("world", drone, () => {
+			const angle = phase + k.time() * DRONE_SHOP_ORBIT_SPEED
+			const radians = angle * Math.PI / 180
+			const orbitOffset = k.vec2(
+				Math.cos(radians) * DRONE_SHOP_ORBIT_RADIUS_X,
+				Math.sin(radians) * DRONE_SHOP_ORBIT_RADIUS_Y
+			)
+			const tangent = k.vec2(
+				-Math.sin(radians) * DRONE_SHOP_ORBIT_RADIUS_X,
+				Math.cos(radians) * DRONE_SHOP_ORBIT_RADIUS_Y
+			)
+			drone.pos = pos.add(orbitOffset)
+			drone.angle = tangent.angle() + 90
+			drone.z = orbitOffset.y < -70 ? 8 : 16
+		})
+	}
 }
 
 function spawnRunShop(

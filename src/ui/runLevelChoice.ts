@@ -11,6 +11,8 @@ import {
 import {
 	applyReward,
 	createDirectUpgradeReward,
+	getRewardDisplayColor,
+	getRewardDisplayTier,
 	REWARD_RARITY_COLORS,
 	type Reward,
 } from "../services/economy/rewardService"
@@ -82,6 +84,8 @@ interface RunLevelChoiceDetails {
 	stats: readonly UiStatRow[]
 	sprite: string
 	rarity: Reward["rarity"]
+	displayTier?: string
+	displayColor?: readonly [number, number, number]
 	slot?: AbilitySlot
 }
 
@@ -201,7 +205,7 @@ function renderRunLevelChoice(choices: RunLevelChoice[], level: number) {
 	for (let index = 0; index < choices.length; index++) {
 		const choice = choices[index]
 		const details = getChoiceDetails(choice)
-		const color = REWARD_RARITY_COLORS[details.rarity]
+		const color = details.displayColor ?? REWARD_RARITY_COLORS[details.rarity]
 		const x = -rowWidth / 2 + cardWidth / 2 + index * (cardWidth + gap)
 		const cardControl = createUiSelectableCard(panel, {
 			pos: k.vec2(x - cardWidth / 2, 37 - cardHeight / 2),
@@ -220,7 +224,7 @@ function renderRunLevelChoice(choices: RunLevelChoice[], level: number) {
 		createUiBadge(card, {
 			pos: k.vec2((cardWidth - badgeWidth) / 2, 10),
 			width: badgeWidth,
-			text: details.rarity,
+			text: details.displayTier ?? details.rarity,
 			color,
 		})
 		addThemedText(card, {
@@ -492,6 +496,8 @@ function getChoiceDetails(choice: RunLevelChoice): RunLevelChoiceDetails {
 		stats: getRewardStatComparisonRows(choice.reward),
 		sprite: choice.reward.sprite,
 		rarity: choice.reward.rarity,
+		displayTier: getRewardDisplayTier(choice.reward),
+		displayColor: getRewardDisplayColor(choice.reward),
 		slot: choice.reward.abilitySlot,
 	}
 }

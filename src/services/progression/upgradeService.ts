@@ -33,6 +33,7 @@ const defaultStats: Record<string, number> = {
 	// Movement
 	speed: 200,
 	speedMultiplier: 1,
+	strafeSpeedMultiplier: 1,
 	sprintSpeedMultiplier: 1,
 
 	// Combat - Blasters
@@ -78,6 +79,9 @@ const defaultStats: Record<string, number> = {
 	projectileLifesteal: 0,
 	projectileStunChance: 0,
 	projectileStunDuration: 0,
+	projectileEmpChance: 0,
+	projectileEmpDuration: 0,
+	projectileEmpSlowPercentage: 0,
 };
 
 function initializeStats() {

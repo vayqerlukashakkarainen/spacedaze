@@ -53,7 +53,9 @@ import {
 import {
 	getAllRewardDefinitions,
 	getRewardDefinition,
+	getRewardDisplayTier,
 	getRewardMinimumHubLevel,
+	getRewardUnlockProgress,
 	REWARD_RARITY_COLORS,
 	RewardRarity,
 	type RewardDefinition,
@@ -94,6 +96,7 @@ import {
 	type AbilitySlot,
 } from "../services/abilities/abilityLoadoutService"
 import type { WarpZoneDefinition } from "../services/world/warpZoneService"
+import { describeRewardUnlockRequirement } from "../services/progression/rewardUnlockProgressService"
 import {
 	getDroidArchiveStatus,
 	getDroidDefinitions,
@@ -1224,8 +1227,21 @@ function getRewardUnlockRequirement(
 	const minimumHubLevel = definition
 		? getRewardMinimumHubLevel(definition)
 		: 1
-	if (getHubLevel() < minimumHubLevel) {
-		requirements.push(`HUB LEVEL ${minimumHubLevel}`)
+	if (minimumHubLevel > 1) {
+		requirements.push(
+			`HUB LEVEL ${minimumHubLevel}  ${Math.min(getHubLevel(), minimumHubLevel)} / ${minimumHubLevel}`
+		)
+	}
+	for (const requirement of definition?.unlockRequirements?.allOf ?? []) {
+		requirements.push(describeRewardUnlockRequirement(requirement))
+	}
+	const alternateRequirements = definition?.unlockRequirements?.anyOf ?? []
+	if (alternateRequirements.length > 0) {
+		requirements.push(
+			`ONE OF: ${alternateRequirements.map(
+				describeRewardUnlockRequirement
+			).join(" OR ")}`
+		)
 	}
 	if (additionalRequirement) {
 		requirements.push(additionalRequirement.toUpperCase())
@@ -1243,6 +1259,12 @@ function getRewardUnlockRequirement(
 		requirements.push("EXPEDITION DISCOVERY")
 	}
 	return requirements.join(" + ")
+}
+
+function getCompendiumRewardProgress(
+	definition: RewardDefinition | undefined
+) {
+	return definition ? getRewardUnlockProgress(definition) : 0
 }
 
 function getDroidUnlockRequirement(id: DroidId) {
@@ -1628,7 +1650,7 @@ function renderDroidArchive(
 			pos: k.vec2(left, rowsTop + index * 74),
 			width: listWidth,
 			height: 68,
-			title: discovered ? definition.name : "UNIDENTIFIED DROID",
+			title: definition.name,
 			meta: discovered ? definition.model : "LOCKED RECORD",
 			description: discovered
 				? undefined
@@ -1842,8 +1864,10 @@ function renderShipCatalog(
 		if (!definition) return
 		const owned = entry.level !== undefined
 		const level = owned ? entry.level + 1 : 0
+		const rewardDefinition = getRewardDefinition(entry.key)
+		const rarity = rewardDefinition?.rarity ?? RewardRarity.Common
 		const unlockRequirement = getRewardUnlockRequirement(
-			getRewardDefinition(entry.key),
+			rewardDefinition,
 			getUpgradeRequirementText(entry.key)
 		)
 		createUiSelectableRow(catalog.root, {
@@ -1853,15 +1877,18 @@ function renderShipCatalog(
 			),
 			width: catalog.listWidth,
 			height: catalog.rowHeight,
-			title: owned ? definition.toolName.toUpperCase() : "UNKNOWN SYSTEM",
+			title: definition.toolName.toUpperCase(),
 			meta: owned
 				? `PERMANENT  //  LEVEL ${level} / ${definition.levels.length}`
 				: "LOCKED SHIP RECORD",
 			description: owned ? undefined : `UNLOCK: ${unlockRequirement}`,
-			status: owned ? ">" : "LOCKED",
-			statusColor: owned ? undefined : UI_COLORS.danger,
+			status: owned ? ">" : undefined,
+			progress: owned
+				? undefined
+				: getCompendiumRewardProgress(rewardDefinition),
 			icon: owned ? definition.levels[0]?.sprite : undefined,
 			iconText: owned ? undefined : "?",
+			iconColor: REWARD_RARITY_COLORS[rarity],
 			iconSize: 30,
 			notification: owned && newBlueprintKeys.has(entry.key),
 			selected: owned && selected?.key === entry.key,
@@ -1926,11 +1953,12 @@ function renderModuleCatalog(
 	ACTIVE_MODULES.slice(catalog.pageStart, catalog.pageEnd).forEach(
 		(module, index) => {
 			const discoveryKey = `active:${module.id}`
+			const rewardDefinition = getRewardDefinition(discoveryKey)
 			const discovered = equippedModuleId === module.id ||
 				isBlueprintDiscovered(discoveryKey)
 			const equipped = equippedModuleId === module.id
 			const unlockRequirement = getRewardUnlockRequirement(
-				getRewardDefinition(discoveryKey)
+				rewardDefinition
 			)
 			createUiSelectableRow(catalog.root, {
 				pos: k.vec2(
@@ -1939,17 +1967,19 @@ function renderModuleCatalog(
 				),
 				width: catalog.listWidth,
 				height: catalog.rowHeight,
-				title: discovered ? module.name : "UNKNOWN MODULE",
+				title: module.name,
 				meta: discovered
 					? `${module.rarity.toUpperCase()}  //  ${module.cooldown}S COOLDOWN`
 					: "LOCKED ACTIVE RECORD",
 				description: discovered ? undefined : `UNLOCK: ${unlockRequirement}`,
-				status: discovered ? equipped ? "EQUIPPED" : ">" : "LOCKED",
-				statusColor: equipped ? UI_COLORS.accent : discovered
+				status: discovered ? equipped ? "EQUIPPED" : ">" : undefined,
+				statusColor: equipped ? UI_COLORS.accent : undefined,
+				progress: discovered
 					? undefined
-					: UI_COLORS.danger,
+					: getCompendiumRewardProgress(rewardDefinition),
 				icon: discovered ? module.icon : undefined,
 				iconText: discovered ? undefined : "?",
+				iconColor: REWARD_RARITY_COLORS[module.rarity],
 				iconSize: 30,
 				notification: discovered && newBlueprintKeys.has(discoveryKey),
 				selected: discovered && selected?.id === module.id,
@@ -2011,10 +2041,11 @@ function renderAbilityCatalog(
 	)
 	entries.slice(catalog.pageStart, catalog.pageEnd).forEach((ability, index) => {
 		const discoveryKey = getAbilityDiscoveryKey(ability)
+		const rewardDefinition = getRewardDefinition(discoveryKey)
 		const discovered = isAbilityDiscovered(ability)
 		const equipped = getEquippedAbilityId(ability.slot) === ability.id
 		const unlockRequirement = getRewardUnlockRequirement(
-			getRewardDefinition(discoveryKey)
+			rewardDefinition
 		)
 		createUiSelectableRow(catalog.root, {
 			pos: k.vec2(
@@ -2023,17 +2054,19 @@ function renderAbilityCatalog(
 			),
 			width: catalog.listWidth,
 			height: catalog.rowHeight,
-			title: discovered ? ability.name : "UNKNOWN ABILITY",
+			title: ability.name,
 			meta: discovered
 				? `${ability.slot.toUpperCase()}  //  ${ability.rarity.toUpperCase()}`
 				: "LOCKED ABILITY RECORD",
 			description: discovered ? undefined : `UNLOCK: ${unlockRequirement}`,
-			status: discovered ? equipped ? "EQUIPPED" : ">" : "LOCKED",
-			statusColor: equipped ? UI_COLORS.accent : discovered
+			status: discovered ? equipped ? "EQUIPPED" : ">" : undefined,
+			statusColor: equipped ? UI_COLORS.accent : undefined,
+			progress: discovered
 				? undefined
-				: UI_COLORS.danger,
+				: getCompendiumRewardProgress(rewardDefinition),
 			icon: discovered ? ability.icon : undefined,
 			iconText: discovered ? undefined : "?",
+			iconColor: REWARD_RARITY_COLORS[ability.rarity],
 			iconSize: 30,
 			notification: discovered && newBlueprintKeys.has(discoveryKey),
 			selected: discovered && selected?.id === ability.id,
@@ -2156,15 +2189,18 @@ function renderUnifiedUpgradeCatalog(
 			),
 			width: catalog.listWidth,
 			height: catalog.rowHeight,
-			title: discovered ? name.toUpperCase() : "UNKNOWN UPGRADE",
+			title: name.toUpperCase(),
 			meta: discovered
 				? `${category.toUpperCase()}  //  ${rarity.toUpperCase()}`
 				: "LOCKED UPGRADE RECORD",
 			description: discovered ? undefined : `UNLOCK: ${unlockRequirement}`,
-			status: discovered ? ">" : "LOCKED",
-			statusColor: discovered ? REWARD_RARITY_COLORS[rarity] : UI_COLORS.danger,
+			status: discovered ? ">" : undefined,
+			progress: discovered
+				? undefined
+				: getCompendiumRewardProgress(getRewardDefinition(entry.id)),
 			icon: discovered ? sprite : undefined,
 			iconText: discovered ? undefined : "?",
+			iconColor: REWARD_RARITY_COLORS[rarity],
 			iconSize: 30,
 			notification: discovered && newBlueprintKeys.has(entry.id),
 			selected: discovered && selected?.id === entry.id,
@@ -2192,7 +2228,7 @@ function renderCompendiumUpgradeDetail(
 			howTitle: "EFFECT",
 			howText: formatCatalogStats(reward.stats),
 			noteTitle: "DISCOVERY PROFILE",
-			noteText: `${reward.rarity.toUpperCase()}  //  ${reward.progression.persistence.toUpperCase()}  //  ${reward.progression.repeatability.toUpperCase()}`,
+			noteText: `${getRewardDisplayTier(reward).toUpperCase()}  //  ${reward.progression.persistence.toUpperCase()}  //  ${reward.progression.repeatability.toUpperCase()}`,
 			icon: reward.sprite,
 			videoFooter: "UPGRADE FIELD RECORDING",
 			showRecording: false,
@@ -2210,7 +2246,7 @@ function renderCompendiumUpgradeDetail(
 	createUiTutorialDetail(catalog.root, {
 		pos: k.vec2(catalog.detailLeft, 0),
 		size: k.vec2(catalog.detailWidth, catalog.detailHeight),
-		recordLabel: `${rarity.toUpperCase()} UPGRADE RECORD`,
+		recordLabel: `${definition.alteration ? "ALTERED" : rarity.toUpperCase()} UPGRADE RECORD`,
 		title: definition.toolName.toUpperCase(),
 		description: level.desc.toUpperCase(),
 		howTitle: currentLevel === undefined ? "BASE EFFECT" : "CURRENT EFFECT",
@@ -2299,8 +2335,10 @@ function renderArsenal(
 	for (let index = 0; index < visibleWeapons.length; index++) {
 		const weapon = visibleWeapons[index]
 		const owned = isWeaponOwned(weapon.id)
+		const rewardDefinition = getRewardDefinition(`weapon:${weapon.id}`)
+		const rarity = rewardDefinition?.rarity ?? RewardRarity.Common
 		const unlockRequirement = getRewardUnlockRequirement(
-			getRewardDefinition(`weapon:${weapon.id}`)
+			rewardDefinition
 		)
 		createUiSelectableRow(browser.root, {
 			pos: k.vec2(
@@ -2309,18 +2347,21 @@ function renderArsenal(
 			),
 			width: browser.listWidth,
 			height: browser.rowHeight,
-			title: owned ? weapon.name : "UNKNOWN WEAPON",
+			title: weapon.name,
 			meta: owned
 				? `${getWeaponTriggerLabel(weapon)}  //  IN ARSENAL`
 				: "LOCKED PRIMARY RECORD",
 			description: owned ? undefined : `UNLOCK: ${unlockRequirement}`,
 			icon: owned ? weapon.icon : undefined,
 			iconText: owned ? undefined : "?",
+			iconColor: REWARD_RARITY_COLORS[rarity],
 			iconSize: 30,
 			notification: owned && newBlueprintKeys.has(`weapon:${weapon.id}`),
 			selected: owned && selected?.id === weapon.id,
-			status: owned ? ">" : "LOCKED",
-			statusColor: owned ? undefined : UI_COLORS.danger,
+			status: owned ? ">" : undefined,
+			progress: owned
+				? undefined
+				: getCompendiumRewardProgress(rewardDefinition),
 			disabled: !owned,
 			onClick: owned ? () => onSelect(weapon.id) : undefined,
 		})

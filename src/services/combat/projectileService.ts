@@ -60,6 +60,7 @@ import type {
 	SeekModifier,
 	SlowModifier,
 	StunModifier,
+	EmpModifier,
 	SpinModifier,
 	SplashModifier,
 	SpiralModifier,
@@ -76,9 +77,15 @@ import { damageDestructibleWall } from "../world/destructibleWallService";
 import { spawnRing } from "../../spawn/spawnRing";
 import { randomExplosion } from "../../util";
 import { player } from "../../player";
-import { getEffectiveUpgradeLevel } from "../../upg";
+import {
+	getEffectiveUpgradeLevel,
+	getToolUpgradeLvlValue,
+} from "../../upg";
 import { applyDamage } from "./damageService";
-import { applyEnemyProjectileImpact } from "./combatImpactService";
+import {
+	applyEnemyPartDamageFlash,
+	applyEnemyProjectileImpact,
+} from "./combatImpactService";
 import {
 	createExplosion,
 	type ExplosionContext,
@@ -114,6 +121,8 @@ import {
 } from "./targetingService";
 import { PROJECTILE_VISUALS } from "../../visuals/projectileVisualCatalog";
 import { updateRocketGuidance } from "./rocketGuidanceService"
+import { applyEnemyEmpDisruption } from "../enemies/enemyEmpService"
+import type { CombatCredit } from "../progression/combatCredit"
 
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
 const PLAYER_PROJECTILE_SCALE = PROJECTILE_VISUALS.player.worldScale;
@@ -138,6 +147,7 @@ interface KnockbackImpulse {
 interface ChainLightningRuntime extends ChainModifier {
 	chainedTargets: Set<number>;
 	chainsUsed: number;
+	combatCredit?: CombatCredit;
 }
 
 export function spawnProjectile(config: ProjectileConfig): GameObj {
@@ -220,6 +230,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	applyDamageTickModifier(proj, config.damageTick);
 	applySlowModifier(proj, config.slow);
 	applyStunModifier(proj, config.stun);
+	applyEmpModifier(proj, config.emp)
 	applyKnockbackModifier(proj, config.knockback);
 	applyFragmentModifier(proj, config.fragment);
 	applyProximityModifier(proj, config.proximity);
@@ -232,6 +243,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	applyPaintModifier(proj, config.paint);
 	applyMineModifier(proj, config.mine);
 	proj.projectileConfig = config;
+	if (proj.chainConfig) proj.chainConfig.combatCredit = config.combatCredit;
 	proj.procState = config.procState;
 	proj.damagesDestructibleWalls = damagesDestructibleWalls;
 	proj.projectileVisualScale = projectileScale;
@@ -695,8 +707,14 @@ function applySlowModifier(proj: GameObj, config?: SlowModifier) {
 }
 
 function applyStunModifier(proj: GameObj, config?: StunModifier) {
-	if (!config) return;
+	if (!config || !k.chance(config.chance)) return;
 	proj.stunConfig = { ...config };
+}
+
+function applyEmpModifier(proj: GameObj, config?: EmpModifier) {
+	if (!config || !k.chance(config.chance)) return
+	proj.empConfig = { ...config }
+	proj.color = k.rgb(75, 205, 255)
 }
 
 function applyKnockbackModifier(proj: GameObj, config?: KnockbackModifier) {
@@ -1207,9 +1225,47 @@ function detonateMine(proj: GameObj) {
 	debreeRocketEmitter.emitter.position = proj.pos;
 	debreeRocketEmitter.emitter.direction = proj.angle - 90;
 	debreeRocketEmitter.emit(6);
+	spawnShrapnelGardenVolley(proj)
 	audioService.playSound(randomExplosion(), { volume: subSoundVolume });
 	k.shake(4);
 	k.destroy(proj);
+}
+
+function spawnShrapnelGardenVolley(proj: GameObj) {
+	const garden = proj.shrapnelGardenConfig as {
+		projectile: ProjectileConfig
+		split: SplitModifier
+	} | undefined
+	if (!garden) return
+	const count = k.clamp(Math.floor(garden.split.splitCount), 2, 8)
+	for (let index = 0; index < count; index++) {
+		const angle = 360 * index / count
+		const direction = k.Vec2.fromAngle(angle - 90)
+		spawnProjectile({
+			...garden.projectile,
+			pos: proj.pos.clone(),
+			dir: direction,
+			rotation: angle,
+			speedMultiplier:
+				(garden.projectile.speedMultiplier ?? 1) *
+				(garden.split.speedMultiplier ?? 1),
+			impact: garden.projectile.impact
+				? {
+					...garden.projectile.impact,
+					damage: garden.projectile.impact.damage *
+						(garden.split.damageMultiplier ?? 0.6),
+				}
+				: undefined,
+			mine: undefined,
+			split: undefined,
+			proximity: undefined,
+			onDestroy: undefined,
+			echo: undefined,
+			returning: undefined,
+			lifespan: { duration: 1.2 },
+			fireSound: undefined,
+		})
+	}
 }
 
 function updateMinePlacement(proj: GameObj, config: ProjectileConfig) {
@@ -1351,6 +1407,22 @@ function deployMine(proj: GameObj, config: ProjectileConfig) {
 	};
 	const mineObj = spawnProjectile(mineConfig);
 	mineObj.isDeployedMine = true;
+	if (getEffectiveUpgradeLevel("shrapnelGarden") !== undefined && config.split) {
+		mineObj.shrapnelGardenConfig = {
+			projectile: {
+				...config,
+				pos: proj.pos.clone(),
+				mine: undefined,
+				split: undefined,
+				proximity: undefined,
+				onDestroy: undefined,
+				echo: undefined,
+				returning: undefined,
+				fireSound: undefined,
+			},
+			split: { ...config.split },
+		}
+	}
 	mineObj.mineArmDelay = mine.armDelay;
 	mineObj.scale = mineObj.scale.scale(1.35);
 	mineObj.color = k.rgb(105, 105, 105);
@@ -1587,6 +1659,7 @@ function stripPlayerModifiersAfterBounce(projectile: GameObj) {
 	delete projectile.damageTickConfig;
 	delete projectile.slowConfig;
 	delete projectile.stunConfig;
+	delete projectile.empConfig
 	delete projectile.knockbackStrength;
 	delete projectile.fragmentConfig;
 	delete projectile.proximityConfig;
@@ -1620,6 +1693,7 @@ function handleOnDestroy(proj: GameObj, config: ProjectileConfig) {
 				sprite: spawnConfig.config.sprite ?? config.sprite,
 				speed: spawnConfig.config.speed ?? config.speed * 0.8,
 				tags: spawnConfig.config.tags ?? config.tags,
+				combatCredit: config.combatCredit,
 				...spawnConfig.config,
 			};
 
@@ -1725,6 +1799,7 @@ export function applyProjectileDamage(
 		applyDamageTickEffect(target, {
 			...projectile.damageTickConfig,
 			volatile: projectile.volatileConfig,
+			combatCredit: projectile.projectileConfig?.combatCredit,
 		});
 	}
 	if (projectile.slowConfig) {
@@ -1733,7 +1808,14 @@ export function applyProjectileDamage(
 			procState: projectile.procState,
 		});
 	}
-	if (projectile.stunConfig && k.chance(projectile.stunConfig.chance)) {
+	if (projectile.empConfig) {
+		applyEnemyEmpDisruption(
+			target,
+			projectile.empConfig.duration,
+			1 - projectile.empConfig.slowPercentage
+		)
+	}
+	if (projectile.stunConfig) {
 		applyStunEffect(target, projectile.stunConfig);
 	}
 
@@ -1741,6 +1823,17 @@ export function applyProjectileDamage(
 	if (projectile.impactDamage !== undefined) {
 		let damage = projectile.impactDamage;
 		const friendlyProjectile = projectile.tags.includes(tags.friendly);
+		let componentShearProc = false;
+		if (friendlyProjectile) {
+			if (target.tags.includes(tags.part)) {
+				const componentShearMultiplier =
+					getToolUpgradeLvlValue("componentShear") ?? 1;
+				damage *= componentShearMultiplier;
+				componentShearProc = componentShearMultiplier > 1;
+			} else if (target.tags.includes(tags.enemy)) {
+				damage *= getToolUpgradeLvlValue("coreBreach") ?? 1;
+			}
+		}
 		const tacticalUplinkLevel = getEffectiveUpgradeLevel("tacticalUplink");
 		const tacticalUplinkProc =
 			friendlyProjectile &&
@@ -1807,7 +1900,11 @@ export function applyProjectileDamage(
 			position: projectile.pos,
 			incomingDirection: projectile.dir,
 			source: projectile.projectileConfig?.damageSource,
+			combatCredit: projectile.projectileConfig?.combatCredit,
 		});
+		if (damageApplied && componentShearProc) {
+			applyEnemyPartDamageFlash(target);
+		}
 		if (
 			damageApplied &&
 			projectile.tags.includes(tags.friendly) &&
@@ -2065,6 +2162,7 @@ function createProjectileExplosion(
 	return createExplosion({
 		...options,
 		visualColor: options.visualColor ?? config.effectTint,
+		combatCredit: config.combatCredit,
 		onResolved: (explosion) => {
 			startExplosionChainLightning(explosion, projectile);
 		},
@@ -2090,6 +2188,7 @@ function scheduleProjectileExplosion(
 				...options,
 				pos: explosionPos,
 				visualColor,
+				combatCredit: config.combatCredit,
 				onResolved: (explosion) => {
 					startExplosionChainLightning(explosion, projectile);
 				},
@@ -2167,7 +2266,9 @@ function handleChainLightning(
 			if (!target.exists()) return
 
 			const chainDamage = baseDamage * config.damageReduction
-			applyDamage(target, chainDamage)
+			applyDamage(target, chainDamage, {
+				combatCredit: config.combatCredit,
+			})
 			const impactPosition = getTargetWorldPosition(target)
 			spawnFlash(impactPosition, 1)
 
@@ -2183,6 +2284,9 @@ function applyDamageTickEffect(target: GameObj, config: any) {
 		target.damageTickEffect.remaining = config.duration;
 		target.damageTickEffect.damagePerTick = config.damagePerTick;
 		if (config.volatile) target.damageTickEffect.volatile = config.volatile;
+		if (config.combatCredit) {
+			target.damageTickEffect.combatCredit = config.combatCredit;
+		}
 		return;
 	}
 
@@ -2199,6 +2303,7 @@ function applyDamageTickEffect(target: GameObj, config: any) {
 		remaining: config.duration,
 		shader: config.shader,
 		volatile: config.volatile,
+		combatCredit: config.combatCredit,
 	};
 
 	if (!target.hasVolatileDeathHook) {
@@ -2228,7 +2333,9 @@ function applyDamageTickEffect(target: GameObj, config: any) {
 
 			if (target.damageTickEffect.tickRemaining <= 0) {
 				const tickDamage = target.damageTickEffect.damagePerTick;
-				applyDamage(target, tickDamage);
+				applyDamage(target, tickDamage, {
+					combatCredit: target.damageTickEffect.combatCredit,
+				});
 				if (target.hp && target.hp <= 0) {
 					const volatile = target.damageTickEffect?.volatile;
 					if (volatile) triggerVolatileCorrosion(target, volatile);
@@ -2353,7 +2460,7 @@ function applySlowEffect(target: GameObj, config: any) {
 	}
 }
 
-function applyStunEffect(target: GameObj, config: StunModifier) {
+export function applyStunEffect(target: GameObj, config: StunModifier) {
 	if (!(target.timescaleModifiers instanceof Map)) return;
 	const resistance = target.is(tags.boss) || target.is(tags.miniBoss)
 		? 0.3

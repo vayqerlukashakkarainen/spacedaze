@@ -12,6 +12,8 @@ import {
 	isAbilityReward,
 	Reward,
 	REWARD_RARITY_COLORS,
+	getRewardDisplayColor,
+	getRewardDisplayTier,
 } from "../services/economy/rewardService";
 import { tags } from "../tags";
 import { uiState } from "./uiState";
@@ -869,7 +871,7 @@ export function addCollectedPowerup(
 			existing.iconSize = 22 * HUD_SCALE;
 		}
 		existing.shape = getRewardTypeShape(reward.kind, reward.abilitySlot);
-		existing.frameColor = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
+		existing.frameColor = k.rgb(...getRewardDisplayColor(reward));
 		if (existing.tile.isHovering()) {
 			showRewardTooltip(
 				collectionKey,
@@ -897,7 +899,7 @@ export function addCollectedPowerup(
 		reward,
 		tile,
 		shape: getRewardTypeShape(reward.kind, reward.abilitySlot),
-		frameColor: k.rgb(...REWARD_RARITY_COLORS[reward.rarity]),
+		frameColor: k.rgb(...getRewardDisplayColor(reward)),
 		iconSize: 20 * HUD_SCALE,
 		iconScale: 1,
 		iconOpacity: 1,
@@ -1234,9 +1236,9 @@ function assignRewardTooltip(
 	slot.content = content;
 	slot.visible = true;
 	slot.root.hidden = false;
-	slot.accent = k.rgb(...REWARD_RARITY_COLORS[reward.rarity]);
+	slot.accent = k.rgb(...getRewardDisplayColor(reward));
 	slot.title.text = reward.name.toUpperCase();
-	slot.meta.text = `${reward.rarity.toUpperCase()}  x${content.count}${levelText}`;
+	slot.meta.text = `${getRewardDisplayTier(reward).toUpperCase()}  x${content.count}${levelText}`;
 	slot.meta.color = slot.accent;
 	slot.description.text = reward.description ?? "";
 	slot.description.hidden = !reward.description;

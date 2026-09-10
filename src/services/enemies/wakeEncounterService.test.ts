@@ -17,17 +17,42 @@ for (let tier = 1; tier <= 5; tier++) {
 
 for (let tier = 1; tier <= 5; tier++) {
 	for (const randomValue of [0, 0.5, 0.999999]) {
-		assert(
-			!createWakeEncounterEnemies(tier, () => randomValue, 1)
-				.includes("wake-rivet-gunner"),
-			`Wake tier ${tier} introduced Rivet Gunners on sublevel 1.1`
+		const openingEnemies = createWakeEncounterEnemies(
+			tier,
+			() => randomValue,
+			1
 		)
+		for (const gatedEnemy of [
+			"wake-rivet-gunner",
+			"wake-fuse-rat",
+			"wake-shredder-skiff",
+		] as const) {
+			assert(
+				!openingEnemies.includes(gatedEnemy),
+				`Wake tier ${tier} introduced ${gatedEnemy} on sublevel 1.1`
+			)
+		}
 	}
 }
 assert(
 	createWakeEncounterEnemies(1, () => 0.999999, 2)
 		.includes("wake-rivet-gunner"),
 	"Rivet Gunners should unlock on sublevel 1.2"
+)
+assert(
+	createWakeEncounterEnemies(1, () => 0.999999, 2)
+		.includes("wake-fuse-rat"),
+	"Fuse Rats should join the Wake roster on sublevel 1.2"
+)
+assert(
+	createWakeEncounterEnemies(2, () => 0.999999, 2)
+		.includes("wake-shredder-skiff"),
+	"Shredder Skiffs should join the Wake roster on sublevel 1.2"
+)
+assert(
+	createWakeEncounterEnemies(1, () => 0.65, 1)
+		.includes("wake-clampback"),
+	"Clampbacks should diversify the opening sublevel"
 )
 
 const wakeFloor = generateRoomFloor(777, 1, { roomCount: 16 })

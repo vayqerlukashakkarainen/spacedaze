@@ -68,6 +68,7 @@ export interface UpgradeDefinition {
 	toolName: string;
 	category: StatCategory;
 	type: UpgradeType;
+	alteration?: boolean;
 	requirements?: UpgradeRequirements;
 	reward?: UpgradeRewardPolicy;
 	levels: UpgradeLevel[];

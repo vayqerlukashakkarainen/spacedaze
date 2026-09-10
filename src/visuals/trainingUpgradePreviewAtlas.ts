@@ -1,5 +1,7 @@
 export const TRAINING_UPGRADE_PREVIEW_ATLAS_PATH =
 	"sprites/upgrades/training-preview-atlas.png"
+export const TRAINING_ALTERATION_PREVIEW_ATLAS_PATH =
+	"sprites/upgrades/training-alteration-preview-atlas.png"
 
 const TRAINING_UPGRADE_PREVIEW_ATLAS_COLUMNS = 8
 const TRAINING_UPGRADE_PREVIEW_ATLAS_CELL_SIZE = 32
@@ -65,9 +67,19 @@ const TRAINING_UPGRADE_PREVIEW_SPRITES = [
 	["wreck_harvester_upg1", 32, 32],
 ] as const
 
+const TRAINING_ALTERATION_PREVIEW_SPRITES = [
+	"arc_harpoon_upg1",
+	"shrapnel_garden_upg1",
+	"hunters_geometry_upg1",
+	"gravitic_impaler_upg1",
+] as const
+
 const trainingUpgradePreviewSpriteNames = new Set<string>(
 	TRAINING_UPGRADE_PREVIEW_SPRITES.map(([sprite]) => sprite)
 )
+for (const sprite of TRAINING_ALTERATION_PREVIEW_SPRITES) {
+	trainingUpgradePreviewSpriteNames.add(sprite)
+}
 
 export function getTrainingUpgradePreviewAtlasEntries() {
 	return Object.fromEntries(
@@ -81,6 +93,15 @@ export function getTrainingUpgradePreviewAtlasEntries() {
 				width,
 				height,
 			},
+		])
+	)
+}
+
+export function getTrainingAlterationPreviewAtlasEntries() {
+	return Object.fromEntries(
+		TRAINING_ALTERATION_PREVIEW_SPRITES.map((sprite, index) => [
+			`${TRAINING_UPGRADE_PREVIEW_PREFIX}${sprite}`,
+			{ x: index * 32, y: 0, width: 32, height: 32 },
 		])
 	)
 }

@@ -13,6 +13,7 @@ import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { snareable } from "../comp/snareable"
 import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
+import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 
 const PHASE_SKIRMISHER_VISUAL = getEnemyVisual("phase-skirmisher")
 
@@ -46,7 +47,11 @@ export function spawnPhaseSkirmisher(pos: Vec2, hp = 5, options: EnemySpawnOptio
 				profile.scale
 			)
 			skirmisher.blinkTimer -= delta
-			if (skirmisher.blinkTimer <= 0 && distance < 420) beginBlink(skirmisher, profile.elite, options.tags)
+			if (
+				!isEnemyEmpDisrupted(skirmisher) &&
+				skirmisher.blinkTimer <= 0 &&
+				distance < 420
+			) beginBlink(skirmisher, profile.elite, options.tags)
 		}
 		handleEnemyCombat(skirmisher, "PHASE SKIRMISHER", "enemy_phase_skirmisher")
 	})

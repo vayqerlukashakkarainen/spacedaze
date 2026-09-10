@@ -13,6 +13,10 @@ export type WorldVisualId =
 	| "volatile-cargo"
 	| "wake-hull-barricade"
 	| "wake-fuel-cell"
+	| "wake-salvage-cluster"
+	| "wake-memory-console"
+	| "wake-cable-reel"
+	| "wake-pipe-manifold"
 
 export const WORLD_VISUALS: Record<WorldVisualId, VisualRepresentation> = {
 	"capture-shrine": { parts: [{ sprite: "shrine_capture" }], worldScale: 1.5 },
@@ -40,6 +44,22 @@ export const WORLD_VISUALS: Record<WorldVisualId, VisualRepresentation> = {
 	},
 	"wake-fuel-cell": {
 		parts: [{ sprite: "wake_fuel_cell" }],
+		worldScale: 1,
+	},
+	"wake-salvage-cluster": {
+		parts: [{ sprite: "wake_salvage_cluster" }],
+		worldScale: 1,
+	},
+	"wake-memory-console": {
+		parts: [{ sprite: "wake_memory_console" }],
+		worldScale: 1,
+	},
+	"wake-cable-reel": {
+		parts: [{ sprite: "wake_cable_reel" }],
+		worldScale: 1,
+	},
+	"wake-pipe-manifold": {
+		parts: [{ sprite: "wake_pipe_manifold" }],
 		worldScale: 1,
 	},
 }

@@ -112,6 +112,7 @@ function detonateMine(mine: GameObj, damage: number) {
 				name: "PROXIMITY MINE",
 				sprite: "room_proximity_mine",
 			},
+			combatCredit: { kind: "environment", id: "proximityMine", explosive: true },
 		})
 	}
 	spawnExplosionEffect(explosionPos, 52, { persistentSmoke: true })

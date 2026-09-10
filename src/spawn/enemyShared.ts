@@ -28,6 +28,7 @@ import { addRunLevelXp } from "../services/runs/runLevelService";
 import { gameSoundService } from "../services/audio/gameSoundService";
 import { spawnRockDestructionFragments } from "../services/combat/rockDestructionEffectService";
 import { spawnEnemyDeathWreckage } from "../services/combat/persistentShipPartService";
+import { getLastCombatCredit } from "../services/combat/damageService"
 
 export type EnemyDeathMaterial = "ship" | "rock"
 
@@ -56,9 +57,14 @@ export function enemyOnDeath(
 	powerupMultiplier: number,
 	rewardSource: Exclude<RewardSource, "crate"> = "enemy",
 	allowHack: boolean = true,
-	visuals: EnemyDeathVisualOptions = {}
+	visuals: EnemyDeathVisualOptions = {},
+	defeatedEnemy?: GameObj
 ) {
-	if (runStatsActive()) recordRunKill();
+	if (runStatsActive()) {
+		recordRunKill(
+			defeatedEnemy ? getLastCombatCredit(defeatedEnemy) : undefined
+		);
+	}
 	grantUltimateCharge(
 		rewardSource === "boss"
 			? 40

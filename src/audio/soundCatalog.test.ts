@@ -1,7 +1,12 @@
 import assert from "node:assert/strict"
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join, relative } from "node:path"
-import { MUSIC_ASSETS, SOUND_ASSETS } from "./soundCatalog"
+import type { KAPLAYCtx } from "kaplay"
+import {
+	loadAudioAssets,
+	MUSIC_ASSETS,
+	SOUND_ASSETS,
+} from "./soundCatalog"
 import {
 	getSoundCuePolicy,
 	isSoundCueId,
@@ -16,6 +21,24 @@ for (const [id, path] of Object.entries({ ...SOUND_ASSETS, ...MUSIC_ASSETS })) {
 		`Audio asset ${id} points to missing file public/${path}`
 	)
 }
+
+const pendingSoundLoads: Array<() => void> = []
+const startedSounds: string[] = []
+const registeredMusic: string[] = []
+const audioLoad = loadAudioAssets({
+	loadSound(id: string) {
+		startedSounds.push(id)
+		return new Promise<void>((resolve) => pendingSoundLoads.push(resolve))
+	},
+	loadMusic(id: string) {
+		registeredMusic.push(id)
+	},
+} as unknown as KAPLAYCtx)
+
+assert.equal(startedSounds.length, Object.keys(SOUND_ASSETS).length)
+assert.equal(registeredMusic.length, Object.keys(MUSIC_ASSETS).length)
+for (const resolve of pendingSoundLoads) resolve()
+await audioLoad
 
 const rawPlaybackAllowlist = new Set([
 	"src/services/audio/audioService.ts",

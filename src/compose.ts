@@ -112,7 +112,8 @@ export function compose(c: Compose): Component[] {
 						c.rewardMultiplier ?? 1,
 						c.rewardSource,
 						true,
-						{ material: c.material ?? "ship" }
+						{ material: c.material ?? "ship" },
+						part.obj
 					);
 				}
 				c.onBodyDeath?.();

@@ -63,8 +63,6 @@ let rendered = sourcePixels.withUnsafeMutableBytes { bytes -> Bool in
 }
 guard rendered else { exit(1) }
 
-let sourceHasTransparency = stride(from: 3, to: sourcePixels.count, by: 4)
-	.contains { sourcePixels[$0] == 0 }
 let cornerIndices = [
 	0,
 	width - 1,
@@ -75,12 +73,13 @@ let cornerLuminance = cornerIndices.reduce(0) { result, index in
 	let offset = index * 4
 	return result + Int(sourcePixels[offset]) + Int(sourcePixels[offset + 1]) + Int(sourcePixels[offset + 2])
 } / (cornerIndices.count * 3)
-let sourceHasDarkBackground = !sourceHasTransparency && cornerLuminance < 128
+// Generated images can contain a mostly opaque dark background plus a few
+// transparent edge pixels. Corner luminance is the reliable signal here.
+let sourceHasDarkBackground = cornerLuminance < 128
 
 func isBackgroundCandidate(_ index: Int) -> Bool {
 	let offset = index * 4
 	if sourcePixels[offset + 3] == 0 { return true }
-	guard !sourceHasTransparency else { return false }
 	if sourceHasDarkBackground {
 		return sourcePixels[offset] <= 48 &&
 			sourcePixels[offset + 1] <= 48 &&

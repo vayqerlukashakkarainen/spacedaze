@@ -2,7 +2,7 @@ import type { GameObj, ParticlesComp, PosComp, Vec2 } from "kaplay"
 import { k, layers, subSoundVolume } from "../../main"
 import { spawnExplosionEffect } from "../../spawn/spawnFlash"
 import { tags } from "../../tags"
-import { applyDamage } from "./damageService"
+import { applyDamage, getLastCombatCredit } from "./damageService"
 import { startMechanicalDamageSmoke } from "./enemyDamageEffectService"
 import { gameSoundService } from "../audio/gameSoundService"
 
@@ -38,6 +38,7 @@ export function triggerShipPartExplosion(
 		partMaxHealth * PART_EXPLOSION_DAMAGE_MULTIPLIER
 	)
 	const excludedIds = new Set([part.id, ...(options.excludeIds ?? [])])
+	const partCredit = getLastCombatCredit(part)
 
 	spawnExplosionEffect(position, radius * 0.72, {
 		ringIntensity: 0.42,
@@ -73,6 +74,9 @@ export function triggerShipPartExplosion(
 		applyDamage(target, baseDamage * damageMultiplier, {
 			position: position.clone(),
 			visualForceOrigin: position.clone(),
+			combatCredit: partCredit
+				? { ...partCredit, explosive: true }
+				: undefined,
 		})
 	}
 }

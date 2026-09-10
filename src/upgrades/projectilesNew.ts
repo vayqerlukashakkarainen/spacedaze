@@ -45,6 +45,48 @@ export const armorPiercing: UpgradeDefinition = {
 	),
 }
 
+const COMPONENT_DAMAGE_MULTIPLIERS = [1.2, 1.3, 1.4, 1.5, 1.6]
+
+export const componentShear: UpgradeDefinition = {
+	toolKey: "componentShear",
+	toolName: "Component shear",
+	category: "combat",
+	type: "passive",
+	levels: COMPONENT_DAMAGE_MULTIPLIERS.map((multiplier, index) => ({
+		name: STACK_NAMES[index],
+		desc: `Projectiles deal ${Math.round(multiplier * 100)}% damage to enemy parts; core damage is unchanged`,
+		price: 18 + index * 4,
+		sprite: "armor_piercing_upg1",
+		effects: {
+			modifiers: [{
+				stat: "projectilePartDamageMultiplier",
+				value: multiplier,
+				type: "multiply",
+			}],
+		},
+	})),
+}
+
+export const coreBreach: UpgradeDefinition = {
+	toolKey: "coreBreach",
+	toolName: "Core breach",
+	category: "combat",
+	type: "passive",
+	levels: COMPONENT_DAMAGE_MULTIPLIERS.map((multiplier, index) => ({
+		name: STACK_NAMES[index],
+		desc: `Projectiles deal ${Math.round(multiplier * 100)}% damage to enemy cores; part damage is unchanged`,
+		price: 18 + index * 4,
+		sprite: "blaster_upg_dmg1",
+		effects: {
+			modifiers: [{
+				stat: "projectileCoreDamageMultiplier",
+				value: multiplier,
+				type: "multiply",
+			}],
+		},
+	})),
+}
+
 const RICOCHET_DAMAGE_RETENTION = [65, 72, 79, 86, 93]
 
 export const ricochetRounds: UpgradeDefinition = {
@@ -138,6 +180,42 @@ export const stunRounds: UpgradeDefinition = {
 					{
 						stat: "projectileStunDuration",
 						value: duration,
+						type: "base" as const,
+					},
+				],
+			},
+		}
+	}),
+}
+
+export const empRounds: UpgradeDefinition = {
+	toolKey: "empRounds",
+	toolName: "EMP rounds",
+	category: "combat",
+	type: "passive",
+	levels: [0.12, 0.17, 0.22, 0.27, 0.32].map((chance, index) => {
+		const duration = 1.2 + index * 0.2
+		const slowPercentage = 0.65 + index * 0.05
+		return {
+			name: STACK_NAMES[index],
+			desc: `${Math.round(chance * 100)}% chance to load a projectile with EMP, slowing and disrupting its target for ${duration} seconds`,
+			price: 20 + index * 5,
+			sprite: "active_emp_beacon",
+			effects: {
+				modifiers: [
+					{
+						stat: "projectileEmpChance",
+						value: chance,
+						type: "base" as const,
+					},
+					{
+						stat: "projectileEmpDuration",
+						value: duration,
+						type: "base" as const,
+					},
+					{
+						stat: "projectileEmpSlowPercentage",
+						value: slowPercentage,
 						type: "base" as const,
 					},
 				],

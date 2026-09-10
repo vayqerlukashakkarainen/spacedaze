@@ -3,6 +3,16 @@ export const DRIFT_SPEED_MULTIPLIER = 0.6
 export const DRIFT_HULL_RESPONSE = 2.5
 export const TURRET_AIM_RESPONSE = 9
 
+export function getMovementModeSpeedMultiplier(
+	normalSpeedMultiplier: number,
+	strafeSpeedMultiplier: number,
+	strafeModeActive: boolean
+) {
+	return strafeModeActive
+		? strafeSpeedMultiplier * DRIFT_SPEED_MULTIPLIER
+		: normalSpeedMultiplier
+}
+
 let playerTargetModeActive = false
 let playerTargetModeAimPosition: { x: number; y: number } | undefined
 

@@ -62,9 +62,13 @@ export type RoomEnvironmentArchetypeId =
 	| "wake-slowdown-plate"
 	| "wake-tesla-coil"
 	| "wake-salvage-cluster"
+	| "wake-memory-console"
+	| "wake-cable-reel"
+	| "wake-pipe-manifold"
 
 export type RoomEnvironmentCategory =
 	| "structural"
+	| "destructible-cover"
 	| "dynamic-cover"
 	| "volatile"
 	| "trap"

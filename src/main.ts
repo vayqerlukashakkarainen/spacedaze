@@ -15,6 +15,7 @@ import {
 	getPermanentUpgradeLevel,
 	getNextRunUpgradeLevel,
 	grantRunUpgrade,
+	enableTrainingUpgradeGrantForDebug,
 	isToolKey,
 	setLoadout,
 	setLoadoutRarity,
@@ -1549,6 +1550,7 @@ function registerDebugCommands() {
 		"unlockall",
 		"Unlock all progression, facilities, equipment, and discoveries",
 		() => {
+			enableTrainingUpgradeGrantForDebug();
 			if (getPermanentUpgradeLevel("salvageLasso") === undefined) {
 				addLvl("salvageLasso");
 			}

@@ -329,7 +329,8 @@ function spawnHostileRangeKeeper(pos: ReturnType<typeof k.vec2>, angle: number) 
 				direction,
 				hostile.angle,
 				hostile.damage,
-				{ name: "RANGE KEEPER", sprite: "hub_ship_range_keeper" }
+				{ name: "RANGE KEEPER", sprite: "hub_ship_range_keeper" },
+				hostile
 			)
 			hostile.fireTimer = 1.15
 		}

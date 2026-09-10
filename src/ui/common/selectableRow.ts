@@ -8,6 +8,7 @@ import { uiState } from "../uiState"
 import { addThemedText } from "./text"
 import { UI_COLORS, UI_SIZES, UI_SPACING } from "./theme"
 import { uiHitRegion } from "./hitRegion"
+import { createUiProgressBar } from "./progressBar"
 
 export interface UiSelectableRowProps {
 	pos: Vec2
@@ -19,10 +20,13 @@ export interface UiSelectableRowProps {
 	statusColor?: readonly [number, number, number]
 	icon?: string
 	iconText?: string
+	iconColor?: readonly [number, number, number]
 	iconSize?: number
 	selected?: boolean
 	disabled?: boolean
 	notification?: boolean
+	progress?: number
+	progressColor?: readonly [number, number, number]
 	height?: number
 	onClick?: () => void
 }
@@ -60,6 +64,7 @@ export function createUiSelectableRow(
 			k.sprite(props.icon, { width: iconSize, height: iconSize }),
 			k.pos(UI_SPACING.md + iconSize / 2, height / 2),
 			k.anchor("center"),
+			k.color(...(props.iconColor ?? [255, 255, 255])),
 			k.opacity(props.disabled ? 0.35 : 1),
 		])
 	}
@@ -70,6 +75,7 @@ export function createUiSelectableRow(
 			variant: "muted",
 			width: iconSize,
 			align: "center",
+			color: props.iconColor ? k.rgb(...props.iconColor) : undefined,
 		})
 	}
 	addThemedText(row, {
@@ -101,6 +107,15 @@ export function createUiSelectableRow(
 			pos: k.vec2(textLeft, 31),
 			variant: props.disabled ? "muted" : "body",
 			width: props.width - textLeft - UI_SPACING.md,
+		})
+	}
+	if (props.progress !== undefined) {
+		createUiProgressBar(row, {
+			pos: k.vec2(textLeft, height - 5),
+			width: props.width - textLeft - UI_SPACING.md,
+			height: 2,
+			value: props.progress,
+			color: props.progressColor ?? UI_COLORS.accent,
 		})
 	}
 	const statusText = props.status

@@ -196,7 +196,8 @@ export function spawnAssasin(
 				{
 					tier: profile.elite ? "elite" : "normal",
 					material: "ship",
-				}
+				},
+				m
 			);
 		},
 		parts: [
@@ -247,7 +248,8 @@ export function spawnAssasin(
 					{
 						name: profile.elite ? "ELITE ASSASSIN" : "ASSASSIN",
 						sprite: core.sprite,
-					}
+					},
+					m
 				);
 			}
 		}
