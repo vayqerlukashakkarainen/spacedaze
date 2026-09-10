@@ -429,13 +429,7 @@ function spawnLockedAbilityPickup(
 		: `REQUIRES HUB LEVEL ${ability.minimumHubLevel}`
 	const tooltip = pickup.add([
 		k.pos(0, -39),
-		k.rect(154, 28),
-		k.anchor("center"),
-		k.color(...UI_COLORS.panel),
 		k.opacity(0),
-		k.outline(1, hubLevelReached
-			? k.rgb(...UI_COLORS.success)
-			: k.rgb(...UI_COLORS.muted)),
 		k.layer(layers.gameText),
 		k.z(20),
 	])
@@ -449,6 +443,7 @@ function spawnLockedAbilityPickup(
 		}),
 		k.anchor("center"),
 		k.color(...(hubLevelReached ? UI_COLORS.success : UI_COLORS.text)),
+		k.z(1),
 	])
 	let reveal = 0
 
