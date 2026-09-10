@@ -138,7 +138,7 @@ function fadeElementTree(
 	activeFadeTweens.get(element.id)?.cancel()
 	const nodes = collectElementTree(element)
 	const baselines = nodes.map((node) => {
-		if (!node.has("opacity")) node.use(k.opacity(1))
+		if (typeof node.opacity !== "number") node.use(k.opacity(1))
 		if (typeof node.uiTransitionBaseOpacity !== "number") {
 			node.uiTransitionBaseOpacity = node.opacity
 		}
