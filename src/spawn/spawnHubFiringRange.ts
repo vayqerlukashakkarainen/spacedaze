@@ -19,7 +19,9 @@ import {
 } from "../services/hub/hubProgressService"
 import { tags } from "../tags"
 import type { RewardKind } from "../types/rewardTypes"
+import type { StatCategory, UpgradeDefinition } from "../types/upgradeTypes"
 import { createRewardTypeFrame, UI_COLORS } from "../ui/common"
+import { getAllUpgradeDefinitions } from "../upgrades/upgradeRegistry"
 import {
 	HUNTER_VISUALS,
 	getEnemyVisual,
@@ -41,6 +43,15 @@ const LOCKED_PICKUP_REVEAL_RADIUS = 54
 const LOCKED_PICKUP_SCALE = getPickupVisual("reward").worldScale
 const LOCKED_PICKUP_ICON_SIZE = 24 * LOCKED_PICKUP_SCALE
 const LOCKED_PICKUP_FRAME_SIZE = 36 * LOCKED_PICKUP_SCALE
+const UPGRADE_GALLERY_TOP = -210
+const UPGRADE_GALLERY_COLUMNS = 6
+const UPGRADE_GALLERY_LABEL_X = 270
+const UPGRADE_GALLERY_START_X = 340
+const UPGRADE_GALLERY_COLUMN_SPACING = 42
+const UPGRADE_GALLERY_ROW_SPACING = 36
+const UPGRADE_GALLERY_CATEGORY_GAP = 10
+const UPGRADE_TOOLTIP_WIDTH = 180
+const RANGE_CULL_RADIUS = 680
 const TRAINING_SWARM_COUNT = 5
 const TRAINING_FUEL_CELL_RESPAWN_DELAY = 3
 const COMPOSITE_TARGET_OFFSET_X = 130
@@ -64,6 +75,18 @@ const SLOT_ROWS: readonly {
 	{ slot: "ultimate", label: "ULTIMATE", y: 90, color: UI_COLORS.danger },
 ]
 
+const UPGRADE_CATEGORIES: readonly {
+	category: StatCategory
+	label: string
+	color: readonly [number, number, number]
+}[] = [
+	{ category: "combat", label: "COMBAT", color: UI_COLORS.danger },
+	{ category: "movement", label: "MOVEMENT", color: [70, 150, 255] },
+	{ category: "survival", label: "SURVIVAL", color: UI_COLORS.success },
+	{ category: "resources", label: "RESOURCES", color: UI_COLORS.warning },
+	{ category: "special", label: "SPECIAL", color: UI_COLORS.accent },
+]
+
 export interface HubFiringRangeProps {
 	pos: Vec2
 	isHubSessionActive: () => boolean
@@ -74,9 +97,19 @@ export interface HubFiringRange {
 	getPrimaryTarget: () => GameObj | undefined
 }
 
-interface LockedAbilityPickup {
+interface TrainingPreviewPickup {
 	object: GameObj
 	updateReveal: (visible: boolean) => void
+}
+
+interface TrainingPreviewProps {
+	position: Vec2
+	icon: string
+	kind: RewardKind
+	abilitySlot?: AbilitySlot
+	minimumHubLevel: number
+	availableText: string
+	availableTextColor?: readonly [number, number, number]
 }
 
 export function spawnHubFiringRange(
@@ -86,7 +119,7 @@ export function spawnHubFiringRange(
 		k.pos(props.pos),
 		k.layer(layers.game),
 		{
-			runtimeCullRadius: RANGE_WIDTH / 2 + 60,
+			runtimeCullRadius: RANGE_CULL_RADIUS,
 		},
 		tags.runtimeCullable,
 		tags.props,
@@ -106,9 +139,9 @@ export function spawnHubFiringRange(
 	)
 	let discoverySignature = ""
 	let refreshTimer = 0
-	let abilityPickups: GameObj[] = []
+	let displayObjects: GameObj[] = []
 	let interactiveAbilityPickups: GameObj[] = []
-	let lockedAbilityPickups: LockedAbilityPickup[] = []
+	let previewPickups: TrainingPreviewPickup[] = []
 	const refreshEquipment = () => {
 		const unlocked = ABILITIES.filter(isAbilityDiscovered)
 		const nextSignature = [
@@ -119,12 +152,18 @@ export function spawnHubFiringRange(
 		if (nextSignature === discoverySignature) return
 		discoverySignature = nextSignature
 		equipmentRoot.removeAll()
-		for (const pickup of abilityPickups) {
+		for (const pickup of displayObjects) {
 			if (pickup.exists()) k.destroy(pickup)
 		}
-		abilityPickups = []
+		displayObjects = []
 		interactiveAbilityPickups = []
-		lockedAbilityPickups = []
+		previewPickups = []
+		spawnUpgradeGallery(
+			equipmentRoot,
+			props.pos,
+			displayObjects,
+			previewPickups
+		)
 		for (const row of SLOT_ROWS) {
 			const rowAbilities = ABILITIES.filter(
 				(ability) => ability.slot === row.slot
@@ -134,17 +173,17 @@ export function spawnHubFiringRange(
 				row,
 				rowAbilities,
 				props.pos,
-				abilityPickups,
+				displayObjects,
 				interactiveAbilityPickups,
-				lockedAbilityPickups
+				previewPickups
 			)
 		}
 	}
 	refreshEquipment()
 
 	registerBatchedEntityUpdate("world", root, () => {
-		updateLockedAbilityReveals(
-			lockedAbilityPickups,
+		updateTrainingPreviewReveals(
+			previewPickups,
 			interactiveAbilityPickups
 		)
 		refreshTimer += k.dt()
@@ -348,14 +387,77 @@ function spawnRangeFrame(root: GameObj) {
 	}
 }
 
+function spawnUpgradeGallery(
+	root: GameObj,
+	rangePos: Vec2,
+	displayObjects: GameObj[],
+	previewPickups: TrainingPreviewPickup[]
+) {
+	const upgrades = getAllUpgradeDefinitions()
+	let rowY = UPGRADE_GALLERY_TOP
+	for (const categoryDefinition of UPGRADE_CATEGORIES) {
+		const categoryUpgrades = upgrades
+			.filter((upgrade) => upgrade.category === categoryDefinition.category)
+			.sort((left, right) =>
+				getUpgradeMinimumHubLevel(left) - getUpgradeMinimumHubLevel(right) ||
+				left.toolName.localeCompare(right.toolName)
+			)
+		if (categoryUpgrades.length === 0) continue
+		root.add([
+			k.text(categoryDefinition.label, {
+				size: 6,
+				font: "unscii",
+			}),
+			k.pos(UPGRADE_GALLERY_LABEL_X, rowY - 3),
+			k.anchor("left"),
+			k.color(...categoryDefinition.color),
+			k.layer(layers.gameText),
+		])
+		categoryUpgrades.forEach((upgrade, index) => {
+			const column = index % UPGRADE_GALLERY_COLUMNS
+			const row = Math.floor(index / UPGRADE_GALLERY_COLUMNS)
+			const preview = spawnUpgradePreview(
+				upgrade,
+				rangePos.add(
+					UPGRADE_GALLERY_START_X + column * UPGRADE_GALLERY_COLUMN_SPACING,
+					rowY + row * UPGRADE_GALLERY_ROW_SPACING
+				)
+			)
+			if (!preview) return
+			displayObjects.push(preview.object)
+			previewPickups.push(preview)
+		})
+		const rowCount = Math.ceil(
+			categoryUpgrades.length / UPGRADE_GALLERY_COLUMNS
+		)
+		rowY += rowCount * UPGRADE_GALLERY_ROW_SPACING +
+			UPGRADE_GALLERY_CATEGORY_GAP
+	}
+}
+
+function spawnUpgradePreview(
+	upgrade: UpgradeDefinition,
+	position: Vec2
+): TrainingPreviewPickup | undefined {
+	const firstLevel = upgrade.levels[0]
+	if (!firstLevel) return
+	return spawnTrainingPreviewPickup({
+		position,
+		icon: firstLevel.sprite,
+		kind: "upgrade",
+		minimumHubLevel: getUpgradeMinimumHubLevel(upgrade),
+		availableText: `${upgrade.toolName.toUpperCase()}\n${firstLevel.desc}`,
+	})
+}
+
 function spawnAbilityRow(
 	root: GameObj,
 	row: typeof SLOT_ROWS[number],
 	abilities: readonly AbilityDefinition[],
 	rangePos: Vec2,
-	abilityPickups: GameObj[],
+	displayObjects: GameObj[],
 	interactiveAbilityPickups: GameObj[],
-	lockedAbilityPickups: LockedAbilityPickup[]
+	previewPickups: TrainingPreviewPickup[]
 ) {
 	if (abilities.length === 0) return
 	root.add([
@@ -375,8 +477,8 @@ function spawnAbilityRow(
 		const position = rangePos.add(startX + index * spacing + 55, row.y)
 		if (!isAbilityDiscovered(ability)) {
 			const lockedPickup = spawnLockedAbilityPickup(ability, position)
-			abilityPickups.push(lockedPickup.object)
-			lockedAbilityPickups.push(lockedPickup)
+			displayObjects.push(lockedPickup.object)
+			previewPickups.push(lockedPickup)
 			return
 		}
 		const pickup = spawnAbilityLoadoutPickup(
@@ -385,7 +487,7 @@ function spawnAbilityRow(
 			position
 		)
 		if (pickup) {
-			abilityPickups.push(pickup)
+			displayObjects.push(pickup)
 			interactiveAbilityPickups.push(pickup)
 		}
 	})
@@ -394,12 +496,26 @@ function spawnAbilityRow(
 function spawnLockedAbilityPickup(
 	ability: AbilityDefinition,
 	position: Vec2
-): LockedAbilityPickup {
-	const hubLevelReached = getHubLevel() >= ability.minimumHubLevel
-	const unlockProgress = getLockedAbilityHubProgress(ability.minimumHubLevel)
+): TrainingPreviewPickup {
+	return spawnTrainingPreviewPickup({
+		position,
+		icon: ability.icon,
+		kind: getAbilityRewardKind(ability.slot),
+		abilitySlot: ability.slot,
+		minimumHubLevel: ability.minimumHubLevel,
+		availableText: "AVAILABLE FOR DROP",
+		availableTextColor: UI_COLORS.success,
+	})
+}
+
+function spawnTrainingPreviewPickup(
+	props: TrainingPreviewProps
+): TrainingPreviewPickup {
+	const hubLevelReached = getHubLevel() >= props.minimumHubLevel
+	const unlockProgress = getHubUnlockProgress(props.minimumHubLevel)
 	const pickup = k.add([
-		k.pos(position),
-		k.sprite(ability.icon, {
+		k.pos(props.position),
+		k.sprite(props.icon, {
 			width: LOCKED_PICKUP_ICON_SIZE,
 			height: LOCKED_PICKUP_ICON_SIZE,
 		}),
@@ -417,8 +533,8 @@ function spawnLockedAbilityPickup(
 	const pickupFrame = createRewardTypeFrame(pickup, {
 		size: LOCKED_PICKUP_FRAME_SIZE,
 		color: hubLevelReached ? UI_COLORS.success : UI_COLORS.muted,
-		kind: getAbilityRewardKind(ability.slot),
-		abilitySlot: ability.slot,
+		kind: props.kind,
+		abilitySlot: props.abilitySlot,
 		fillOpacity: hubLevelReached ? 0.12 : 0.06,
 		outlineOpacity: 1,
 		lineWidth: 1,
@@ -430,8 +546,8 @@ function spawnLockedAbilityPickup(
 	pickupFrame.use(k.layer(layers.gameEffects))
 
 	const requirement = hubLevelReached
-		? "AVAILABLE FOR DROP"
-		: `REQUIRES HUB LEVEL ${ability.minimumHubLevel}`
+		? props.availableText
+		: `REQUIRES HUB LEVEL ${props.minimumHubLevel}`
 	const tooltip = pickup.add([
 		k.pos(0, -39),
 		k.layer(layers.gameText),
@@ -442,11 +558,13 @@ function spawnLockedAbilityPickup(
 		k.text(requirement, {
 			font: "unscii",
 			size: 6,
-			width: 142,
+			width: UPGRADE_TOOLTIP_WIDTH,
 			align: "center",
 		}),
 		k.anchor("center"),
-		k.color(...(hubLevelReached ? UI_COLORS.success : UI_COLORS.text)),
+		k.color(...(hubLevelReached
+			? props.availableTextColor ?? UI_COLORS.text
+			: UI_COLORS.text)),
 		k.opacity(0),
 		k.scale(0.9),
 		k.z(1),
@@ -469,10 +587,14 @@ function spawnLockedAbilityPickup(
 	}
 }
 
-function getLockedAbilityHubProgress(minimumHubLevel: number) {
+function getHubUnlockProgress(minimumHubLevel: number) {
 	const requiredDeposited = getHubLevelDefinition(minimumHubLevel).requiredDeposited
 	if (requiredDeposited <= 0) return 1
 	return Math.min(1, Math.max(0, getHubLifetimeDeposited() / requiredDeposited))
+}
+
+function getUpgradeMinimumHubLevel(upgrade: UpgradeDefinition) {
+	return Math.max(1, Math.round(upgrade.reward?.minimumHubLevel ?? 1))
 }
 
 function getAbilityRewardKind(slot: AbilitySlot): RewardKind {
@@ -481,11 +603,11 @@ function getAbilityRewardKind(slot: AbilitySlot): RewardKind {
 	return slot
 }
 
-function updateLockedAbilityReveals(
-	pickups: readonly LockedAbilityPickup[],
+function updateTrainingPreviewReveals(
+	pickups: readonly TrainingPreviewPickup[],
 	interactivePickups: readonly GameObj[]
 ) {
-	let nearest: LockedAbilityPickup | undefined
+	let nearest: TrainingPreviewPickup | undefined
 	let nearestDistance = LOCKED_PICKUP_REVEAL_RADIUS
 	const interactionPromptVisible = interactivePickups.some((pickup) =>
 		pickup.exists() &&
