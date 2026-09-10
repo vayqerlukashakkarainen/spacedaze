@@ -386,7 +386,10 @@ function spawnLockedAbilityPickup(
 	ability: AbilityDefinition,
 	position: Vec2
 ): LockedAbilityPickup {
-	const lockedColor = k.rgb(...UI_COLORS.muted)
+	const hubLevelReached = getHubLevel() >= ability.minimumHubLevel
+	const lockedColor = k.rgb(...(hubLevelReached
+		? UI_COLORS.success
+		: UI_COLORS.muted))
 	const pickup = k.add([
 		k.pos(position),
 		k.sprite(ability.icon, {
@@ -423,7 +426,6 @@ function spawnLockedAbilityPickup(
 		k.layer(layers.gameText),
 	])
 
-	const hubLevelReached = getHubLevel() >= ability.minimumHubLevel
 	const requirement = hubLevelReached
 		? "AVAILABLE IN WEAPON DROPS"
 		: `REQUIRES HUB LEVEL ${ability.minimumHubLevel}`
