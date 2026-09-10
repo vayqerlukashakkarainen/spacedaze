@@ -20,7 +20,11 @@ import {
 import { tags } from "../tags"
 import type { RewardKind } from "../types/rewardTypes"
 import type { StatCategory, UpgradeDefinition } from "../types/upgradeTypes"
-import { createRewardTypeFrame, UI_COLORS } from "../ui/common"
+import {
+	createRewardTypeFrame,
+	getScaledLineSpacing,
+	UI_COLORS,
+} from "../ui/common"
 import { getAllUpgradeDefinitions } from "../upgrades/upgradeRegistry"
 import {
 	HUNTER_VISUALS,
@@ -51,6 +55,7 @@ const UPGRADE_GALLERY_COLUMN_SPACING = 42
 const UPGRADE_GALLERY_ROW_SPACING = 36
 const UPGRADE_GALLERY_CATEGORY_GAP = 10
 const UPGRADE_TOOLTIP_WIDTH = 180
+const UPGRADE_DESCRIPTION_LINE_HEIGHT = 1.55
 const RANGE_CULL_RADIUS = 680
 const TRAINING_SWARM_COUNT = 5
 const TRAINING_FUEL_CELL_RESPAWN_DELAY = 3
@@ -559,7 +564,7 @@ function spawnTrainingPreviewPickup(
 	tooltip.hidden = true
 	const tooltipBackground = showDescription
 		? tooltip.add([
-			k.rect(UPGRADE_TOOLTIP_WIDTH, 44),
+			k.rect(UPGRADE_TOOLTIP_WIDTH, 50),
 			k.anchor("center"),
 			k.color(...UI_COLORS.panel),
 			k.opacity(0),
@@ -589,6 +594,10 @@ function spawnTrainingPreviewPickup(
 				size: 6,
 				width: UPGRADE_TOOLTIP_WIDTH - 12,
 				align: "center",
+				lineSpacing: getScaledLineSpacing(
+					6,
+					UPGRADE_DESCRIPTION_LINE_HEIGHT
+				),
 			}),
 			k.pos(0, 7),
 			k.anchor("center"),
@@ -609,7 +618,7 @@ function spawnTrainingPreviewPickup(
 			if (Math.abs(reveal - target) < 0.01) reveal = target
 			const easedReveal = reveal * reveal * (3 - 2 * reveal)
 			tooltip.hidden = reveal === 0
-			if (tooltipBackground) tooltipBackground.opacity = easedReveal * 0.6
+			if (tooltipBackground) tooltipBackground.opacity = easedReveal * 0.8
 			tooltipText.opacity = easedReveal
 			tooltipText.scale = k.vec2(0.9 + easedReveal * 0.1)
 			if (tooltipDescription) {

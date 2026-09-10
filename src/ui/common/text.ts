@@ -20,15 +20,15 @@ interface UiTextStyle {
 }
 
 const UI_TEXT_STYLES: Record<UiTextVariant, UiTextStyle> = {
-	eyebrow: { size: UI_FONT_SIZES.small, lineHeight: 1.25, color: UI_COLORS.muted },
-	display: { size: UI_FONT_SIZES.title, lineHeight: 1.15, color: UI_COLORS.text },
-	title: { size: UI_FONT_SIZES.body, lineHeight: 1.25, color: UI_COLORS.text },
-	caption: { size: UI_FONT_SIZES.small, lineHeight: 1.25, color: UI_COLORS.accent },
-	heading: { size: UI_FONT_SIZES.label, lineHeight: 1.4, color: UI_COLORS.accent },
-	body: { size: UI_FONT_SIZES.small, lineHeight: 1.4, color: UI_COLORS.text },
-	muted: { size: UI_FONT_SIZES.small, lineHeight: 1.4, color: UI_COLORS.muted },
-	stat: { size: UI_FONT_SIZES.small, lineHeight: 1.35, color: UI_COLORS.text },
-	button: { size: UI_FONT_SIZES.label, lineHeight: 1.2, color: UI_COLORS.text },
+	eyebrow: { size: UI_FONT_SIZES.small, lineHeight: 1.4, color: UI_COLORS.muted },
+	display: { size: UI_FONT_SIZES.title, lineHeight: 1.3, color: UI_COLORS.text },
+	title: { size: UI_FONT_SIZES.body, lineHeight: 1.4, color: UI_COLORS.text },
+	caption: { size: UI_FONT_SIZES.small, lineHeight: 1.4, color: UI_COLORS.accent },
+	heading: { size: UI_FONT_SIZES.label, lineHeight: 1.55, color: UI_COLORS.accent },
+	body: { size: UI_FONT_SIZES.small, lineHeight: 1.55, color: UI_COLORS.text },
+	muted: { size: UI_FONT_SIZES.small, lineHeight: 1.55, color: UI_COLORS.muted },
+	stat: { size: UI_FONT_SIZES.small, lineHeight: 1.5, color: UI_COLORS.text },
+	button: { size: UI_FONT_SIZES.label, lineHeight: 1.35, color: UI_COLORS.text },
 }
 
 export interface ThemedTextProps {
