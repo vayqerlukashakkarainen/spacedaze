@@ -24,6 +24,7 @@ import {
 	HUNTER_VISUALS,
 	getEnemyVisual,
 } from "../visuals/enemyVisualCatalog"
+import { getPickupVisual } from "../visuals/pickupVisualCatalog"
 import type { VisualRepresentation } from "../visuals/visualRepresentation"
 import { onEnemyHit } from "./enemyShared"
 import { spawnMeteorite } from "./spawnAsteroid"
@@ -37,8 +38,9 @@ const TARGET_RESPAWN_DELAY = 1.5
 const DISCOVERY_REFRESH_INTERVAL = 0.5
 const PICKUP_SPACING = 60
 const LOCKED_PICKUP_REVEAL_RADIUS = 54
-const LOCKED_PICKUP_ICON_SIZE = 24
-const LOCKED_PICKUP_FRAME_SIZE = 36
+const LOCKED_PICKUP_SCALE = getPickupVisual("reward").worldScale
+const LOCKED_PICKUP_ICON_SIZE = 24 * LOCKED_PICKUP_SCALE
+const LOCKED_PICKUP_FRAME_SIZE = 36 * LOCKED_PICKUP_SCALE
 const TRAINING_SWARM_COUNT = 5
 const TRAINING_FUEL_CELL_RESPAWN_DELAY = 3
 const COMPOSITE_TARGET_OFFSET_X = 130
