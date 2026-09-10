@@ -29,6 +29,7 @@ import {
 	createInteractionPrompt,
 	createNpcInteractionPrompt,
 	createRewardTypeFrame,
+	type NpcInteractionPromptPool,
 } from "../ui/common";
 import {
 	addLocalLight,
@@ -121,6 +122,7 @@ interface RewardPickupOptions {
 		text: string;
 		color?: Color;
 	} | (() => { text: string; color?: Color });
+	interactionPromptPool?: NpcInteractionPromptPool;
 	compactAura?: boolean;
 	persistent?: boolean;
 	suppressAcquisition?: boolean;
@@ -271,13 +273,19 @@ export function spawnRewardPickup(
 	const interactionPrompt = !options.interactionOnly
 		? undefined
 		: options.interactionPromptStyle === "key"
-			? createNpcInteractionPrompt({
+			? (options.interactionPromptPool?.createPrompt({
 				target: m,
 				offset: k.vec2(0, -34),
 				label: options.interactionPromptLabel ?? {
 					text: `EQUIP ${reward.name}`,
 				},
-			})
+			}) ?? createNpcInteractionPrompt({
+				target: m,
+				offset: k.vec2(0, -34),
+				label: options.interactionPromptLabel ?? {
+					text: `EQUIP ${reward.name}`,
+				},
+			}))
 			: createInteractionPrompt({
 				target: m,
 				offset: k.vec2(0, -48),

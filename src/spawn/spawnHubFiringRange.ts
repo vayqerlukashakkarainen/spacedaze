@@ -21,6 +21,7 @@ import { tags } from "../tags"
 import type { RewardKind } from "../types/rewardTypes"
 import type { StatCategory, UpgradeDefinition } from "../types/upgradeTypes"
 import {
+	createNpcInteractionPromptPool,
 	createRewardTypeFrame,
 	getScaledLineSpacing,
 	UI_COLORS,
@@ -105,7 +106,14 @@ export interface HubFiringRange {
 
 interface TrainingPreviewPickup {
 	object: GameObj
-	updateReveal: (visible: boolean) => void
+	title: string
+	description?: string
+	textColor: readonly [number, number, number]
+}
+
+interface TrainingPreviewTooltipPool {
+	update(pickup: TrainingPreviewPickup | undefined): void
+	destroy(): void
 }
 
 interface TrainingPreviewProps {
@@ -133,6 +141,12 @@ export function spawnHubFiringRange(
 		tags.gameLoop,
 	])
 	const equipmentRoot = root.add([k.pos(0, 0)])
+	const equipmentPromptPool = createNpcInteractionPromptPool(2)
+	const previewTooltipPool = createTrainingPreviewTooltipPool()
+	root.onDestroy(() => {
+		equipmentPromptPool.destroy()
+		previewTooltipPool.destroy()
+	})
 	const targetPos = props.pos.add(0, TARGET_OFFSET_Y)
 
 	spawnRangeFrame(root)
@@ -158,6 +172,7 @@ export function spawnHubFiringRange(
 		].join("|")
 		if (nextSignature === discoverySignature) return
 		discoverySignature = nextSignature
+		previewTooltipPool.update(undefined)
 		equipmentRoot.removeAll()
 		for (const pickup of displayObjects) {
 			if (pickup.exists()) k.destroy(pickup)
@@ -182,7 +197,8 @@ export function spawnHubFiringRange(
 				props.pos,
 				displayObjects,
 				interactiveAbilityPickups,
-				previewPickups
+				previewPickups,
+				equipmentPromptPool
 			)
 		}
 	}
@@ -191,7 +207,8 @@ export function spawnHubFiringRange(
 	registerBatchedEntityUpdate("world", root, () => {
 		updateTrainingPreviewReveals(
 			previewPickups,
-			interactiveAbilityPickups
+			interactiveAbilityPickups,
+			previewTooltipPool
 		)
 		refreshTimer += k.dt()
 		if (refreshTimer < DISCOVERY_REFRESH_INTERVAL) return
@@ -465,7 +482,8 @@ function spawnAbilityRow(
 	rangePos: Vec2,
 	displayObjects: GameObj[],
 	interactiveAbilityPickups: GameObj[],
-	previewPickups: TrainingPreviewPickup[]
+	previewPickups: TrainingPreviewPickup[],
+	interactionPromptPool: ReturnType<typeof createNpcInteractionPromptPool>
 ) {
 	if (abilities.length === 0) return
 	root.add([
@@ -492,7 +510,8 @@ function spawnAbilityRow(
 		const pickup = spawnAbilityLoadoutPickup(
 			ability.slot,
 			ability.id,
-			position
+			position,
+			interactionPromptPool
 		)
 		if (pickup) {
 			displayObjects.push(pickup)
@@ -557,78 +576,13 @@ function spawnTrainingPreviewPickup(
 		? props.availableTitle
 		: `REQUIRES HUB LEVEL ${props.minimumHubLevel}`
 	const showDescription = hubLevelReached && props.availableDescription !== undefined
-	const tooltip = pickup.add([
-		k.pos(0, showDescription ? -49 : -39),
-		k.layer(layers.gameText),
-		k.z(20),
-	])
-	tooltip.hidden = true
-	const tooltipBackground = showDescription
-		? tooltip.add([
-			k.rect(UPGRADE_TOOLTIP_WIDTH, 50),
-			k.anchor("center"),
-			k.color(...UI_COLORS.panel),
-			k.opacity(0),
-			k.z(0),
-		])
-		: undefined
-	const tooltipText = tooltip.add([
-		k.text(title, {
-			font: "unscii",
-			size: 6,
-			width: UPGRADE_TOOLTIP_WIDTH,
-			align: "center",
-		}),
-		k.pos(0, showDescription ? -13 : 0),
-		k.anchor("center"),
-		k.color(...(hubLevelReached
-			? props.availableTextColor ?? UI_COLORS.text
-			: UI_COLORS.text)),
-		k.opacity(0),
-		k.scale(0.9),
-		k.z(1),
-	])
-	const tooltipDescription = showDescription
-		? tooltip.add([
-			k.text(props.availableDescription!, {
-				font: "unscii",
-				size: 6,
-				width: UPGRADE_TOOLTIP_WIDTH - 12,
-				align: "center",
-				lineSpacing: getScaledLineSpacing(
-					6,
-					UPGRADE_DESCRIPTION_LINE_HEIGHT
-				),
-			}),
-			k.pos(0, 7),
-			k.anchor("center"),
-			k.color(...UI_COLORS.text),
-			k.opacity(0),
-			k.scale(0.9),
-			k.z(1),
-		])
-		: undefined
-	let reveal = 0
-
 	return {
 		object: pickup,
-		updateReveal(visible) {
-			const target = visible ? 1 : 0
-			const blend = 1 - Math.exp(-12 * k.dt())
-			reveal = k.lerp(reveal, target, blend)
-			if (Math.abs(reveal - target) < 0.01) reveal = target
-			const easedReveal = reveal * reveal * (3 - 2 * reveal)
-			tooltip.hidden = reveal === 0
-			if (tooltipBackground) tooltipBackground.opacity = easedReveal * 0.8
-			tooltipText.opacity = easedReveal
-			tooltipText.scale = k.vec2(0.9 + easedReveal * 0.1)
-			if (tooltipDescription) {
-				tooltipDescription.opacity = easedReveal
-				tooltipDescription.scale = k.vec2(0.9 + easedReveal * 0.1)
-			}
-			const restingY = showDescription ? -49 : -39
-			tooltip.pos.y = restingY + (1 - easedReveal) * 5
-		},
+		title,
+		description: showDescription ? props.availableDescription : undefined,
+		textColor: hubLevelReached
+			? props.availableTextColor ?? UI_COLORS.text
+			: UI_COLORS.text,
 	}
 }
 
@@ -648,9 +602,142 @@ function getAbilityRewardKind(slot: AbilitySlot): RewardKind {
 	return slot
 }
 
+function createTrainingPreviewTooltipPool(): TrainingPreviewTooltipPool {
+	interface TooltipSlot {
+		root: GameObj
+		background: GameObj
+		title: GameObj
+		description: GameObj
+		pickup: TrainingPreviewPickup | undefined
+		reveal: number
+		visible: boolean
+	}
+
+	const slots = Array.from({ length: 2 }, () => {
+		const root = k.add([
+			k.pos(),
+			k.layer(layers.gameText),
+			k.z(20),
+		])
+		root.hidden = true
+		const background = root.add([
+			k.rect(UPGRADE_TOOLTIP_WIDTH, 50),
+			k.anchor("center"),
+			k.color(...UI_COLORS.panel),
+			k.opacity(0),
+			k.z(0),
+		])
+		const title = root.add([
+			k.text("", {
+				font: "unscii",
+				size: 6,
+				width: UPGRADE_TOOLTIP_WIDTH,
+				align: "center",
+			}),
+			k.pos(),
+			k.anchor("center"),
+			k.color(...UI_COLORS.text),
+			k.opacity(0),
+			k.scale(0.9),
+			k.z(1),
+		])
+		const description = root.add([
+			k.text("", {
+				font: "unscii",
+				size: 6,
+				width: UPGRADE_TOOLTIP_WIDTH - 12,
+				align: "center",
+				lineSpacing: getScaledLineSpacing(
+					6,
+					UPGRADE_DESCRIPTION_LINE_HEIGHT
+				),
+			}),
+			k.pos(0, 7),
+			k.anchor("center"),
+			k.color(...UI_COLORS.text),
+			k.opacity(0),
+			k.scale(0.9),
+			k.z(1),
+		])
+		return {
+			root,
+			background,
+			title,
+			description,
+			pickup: undefined,
+			reveal: 0,
+			visible: false,
+		}
+	})
+	let activePickup: TrainingPreviewPickup | undefined
+	let activeSlotIndex = -1
+
+	return {
+		update(pickup) {
+			if (pickup !== activePickup) {
+				if (activeSlotIndex >= 0) slots[activeSlotIndex].visible = false
+				activePickup = pickup
+				if (pickup) {
+					activeSlotIndex = (activeSlotIndex + 1) % slots.length
+					assignTooltip(slots[activeSlotIndex], pickup)
+				}
+			}
+			for (const slot of slots) updateTooltip(slot)
+		},
+		destroy() {
+			for (const slot of slots) {
+				if (slot.root.exists()) k.destroy(slot.root)
+			}
+		},
+	}
+
+	function assignTooltip(slot: TooltipSlot, pickup: TrainingPreviewPickup) {
+		const showDescription = pickup.description !== undefined
+		slot.pickup = pickup
+		slot.visible = true
+		slot.root.hidden = false
+		slot.background.hidden = !showDescription
+		slot.title.text = pickup.title
+		slot.title.pos.y = showDescription ? -13 : 0
+		slot.title.color = k.rgb(...pickup.textColor)
+		slot.description.hidden = !showDescription
+		slot.description.text = pickup.description ?? ""
+	}
+
+	function updateTooltip(slot: TooltipSlot) {
+		if (slot.pickup && !slot.pickup.object.exists()) slot.visible = false
+		const target = slot.visible ? 1 : 0
+		const blend = 1 - Math.exp(-12 * k.dt())
+		slot.reveal = k.lerp(slot.reveal, target, blend)
+		if (Math.abs(slot.reveal - target) < 0.01) slot.reveal = target
+		if (slot.reveal === 0) {
+			slot.root.hidden = true
+			slot.pickup = undefined
+			return
+		}
+		const pickup = slot.pickup
+		if (!pickup) return
+		const easedReveal = slot.reveal * slot.reveal * (3 - 2 * slot.reveal)
+		const showDescription = pickup.description !== undefined
+		slot.root.hidden = false
+		if (pickup.object.exists()) {
+			slot.root.pos = pickup.object.pos.add(
+				0,
+				(showDescription ? -49 : -39) + (1 - easedReveal) * 5
+			)
+		}
+		slot.background.opacity = easedReveal * 0.8
+		slot.title.opacity = easedReveal
+		slot.title.scale = k.vec2(0.9 + easedReveal * 0.1)
+		slot.description.opacity = easedReveal
+		slot.description.scale = k.vec2(0.9 + easedReveal * 0.1)
+	}
+}
+
 function updateTrainingPreviewReveals(
 	pickups: readonly TrainingPreviewPickup[],
-	interactivePickups: readonly GameObj[]
+	interactivePickups: readonly GameObj[],
+	tooltipPool: TrainingPreviewTooltipPool
 ) {
 	let nearest: TrainingPreviewPickup | undefined
 	let nearestDistance = LOCKED_PICKUP_REVEAL_RADIUS
@@ -668,9 +755,7 @@ function updateTrainingPreviewReveals(
 			nearestDistance = distance
 		}
 	}
-	for (const pickup of pickups) {
-		pickup.updateReveal(pickup === nearest)
-	}
+	tooltipPool.update(nearest)
 }
 
 function spawnTrainingDummy(

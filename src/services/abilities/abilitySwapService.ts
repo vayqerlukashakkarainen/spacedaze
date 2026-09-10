@@ -17,6 +17,7 @@ import { getAbilityDefinition } from "./abilityRegistry"
 import { getAbilityTierRarity } from "./abilityTierService"
 import { showPopover } from "../ui/popoverService"
 import { equipWeapon } from "../player/weaponService"
+import type { NpcInteractionPromptPool } from "../../ui/common"
 
 export function equipAbilityWithWorldDrop(
 	slot: AbilitySlot,
@@ -41,7 +42,8 @@ export function equipAbilityWithWorldDrop(
 export function spawnAbilityLoadoutPickup(
 	slot: AbilitySlot,
 	abilityId: AbilityId,
-	position: Vec2
+	position: Vec2,
+	interactionPromptPool?: NpcInteractionPromptPool
 ) {
 	const definition = getAbilityDefinition(abilityId)
 	if (!definition) return
@@ -54,6 +56,7 @@ export function spawnAbilityLoadoutPickup(
 		interactionOnly: true,
 		interactionRadius: 30,
 		interactionPromptStyle: "key",
+		interactionPromptPool,
 		persistent: true,
 		stationary: true,
 		suppressAcquisition: true,
