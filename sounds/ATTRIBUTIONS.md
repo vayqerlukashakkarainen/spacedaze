@@ -1,5 +1,25 @@
 # Audio Attributions
 
+## Player Overheat Warning
+
+"minigun_Overheat" by Marregheriti (Freesound), distributed through Pixabay's freesound_community account.
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-minigun-overheat-84899/
+- License: Pixabay Content License
+- Original filename: `freesound_community-minigun_overheat-84899.mp3`
+- In-game asset: `player-overheated.wav`
+- Trimmed at both edges, converted to mono WAV, faded at the tail, and loudness-normalized for immediate overheat feedback.
+
+## Player Thruster Loop
+
+"RocketThrustMaxx" by Maxx (Freesound), distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-rocketthrustmaxx-100019/
+- Original archive: https://creazilla.com/media/audio/15456920/rocketthrustmaxx
+- License: Creative Commons Zero 1.0 for the original recording; the Pixabay distribution is covered by the Pixabay Content License
+- In-game asset: `player-thruster-loop.ogg`
+- Converted to mono OGG, loudness-normalized, trimmed to the stable thrust bed, and given an equal-power crossfade for seamless continuous playback.
+
 ## Enemy Blasters
 
 "Laser Gun" by VoiceBosch
@@ -106,12 +126,22 @@
 
 ## Standard Blaster
 
+"Sci-Fi Weapon Laser Shot 04" by DavidDumaisAudio
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-sci-fi-weapon-laser-shot-04-316416/
+- License: Pixabay Content License
+- Original filename: `daviddumaisaudio-sci-fi-weapon-laser-shot-04-316416.mp3`
+- In-game asset: `standard-blaster.wav`
+- Trimmed on both ends to the audible shot, converted to mono WAV, faded at the cut boundaries, and loudness-normalized for responsive playback.
+
+## Pulse Repeater
+
 "Sci-Fi Blaster Shot" by Universfield
 
 - Source: https://pixabay.com/sound-effects/film-special-effects-sci-fi-blaster-shot-229313/
 - License: Pixabay Content License
-- In-game asset: `standard-blaster.wav`
-- Trimmed to a 320 ms transient from the source recording and converted to mono WAV for responsive playback.
+- In-game asset: `pulse-repeater.wav`
+- Previously used by the Standard Blaster; trimmed and converted to mono WAV for responsive repeated fire.
 
 ## Twin Needle
 
@@ -312,6 +342,16 @@ The following effects are by DRAGON-STUDIO and distributed under the Pixabay Con
 - License: Pixabay Content License
 - In-game asset: `hostile-phase-arrival.mp3`
 - Playback is shared across a hostile fleet so simultaneous arrivals do not stack the sound.
+
+## Machine Boss Fight Start
+
+"Tugboat Horn" by 49053354, distributed through Pixabay.
+
+- Source: https://pixabay.com/sound-effects/film-special-effects-tugboat-horn-306426/
+- License: Pixabay Content License
+- Original filename: `49053354-tugboat-horn-306426.mp3`
+- In-game asset: `machine-boss-fight-start.mp3`
+- Used as the fight-start cue for the current full machine bosses.
 
 ## Thruster Overclock
 
