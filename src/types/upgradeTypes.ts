@@ -73,33 +73,3 @@ export interface UpgradeDefinition {
 	reward?: UpgradeRewardPolicy;
 	levels: UpgradeLevel[];
 }
-
-// Runtime state interfaces
-
-export interface ActiveModifier {
-	id: string;
-	stat: string;
-	value: number;
-	type: ModifierType;
-	expiresAt?: number; // Timestamp for temporary modifiers
-	source: string; // Where this modifier came from
-}
-
-export interface UnlockState {
-	unlockId: string;
-	unlockedAt: number; // Timestamp
-	source: string;
-}
-
-export interface StatValue {
-	base: number;
-	final: number;
-	modifiers: ActiveModifier[];
-}
-
-export interface UpgradeServiceState {
-	purchasedUpgrades: Record<string, number>; // toolKey -> level index
-	activeModifiers: ActiveModifier[];
-	unlocks: UnlockState[];
-	stats: Record<string, StatValue>;
-}

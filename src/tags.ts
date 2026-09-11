@@ -72,7 +72,4 @@ export const tags = {
 
 	levelBg: "level_bg",
 
-	levelEditor: "levelEditor",
-	layerToggle: "layerToggle",
-	brightnessSlider: "brightnessSlider",
 };

@@ -3,3 +3,6 @@ dist/
 .venv-art/
 .DS_Store
 .debug/
+__pycache__/
+*.pyc
+*.backup

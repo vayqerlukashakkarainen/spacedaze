@@ -87,22 +87,6 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("ship_legacy", "sprites/ship-v2.png");
 	await k.loadSprite("crate1", "sprites/crate-v2.png");
 	await k.loadSprite(
-		"salvage_asteroid_normal",
-		"sprites/salvage-asteroids/salvage-asteroid-normal.png"
-	)
-	await k.loadSprite(
-		"salvage_asteroid_rich",
-		"sprites/salvage-asteroids/salvage-asteroid-rich.png"
-	)
-	await k.loadSprite(
-		"facility_contract_terminal",
-		"sprites/facilities/v2/facility-contract-terminal.png"
-	);
-	await k.loadSprite(
-		"facility_contract_terminal_destroyed",
-		"sprites/facilities/v2/facility-contract-terminal-destroyed.png"
-	);
-	await k.loadSprite(
 		"facility_contract_terminal_1bit",
 		"sprites/facilities/v3/facility-contract-terminal-pixellab-256.png"
 	)
@@ -115,20 +99,8 @@ export async function init(k: KAPLAYCtx) {
 		"sprites/facilities/v2/facility-training-range.png"
 	);
 	await k.loadSprite(
-		"facility_phase_station_minimal",
-		"sprites/facilities/v3/facility-phase-station-pixellab-256.png"
-	)
-	await k.loadSprite(
 		"facility_training_range_destroyed",
 		"sprites/facilities/v3/facility-phase-station-broken-pixellab-256.png"
-	);
-	await k.loadSprite(
-		"facility_salvage_forge",
-		"sprites/facilities/v2/facility-salvage-forge.png"
-	);
-	await k.loadSprite(
-		"facility_salvage_forge_destroyed",
-		"sprites/facilities/v2/facility-salvage-forge-destroyed.png"
 	);
 	await k.loadSprite(
 		"facility_salvage_forge_1bit",
@@ -138,14 +110,6 @@ export async function init(k: KAPLAYCtx) {
 		"facility_salvage_forge_destroyed_1bit",
 		"sprites/facilities/v3/facility-salvage-forge-broken-pixellab-256.png"
 	)
-	await k.loadSprite(
-		"facility_debrief_terminal",
-		"sprites/facilities/v2/facility-debrief-terminal.png"
-	);
-	await k.loadSprite(
-		"facility_debrief_terminal_destroyed",
-		"sprites/facilities/v2/facility-debrief-terminal-destroyed.png"
-	);
 	await k.loadSprite(
 		"facility_debrief_terminal_1bit",
 		"sprites/facilities/v3/facility-debrief-terminal-pixellab-256.png"
@@ -296,7 +260,6 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("particle2", "sprites/particle2.png");
 	await k.loadSprite("particle3", "sprites/particle3.png");
 	await k.loadSprite("particle4", "sprites/particle4.png");
-	await k.loadSprite("spark1", "sprites/spark1.png");
 	const emotionSprites = [
 		"emote_bars",
 		"emote_blank",
@@ -322,7 +285,6 @@ export async function init(k: KAPLAYCtx) {
 	}
 
 	await k.loadSprite("debree_part1", "sprites/debree_part1.png");
-	await k.loadSprite("room_rift_anchor", "sprites/rooms/rift-anchor.png");
 	await k.loadSprite("room_proximity_mine", "sprites/rooms/proximity-mine.png");
 	await k.loadSprite("room_convoy_drone", "sprites/rooms/convoy-drone.png");
 	await k.loadSprite("room_signal_relay", "sprites/rooms/signal-relay.png");
@@ -437,10 +399,6 @@ export async function init(k: KAPLAYCtx) {
 		"sprites/upgrades/twin_capacitor_upg1.png"
 	);
 	await k.loadSprite(
-		"follower_missiles_upg1",
-		"sprites/upgrades/follower_missiles_upg1.png"
-	);
-	await k.loadSprite(
 		"armor_piercing_upg1",
 		"sprites/upgrades/armor_piercing_upg1.png"
 	);
@@ -487,7 +445,6 @@ export async function init(k: KAPLAYCtx) {
 		"phase_recall_upg1",
 		"sprites/upgrades/phase_recall_upg1.png"
 	);
-	await k.loadSprite("start_run", "sprites/upgrades/start_run.png");
 	const systemUpgradeSprites = [
 		"kinetic_coupler_upg1",
 		"torque_spool_upg1",

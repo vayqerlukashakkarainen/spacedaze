@@ -14,7 +14,6 @@ import {
 } from "./spawn/spawnFollower";
 import { spawnRing } from "./spawn/spawnRing";
 import { gameSoundService } from "./services/audio/gameSoundService"
-import { upgradeService } from "./services/progression/upgradeService";
 import { tags } from "./tags";
 
 // Track active slowdown timer and accumulated duration
@@ -31,25 +30,12 @@ export const powerups = {
 	},
 	addExtraRockets: (pos: Vec2) => {
 		session.extraRockets += 1;
-		upgradeService.addModifier("extraRockets", 1, "additive", "powerup");
 	},
 	addSpaceDebree: (pos: Vec2) => {
 		session.extraSpaceDebreeInMissiles += 2;
-		upgradeService.addModifier(
-			"extraSpaceDebreeInMissiles",
-			2,
-			"additive",
-			"powerup"
-		);
 	},
 	addPrimaryRocketChance: (pos: Vec2) => {
 		session.primaryRocketChance += PRIMARY_ROCKET_CHANCE_PER_PICKUP;
-		upgradeService.addModifier(
-			"primaryRocketChance",
-			PRIMARY_ROCKET_CHANCE_PER_PICKUP,
-			"additive",
-			"powerup"
-		);
 	},
 	slowdownTime: (pos: Vec2) => {
 		// Extend duration if already active (6B: Extend duration)
@@ -162,22 +148,6 @@ export const powerupsSprites: Record<PowerupKey, string> = {
 	slowdownTime: "overclock_thrusters_upg1",
 };
 
-export const powerupReq: Record<PowerupKey, (() => boolean) | undefined> = {
-	addFollower: undefined,
-	addPlayerMaxHealth: undefined,
-	addExtraRockets: () => {
-		return (
-			player.rocketsLvl !== undefined || upgradeService.hasUnlock("rockets")
-		);
-	},
-	addSpaceDebree: () => {
-		return (
-			player.rocketsLvl !== undefined || upgradeService.hasUnlock("rockets")
-		);
-	},
-	addPrimaryRocketChance: undefined,
-	slowdownTime: undefined, // No requirements
-};
 
 export function chance(c: number, max: number) {
 	return k.rand(0, max) < c;

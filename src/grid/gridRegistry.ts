@@ -1,4 +1,3 @@
-import { updateVisibleCells } from "../levelEditor/rendering/hexCulling";
 import { HexGrid } from "./hexGrid";
 
 /**
@@ -6,10 +5,7 @@ import { HexGrid } from "./hexGrid";
  * Allows components to reference grids by key
  */
 class GridRegistry {
-	private grids: Map<
-		string,
-		{ grid: HexGrid; updateVisibility: boolean }
-	>;
+	private grids: Map<string, HexGrid>;
 
 	constructor() {
 		this.grids = new Map();
@@ -18,22 +14,15 @@ class GridRegistry {
 	/**
 	 * Register a grid with a key
 	 */
-	register(key: string, grid: HexGrid, updateVisibility: boolean = true): void {
-		this.grids.set(key, { grid, updateVisibility });
-	}
-
-	updateVisibleCells() {
-		this.grids.forEach((entry) => {
-			if (!entry.updateVisibility) return;
-			updateVisibleCells(entry.grid);
-		});
+	register(key: string, grid: HexGrid, _updateVisibility?: boolean): void {
+		this.grids.set(key, grid);
 	}
 
 	/**
 	 * Get a grid by key
 	 */
 	get(key: string): HexGrid | undefined {
-		return this.grids.get(key)?.grid;
+		return this.grids.get(key);
 	}
 
 	/**

@@ -32,14 +32,8 @@ import {
 import { initParticles, initUiEffects } from "./particles";
 import { audioService } from "./services/audio/audioService";
 import { loopService } from "./services/core/loopService";
-import { upgradeService } from "./services/progression/upgradeService";
-import { spawnRing } from "./spawn/spawnRing";
 import { startChestOpeningSequence } from "./ui/chestOpening";
-import { generateCave } from "./generation/caveGenerator";
-import { generationMapToHexGrid } from "./generation/gridConversion";
-import { runHexGridTests } from "./grid/hexGrid.test";
 import { tags } from "./tags";
-import { enterLevelEditor, updateLevelEditor } from "./levelEditor/levelEditor";
 import { setupStatsWindow } from "./ui/statsWindow";
 import {
 	hideTacticalMap,
@@ -53,8 +47,7 @@ import {
 	setDebugVisible,
 	toggleDebug,
 	updateDebug,
-} from "./levelEditor/debug";
-import { gridRegistry } from "./grid/gridRegistry";
+} from "./ui/debug";
 import { hidePauseMenu, showPauseMenu } from "./ui/pauseMenu";
 import {
 	commandConsoleOpen,
@@ -316,8 +309,7 @@ export const layers = {
 export const GameState = {
 	MainMenu: 0,
 	Playing: 1,
-	LevelEditor: 2,
-	ChestOpening: 3,
+	ChestOpening: 2,
 };
 
 const borderOffset = -22;
@@ -427,7 +419,6 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 	audioService.syncSettings();
 	initParticles();
 	initUiEffects();
-	upgradeService.initialize();
 	loadGameSlot();
 	setupStatsWindow();
 	k.setLayers(
@@ -587,30 +578,6 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 		scrollCommandConsoleToEnd();
 	});
 
-	// Temporary: Test chest opening sequence with K key
-	k.onKeyPress("k", () => {
-		if (commandConsoleOpen()) return;
-		if (gameState !== GameState.Playing) return;
-		changeGameState(GameState.ChestOpening);
-	});
-
-	// Hex grid testing - generate random cave
-	k.onKeyPress("h", () => {
-		if (commandConsoleOpen()) return;
-		// Generate random cave with random seed
-		const seed = Math.floor(Math.random() * 1000000);
-		console.log(`Generating cave with seed: ${seed}`);
-
-		const generatedMap = generateCave(seed, 30, 20);
-		const hexGrid = generationMapToHexGrid(
-			generatedMap,
-			40, // hexSize
-			k.width() / 2 - 600, // offsetX
-			k.height() / 2 - 400 // offsetY
-		);
-
-		gridRegistry.register("caveGrid", hexGrid);
-	});
 });
 
 function registerRunLoopSystems() {
@@ -662,14 +629,6 @@ function registerRunLoopSystems() {
 		id: "core:debug-ui",
 		phase: "ui",
 		update: updateDebug,
-	});
-	runLoop.register({
-		id: "core:grid-visibility",
-		phase: "cleanup",
-		update: () => profileSection(
-			"gridVisibility",
-			() => gridRegistry.updateVisibleCells()
-		),
 	});
 	runLoop.register({
 		id: "runtime:visibility",
@@ -732,8 +691,6 @@ function updateActiveGameState(context: RunFrameContext) {
 		profileSection("gameLoop", updateGameLoop);
 	} else if (gameState == GameState.MainMenu) {
 		updateMainMenuLoop();
-	} else if (gameState == GameState.LevelEditor) {
-		updateLevelEditor();
 	}
 }
 
@@ -743,7 +700,6 @@ function updateLegacyFrame(context: RunFrameContext) {
 	rebuildRuntimeSpatialIndex();
 	updateActiveGameState(context);
 	updateBatchedUi();
-	profileSection("gridVisibility", () => gridRegistry.updateVisibleCells());
 	updateRuntimeVisibility(context);
 	updateDebug();
 }
@@ -764,8 +720,6 @@ export function changeGameState(state: number) {
 		}
 	} else if (gameState == GameState.MainMenu) {
 		enterMainMenu();
-	} else if (gameState == GameState.LevelEditor) {
-		enterLevelEditor();
 	} else if (gameState == GameState.ChestOpening) {
 		setGameLoopPaused(true);
 		startChestOpeningSequence(() => {

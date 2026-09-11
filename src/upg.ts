@@ -34,7 +34,6 @@ import {
 	salvageLasso,
 } from "./upgrades/ship";
 import { saveGame } from "./util";
-import { upgradeService } from "./services/progression/upgradeService";
 import { getUpgradeDefinition } from "./upgrades/upgradeRegistry";
 import type {
 	UpgradeDefinition,
@@ -664,7 +663,6 @@ export function grantUpgradeForDebug(
 		loadoutRarity[key],
 		rarity ?? RewardRarity.Legendary
 	)
-	upgradeService.purchaseUpgrade(key, level.effects)
 	if (key === "extraLife") grantExtraLifeCharge()
 	saveGame("slot1")
 	return nextLevel
@@ -684,8 +682,6 @@ export function addLvl(key: ToolKey, rarity?: RewardRarity) {
 		resolvedRarity
 	);
 
-	// Apply upgrade through new system
-	upgradeService.purchaseUpgrade(key, upgradeDef.levels[nextLvl].effects);
 	if (key === "extraLife") grantExtraLifeCharge()
 
 	saveGame("slot1");
@@ -810,6 +806,5 @@ export function clearAllUpgrades() {
 	setLoadout({})
 	setLoadoutRarity({})
 	resetLevelLoadout()
-	upgradeService.reset()
 	return clearedUpgradeCount
 }

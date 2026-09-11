@@ -6,7 +6,7 @@ import {
 	setFrameProfilerEnabled,
 } from "../services/debug/frameProfilerService";
 import { getPerformanceBenchmarkStatus } from "../services/debug/performanceBenchmarkService";
-import { UI_FONT_SIZES } from "../ui/common";
+import { UI_FONT_SIZES } from "./common";
 import { audioService } from "../services/audio/audioService"
 
 let debugVisible = false;
@@ -60,7 +60,6 @@ export function updateDebug() {
 		const snapshot = getFrameProfilerSnapshot();
 		const objectStats = collectDebugObjectStats();
 		const gameLoop = snapshot.sections.gameLoop ?? 0;
-		const gridVisibility = snapshot.sections.gridVisibility ?? 0;
 		const projectileUpdate = snapshot.sections.projectiles ?? 0;
 		const backgroundUpdate = snapshot.sections["external:background"] ??
 			(snapshot.sections.background ?? 0);
@@ -107,7 +106,7 @@ export function updateDebug() {
 			`Frame avg ${formatMs(snapshot.frameAverage)}  p95 ${formatMs(snapshot.frameP95)}`,
 			`Frame max ${formatMs(snapshot.frameMax)}  Update ${formatMs(measuredUpdateCpu)}  Idle/render ${formatMs(frameRemainder)}`,
 			`Root ${formatMs(rootUpdate)}  run loop ${formatMs(centralRunLoop)}  external ${formatMs(externalUpdateCpu)}  sections ${formatMs(knownCpu)}`,
-			`CPU game ${formatMs(gameLoop)}  grid ${formatMs(gridVisibility)}  projectiles ${formatMs(projectileUpdate)}`,
+			`CPU game ${formatMs(gameLoop)}  projectiles ${formatMs(projectileUpdate)}`,
 			`CPU walls ${formatMs(wallDraw)}  background ${formatMs(backgroundUpdate)}  UI ${formatMs(uiCpu)}`,
 			`Phases move ${formatMs(snapshot.sections["phase:movement"] ?? 0)}  spatial ${formatMs(snapshot.sections["phase:spatialIndex"] ?? 0)}  collision ${formatMs(snapshot.sections["phase:collision"] ?? 0)}`,
 			`Spatial objects ${snapshot.counters.spatialObjects ?? 0}  cells ${snapshot.counters.spatialCells ?? 0}`,
@@ -144,7 +143,7 @@ function collectDebugObjectStats() {
 		emittersDrawing: 0,
 		activeParticles: 0,
 	};
-	for (const obj of k.get<GameObj>("*", { recursive: true })) {
+	for (const obj of k.get("*", { recursive: true })) {
 		const objectLayer = (obj as GameObj & { layer?: string }).layer;
 		if (objectLayer === layers.ui || objectLayer === layers.uiEffects) stats.ui++;
 		if (obj.has("area")) stats.areas++;
