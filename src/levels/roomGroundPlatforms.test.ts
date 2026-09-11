@@ -26,6 +26,22 @@ for (let seed = 1; seed <= 80; seed++) {
 		roomsWithPlatforms++
 		assert(platforms.length >= 9, `${room.id} should render a useful ground island`)
 		const keys = new Set(platforms.map((platform) => hexKey(platform.coord)))
+		const visited = new Set<string>()
+		const pending = [platforms[0].coord]
+		while (pending.length > 0) {
+			const coord = pending.pop()!
+			const key = hexKey(coord)
+			if (visited.has(key)) continue
+			visited.add(key)
+			for (const neighbor of hexNeighbors(coord)) {
+				if (keys.has(hexKey(neighbor))) pending.push(neighbor)
+			}
+		}
+		assert.equal(
+			visited.size,
+			platforms.length,
+			`${room.id} ground platform should form one connected structure`
+		)
 		for (const platform of platforms) {
 			const cell = template.map.getCell(platform.coord)
 			assert(cell !== undefined && !cell.locked, `${room.id} places ground outside the room`)
@@ -44,6 +60,6 @@ for (let seed = 1; seed <= 80; seed++) {
 	}
 }
 
-assert(roomsWithPlatforms > 0, "Generated rooms should contain resident ground")
+assert(roomsWithPlatforms > 0, "Generated rooms should contain connected ground")
 
 console.log("Room ground platform tests passed")
