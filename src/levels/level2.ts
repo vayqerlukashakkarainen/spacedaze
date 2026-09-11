@@ -1,7 +1,6 @@
 import { getCurrentRunFloor } from "../services/runs/runDirectorService"
 import { k } from "../main"
 import type { Level } from "./levels"
-import { RUN_ROCK_PROJECTION_Y_SCALE } from "./runRockTiles"
 import {
 	clearGeneratedRoomFloor,
 	startGeneratedRoomFloor,
@@ -12,7 +11,6 @@ export const level2: Level = {
 		width: 48,
 		height: 36,
 		hexSize: 96,
-		projectionYScale: RUN_ROCK_PROJECTION_Y_SCALE,
 	},
 	reset: () => {
 		clearGeneratedRoomFloor()

@@ -113,6 +113,8 @@ export function spawnCargoPuzzleSocket(
 		k.layer(layers.gameEffects),
 		k.z(-2),
 		{
+			hb: 38,
+			groundShadowMode: "ground" as const,
 			draw() {
 				const color = activated
 					? k.rgb(...UI_COLORS.success)
@@ -147,6 +149,7 @@ export function spawnCargoPuzzleSocket(
 				})
 			},
 		},
+		tags.props,
 		tags.cargoPuzzleSocket,
 		tags.runMap,
 		tags.runRoom,

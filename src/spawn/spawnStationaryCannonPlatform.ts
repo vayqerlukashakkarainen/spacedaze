@@ -65,6 +65,7 @@ export function spawnStationaryCannonPlatform(
 			deathOrigin: pos.clone(),
 			runtimeCullRadius: 64 * profile.scale,
 			threatRank: ENEMY_THREAT_RANK.heavyVehicle,
+			groundShadowMode: "ground" as const,
 		},
 		tags.enemy,
 		tags.unit,

@@ -6,7 +6,6 @@ export type WorldVisualId =
 	| "health-shrine"
 	| "gravity-shrine"
 	| "gravity-anomaly-shrine"
-	| "debris-foundation"
 	| "debris-house"
 	| "minefield"
 	| "lost-convoy"
@@ -34,10 +33,6 @@ export const WORLD_VISUALS: Record<WorldVisualId, VisualRepresentation> = {
 	"gravity-anomaly-shrine": {
 		parts: [{ sprite: "shrine_gravity" }],
 		worldScale: 1.5,
-	},
-	"debris-foundation": {
-		parts: [{ sprite: "hub_ground_scrap_sorter_rocks" }],
-		worldScale: 0.56,
 	},
 	"debris-house": {
 		parts: [{ sprite: "hub_building_service_kiosk" }],

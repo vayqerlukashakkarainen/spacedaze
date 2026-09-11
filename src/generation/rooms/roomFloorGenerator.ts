@@ -21,8 +21,10 @@ import type {
 	RoomFloorGenerationOptions,
 	RoomFloorKind,
 	RoomFloorRoom,
+	RoomSizeClass,
 } from "./roomFloorTypes"
 import { planRoomEnvironment } from "./roomEnvironmentPlanner"
+import { assignRoomStamps } from "./roomStampPlanner"
 
 const MIN_ROOMS = 20
 const MAX_ROOMS = 32
@@ -81,6 +83,7 @@ export function generateRoomFloor(
 			id,
 			coord: { ...coord },
 			kind,
+			sizeClass: selectRoomSizeClass(kind, roomSeed),
 			templateId: selectTemplateId(kind, connections[index].length, roomSeed),
 			seed: roomSeed,
 			distanceFromStart: distances[index],
@@ -105,13 +108,14 @@ export function generateRoomFloor(
 				: undefined,
 		}
 	})
-
+	const subfloor = getFloorPositionForDepth(normalizedDepth).subfloor
 	const dangerousRooms = rng.shuffle(rooms.filter((room) =>
 		room.kind === "combat" && room.distanceFromStart >= 2
 	)).slice(0, rooms.length >= 28 ? 2 : 1)
 	for (let index = 0; index < dangerousRooms.length; index++) {
 		const room = dangerousRooms[index]
 		room.dangerLevel = 3
+		room.sizeClass = "arena"
 		room.dangerReward = index % 2 === 0 ? "doubleChest" : "salvageBurst"
 		if (room.encounter) {
 			room.encounter.difficultyBudget = Math.round(room.encounter.difficultyBudget * 1.8)
@@ -137,12 +141,18 @@ export function generateRoomFloor(
 			}
 		}
 	}
+	if (!options.endless) {
+		assignRoomStamps(rooms, themeId, subfloor)
+	}
+	for (const room of dangerousRooms) {
+		for (const enemy of room.encounter?.enemies ?? []) enemy.elite = true
+	}
 
 	for (const room of rooms) {
 		room.environment = planRoomEnvironment(
 			room,
 			themeId,
-			getFloorPositionForDepth(normalizedDepth).subfloor
+			subfloor
 		)
 	}
 
@@ -234,6 +244,7 @@ export function extendEndlessRoomFloor(
 			id,
 			coord: { ...coord },
 			kind: "combat",
+			sizeClass: selectRoomSizeClass("combat", roomSeed),
 			templateId: selectTemplateId("combat", adjacentRooms.length, roomSeed),
 			seed: roomSeed,
 			distanceFromStart,
@@ -574,6 +585,31 @@ function selectEnemyArrivalMode(
 		return "resident"
 	}
 	return index === 0 || rng.nextBool(0.5) ? "resident" : "phaseJump"
+}
+
+function selectRoomSizeClass(
+	kind: RoomFloorKind,
+	seed: number
+): RoomSizeClass {
+	if (kind === "boss" || kind === "miniBoss") return "arena"
+	if (
+		kind === "combat" ||
+		kind === "event" ||
+		kind === "gravity"
+	) {
+		const roll = Math.abs(seed ^ 0x726f6f6d) % 100
+		if (roll < 18) return "compact"
+		if (roll < 88) return "standard"
+		return "arena"
+	}
+	if (
+		kind === "lassoTrial" ||
+		kind === "scrapCircuit" ||
+		kind === "thrusterPuzzle" ||
+		kind === "cargoPuzzleSource" ||
+		kind === "cargoPuzzleTarget"
+	) return "standard"
+	return "compact"
 }
 
 function selectTemplateId(kind: RoomFloorKind, degree: number, seed: number) {

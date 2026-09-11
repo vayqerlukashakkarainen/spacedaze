@@ -13,6 +13,7 @@ import {
 	steerMoveRotateAndLean,
 } from "../../shared"
 import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
+import { frameRateIndependentBlend } from "../../services/core/frameRateService"
 import { getWorldVisual } from "../../visuals/worldVisualCatalog"
 import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 
@@ -71,7 +72,10 @@ export function spawnLostConvoy(props: LostConvoyProps) {
 				drone.angle,
 				drone.pos,
 				playerObj.pos,
-				0.08 * drone.getTimescale(),
+				frameRateIndependentBlend(
+					0.08 * drone.getTimescale(),
+					k.dt()
+				),
 				-90
 			)
 			steerMoveRotateAndLean(

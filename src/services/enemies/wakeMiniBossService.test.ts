@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import {
 	getWakeMiniBossForDepth,
+	getWakeMiniBossHealthForDepth,
 	getWakeMiniBossRoster,
 } from "./wakeMiniBossService"
 import { resolveMiniBossWallRecoilDirection } from "./miniBossRamPhysics"
@@ -13,6 +14,9 @@ assert.deepEqual(getWakeMiniBossRoster(), [
 assert.equal(getWakeMiniBossForDepth(1), "wake-boiler-hulk")
 assert.equal(getWakeMiniBossForDepth(2), "wake-magnet-maw")
 assert.equal(getWakeMiniBossForDepth(3), "wake-railbreaker-rig")
+assert.equal(getWakeMiniBossHealthForDepth(1), 220)
+assert.equal(getWakeMiniBossHealthForDepth(2), 240)
+assert.equal(getWakeMiniBossHealthForDepth(3), 260)
 
 assert.deepEqual(
 	resolveMiniBossWallRecoilDirection(

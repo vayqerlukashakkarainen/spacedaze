@@ -275,15 +275,25 @@ export function getRoomFloorSnapshot(): RoomFloor | undefined {
 			...room,
 			coord: { ...room.coord },
 			connections: [...room.connections],
+			stamp: room.stamp ? {
+				...room.stamp,
+				resolvedContent: (room.stamp.resolvedContent ?? []).map((content) => ({
+					...content,
+					coord: { ...content.coord },
+				})),
+			} : undefined,
+			stamps: room.stamps?.map((stamp) => ({
+				...stamp,
+				resolvedContent: (stamp.resolvedContent ?? []).map((content) => ({
+					...content,
+					coord: { ...content.coord },
+				})),
+			})),
 				environment: room.environment
 				? {
 					objects: room.environment.objects.map((object) => ({
 						...object,
 						coord: { ...object.coord },
-					})),
-					groundPlatforms: room.environment.groundPlatforms?.map((platform) => ({
-						...platform,
-						cells: platform.cells.map((cell) => ({ ...cell })),
 					})),
 					scrapFields: room.environment.scrapFields?.map((field) => ({
 						...field,
@@ -300,7 +310,12 @@ export function getRoomFloorSnapshot(): RoomFloor | undefined {
 			encounter: room.encounter
 				? {
 					...room.encounter,
-					enemies: room.encounter.enemies.map((enemy) => ({ ...enemy })),
+					enemies: room.encounter.enemies.map((enemy) => ({
+						...enemy,
+						spawnCoord: enemy.spawnCoord
+							? { ...enemy.spawnCoord }
+							: undefined,
+					})),
 				}
 				: undefined,
 		})),

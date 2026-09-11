@@ -1,0 +1,40 @@
+import type { HubCargoPressStampDefinition } from "./hubPuzzleStampTypes"
+
+export const HUB_CARGO_PRESS_STAMP: HubCargoPressStampDefinition = {
+	id: "hub-cargo-press",
+	type: "cargo-press",
+	title: "CARGO PRESS",
+	purposes: ["puzzle", "physics", "traversal"],
+	minimumHubLevel: 1,
+	bounds: { width: 430, height: 330 },
+	headerOffset: [0, -150],
+	rewardOffset: [0, -18],
+	crate: {
+		offset: [-105, 66],
+		sprite: "crate1",
+		angle: -12,
+		scale: 1.35,
+		radius: 17,
+		mass: 2.2,
+	},
+	plate: {
+		offset: [92, 0],
+		radius: 25,
+		captureRadius: 26,
+		captureSpeed: 120,
+	},
+	obstacles: [
+		{ id: "inner-0", offset: [-45, -100], sprite: "wake_cable_reel", radius: 19, angle: 18, scale: 0.82, shade: 104 },
+		{ id: "inner-1", offset: [-45, -55], sprite: "wake_coolant_canister", radius: 18, angle: -22, scale: 0.9, shade: 116 },
+		{ id: "inner-2", offset: [-45, -10], sprite: "wake_pressure_tank", radius: 21, angle: 92, scale: 0.98, shade: 128 },
+		{ id: "inner-3", offset: [-45, 35], sprite: "wake_battery_bank", radius: 20, angle: 34, scale: 0.82, shade: 104 },
+		{ id: "inner-4", offset: [2, 55], sprite: "wake_cable_reel", radius: 19, angle: -40, scale: 0.9, shade: 116 },
+		{ id: "inner-5", offset: [50, 55], sprite: "wake_salvage_cluster", radius: 22, angle: 16, scale: 0.98, shade: 128 },
+		{ id: "inner-6", offset: [102, 55], sprite: "wake_coolant_canister", radius: 18, angle: 72, scale: 0.82, shade: 104 },
+		{ id: "outer-0", offset: [-172, -92], sprite: "wake_salvage_cluster", radius: 23, angle: -28, scale: 0.9, shade: 116 },
+		{ id: "outer-1", offset: [-178, 5], sprite: "wake_pressure_tank", radius: 22, angle: 84, scale: 0.98, shade: 128 },
+		{ id: "outer-2", offset: [-166, 112], sprite: "wake_cable_reel", radius: 19, angle: 12, scale: 0.82, shade: 104 },
+		{ id: "outer-3", offset: [174, -102], sprite: "wake_battery_bank", radius: 22, angle: -18, scale: 0.9, shade: 116 },
+		{ id: "outer-4", offset: [182, 108], sprite: "wake_salvage_cluster", radius: 23, angle: 42, scale: 0.98, shade: 128 },
+	],
+}

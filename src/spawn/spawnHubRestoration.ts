@@ -15,21 +15,26 @@ import { getCompanionVisual } from "../visuals/companionVisualCatalog"
 import { SALVAGE_PICKUP_VISUALS } from "../visuals/pickupVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { applySteeringLean, lerpAngleBetweenPos } from "../shared"
+import { drawLightning } from "../services/combat/lightningVisualService"
+import {
+	createHubRestorationFloorStampCells,
+	getHubRestorationFloorStampMaterial,
+	HUB_RESTORATION_FLOOR_STAMP,
+} from "../stamps/hub/restorationFloorStamp"
+import { hexKey, hexNeighbors, hexToPixel } from "../generation/hexUtils"
+import {
+	getRunRockGroundTileFrame,
+	RUN_ROCK_GROUND_VARIANTS_PER_MATERIAL,
+	RUN_ROCK_GROUND_TILE_SOURCE_RADIUS,
+	RUN_ROCK_GROUND_TILE_SPRITE,
+} from "../levels/runRockGroundTiles"
+import { pixelToHex } from "../grid/hexCoord"
+import { spawnGroundShadowRenderer } from "../services/world/groundShadowService"
 
 export const HUB_RESTORATION_LAMP_COUNT = 8
-const RESTORATION_RING_RADIUS = 235
 const HUB_GREEN = [90, 220, 145] as const
 const HUB_LAMP_COLOR = [160, 180, 190] as const
 const HUB_BROKEN_LAMP_COLOR = [68, 78, 86] as const
-const HUB_LAMP_PLATFORM_COLOR = [52, 61, 68] as const
-const HUB_LAMP_PLATFORM_SPRITES = [
-	"hub_progression_lamp_platform_01",
-	"hub_progression_lamp_platform_02",
-	"hub_progression_lamp_platform_03",
-	"hub_progression_lamp_platform_04",
-	"hub_progression_lamp_platform_05",
-	"hub_progression_lamp_platform_06",
-] as const
 const HAULER_SPEED = 145
 const HAULER_CARGO_OFFSETS = [[-3, -4], [0, -6], [3, -4], [-1.5, -2], [1.5, -2]] as const
 const MAX_DEBRIS_DISPLAY_PIECES = 45
@@ -57,6 +62,7 @@ interface HubRestorationOptions {
 
 interface HubRestorationLamp {
 	object: GameObj
+	isLit(): boolean
 	setLit(lit: boolean): void
 }
 
@@ -75,10 +81,12 @@ export function spawnHubRestoration(
 ): HubRestorationHandle {
 	let spawnedThroughLevel = 0
 	let lampLevelOverride = options.initialLampLevel !== undefined
+	spawnRestorationFloorStamp(center)
 	const lamps = spawnRestorationLamps(
 		center,
 		options.initialLampLevel ?? getHubLevel()
 	)
+	spawnRestorationLampLightning(center, lamps)
 	const debrisDisplay = spawnRestorationDebrisDisplay(center)
 	const revealThroughLevel = (level: number) => {
 		for (let index = 0; index < lamps.length; index++) {
@@ -124,6 +132,83 @@ export function spawnHubRestoration(
 			)
 		},
 	}
+}
+
+function spawnRestorationFloorStamp(center: Vec2) {
+	const stamp = HUB_RESTORATION_FLOOR_STAMP
+	const coords = createHubRestorationFloorStampCells()
+	const coordKeys = new Set(coords.map((coord) => hexKey(coord)))
+	const cells = coords.map((coord) => ({
+		coord,
+		position: hexToPixel(coord, stamp.hexSize),
+		frame: getRunRockGroundTileFrame(
+			getHubRestorationFloorStampMaterial(coord) *
+				RUN_ROCK_GROUND_VARIANTS_PER_MATERIAL +
+				Math.abs(coord.q * 73 + coord.r * 151) %
+				RUN_ROCK_GROUND_VARIANTS_PER_MATERIAL
+		),
+		exposedEdges: hexNeighbors(coord).map(
+			(neighbor) => !coordKeys.has(hexKey(neighbor))
+		),
+	}))
+	const tileScale = stamp.hexSize / RUN_ROCK_GROUND_TILE_SOURCE_RADIUS * 1.03
+	const stampCenter = center.add(stamp.offset[0], stamp.offset[1])
+	let picture: ReturnType<typeof k.endPicture> | undefined
+	const floor = k.add([
+		k.pos(0, 0),
+		k.layer(layers.game2),
+		k.z(stamp.z),
+		{
+			draw() {
+				if (!picture) {
+					k.beginPicture()
+					for (const cell of cells) {
+						const frameQuad = k.getSprite(
+							RUN_ROCK_GROUND_TILE_SPRITE
+						)?.data?.frames[cell.frame]?.q
+						const uniform = frameQuad
+							? {
+								u_uvMin: k.vec2(frameQuad.x, frameQuad.y),
+								u_uvMax: k.vec2(
+									frameQuad.x + frameQuad.w,
+									frameQuad.y + frameQuad.h
+								),
+								u_seed: Math.abs(cell.coord.q * 37 + cell.coord.r * 101),
+								u_edge0: cell.exposedEdges[0] ? 1 : 0,
+								u_edge1: cell.exposedEdges[1] ? 1 : 0,
+								u_edge2: cell.exposedEdges[2] ? 1 : 0,
+								u_edge3: cell.exposedEdges[3] ? 1 : 0,
+								u_edge4: cell.exposedEdges[4] ? 1 : 0,
+								u_edge5: cell.exposedEdges[5] ? 1 : 0,
+							}
+							: undefined
+						k.drawSprite({
+							sprite: RUN_ROCK_GROUND_TILE_SPRITE,
+							frame: cell.frame,
+							pos: stampCenter.add(cell.position.x, cell.position.y),
+							anchor: "center",
+							scale: k.vec2(tileScale),
+							color: k.rgb(stamp.tint[0], stamp.tint[1], stamp.tint[2]),
+							opacity: stamp.opacity,
+							shader: frameQuad ? "roomGroundJaggedEdge" : undefined,
+							uniform,
+						})
+					}
+					picture = k.endPicture()
+				}
+				k.drawPicture(picture, {})
+			},
+		},
+		tags.hubRestoration,
+		tags.gameLoop,
+	])
+	floor.onDestroy(() => picture?.free())
+	spawnGroundShadowRenderer(
+		(position) => coordKeys.has(hexKey(
+			pixelToHex(position.sub(stampCenter), stamp.hexSize)
+		)),
+		[tags.hubRestoration, tags.gameLoop]
+	)
 }
 
 function spawnRestorationDebrisDisplay(center: Vec2) {
@@ -212,20 +297,6 @@ function spawnRestorationLamps(center: Vec2, initialLevel: number) {
 	for (let index = 0; index < HUB_RESTORATION_LAMP_COUNT; index++) {
 		const lampPos = getHubRestorationLampPosition(center, index + 1)
 		let lit = index < initialLevel
-		k.add([
-			k.pos(lampPos.add(0, 22)),
-			k.sprite(
-				HUB_LAMP_PLATFORM_SPRITES[
-					index % HUB_LAMP_PLATFORM_SPRITES.length
-				]
-			),
-			k.anchor("center"),
-			k.color(...HUB_LAMP_PLATFORM_COLOR),
-			k.layer(layers.game2),
-			k.z(-3),
-			tags.hubRestoration,
-			tags.gameLoop,
-		])
 		const initialLampColor = lit ? HUB_LAMP_COLOR : HUB_BROKEN_LAMP_COLOR
 		const lamp = k.add([
 			k.pos(lampPos),
@@ -276,9 +347,72 @@ function spawnRestorationLamps(center: Vec2, initialLevel: number) {
 				light.object.scale = k.vec2(1)
 			}
 		})
-		lamps.push({ object: lamp, setLit })
+		lamps.push({
+			object: lamp,
+			isLit: () => lit,
+			setLit,
+		})
 	}
 	return lamps
+}
+
+function spawnRestorationLampLightning(
+	center: Vec2,
+	lamps: readonly HubRestorationLamp[]
+) {
+	k.add([
+		k.pos(center),
+		k.layer(layers.game2),
+		k.z(-2.5),
+		{
+			draw() {
+				for (let index = 0; index < lamps.length; index++) {
+					const nextIndex = (index + 1) % lamps.length
+					if (nextIndex === 0 && !lamps.every((lamp) => lamp.isLit())) {
+						continue
+					}
+					const startLamp = lamps[index]
+					const endLamp = lamps[nextIndex]
+					if (!startLamp.isLit() || !endLamp.isLit()) continue
+					if (!startLamp.object.exists() || !endLamp.object.exists()) continue
+
+					const start = startLamp.object.pos.sub(center)
+					const end = endLamp.object.pos.sub(center)
+					const pulse = k.wave(0.76, 1, k.time() * 2.4 + index * 0.47)
+					drawLightning({
+						start,
+						end,
+						color: k.rgb(45, 175, 215),
+						opacity: 0.16 * pulse,
+						width: 3,
+						segmentLength: 13,
+						amplitude: 7,
+						waveCount: 1.7,
+						smoothness: 0.74,
+						flickerRate: 12,
+						seed: 211 + index * 29,
+					})
+					drawLightning({
+						start,
+						end,
+						color: k.rgb(175, 225, 235),
+						opacity: 0.52 * pulse,
+						width: 1,
+						segmentLength: 13,
+						amplitude: 7,
+						waveCount: 1.7,
+						smoothness: 0.74,
+						flickerRate: 12,
+						seed: 211 + index * 29,
+						branchChance: 0.025,
+						branchLength: 7,
+					})
+				}
+			},
+		},
+		tags.hubRestoration,
+		tags.gameLoop,
+	])
 }
 
 export function getHubRestorationLampPosition(center: Vec2, lampNumber: number) {
@@ -288,8 +422,10 @@ export function getHubRestorationLampPosition(center: Vec2, lampNumber: number) 
 		HUB_RESTORATION_LAMP_COUNT
 	) - 1
 	return center.add(
-		k.Vec2.fromAngle(-90 + index * 45).scale(RESTORATION_RING_RADIUS)
-	).add(0, -10)
+		k.Vec2.fromAngle(-90 + index * 45).scale(
+			HUB_RESTORATION_FLOOR_STAMP.lampRingRadius
+		)
+	).add(0, HUB_RESTORATION_FLOOR_STAMP.lampRingOffsetY)
 }
 
 function spawnRestorationTier(

@@ -4,7 +4,7 @@ import { shouldSpawnBossRoomForDepth } from "./floorThemes/floorThemeDirectory"
 import { gridCollision } from "../comp/gridCollision"
 import { interactable } from "../comp/interactable"
 import { generationMapToHexGrid } from "../generation/gridConversion"
-import { hexDistance, hexNeighbors } from "../generation/hexUtils"
+import { hexDistance, hexKey, hexNeighbors } from "../generation/hexUtils"
 import {
 	buildRoomTemplate,
 	oppositeRoomDirection,
@@ -15,6 +15,11 @@ import type {
 	RoomEnemyPlan,
 	RoomFloorRoom,
 } from "../generation/rooms/roomFloorTypes"
+import {
+	getRoomStampPlans,
+	getRoomStampWorldObjectCoord,
+} from "../generation/rooms/roomStampPlanner"
+import type { RoomStampId } from "../generation/rooms/roomFloorTypes"
 import { playerObj } from "../game"
 import { ACTIVE_RUN_GRID_KEY } from "../grid/gridKeys"
 import { gridRegistry } from "../grid/gridRegistry"
@@ -95,6 +100,7 @@ import {
 } from "../spawn/rooms/spawnCargoPuzzle"
 import { spawnRoomKeyPickup } from "../spawn/rooms/spawnRoomKey"
 import { spawnRoomEnvironment } from "../spawn/rooms/spawnRoomEnvironment"
+import { spawnRoomStampMechanics } from "../spawn/rooms/spawnRoomStampMechanics"
 import { spawnScrapCircuitPuzzle } from "../spawn/rooms/spawnScrapCircuitPuzzle"
 import { spawnThrusterCalibrationPuzzle } from "../spawn/rooms/spawnThrusterCalibrationPuzzle"
 import { spawnLassoTrialPuzzle } from "../spawn/rooms/spawnLassoTrialPuzzle"
@@ -116,7 +122,10 @@ import {
 	queueEmergencyNaniteShrine,
 } from "../services/hub/expeditionSupportService"
 import { canDiscoverLassoComponent } from "../services/narrative/narrativeService"
-import { getWakeMiniBossForDepth } from "../services/enemies/wakeMiniBossService"
+import {
+	getWakeMiniBossForDepth,
+	getWakeMiniBossHealthForDepth,
+} from "../services/enemies/wakeMiniBossService"
 import {
 	rollPsionicPlateDrop,
 	type PsionicPlateMiniBossId,
@@ -160,7 +169,9 @@ import {
 	RUN_ROCK_TILE_SOURCE_RADIUS,
 	RUN_ROCK_TILE_SPRITE,
 } from "./runRockTiles"
-import { createRoomGroundPlatformCells } from "./roomGroundPlatforms"
+import { createRoomGroundCells } from "./roomGroundPlatforms"
+import { createRoomWallBackfillCells } from "./roomWallBackfill"
+import { spawnRoomGroundShadowRenderer } from "../services/world/groundShadowService"
 import {
 	getRunRockGroundTileFrame,
 	RUN_ROCK_GROUND_TILE_ANCHOR_Y,
@@ -171,7 +182,6 @@ import {
 const ROOM_TRANSITION_COOLDOWN = 0.45
 const ROOM_ENTRY_INSET = 2
 const ROOM_HEX_SIZE = 42
-const ROOM_PROJECTION_Y_SCALE = 2 / Math.sqrt(3)
 const HOSTILE_ARRIVAL_GHOST_DURATION = 0.6
 const HOSTILE_ARRIVAL_JUMP_DURATION = 0.18
 const HOSTILE_ARRIVAL_JUMP_DISTANCE = 320
@@ -267,6 +277,25 @@ export function generatedRoomFloorActive() {
 	return active
 }
 
+export function jumpToGeneratedRoomStamp(stampId: RoomStampId) {
+	if (!active || transitionCooldown > 0) return undefined
+	const floor = getActiveRoomFloor()
+	const previousRoom = getCurrentFloorRoom()
+	const destination = floor?.rooms.find((room) =>
+		getRoomStampPlans(room).some((stamp) => stamp.stampId === stampId)
+	)
+	if (!previousRoom || !destination) return undefined
+	if (destination.id === previousRoom.id) return destination.id
+	if (!teleportRoomState(destination.id, true)) return undefined
+
+	transitionCooldown = ROOM_TRANSITION_COOLDOWN
+	const carriedTarget = preparePlayerLassoRoomTransfer()
+	destroyTaggedObjects(tags.runRoom, carriedTarget)
+	loadCurrentRoom(previousRoom.id, true)
+	k.flash(k.rgb(8, 22, 30), 0.12)
+	return destination.id
+}
+
 export function transitionToConnectedRoom(destinationRoomId: string) {
 	if (!active || transitionCooldown > 0) return false
 	const floor = getActiveRoomFloor()
@@ -324,7 +353,7 @@ function loadCurrentRoom(
 		Math.min(config.hexSize, ROOM_HEX_SIZE),
 		0,
 		0,
-		Math.max(config.projectionYScale ?? 1, ROOM_PROJECTION_Y_SCALE)
+		1
 	)
 	const uncenteredCenter = grid.hexToScreen(template.center)
 	grid.config.offset = k.center().sub(uncenteredCenter)
@@ -385,6 +414,7 @@ function loadCurrentRoom(
 	renderRoom(grid, template, room, () => doorsLocked)
 	spawnBossDoorWarnings(grid, template)
 	spawnRoomEnvironment(grid, room)
+	spawnRoomStampMechanics(grid, room, template.center)
 	if (
 		room.id === getActiveRoomFloor()?.startRoomId &&
 		activeEmergencyNaniteRecovery > 0 &&
@@ -670,15 +700,25 @@ function renderRoom(
 	room: RoomFloorRoom,
 	doorsLocked: () => boolean
 ) {
-	const groundPlatforms = createRoomGroundPlatformCells(template, room).map(
-		(platform) => ({
-			center: grid.hexToScreen(platform.coord),
-			frame: getRunRockGroundTileFrame(
-				platform.exposedMask,
-				platform.variation
+	const roomGroundCells = createRoomGroundCells(template, room)
+	const roomWallBackfillCells = createRoomWallBackfillCells(template, room)
+	const groundCoordKeys = new Set(
+		roomGroundCells.map((cell) => hexKey(cell.coord))
+	)
+	const groundCells = roomGroundCells.map(
+		(cell) => ({
+			coord: cell.coord,
+			center: grid.hexToScreen(cell.coord),
+			frame: getRunRockGroundTileFrame(cell.variation),
+			exposedEdges: hexNeighbors(cell.coord).map(
+				(neighbor) => !groundCoordKeys.has(hexKey(neighbor))
 			),
 		})
 	)
+	const wallBackfillCells = roomWallBackfillCells.map((cell) => ({
+		center: grid.hexToScreen(cell.coord),
+		frame: getRunRockGroundTileFrame(cell.variation),
+	}))
 	const walls = template.map.getAllCells()
 		.filter((cell) =>
 			cell.solid && !cell.tags.has("room_environment_structural")
@@ -700,11 +740,78 @@ function renderRoom(
 	const tileScaleY = tileScale * (grid.config.projectionYScale ?? 1)
 	const tileCenterOffsetY =
 		(RUN_ROCK_TILE_SOURCE_RADIUS - RUN_ROCK_TILE_ANCHOR_Y) * tileScaleY
-	const groundTileScale = grid.config.hexSize / RUN_ROCK_GROUND_TILE_SOURCE_RADIUS
+	const groundTileScale =
+		(grid.config.hexSize / RUN_ROCK_GROUND_TILE_SOURCE_RADIUS) * 1.03
 	const groundTileScaleY = groundTileScale * (grid.config.projectionYScale ?? 1)
 	const groundTileCenterOffsetY = (
 		RUN_ROCK_GROUND_TILE_SOURCE_RADIUS - RUN_ROCK_GROUND_TILE_ANCHOR_Y
 	) * groundTileScaleY
+	let staticGroundPicture: ReturnType<typeof k.endPicture> | undefined
+	const groundRenderer = k.add([
+		k.pos(0, 0),
+		k.layer(layers.bg),
+		k.z(0),
+		{
+			draw() {
+				if (!staticGroundPicture) {
+					k.beginPicture()
+					for (const backfillCell of wallBackfillCells) {
+						k.drawSprite({
+							sprite: RUN_ROCK_GROUND_TILE_SPRITE,
+							frame: backfillCell.frame,
+							pos: backfillCell.center.add(0, groundTileCenterOffsetY),
+							anchor: "center",
+							scale: k.vec2(groundTileScale, groundTileScaleY),
+							color: k.rgb(72, 80, 88),
+							opacity: 0.82,
+						})
+					}
+					for (const groundCell of groundCells) {
+						const frameQuad = k.getSprite(
+							RUN_ROCK_GROUND_TILE_SPRITE
+						)?.data?.frames[groundCell.frame]?.q
+						const uniform = frameQuad
+							? {
+								u_uvMin: k.vec2(frameQuad.x, frameQuad.y),
+								u_uvMax: k.vec2(
+									frameQuad.x + frameQuad.w,
+									frameQuad.y + frameQuad.h
+								),
+								u_seed: Math.abs(
+									room.seed + groundCell.coord.q * 37 +
+									groundCell.coord.r * 101
+								) % 10000,
+								u_edge0: groundCell.exposedEdges[0] ? 1 : 0,
+								u_edge1: groundCell.exposedEdges[1] ? 1 : 0,
+								u_edge2: groundCell.exposedEdges[2] ? 1 : 0,
+								u_edge3: groundCell.exposedEdges[3] ? 1 : 0,
+								u_edge4: groundCell.exposedEdges[4] ? 1 : 0,
+								u_edge5: groundCell.exposedEdges[5] ? 1 : 0,
+							}
+							: undefined
+						k.drawSprite({
+							sprite: RUN_ROCK_GROUND_TILE_SPRITE,
+							frame: groundCell.frame,
+							pos: groundCell.center.add(0, groundTileCenterOffsetY),
+							anchor: "center",
+							scale: k.vec2(groundTileScale, groundTileScaleY),
+							color: k.rgb(132, 110, 106),
+							opacity: 1,
+							shader: frameQuad ? "roomGroundJaggedEdge" : undefined,
+							uniform,
+						})
+					}
+					staticGroundPicture = k.endPicture()
+				}
+				k.drawPicture(staticGroundPicture, {})
+			},
+		},
+		tags.runRoom,
+		tags.runMap,
+		tags.gameLoop,
+	])
+	groundRenderer.onDestroy(() => staticGroundPicture?.free())
+
 	let staticRoomPicture: ReturnType<typeof k.endPicture> | undefined
 	const roomRenderer = k.add([
 		k.pos(0, 0),
@@ -713,17 +820,6 @@ function renderRoom(
 			draw() {
 				if (!staticRoomPicture) {
 					k.beginPicture()
-					for (const platform of groundPlatforms) {
-						k.drawSprite({
-							sprite: RUN_ROCK_GROUND_TILE_SPRITE,
-							frame: platform.frame,
-							pos: platform.center.add(0, groundTileCenterOffsetY),
-							anchor: "center",
-							scale: k.vec2(groundTileScale, groundTileScaleY),
-							color: k.rgb(112, 92, 88),
-							opacity: 0.82,
-						})
-					}
 					for (const wall of walls) {
 						k.drawSprite({
 							sprite: RUN_ROCK_TILE_SPRITE,
@@ -848,6 +944,7 @@ function renderRoom(
 		tags.runMap,
 		tags.gameLoop,
 	])
+	spawnRoomGroundShadowRenderer(grid, groundCoordKeys)
 	roomRenderer.onDestroy(() => staticRoomPicture?.free())
 }
 
@@ -984,7 +1081,8 @@ function spawnResidentRoomEnemies(
 		enemy.arrivalMode === "resident"
 	) ?? []
 	for (const entry of entries) {
-		const slot = template.spawnSlots[entry.spawnSlot % template.spawnSlots.length]
+		const slot = entry.spawnCoord ??
+			template.spawnSlots[entry.spawnSlot % template.spawnSlots.length]
 		if (!slot) {
 			markFloorEnemyDefeated(entry.id)
 			continue
@@ -1007,7 +1105,8 @@ function spawnRoomWave(
 	const fleetJumpDirection = getFleetJumpDirection(room.seed)
 	for (let index = 0; index < entries.length; index++) {
 		const entry = entries[index]
-		const slot = template.spawnSlots[entry.spawnSlot % template.spawnSlots.length]
+		const slot = entry.spawnCoord ??
+			template.spawnSlots[entry.spawnSlot % template.spawnSlots.length]
 		if (!slot) {
 			markFloorEnemyDefeated(entry.id)
 			continue
@@ -1162,7 +1261,12 @@ function spawnRoomContent(
 		return
 	}
 	if (room.kind === "deposit") {
-		spawnDebreeDeposit(center, {
+		const depositCoord = getRoomStampWorldObjectCoord(
+			room,
+			template.center,
+			"debris-deposit"
+		) ?? template.center
+		spawnDebreeDeposit(grid.hexToScreen(depositCoord), {
 			available: () => !room.contentCompleted,
 			onDeposit: () => markCurrentRoomContentCompleted(),
 			tags: objectTags,
@@ -1365,6 +1469,7 @@ function spawnMiniBossRoom(
 	const depth = floor?.depth ?? 1
 	const wakeFloor = floor?.themeId === "wake-scrap-district"
 	const wakeMiniBoss = wakeFloor ? getWakeMiniBossForDepth(depth) : undefined
+	const wakeMiniBossHealth = getWakeMiniBossHealthForDepth(depth)
 	const miniBossId: PsionicPlateMiniBossId = wakeMiniBoss ?? "impact-ace"
 	const visual = wakeFloor
 		? getEnemyVisual(wakeMiniBoss!)
@@ -1384,7 +1489,7 @@ function spawnMiniBossRoom(
 		onCleared()
 	}
 	if (wakeMiniBoss === "wake-magnet-maw") {
-		spawnMagnetMaw(center, (20 + depth * 2) * 20, {
+		spawnMagnetMaw(center, wakeMiniBossHealth, {
 			persistOffscreen: true,
 			tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
 			onDefeated,
@@ -1396,13 +1501,13 @@ function spawnMiniBossRoom(
 		jumpDirection
 	) => {
 		const enemy = wakeMiniBoss === "wake-railbreaker-rig"
-			? spawnRailbreakerRig(center, (20 + depth * 2) * 20, {
+			? spawnRailbreakerRig(center, wakeMiniBossHealth, {
 				persistOffscreen: true,
 				tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
 				onDefeated,
 			})
 			: wakeFloor
-				? spawnBoilerHulk(center, (20 + depth * 2) * 20, {
+				? spawnBoilerHulk(center, wakeMiniBossHealth, {
 				persistOffscreen: true,
 				tags: [tags.runMap, tags.runRoom, tags.runRoomEnemy],
 				onDefeated,
@@ -1953,6 +2058,7 @@ function spawnRoomGravityShrine(center: Vec2, room: RoomFloorRoom) {
 		k.color(205, 185, 255),
 		k.layer(layers.buildings),
 		interactable(60, enterShrine),
+		{ groundShadowMode: "ground" as const },
 		tags.props,
 		tags.gameLoop,
 		...objectTags,

@@ -100,9 +100,9 @@ export function spawnPlannedEnemy(
 		case "wake-clampback": return spawnClampback(pos, 14, options)
 		case "wake-fuse-rat": return spawnFuseRat(pos, 8, options)
 		case "wake-shredder-skiff": return spawnShredderSkiff(pos, 16, options)
-		case "wake-boiler-hulk": return spawnBoilerHulk(pos, 40, options)
-		case "wake-magnet-maw": return spawnMagnetMaw(pos, 48, options)
-		case "wake-railbreaker-rig": return spawnRailbreakerRig(pos, 48, options)
+		case "wake-boiler-hulk": return spawnBoilerHulk(pos, 20, options)
+		case "wake-magnet-maw": return spawnMagnetMaw(pos, 24, options)
+		case "wake-railbreaker-rig": return spawnRailbreakerRig(pos, 24, options)
 	}
 }
 

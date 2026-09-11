@@ -35,7 +35,7 @@ export interface RailbreakerRigSpawnOptions extends EnemySpawnOptions {
 
 export function spawnRailbreakerRig(
 	pos: Vec2,
-	hp = 240,
+	hp = 120,
 	options: RailbreakerRigSpawnOptions = {}
 ) {
 	const profile = createEnemySpawnProfile(hp, 3, RAILBREAKER_VISUAL.worldScale, options)

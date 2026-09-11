@@ -19,13 +19,12 @@ export interface CadencedSystem<T extends CadencedEntry> {
 }
 
 interface InternalCadencedSystem {
-	update: (delta: number, frame: number) => void
+	update: (delta: number) => void
 	clear: () => void
 }
 
 const TARGET_FRAME_RATE = 60
 const systems: InternalCadencedSystem[] = []
-let cadenceFrame = 0
 
 export function createCadencedSystem<T extends CadencedEntry>(
 	options: CadencedSystemOptions<T>
@@ -39,29 +38,46 @@ export function createCadencedSystem<T extends CadencedEntry>(
 		() => new DensePool<T>((entry) => entry.owner.id)
 	)
 	const elapsedByBucket = new Array(intervalFrames).fill(0) as number[]
+	const bucketStep = 1 / TARGET_FRAME_RATE
+	let bucketAccumulator = 0
+	let nextBucketIndex = 0
 
 	const system: InternalCadencedSystem = {
-		update(delta, frame) {
+		update(delta) {
+			const elapsed = Math.max(0, delta)
 			for (let index = 0; index < intervalFrames; index++) {
-				elapsedByBucket[index] += delta
+				elapsedByBucket[index] += elapsed
 			}
-			const bucketIndex = frame % intervalFrames
-			const bucket = buckets[bucketIndex]
-			if (bucket.size === 0) {
-				elapsedByBucket[bucketIndex] = 0
-				return
+			bucketAccumulator += elapsed
+			const dueBucketTicks = Math.floor(
+				(bucketAccumulator + 0.000000001) / bucketStep
+			)
+			if (dueBucketTicks <= 0) return
+			bucketAccumulator -= dueBucketTicks * bucketStep
+
+			const dueBuckets = Math.min(dueBucketTicks, intervalFrames)
+			for (let offset = 0; offset < dueBuckets; offset++) {
+				const bucketIndex = (nextBucketIndex + offset) % intervalFrames
+				updateBucket(bucketIndex)
 			}
-			const elapsed = elapsedByBucket[bucketIndex]
-			elapsedByBucket[bucketIndex] = 0
-			profileSection(`cadence:${options.id}`, () => {
-				bucket.withItems((entries) => options.updateBucket(entries, elapsed))
-			})
-			setPerformanceCounter(`cadence:${options.id}:count`, bucket.size)
+			nextBucketIndex = (nextBucketIndex + dueBucketTicks) % intervalFrames
 		},
 		clear() {
 			for (const bucket of buckets) bucket.clear()
 			elapsedByBucket.fill(0)
+			bucketAccumulator = 0
+			nextBucketIndex = 0
 		},
+	}
+	const updateBucket = (bucketIndex: number) => {
+		const bucket = buckets[bucketIndex]
+		const elapsed = elapsedByBucket[bucketIndex]
+		elapsedByBucket[bucketIndex] = 0
+		if (bucket.size === 0) return
+		profileSection(`cadence:${options.id}`, () => {
+			bucket.withItems((entries) => options.updateBucket(entries, elapsed))
+		})
+		setPerformanceCounter(`cadence:${options.id}:count`, bucket.size)
 	}
 	systems.push(system)
 
@@ -79,13 +95,9 @@ export function createCadencedSystem<T extends CadencedEntry>(
 }
 
 export function updateCadencedSystems(delta: number) {
-	cadenceFrame++
-	for (let index = 0; index < systems.length; index++) {
-		systems[index].update(delta, cadenceFrame)
-	}
+	for (let index = 0; index < systems.length; index++) systems[index].update(delta)
 }
 
 export function clearCadencedSystemEntries() {
 	for (const system of systems) system.clear()
-	cadenceFrame = 0
 }

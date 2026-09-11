@@ -29,6 +29,7 @@ interface SpawnBuildingOptions {
 	scale?: number;
 	interactPromptOffset?: Vec2;
 	interactionPrompt?: InteractionPromptSource | false;
+	groundShadowMode?: "default" | "ground";
 	tags?: string[];
 }
 
@@ -51,6 +52,7 @@ export function spawnBuilding(
 			title: "INTERACTION",
 			action: "INTERACT",
 		},
+		groundShadowMode = "default",
 		tags: objectTags = [],
 	} = options;
 
@@ -64,6 +66,7 @@ export function spawnBuilding(
 		k.z(z),
 		k.scale(scale),
 		interactable(interactRadius, onInteract),
+		{ groundShadowMode },
 		tags.gameLoop,
 		tags.props,
 		tags.runtimeCullable,

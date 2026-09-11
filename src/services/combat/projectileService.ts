@@ -33,6 +33,7 @@ import {
 	lerpAngleBetweenPos,
 	steerMoveRotateAndLean,
 } from "../../shared";
+import { frameRateIndependentBlend } from "../core/frameRateService"
 import { resolveCriticalDamage } from "../../projectiles/shared";
 import type {
 	AccelerateModifier,
@@ -130,7 +131,10 @@ import {
 	getTargetWorldPosition,
 	isProjectileTargetForTags,
 } from "./targetingService";
-import { PROJECTILE_VISUALS } from "../../visuals/projectileVisualCatalog";
+import {
+	getMinimumProjectileVisualScale,
+	PROJECTILE_VISUALS,
+} from "../../visuals/projectileVisualCatalog";
 import { updateRocketGuidance } from "./rocketGuidanceService"
 import { applyEnemyEmpDisruption } from "../enemies/enemyEmpService"
 import type { CombatCredit } from "../progression/combatCredit"
@@ -177,11 +181,20 @@ function getProjectileVisualScale(config: ProjectileConfig) {
 		!STANDARD_SCALE_PROJECTILE_SPRITES.has(config.sprite)
 			? PLAYER_BULLET_SCALE_MULTIPLIER
 			: 1
-	return isPlayerProjectile
+	const baseScale = isPlayerProjectile
 		? PLAYER_PROJECTILE_SCALE *
 			(config.visualScale ?? 1) *
 			playerBulletScaleMultiplier
 		: PROJECTILE_VISUALS.enemy.worldScale * (config.visualScale ?? 1)
+	if (isPlayerProjectile || !config.tags.includes(tags.enemy)) return baseScale
+	const sprite = k.getSprite(config.sprite)?.data
+	return getMinimumProjectileVisualScale(
+		baseScale,
+		sprite?.width ?? 0,
+		sprite?.height ?? 0,
+		config.visualLengthScale ?? 1,
+		config.visualPulse?.amplitude ?? 0
+	)
 }
 
 interface KnockbackImpulse {
@@ -1098,7 +1111,7 @@ function updateMovement(proj: GameObj) {
 			proj.angle,
 			proj.pos,
 			targetPosition,
-			turnStrength,
+			frameRateIndependentBlend(turnStrength, k.dt()),
 			-90
 		);
 		const wiggleAngle = getWiggleAngle(proj);
@@ -1283,7 +1296,10 @@ function updateSeekingAngle(proj: GameObj) {
 		proj.angle,
 		proj.pos,
 		getTargetWorldPosition(proj.targetUnit),
-		proj.turnSpeed * timeScale * proj.getTimescale(),
+		frameRateIndependentBlend(
+			proj.turnSpeed * timeScale * proj.getTimescale(),
+			k.dt()
+		),
 		-90
 	);
 	proj.angle = lerp;

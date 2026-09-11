@@ -1,7 +1,7 @@
 export const RUN_ROCK_TILE_SPRITE = "run_rock_high"
 export const RUN_ROCK_TILE_SOURCE_RADIUS = 32
 export const RUN_ROCK_TILE_ANCHOR_Y = 32
-export const RUN_ROCK_PROJECTION_Y_SCALE = 11 / 24
+export const RUN_ROCK_TILE_VARIANTS = 2
 
 const TILE_FRAME_BY_PIXEL_MASK = new Map<number, number>([
 	[0, 0],
@@ -40,7 +40,10 @@ const TILE_FRAME_BY_PIXEL_MASK = new Map<number, number>([
 export function getRunRockTileFrame(exposedMask: number, hash: number) {
 	const pixelMask = reverseHexEdgeMask(exposedMask & 0b111111)
 	const directFrame = TILE_FRAME_BY_PIXEL_MASK.get(pixelMask)
-	if (directFrame !== undefined) return directFrame
+	if (directFrame !== undefined) {
+		return directFrame * RUN_ROCK_TILE_VARIANTS +
+			Math.abs(hash) % RUN_ROCK_TILE_VARIANTS
+	}
 
 	const compatibleMasks = [...TILE_FRAME_BY_PIXEL_MASK.keys()]
 		.filter((candidate) => (candidate & pixelMask) === candidate)
@@ -50,7 +53,8 @@ export function getRunRockTileFrame(exposedMask: number, hash: number) {
 		(candidate) => countBits(candidate) === strongestMatch
 	)
 	const selectedMask = matches[Math.abs(hash) % matches.length] ?? 0
-	return TILE_FRAME_BY_PIXEL_MASK.get(selectedMask) ?? 0
+	return (TILE_FRAME_BY_PIXEL_MASK.get(selectedMask) ?? 0) *
+		RUN_ROCK_TILE_VARIANTS + Math.abs(hash) % RUN_ROCK_TILE_VARIANTS
 }
 
 function reverseHexEdgeMask(mask: number) {

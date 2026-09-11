@@ -29,7 +29,7 @@ export interface MagnetMawSpawnOptions extends EnemySpawnOptions {
 
 export function spawnMagnetMaw(
 	pos: Vec2,
-	hp = 240,
+	hp = 120,
 	options: MagnetMawSpawnOptions = {}
 ) {
 	const profile = createEnemySpawnProfile(hp, 2, MAGNET_MAW_VISUAL.worldScale, options)
@@ -51,6 +51,7 @@ export function spawnMagnetMaw(
 		{
 			hb: 25 * profile.scale,
 			damage: profile.damage,
+			groundShadowMode: "ground" as const,
 			fieldPhase: "cooldown" as "charge" | "pull" | "release" | "cooldown" | "disabled",
 			fieldTimer: 1.5,
 			deathSequenceActive: false,

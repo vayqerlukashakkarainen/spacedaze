@@ -22,6 +22,9 @@ const MIN_FLIGHT_TIME = 0.9
 const MAX_FLIGHT_TIME = 3.2
 const SLEEP_SPEED = 7
 const SLEEP_ANGULAR_SPEED = 14
+const PART_SHADOW_HEIGHT = 14
+const PART_SHADOW_OPACITY = 0.48
+const PART_SHADOW_SCALE = 0.85
 const ENEMY_DEATH_WRECKAGE_SPRITES = [
 	"enemy_fighter_core",
 	"enemy_fighter_left_wing",
@@ -76,12 +79,33 @@ const spatialBucketsByRoom = new Map<string, Map<string, Set<number>>>()
 const activeParts = new Map<number, GameObj>()
 let activeRoomId: string | undefined
 let roomRenderer: GameObj | undefined
+let roomShadowRenderer: GameObj | undefined
 let nextPartId = 1
 let clearing = false
 
 export function activatePersistentShipPartRoom(roomId: string) {
 	activeRoomId = roomId
 	if (roomRenderer?.exists()) k.destroy(roomRenderer)
+	if (roomShadowRenderer?.exists()) k.destroy(roomShadowRenderer)
+	const shadowRenderer = k.add([
+		k.pos(),
+		k.layer(layers.game2),
+		k.z(2),
+		{
+			draw() {
+				drawSleepingPartShadows(roomId)
+			},
+		},
+		tags.runRoom,
+		tags.runMap,
+		tags.gameLoop,
+	])
+	roomShadowRenderer = shadowRenderer
+	shadowRenderer.onDestroy(() => {
+		if (roomShadowRenderer?.id === shadowRenderer.id) {
+			roomShadowRenderer = undefined
+		}
+	})
 	const renderer = k.add([
 		k.pos(),
 		k.layer(layers.gameEffects),
@@ -111,6 +135,8 @@ export function clearPersistentShipParts() {
 	activeRoomId = undefined
 	if (roomRenderer?.exists()) k.destroy(roomRenderer)
 	roomRenderer = undefined
+	if (roomShadowRenderer?.exists()) k.destroy(roomShadowRenderer)
+	roomShadowRenderer = undefined
 	nextPartId = 1
 	clearing = false
 	updateCounters()
@@ -335,6 +361,9 @@ function spawnActivePart(
 			elapsed: 0,
 			trailTimer: 0,
 			bounced: false,
+			groundShadowHeight: PART_SHADOW_HEIGHT,
+			groundShadowOpacity: PART_SHADOW_OPACITY,
+			groundShadowScale: PART_SHADOW_SCALE,
 		},
 		tags.props,
 		tags.runRoom,
@@ -418,11 +447,52 @@ function sleepActivePart(part: GameObj, state: ActivePartState) {
 }
 
 function drawSleepingParts(roomId: string) {
+	const drawn = visitVisibleSleepingParts(roomId, (record) => {
+		k.drawSprite({
+			sprite: record.sprite,
+			pos: record.position,
+			angle: record.angle,
+			anchor: "center",
+			scale: k.vec2(record.scale),
+		})
+	})
+	updateCounters(drawn)
+}
+
+function drawSleepingPartShadows(roomId: string) {
+	visitVisibleSleepingParts(roomId, (record) => {
+		const sprite = k.getSprite(record.sprite)?.data
+		if (!sprite) return
+		const diameter = Math.max(sprite.width, sprite.height) * record.scale
+		const heightScale = k.clamp(1 - PART_SHADOW_HEIGHT * 0.012, 0.6, 1)
+		const radiusX = k.clamp(
+			diameter * 0.325 * heightScale * PART_SHADOW_SCALE,
+			3,
+			18
+		)
+		k.drawEllipse({
+			pos: record.position.add(
+				0,
+				k.clamp(radiusX * 1.15 + PART_SHADOW_HEIGHT, 8, 28)
+			),
+			radiusX,
+			radiusY: Math.max(1.5, radiusX * 0.39),
+			anchor: "center",
+			color: k.BLACK,
+			opacity: PART_SHADOW_OPACITY *
+				k.clamp(1 - PART_SHADOW_HEIGHT * 0.01, 0.65, 1),
+		})
+	})
+}
+
+function visitVisibleSleepingParts(
+	roomId: string,
+	visitor: (record: PersistentShipPartRecord) => void
+) {
 	const records = recordsByRoom.get(roomId)
 	const buckets = spatialBucketsByRoom.get(roomId)
 	if (!records || !buckets) {
-		updateCounters(0)
-		return
+		return 0
 	}
 	const camera = k.getCamPos()
 	const cameraScale = k.getCamScale()
@@ -452,20 +522,14 @@ function drawSleepingParts(roomId: string) {
 					record.position.y < minY ||
 					record.position.y > maxY
 				) continue
-				k.drawSprite({
-					sprite: record.sprite,
-					pos: record.position,
-					angle: record.angle,
-					anchor: "center",
-					scale: k.vec2(record.scale),
-				})
+				visitor(record)
 				drawn++
 			}
 			if (drawn >= MAX_DRAWN_PARTS) break
 		}
 		if (drawn >= MAX_DRAWN_PARTS) break
 	}
-	updateCounters(drawn)
+	return drawn
 }
 
 function updateRecordTransform(

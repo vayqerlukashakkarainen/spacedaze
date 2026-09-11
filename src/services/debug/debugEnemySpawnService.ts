@@ -307,13 +307,13 @@ function spawnDebugEnemy(type: DebugEnemyType, pos: Vec2) {
 			spawnShredderSkiff(pos, 16, persistOptions)
 			return
 		case "boiler-hulk":
-			spawnBoilerHulk(pos, 40, persistOptions)
+			spawnBoilerHulk(pos, 20, persistOptions)
 			return
 		case "magnet-maw":
-			spawnMagnetMaw(pos, 48, persistOptions)
+			spawnMagnetMaw(pos, 24, persistOptions)
 			return
 		case "railbreaker-rig":
-			spawnRailbreakerRig(pos, 48, persistOptions)
+			spawnRailbreakerRig(pos, 24, persistOptions)
 			return
 		case "yardmaster":
 			spawnYardmaster(pos, 750)

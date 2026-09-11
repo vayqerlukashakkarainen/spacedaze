@@ -2,6 +2,7 @@ import type { AudioPlay, Vec2 } from "kaplay"
 import { isSnareMotionActive, snareable } from "../../comp/snareable"
 import { k, layers, mainSoundVolume } from "../../main"
 import { gameSoundService } from "../../services/audio/gameSoundService"
+import { exponentialBlend } from "../../services/core/frameRateService"
 import { tags } from "../../tags"
 
 const REPAIR_DRONE_COUNT = 6
@@ -120,7 +121,10 @@ export function spawnHubRepairCrew(phaseStationPos: Vec2): HubRepairCrew {
 							Math.cos(repairAngle) * (42 + index % 2 * 10),
 							Math.sin(repairAngle) * (30 + index % 3 * 8)
 						)
-						this.pos = this.pos.lerp(destination, Math.min(1, k.dt() * 2.5))
+						this.pos = this.pos.lerp(
+							destination,
+							exponentialBlend(2.5, k.dt())
+						)
 					} else {
 						if (wasRepairing) {
 							wasRepairing = false

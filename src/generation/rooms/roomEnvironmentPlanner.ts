@@ -4,7 +4,6 @@ import {
 	hexDistance,
 	hexKey,
 	hexNeighbors,
-	rotateHexCoord,
 	type HexCoord,
 } from "../hexUtils"
 import { SeededRNG } from "../seededRng"
@@ -14,13 +13,18 @@ import type {
 	RoomEnvironmentObjectPlan,
 	RoomEnvironmentPlan,
 	RoomFloorRoom,
-	RoomGroundPlatformPlan,
 	RoomScrapFieldPlan,
 } from "./roomFloorTypes"
 import {
 	getRoomProtectedCellKeys,
-	ROOM_CELL_RADIUS,
+	getRoomCellRadius,
+	getRoomCenter,
+	getRoomUsableAreaScale,
 } from "./roomTemplateBuilder"
+import {
+	getRoomStampPlans,
+	getRoomStampReservedCellKeys,
+} from "./roomStampPlanner"
 
 interface PlacementRequest {
 	archetypeId: RoomEnvironmentArchetypeId
@@ -29,26 +33,40 @@ interface PlacementRequest {
 	health?: number
 }
 
-const CENTER = { q: ROOM_CELL_RADIUS, r: ROOM_CELL_RADIUS }
-
 export function planRoomEnvironment(
 	room: RoomFloorRoom,
 	themeId: FloorThemeId,
 	subfloor = 1
 ): RoomEnvironmentPlan {
 	if (themeId !== "wake-scrap-district") return { objects: [] }
+	const center = getRoomCenter(room)
+	const radius = getRoomCellRadius(room)
 	const wakeSubfloor = Math.max(1, Math.min(5, Math.floor(subfloor)))
 	const rng = new SeededRNG(room.seed ^ 0x45f19)
-	const groundPlatforms = planGroundPlatforms(room)
-	const scrapFields = planScrapFields(room, rng, wakeSubfloor)
-	const reserved = new Set(scrapFields.flatMap((field) => [
+	const hasStamp = getRoomStampPlans(room).length > 0
+	const scrapFields = hasStamp
+		? []
+		: planScrapFields(room, rng, wakeSubfloor, center, radius)
+	const reserved = getRoomStampReservedCellKeys(room, center)
+	for (const key of scrapFields.flatMap((field) => [
 		hexKey(field.center),
 		...field.scrap.map((piece) => hexKey(piece.coord)),
-	]))
-	const barrelCluster = planVolatileCluster(room, rng, reserved, wakeSubfloor)
+	])) reserved.add(key)
+	const barrelCluster = hasStamp
+		? []
+		: planVolatileCluster(room, rng, reserved, wakeSubfloor, center, radius)
 	for (const barrel of barrelCluster) reserved.add(hexKey(barrel.coord))
-	const requests = getWakePlacementRequests(room, rng, wakeSubfloor)
-	const candidates = getPlacementCandidates(room, rng, wakeSubfloor).filter(
+	const requests = scalePlacementRequests(
+		getWakePlacementRequests(room, rng, wakeSubfloor),
+		getRoomUsableAreaScale(room)
+	)
+	const candidates = getPlacementCandidates(
+		room,
+		rng,
+		wakeSubfloor,
+		center,
+		radius
+	).filter(
 		(coord) => !reserved.has(hexKey(coord))
 	)
 	const selected: HexCoord[] = scrapFields.flatMap((field) => [
@@ -77,88 +95,31 @@ export function planRoomEnvironment(
 		}
 	}
 
-	return { objects, groundPlatforms, scrapFields }
-}
-
-function planGroundPlatforms(room: RoomFloorRoom): RoomGroundPlatformPlan[] {
-	const rng = new SeededRNG(room.seed ^ 0x67a91)
-	const targetSize = getGroundPlatformSize(room, rng)
-	const cells = new Map<string, HexCoord>([[hexKey(CENTER), { ...CENTER }]])
-
-	while (cells.size < targetSize) {
-		const frontier = new Map<string, HexCoord>()
-		for (const cell of cells.values()) {
-			for (const neighbor of hexNeighbors(cell)) {
-				const key = hexKey(neighbor)
-				if (
-					cells.has(key) ||
-					hexDistance(neighbor, CENTER) > 3 ||
-					!isInteriorCoord(neighbor)
-				) continue
-				frontier.set(key, neighbor)
-			}
-		}
-		const candidates = [...frontier.values()].map((coord) => ({
-			coord,
-			neighbors: hexNeighbors(coord).filter((neighbor) =>
-				cells.has(hexKey(neighbor))
-			).length,
-		}))
-		if (candidates.length === 0) break
-		const preferredNeighborCount = rng.nextBool(0.58) ? 1 : 2
-		const preferred = candidates.filter((candidate) =>
-			candidate.neighbors === preferredNeighborCount
-		)
-		const pool = preferred.length > 0 ? preferred : candidates
-		const selected = rng.choice(pool).coord
-		cells.set(hexKey(selected), selected)
-	}
-
-	const rotation = rng.nextInt(0, 6)
-	const rotatedCells = [...cells.values()]
-		.map((coord) => {
-			const offset = rotateHexCoord({
-				q: coord.q - CENTER.q,
-				r: coord.r - CENTER.r,
-			}, rotation)
-			return { q: CENTER.q + offset.q, r: CENTER.r + offset.r }
-		})
-		.sort((a, b) => a.r - b.r || a.q - b.q)
-
-	return [{
-		id: `${room.id}-ground-platform-0`,
-		style: "wake-rock",
-		cells: rotatedCells,
-	}]
-}
-
-function getGroundPlatformSize(room: RoomFloorRoom, rng: SeededRNG) {
-	if (room.kind === "boss") return rng.nextInt(18, 23)
-	if (room.kind === "miniBoss") return rng.nextInt(15, 20)
-	if (room.kind === "combat" || room.kind === "event") return rng.nextInt(12, 18)
-	return rng.nextInt(9, 14)
+	return { objects, scrapFields }
 }
 
 function planVolatileCluster(
 	room: RoomFloorRoom,
 	rng: SeededRNG,
 	reserved: ReadonlySet<string>,
-	subfloor: number
+	subfloor: number,
+	center: HexCoord,
+	radius: number
 ): RoomEnvironmentObjectPlan[] {
 	if (
 		room.kind !== "combat" ||
 		room.distanceFromStart < 1 ||
 		!rng.nextBool(0.3)
 	) return []
-	const protectedCells = getRoomProtectedCellKeys(room, CENTER)
-	const anchors = rng.shuffle(getInteriorCoords().filter((coord) =>
-		hexDistance(coord, CENTER) >= 2 &&
+	const protectedCells = getRoomProtectedCellKeys(room, center)
+	const anchors = rng.shuffle(getInteriorCoords(center, radius).filter((coord) =>
+		hexDistance(coord, center) >= 2 &&
 		!protectedCells.has(hexKey(coord)) &&
 		!reserved.has(hexKey(coord))
 	))
 	for (const anchor of anchors) {
 		const neighbors = rng.shuffle(hexNeighbors(anchor).filter((coord) =>
-			isInteriorCoord(coord) &&
+			isInteriorCoord(coord, center, radius) &&
 			!protectedCells.has(hexKey(coord)) &&
 			!reserved.has(hexKey(coord))
 		))
@@ -182,34 +143,36 @@ function planVolatileCluster(
 function planScrapFields(
 	room: RoomFloorRoom,
 	rng: SeededRNG,
-	subfloor: number
+	subfloor: number,
+	center: HexCoord,
+	radius: number
 ): RoomScrapFieldPlan[] {
 	if (
 		room.kind !== "combat" ||
 		room.distanceFromStart < 1 ||
 		!rng.nextBool([0.2, 0.46, 0.24, 0.18, 0.34][subfloor - 1] ?? 0.32)
 	) return []
-	const protectedCells = getRoomProtectedCellKeys(room, CENTER)
-	const centers = rng.shuffle(getInteriorCoords().filter((coord) => {
+	const protectedCells = getRoomProtectedCellKeys(room, center)
+	const centers = rng.shuffle(getInteriorCoords(center, radius).filter((coord) => {
 		if (
-			hexDistance(coord, CENTER) < 2 ||
-			hexDistance(coord, CENTER) > 3 ||
+			hexDistance(coord, center) < 2 ||
+			hexDistance(coord, center) > Math.max(3, radius - 2) ||
 			protectedCells.has(hexKey(coord))
 		) return false
 		return hexNeighbors(coord).every((neighbor) =>
-			isInteriorCoord(neighbor) &&
+			isInteriorCoord(neighbor, center, radius) &&
 			!protectedCells.has(hexKey(neighbor))
 		)
 	}))
-	const center = centers[0]
-	if (!center) return []
-	const fieldSeed = room.seed ^ center.q * 193 ^ center.r * 389 ^ 0x5ca9
+	const fieldCenter = centers[0]
+	if (!fieldCenter) return []
+	const fieldSeed = room.seed ^ fieldCenter.q * 193 ^ fieldCenter.r * 389 ^ 0x5ca9
 	return [{
 		id: `${room.id}-scrap-field-0`,
-		center: { ...center },
+		center: { ...fieldCenter },
 		seed: fieldSeed,
 		rewardTier: Math.min(3, 1 + Math.floor(room.distanceFromStart / 3)),
-		scrap: hexNeighbors(center).map((coord, index) => ({
+		scrap: hexNeighbors(fieldCenter).map((coord, index) => ({
 			id: `${room.id}-scrap-field-0-piece-${index}`,
 			coord: { ...coord },
 			orientation: rng.nextInt(0, 6),
@@ -218,23 +181,23 @@ function planScrapFields(
 	}]
 }
 
-function getInteriorCoords() {
+function getInteriorCoords(center: HexCoord, radius: number) {
 	const coords: HexCoord[] = []
-	for (let q = 0; q < ROOM_CELL_RADIUS * 2 + 1; q++) {
-		for (let r = 0; r < ROOM_CELL_RADIUS * 2 + 1; r++) {
+	for (let q = 0; q < radius * 2 + 1; q++) {
+		for (let r = 0; r < radius * 2 + 1; r++) {
 			const coord = { q, r }
-			if (isInteriorCoord(coord)) coords.push(coord)
+			if (isInteriorCoord(coord, center, radius)) coords.push(coord)
 		}
 	}
 	return coords
 }
 
-function isInteriorCoord(coord: HexCoord) {
+function isInteriorCoord(coord: HexCoord, center: HexCoord, radius: number) {
 	return coord.q >= 0 &&
 		coord.r >= 0 &&
-		coord.q < ROOM_CELL_RADIUS * 2 + 1 &&
-		coord.r < ROOM_CELL_RADIUS * 2 + 1 &&
-		hexDistance(coord, CENTER) < ROOM_CELL_RADIUS
+		coord.q < radius * 2 + 1 &&
+		coord.r < radius * 2 + 1 &&
+		hexDistance(coord, center) < radius
 }
 
 function getWakePlacementRequests(
@@ -348,6 +311,19 @@ function getWakePlacementRequests(
 	return []
 }
 
+function scalePlacementRequests(
+	requests: PlacementRequest[],
+	areaScale: number
+) {
+	const densityScale = 1 + Math.max(0, areaScale - 1) * 0.65
+	return requests.map((request) => ({
+		...request,
+		count: request.count === 0
+			? 0
+			: Math.max(1, Math.round(request.count * densityScale)),
+	}))
+}
+
 const WAKE_DESTRUCTIBLE_COVER_ARCHETYPES: readonly RoomEnvironmentArchetypeId[] = [
 	"wake-hull-barricade",
 	"wake-salvage-cluster",
@@ -451,17 +427,19 @@ function getWakeTrapPlacementRequest(
 function getPlacementCandidates(
 	room: RoomFloorRoom,
 	rng: SeededRNG,
-	subfloor: number
+	subfloor: number,
+	center: HexCoord,
+	radius: number
 ) {
-	const protectedCells = getRoomProtectedCellKeys(room, CENTER)
+	const protectedCells = getRoomProtectedCellKeys(room, center)
 	const candidates: HexCoord[] = []
-	for (let q = 0; q < ROOM_CELL_RADIUS * 2 + 1; q++) {
-		for (let r = 0; r < ROOM_CELL_RADIUS * 2 + 1; r++) {
+	for (let q = 0; q < radius * 2 + 1; q++) {
+		for (let r = 0; r < radius * 2 + 1; r++) {
 			const coord = { q, r }
-			const distance = hexDistance(coord, CENTER)
+			const distance = hexDistance(coord, center)
 			if (
 				distance < 2 ||
-				distance > ROOM_CELL_RADIUS - 2 ||
+				distance > radius - 2 ||
 				protectedCells.has(hexKey(coord))
 			) continue
 			candidates.push(coord)
@@ -469,32 +447,37 @@ function getPlacementCandidates(
 	}
 	const randomized = rng.shuffle(candidates).map((coord, index) => ({ coord, index }))
 	return randomized.sort((a, b) =>
-		getSubfloorPlacementScore(a.coord, subfloor) -
-		getSubfloorPlacementScore(b.coord, subfloor) ||
+		getSubfloorPlacementScore(a.coord, subfloor, center, radius) -
+		getSubfloorPlacementScore(b.coord, subfloor, center, radius) ||
 		a.index - b.index
 	).map(({ coord }) => coord)
 }
 
-function getSubfloorPlacementScore(coord: HexCoord, subfloor: number) {
-	const distance = hexDistance(coord, CENTER)
+function getSubfloorPlacementScore(
+	coord: HexCoord,
+	subfloor: number,
+	center: HexCoord,
+	radius: number
+) {
+	const distance = hexDistance(coord, center)
 	if (subfloor === 2) {
 		return Math.min(
-			Math.abs(coord.q - CENTER.q),
-			Math.abs(coord.r - CENTER.r),
-			Math.abs(coord.q + coord.r - CENTER.q - CENTER.r)
+			Math.abs(coord.q - center.q),
+			Math.abs(coord.r - center.r),
+			Math.abs(coord.q + coord.r - center.q - center.r)
 		)
 	}
 	if (subfloor === 3) {
 		return Math.min(
-			Math.abs(Math.abs(coord.q - CENTER.q) - 2),
-			Math.abs(Math.abs(coord.r - CENTER.r) - 2)
+			Math.abs(Math.abs(coord.q - center.q) - 2),
+			Math.abs(Math.abs(coord.r - center.r) - 2)
 		)
 	}
 	if (subfloor === 4) {
-		return Math.abs(coord.q - CENTER.q - 2) +
-			Math.abs(coord.r - CENTER.r + 1)
+		return Math.abs(coord.q - center.q - 2) +
+			Math.abs(coord.r - center.r + 1)
 	}
-	if (subfloor >= 5) return Math.abs(distance - 3)
+	if (subfloor >= 5) return Math.abs(distance - Math.max(3, radius - 3))
 	return 0
 }
 

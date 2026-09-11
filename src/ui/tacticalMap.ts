@@ -620,7 +620,7 @@ function addRunLoadoutContent(
 	props: { left: number; top: number; width: number; bottom: number }
 ) {
 	const snapshot = getGameLoopStatusSnapshot()
-	const summaryHeight = 142
+	const summaryHeight = 168
 	const summary = createUiSurface(parent, {
 		pos: k.vec2(props.left, props.top),
 		size: k.vec2(props.width, summaryHeight),
@@ -688,23 +688,28 @@ function addRunLoadoutContent(
 			color: UI_COLORS.warning,
 		},
 	]
-	const resourceWidth = (props.width - 28) / resources.length
+	const resourceColumns = 3
+	const resourceWidth = (props.width - 28) / resourceColumns
+	const resourceRowHeight = 44
 	resources.forEach((resource, index) => {
-		const x = 14 + index * resourceWidth
+		const column = index % resourceColumns
+		const row = Math.floor(index / resourceColumns)
+		const x = 14 + column * resourceWidth
+		const labelY = 78 + row * resourceRowHeight
 		summary.add([
 			k.sprite(resource.sprite, { width: 22, height: 22 }),
-			k.pos(x + 11, 96),
+			k.pos(x + 11, labelY + 18),
 			k.anchor("center"),
 			k.color(...resource.color),
 		])
 		addThemedText(summary, {
 			text: resource.label,
-			pos: k.vec2(x + 30, 78),
+			pos: k.vec2(x + 30, labelY),
 			variant: "muted",
 		})
 		addThemedText(summary, {
 			text: `${resource.value}`,
-			pos: k.vec2(x + 30, 98),
+			pos: k.vec2(x + 30, labelY + 20),
 			variant: "title",
 			color: k.rgb(...resource.color),
 		})

@@ -77,6 +77,7 @@ import { spawnHubRace } from "../spawn/npcs/spawnHubRace";
 import { getHubBurtLocation } from "../services/narrative/narrativeService";
 import { spawnHubSettlement } from "../spawn/spawnHubSettlement";
 import { spawnHubFiringRange } from "../spawn/spawnHubFiringRange";
+import { spawnHubPuzzleStamps } from "../spawn/spawnHubPuzzleYard"
 import { addBuildingPlayerDepth } from "../comp/buildingPlayerDepth";
 import {
 	addLocalLight,
@@ -230,6 +231,7 @@ export const hub: Level = {
 			firingRange.primaryWeaponsPos
 		);
 		spawnHubSettlement();
+		spawnHubPuzzleStamps(k.center())
 		const burtHomePosition = hubFacilityPositions.trainingRange.add(-260, 40);
 		const burtLocation = getHubBurtLocation();
 		const burtInitialPosition = burtLocation === "center"

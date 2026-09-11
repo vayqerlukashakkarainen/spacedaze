@@ -4,6 +4,7 @@ import { starsEmitter } from "../particles"
 import { gameSoundService } from "../services/audio/gameSoundService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import {
+	addPsionicPlates,
 	collectPsionicPlate,
 	type PsionicPlateMiniBossId,
 } from "../services/economy/psionicPlateService"
@@ -24,8 +25,9 @@ const ATTRACTION_RADIUS = 130
 const LAUNCH_DURATION = 0.58
 
 interface PsionicPlatePickupOptions {
-	miniBossId: PsionicPlateMiniBossId
-	guaranteed: boolean
+	miniBossId?: PsionicPlateMiniBossId
+	guaranteed?: boolean
+	source?: "miniBoss" | "hubPuzzle"
 	objectTags?: string[]
 	target?: GameObj<PosComp>
 }
@@ -113,7 +115,9 @@ export function spawnPsionicPlatePickup(
 		if (collected || !pickup.exists()) return
 		collected = true
 		const collectedAt = pickup.pos.clone()
-		const result = collectPsionicPlate(options.miniBossId)
+		const result = options.miniBossId
+			? collectPsionicPlate(options.miniBossId)
+			: { firstClear: false, plates: addPsionicPlates(1) }
 		saveGame("slot1")
 		starsEmitter.emitter.position = collectedAt
 		starsEmitter.emit(48)
@@ -133,7 +137,9 @@ export function spawnPsionicPlatePickup(
 		showPopover({
 			title: "PSIONIC PLATE SECURED",
 			message: "+1 PSIONIC PLATE",
-			description: result.firstClear && options.guaranteed
+			description: options.source === "hubPuzzle"
+				? "HUB PUZZLE REWARD  //  PERMANENT MAX-HULL CURRENCY"
+				: result.firstClear && options.guaranteed
 				? "FIRST-CLEAR GUARANTEE  //  PERMANENT MAX-HULL CURRENCY"
 				: "MINIBOSS SALVAGE  //  SPEND WITH THE QUARTERMASTER",
 			sprite: "psionic_plate",

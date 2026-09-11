@@ -6,6 +6,7 @@ import { explosionEmitter } from "../../particles";
 import { tags } from "../../tags";
 import { spawnThreatEncounter } from "../../services/enemies/enemyEncounterService";
 import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService";
+import { exponentialBlend } from "../../services/core/frameRateService"
 import { createChargeZoneFeedback } from "../../services/combat/chargeZoneFeedbackService";
 import {
 	addLocalLight,
@@ -51,6 +52,7 @@ export function spawnShrine(props: ShrineProps) {
 			remainingTime: props.timeLimit,
 			enemySpawnTimer: props.enemySpawnDelay ?? 1.5,
 			wavesSpawned: 0,
+			groundShadowMode: "ground" as const,
 		},
 		tags.props,
 		tags.gameLoop,
@@ -148,13 +150,21 @@ export function spawnShrine(props: ShrineProps) {
 				shrine.enemySpawnTimer += props.enemySpawnInterval;
 			}
 			// Increase circle opacity
-			circle.opacity = k.lerp(circle.opacity, 0.42, 5 * dt());
+			circle.opacity = k.lerp(
+				circle.opacity,
+				0.42,
+				exponentialBlend(5, dt())
+			);
 		} else {
 			// Player outside: decrease timer quickly
 			shrine.timer -= dt() * 3;
 			if (shrine.timer < 0) shrine.timer = 0;
 			// Decrease circle opacity
-			circle.opacity = k.lerp(circle.opacity, 0.18, 5 * dt());
+			circle.opacity = k.lerp(
+				circle.opacity,
+				0.18,
+				exponentialBlend(5, dt())
+			);
 		}
 
 		// Update timer bar

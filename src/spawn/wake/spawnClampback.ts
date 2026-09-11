@@ -5,6 +5,7 @@ import { playerObj } from "../../game"
 import { k, velocityScale } from "../../main"
 import { spawnEnemyBlaster } from "../../services/combat/projectileHelpers"
 import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
+import { frameRateIndependentBlend } from "../../services/core/frameRateService"
 import {
 	getEnemyNavigationDirection,
 	hasEnemyLineOfSight,
@@ -133,8 +134,9 @@ export function spawnClampback(
 				clampback.opacity = 1
 			}
 		} else if (clampback.phase === "recover") {
-			leftClamp.angle = k.lerp(leftClamp.angle, 0, 0.2)
-			rightClamp.angle = k.lerp(rightClamp.angle, 0, 0.2)
+			const recoveryBlend = frameRateIndependentBlend(0.2, k.dt())
+			leftClamp.angle = k.lerp(leftClamp.angle, 0, recoveryBlend)
+			rightClamp.angle = k.lerp(rightClamp.angle, 0, recoveryBlend)
 			clampback.move(playerDirection.scale(
 				-38 * profile.speedMultiplier * velocityScale() *
 				clampback.getTimescale()

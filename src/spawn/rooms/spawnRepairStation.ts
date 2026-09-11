@@ -38,6 +38,7 @@ export function spawnRepairStation(props: RepairStationProps) {
 		scale: 1,
 		interactRadius: 75,
 		interactPromptOffset: k.vec2(0, -138),
+		groundShadowMode: "ground",
 		interactionPrompt: () => ({
 			title: "REPAIR STATION",
 			action: "START REPAIR",

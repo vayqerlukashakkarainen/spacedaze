@@ -8,7 +8,10 @@ import {
 } from "./enemyVisualCatalog"
 import { PICKUP_VISUALS, SALVAGE_PICKUP_VISUALS } from "./pickupVisualCatalog"
 import { PLAYER_DIRECTIONAL_SPRITES, PLAYER_VISUAL } from "./playerVisualCatalog"
-import { PROJECTILE_VISUALS } from "./projectileVisualCatalog"
+import {
+	getMinimumProjectileVisualScale,
+	PROJECTILE_VISUALS,
+} from "./projectileVisualCatalog"
 import {
 	PROJECTILE_MODIFIER_VISUAL_RULES,
 	resolveProjectileModifierColor,
@@ -99,6 +102,10 @@ assertValidVisual("player", PLAYER_VISUAL)
 assert.equal(PLAYER_DIRECTIONAL_SPRITES.length, 8)
 assert.equal(PROJECTILE_VISUALS.player.worldScale > 0, true)
 assert.equal(PROJECTILE_VISUALS.enemy.worldScale > 0, true)
+assert.equal(PROJECTILE_VISUALS.enemy.minimumSize, 8)
+assert.equal(getMinimumProjectileVisualScale(0.65, 4, 8), 2)
+assert.equal(getMinimumProjectileVisualScale(1, 12, 12), 1)
+assert.equal(getMinimumProjectileVisualScale(1, 8, 16, 1, 0.2), 1.25)
 
 const categorizedProjectileModifiers = new Set<string>()
 for (const rule of PROJECTILE_MODIFIER_VISUAL_RULES) {

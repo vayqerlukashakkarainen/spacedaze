@@ -61,7 +61,14 @@ import {
 	toggleCommandConsole,
 } from "./ui/commandConsole";
 import { commandService } from "./services/debug/commandService";
-import { discoverAllFloorRooms } from "./services/world/roomFloorService";
+import {
+	discoverAllFloorRooms,
+	getCurrentFloorRoom,
+} from "./services/world/roomFloorService";
+import { ROOM_STAMP_CATALOG } from "./stamps/roomStampCatalog";
+import type { RoomStampId } from "./generation/rooms/roomFloorTypes";
+import { getRoomStampPlans } from "./generation/rooms/roomStampPlanner";
+import { jumpToGeneratedRoomStamp } from "./levels/roomFloorRuntime";
 import { downloadCompleteGameDump } from "./services/debug/catalogDumpService";
 import { playerObj } from "./game";
 import { recoverPlayerHealth } from "./services/player/playerHealthService";
@@ -372,7 +379,7 @@ export const musicVolume = 0.54;
 // Keep world zoom and UI zoom independent. KAPLAY's global scale controls all
 // fixed UI, while the camera compensates so changing UI_ZOOM does not alter
 // how much of the game world is visible.
-export const GAME_ZOOM = 1.8;
+export const GAME_ZOOM = 1.98;
 export const UI_ZOOM = 1;
 export const WORLD_CAMERA_SCALE = GAME_ZOOM / UI_ZOOM;
 
@@ -1434,6 +1441,38 @@ function registerDebugCommands() {
 	commandService.register("mapinfo", "Show active generated room counts", () => {
 		return getGeneratedRunSummary();
 	});
+
+	commandService.register(
+		"stamp",
+		"stamp list | current | <id> - Inspect or jump to a generated room stamp",
+		(args) => {
+			const target = args[0]?.toLowerCase() ?? "current";
+			if (target === "list") {
+				return Object.values(ROOM_STAMP_CATALOG)
+					.map((stamp) =>
+						`${stamp.id} | ${stamp.mode} | ${stamp.purposes.join(", ")}`
+					)
+					.join("\n");
+			}
+			if (target === "current") {
+				const room = getCurrentFloorRoom();
+				if (!room) return "No generated room floor is active";
+				const stamps = getRoomStampPlans(room);
+				return stamps.length > 0
+					? `${room.id} (${room.kind}): ${stamps.map((stamp) => stamp.stampId).join(", ")}`
+					: `${room.id} (${room.kind}) has no stamp`;
+			}
+			if (!(target in ROOM_STAMP_CATALOG)) {
+				return `Unknown stamp: ${target}. Use stamp list.`;
+			}
+			const roomId = jumpToGeneratedRoomStamp(target as RoomStampId);
+			if (!roomId) {
+				return `Stamp ${target} is not present on the active floor. Load another seed with map <seed>.`;
+			}
+			hideCommandConsole();
+			return `Jumped to ${target} in ${roomId}`;
+		}
+	);
 
 	commandService.register("threat", "threat [1-5|auto] - Set threat level", (args) => {
 		if (args.length === 0) {

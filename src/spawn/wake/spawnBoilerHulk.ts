@@ -45,7 +45,7 @@ export interface BoilerHulkSpawnOptions extends EnemySpawnOptions {
 
 export function spawnBoilerHulk(
 	pos: Vec2,
-	hp = 20,
+	hp = 10,
 	options: BoilerHulkSpawnOptions = {}
 ) {
 	const profile = createEnemySpawnProfile(hp, 2, BOILER_HULK_VISUAL.worldScale, options)

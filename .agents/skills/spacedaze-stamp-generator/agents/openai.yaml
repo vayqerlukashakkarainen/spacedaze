@@ -1,0 +1,4 @@
+interface:
+  display_name: "SpaceDaze Stamp Generator"
+  short_description: "Create and verify procedural room stamps"
+  default_prompt: "Use $spacedaze-stamp-generator to create and verify a SpaceDaze room stamp."

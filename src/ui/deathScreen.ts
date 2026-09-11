@@ -8,6 +8,7 @@ import {
 } from "../services/hub/hubProgressService"
 import type { RunEndSummary } from "../services/runs/runCompletionService"
 import { gameSoundService } from "../services/audio/gameSoundService"
+import { exponentialBlend } from "../services/core/frameRateService"
 import { tags } from "../tags"
 import { uiState } from "./uiState"
 import {
@@ -447,7 +448,11 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 				})
 			}
 		}
-		depositValue.scale = k.vec2(k.lerp(depositValue.scale.x, 1, k.dt() * 12))
+		depositValue.scale = k.vec2(k.lerp(
+			depositValue.scale.x,
+			1,
+			exponentialBlend(12, k.dt())
+		))
 		if (level > celebratedLevel && elapsed >= nextLevelCelebrationAt) {
 			celebratedLevel++
 			nextLevelCelebrationAt = elapsed + LEVEL_CELEBRATION_INTERVAL

@@ -2,6 +2,7 @@ import type { Vec2 } from "kaplay"
 import { k } from "../main"
 import { tags } from "../tags"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
+import { exponentialBlend } from "../services/core/frameRateService"
 
 const BASE_PLAYER_DEATH_DEBRIS_COUNT = 18
 const MAX_PLAYER_DEATH_DEBRIS_COUNT = 84
@@ -77,7 +78,10 @@ function spawnPrologueShipParts(pos: Vec2) {
 		part.onUpdate(() => {
 			part.velocity = part.velocity.scale(Math.pow(0.9, k.dt() * 60))
 			part.pos = part.pos.add(part.velocity.scale(k.dt()))
-			part.pos = part.pos.lerp(part.destination, Math.min(1, k.dt() * 1.8))
+			part.pos = part.pos.lerp(
+				part.destination,
+				exponentialBlend(1.8, k.dt())
+			)
 			part.angle += part.angularVelocity * k.dt()
 			part.angularVelocity *= Math.pow(0.97, k.dt() * 60)
 		})

@@ -27,12 +27,42 @@ export type RoomFloorKind =
 
 export type RoomFloorState = "unseen" | "discovered" | "active" | "cleared"
 
+export type RoomSizeClass = "compact" | "standard" | "arena"
+
 export type RoomIntelLevel = 0 | 1 | 2 | 3
 export type RoomDangerReward = "doubleChest" | "salvageBurst"
 export type RoomResonanceBonus = "rewardCache" | "salvageSurge" | "keyEcho" | "deepScan"
 export type RoomResonanceState = "available" | "claimed" | "expired"
 
 export type RoomEnemyArrivalMode = "resident" | "phaseJump"
+
+export type RoomStampId =
+	| "blaster-corridor"
+	| "spawner-maze"
+	| "outer-cover-pocket"
+	| "salvage-relay"
+
+export type RoomStampSpawnerProfileId =
+	| "scrappers-hut"
+	| "scrap-raiser"
+	| "swarm-hivemind"
+
+export interface RoomStampResolvedContentPlan {
+	slotId: string
+	kind: "enemy-spawner"
+	profileId: RoomStampSpawnerProfileId
+	enemyId: ProgressionEnemyId
+	coord: HexCoord
+	wave: number
+}
+
+export interface RoomStampPlan {
+	stampId: RoomStampId
+	rotation: number
+	mirrored: boolean
+	variantSeed: number
+	resolvedContent: RoomStampResolvedContentPlan[]
+}
 
 export interface RoomEnemyPlan {
 	id: string
@@ -41,6 +71,7 @@ export interface RoomEnemyPlan {
 	spawnSlot: number
 	elite: boolean
 	defeated: boolean
+	spawnCoord?: HexCoord
 	keyDropRolled?: boolean
 	arrivalMode?: RoomEnemyArrivalMode
 }
@@ -106,14 +137,7 @@ export interface RoomEnvironmentObjectPlan {
 
 export interface RoomEnvironmentPlan {
 	objects: RoomEnvironmentObjectPlan[]
-	groundPlatforms?: RoomGroundPlatformPlan[]
 	scrapFields?: RoomScrapFieldPlan[]
-}
-
-export interface RoomGroundPlatformPlan {
-	id: string
-	style: "wake-rock"
-	cells: HexCoord[]
 }
 
 export interface RoomScrapFieldPiecePlan {
@@ -147,6 +171,7 @@ export interface RoomFloorRoom {
 	id: string
 	coord: HexCoord
 	kind: RoomFloorKind
+	sizeClass?: RoomSizeClass
 	templateId: string
 	seed: number
 	distanceFromStart: number
@@ -163,6 +188,8 @@ export interface RoomFloorRoom {
 	keyRequired?: boolean
 	keyUnlocked?: boolean
 	keyRewardRolled?: boolean
+	stamp?: RoomStampPlan
+	stamps?: RoomStampPlan[]
 	environment?: RoomEnvironmentPlan
 	encounter?: RoomEncounterPlan
 	shopOffers?: RoomShopOffer[]

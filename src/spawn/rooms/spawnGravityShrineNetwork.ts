@@ -34,7 +34,11 @@ export function spawnGravityShrineNetwork(
 		const shrine = k.add([
 			k.pos(position),
 			k.layer(layers.buildings),
-			{ runtimeCullRadius: props.pullRadius + 24 },
+			{
+				hb: 28 * GRAVITY_SHRINE_VISUAL.worldScale,
+				runtimeCullRadius: props.pullRadius + 24,
+				groundShadowMode: "ground" as const,
+			},
 			tags.props,
 			tags.gameLoop,
 			tags.runtimeCullable,

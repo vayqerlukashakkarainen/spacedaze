@@ -63,6 +63,7 @@ export function spawnScrappersHut(
 			baseScale: profile.scale,
 			runtimeCullRadius: 72 * profile.scale,
 			threatRank: ENEMY_THREAT_RANK.heavyVehicle,
+			groundShadowMode: "ground" as const,
 		},
 		tags.enemy,
 		tags.unit,

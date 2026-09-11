@@ -37,6 +37,7 @@ export function spawnDamageShrine(props: DamageShrineProps) {
 			damageReceived: 0,
 			maxHealth: props.health,
 			depleteRate: props.depleteRate,
+			groundShadowMode: "ground" as const,
 		},
 		tags.enemy,
 		tags.props,

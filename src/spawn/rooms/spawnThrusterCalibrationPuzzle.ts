@@ -142,6 +142,7 @@ function spawnCalibrationRig(center: Vec2, extraTags: string[]) {
 		k.color(k.WHITE),
 		k.layer(layers.game2),
 		k.z(1),
+		{ groundShadowMode: "ground" as const },
 		tags.props,
 		tags.runMap,
 		tags.runRoom,

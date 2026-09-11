@@ -10,6 +10,9 @@ import {
 	selectFloorMusicTrack,
 	shouldSpawnBossRoomForDepth,
 } from "../../levels/floorThemes/floorThemeDirectory"
+import { getRoomCellRadius, getRoomCenter } from "../rooms/roomTemplateBuilder"
+import { getRoomStampPlans } from "../rooms/roomStampPlanner"
+import { getRoomStampDefinition } from "../../stamps/roomStampCatalog"
 
 function assert(condition: boolean, message: string) {
 	if (!condition) throw new Error(message)
@@ -92,6 +95,85 @@ for (const bossId of [
 ] as const) {
 	assert(wakeBosses.has(bossId), `Floor 1 boss pool is missing ${bossId}`)
 }
+
+const generatedStampIds = new Set<string>()
+for (let seed = 1; seed <= 200; seed++) {
+	const floor = generateRoomFloor(seed, 2)
+	const roomById = new Map(floor.rooms.map((room) => [room.id, room]))
+	for (const room of floor.rooms) {
+		if (!room.stamp) continue
+		const plans = getRoomStampPlans(room)
+		for (const plan of plans) generatedStampIds.add(plan.stampId)
+		assert(
+			room.kind === "combat" ||
+				(room.kind === "deposit" && room.stamp.stampId === "salvage-relay"),
+			`${room.id} has a stamp incompatible with ${room.kind}`
+		)
+		if (room.kind === "combat") {
+			assert(
+				room.distanceFromStart >= 2,
+				`${room.id} stamped a room too close to the start`
+			)
+		}
+		if (room.kind === "combat") {
+			assert(
+				!room.connections.some((neighborId) =>
+					roomById.get(neighborId)?.stamp?.stampId === room.stamp?.stampId
+				),
+				`${room.id} repeats its stamp in an adjacent room`
+			)
+		}
+		assert(
+			plans.every((plan, index) =>
+				getRoomStampDefinition(plan.stampId).mode === (index === 0 ? "primary" : "overlay")
+			),
+			`${room.id} should compose one primary stamp before its overlays`
+		)
+		if (plans.some((plan) => plan.stampId === "outer-cover-pocket")) {
+			assert(getRoomCellRadius(room) >= 6, `${room.id} placed large cover in a compact room`)
+		}
+		if (room.stamp.stampId !== "spawner-maze") continue
+		const resolvedSpawner = room.stamp.resolvedContent[0]
+		const roomCenter = getRoomCenter(room)
+		assert(
+			resolvedSpawner !== undefined &&
+			room.encounter?.enemies.some((enemy) =>
+				enemy.enemyId === resolvedSpawner.enemyId &&
+				enemy.arrivalMode === "resident" &&
+				enemy.spawnCoord?.q === roomCenter.q &&
+				enemy.spawnCoord?.r === roomCenter.r
+			) === true,
+			`${room.id} is missing its resident maze encounter anchor`
+		)
+	}
+}
+assert(
+	generatedStampIds.has("salvage-relay"),
+	"Every generated floor should exercise the salvage relay stamp"
+)
+assert(
+	generatedStampIds.has("blaster-corridor") &&
+	generatedStampIds.has("spawner-maze") &&
+	generatedStampIds.has("outer-cover-pocket"),
+	"Generation should exercise primary and overlay room stamps"
+)
+
+const generatedRoomSizes = new Set<string>()
+for (let seed = 1; seed <= 120; seed++) {
+	const floor = generateRoomFloor(seed, seed % 5 + 1, {
+		milestoneBoss: seed % 5 === 0,
+	})
+	for (const room of floor.rooms) {
+		generatedRoomSizes.add(room.sizeClass ?? "compact")
+		if (room.kind === "boss" || room.kind === "miniBoss" || room.dangerLevel === 3) {
+			assert(room.sizeClass === "arena", `${room.id} should use an arena footprint`)
+		}
+	}
+}
+assert(
+	["compact", "standard", "arena"].every((size) => generatedRoomSizes.has(size)),
+	"Generation should exercise every room size class"
+)
 
 for (let seed = 1; seed <= 200; seed++) {
 	const depth = seed % 8 + 1

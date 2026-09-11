@@ -912,12 +912,128 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite(
 		"run_rock_high",
 		"sprites/terrain/run-rock-high-atlas.png",
-		{ sliceX: 8, sliceY: 4 }
+		{ sliceX: 8, sliceY: 8 }
 	)
 	await k.loadSprite(
 		"run_rock_ground",
 		"sprites/terrain/run-rock-ground-atlas.png",
-		{ sliceX: 16, sliceY: 16 }
+		{ sliceX: 12 }
+	)
+	k.loadShader(
+		"roomGroundJaggedEdge",
+		null,
+		`
+		uniform vec2 u_uvMin;
+		uniform vec2 u_uvMax;
+		uniform float u_seed;
+		uniform float u_edge0;
+		uniform float u_edge1;
+		uniform float u_edge2;
+		uniform float u_edge3;
+		uniform float u_edge4;
+		uniform float u_edge5;
+
+		float hash21(vec2 value) {
+			return fract(sin(dot(value, vec2(127.1, 311.7))) * 43758.5453);
+		}
+
+		float segmentDistance(vec2 point, vec2 start, vec2 end) {
+			vec2 segment = end - start;
+			float amount = clamp(
+				dot(point - start, segment) / max(dot(segment, segment), 0.00001),
+				0.0,
+				1.0
+			);
+			return length(point - (start + segment * amount));
+		}
+
+		float edgeAmount(vec2 point, vec2 start, vec2 end) {
+			vec2 segment = end - start;
+			return clamp(
+				dot(point - start, segment) / max(dot(segment, segment), 0.00001),
+				0.0,
+				0.9999
+			);
+		}
+
+		float edgeBandNoise(
+			float amount,
+			float bandCount,
+			float edgeIndex,
+			float salt
+		) {
+			float band = floor(amount * bandCount);
+			return hash21(vec2(
+				u_seed * 0.73 + band * 13.17 + salt,
+				edgeIndex * 29.31 + salt * 7.19
+			));
+		}
+
+		float erosionDepth(
+			vec2 point,
+			vec2 start,
+			vec2 end,
+			float edgeIndex
+		) {
+			float amount = edgeAmount(point, start, end);
+			float broadShelf = floor(
+				edgeBandNoise(amount, 7.0, edgeIndex, 1.0) * 5.0
+			) * 1.35;
+			float smallChip = floor(
+				edgeBandNoise(amount, 23.0, edgeIndex, 4.0) * 4.0
+			) * 0.75;
+
+			float biteBand = floor(amount * 5.0);
+			float biteProgress = fract(amount * 5.0);
+			float biteEnabled = step(
+				0.58,
+				hash21(vec2(u_seed + biteBand * 17.0, edgeIndex * 41.0 + 9.0))
+			);
+			float biteProfile = max(
+				0.0,
+				1.0 - abs(biteProgress - 0.5) * 2.0
+			);
+			float bite = biteEnabled * floor(biteProfile * 4.0) * 1.65;
+
+			float cornerDistance = min(amount, 1.0 - amount);
+			float cornerBreak = (
+				1.0 - smoothstep(0.025, 0.19, cornerDistance)
+			) * (
+				3.5 + edgeBandNoise(amount, 2.0, edgeIndex, 12.0) * 4.0
+			);
+
+			float depthPixels = 2.0 + broadShelf + smallChip + bite + cornerBreak;
+			return clamp(depthPixels, 2.0, 14.0) / 64.0;
+		}
+
+		bool erodesEdge(
+			vec2 point,
+			vec2 start,
+			vec2 end,
+			float edgeIndex,
+			float enabled
+		) {
+			return enabled > 0.5 &&
+				segmentDistance(point, start, end) <
+				erosionDepth(point, start, end, edgeIndex);
+		}
+
+		vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
+			vec4 source = def_frag();
+			if (source.a < 0.01) discard;
+			vec2 frameSize = max(u_uvMax - u_uvMin, vec2(0.00001));
+			vec2 point = (uv - u_uvMin) / frameSize;
+			if (erodesEdge(point, vec2(0.9375, 0.25), vec2(0.9375, 0.75), 0.0, u_edge0) ||
+				erodesEdge(point, vec2(0.5, 0.0), vec2(0.9375, 0.25), 1.0, u_edge1) ||
+				erodesEdge(point, vec2(0.0625, 0.25), vec2(0.5, 0.0), 2.0, u_edge2) ||
+				erodesEdge(point, vec2(0.0625, 0.75), vec2(0.0625, 0.25), 3.0, u_edge3) ||
+				erodesEdge(point, vec2(0.5, 1.0), vec2(0.0625, 0.75), 4.0, u_edge4) ||
+				erodesEdge(point, vec2(0.9375, 0.75), vec2(0.5, 1.0), 5.0, u_edge5)) {
+				discard;
+			}
+			return source * color;
+		}
+		`
 	)
 	await k.loadSprite(
 		"plasma_mortar_projectile",

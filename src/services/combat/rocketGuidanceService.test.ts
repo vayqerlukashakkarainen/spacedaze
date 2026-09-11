@@ -4,6 +4,7 @@ import {
 	type RocketGuidanceState,
 	updateRocketGuidance,
 } from "./rocketGuidanceService"
+import { frameRateIndependentBlend } from "../core/frameRateService"
 
 const stationary = updateRocketGuidance({
 	rocketPosition: vec(0, 0),
@@ -69,15 +70,28 @@ assert.equal(realigned.state.recovering, false)
 assert.equal(realigned.state.closestDistance, 42)
 
 assert.equal(
-	simulateIntercept(vec(-85, 0), vec(0, -1), vec(0, 0), vec(0, 0)),
+	simulateIntercept(vec(-85, 0), vec(0, -1), vec(0, 0), vec(0, 0), 60),
 	true,
 	"A close perpendicular approach should recover instead of orbiting"
 )
 assert.equal(
-	simulateIntercept(vec(-180, 50), vec(1, 0), vec(0, 0), vec(0, 55)),
+	simulateIntercept(vec(-180, 50), vec(1, 0), vec(0, 0), vec(0, 55), 60),
 	true,
 	"A rocket should intercept a laterally moving target"
 )
+for (const frameRate of [30, 60, 144]) {
+	assert.equal(
+		simulateIntercept(
+			vec(-180, 50),
+			vec(1, 0),
+			vec(0, 0),
+			vec(0, 55),
+			frameRate
+		),
+		true,
+		`Rocket guidance should intercept at ${frameRate} FPS`
+	)
+}
 
 console.log("Rocket guidance tests passed")
 
@@ -85,14 +99,15 @@ function simulateIntercept(
 	startPosition: Vec2,
 	startHeading: Vec2,
 	startTargetPosition: Vec2,
-	targetVelocity: Vec2
+	targetVelocity: Vec2,
+	frameRate: number
 ) {
-	const deltaTime = 1 / 60
+	const deltaTime = 1 / frameRate
 	let rocketPosition = startPosition
 	let heading = startHeading
 	let targetPosition = startTargetPosition
 	let state: RocketGuidanceState | undefined
-	for (let frame = 0; frame < 60 * 6; frame++) {
+	for (let frame = 0; frame < frameRate * 6; frame++) {
 		if (rocketPosition.dist(targetPosition) <= 12) return true
 		const guidance = updateRocketGuidance({
 			rocketPosition,
@@ -107,7 +122,7 @@ function simulateIntercept(
 		heading = turnToward(
 			heading,
 			guidance.aimPosition.sub(rocketPosition),
-			guidance.turnStrength
+			frameRateIndependentBlend(guidance.turnStrength, deltaTime)
 		)
 		rocketPosition = rocketPosition.add(
 			heading.scale(280 * guidance.speedMultiplier * deltaTime)

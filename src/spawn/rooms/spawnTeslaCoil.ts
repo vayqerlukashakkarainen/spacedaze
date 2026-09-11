@@ -42,6 +42,7 @@ export function spawnTeslaCoilVisual(
 		k.scale(1),
 		k.layer(layers.buildings),
 		k.z(2),
+		{ groundShadowMode: "ground" as const },
 		tags.props,
 		tags.runMap,
 		tags.runRoom,

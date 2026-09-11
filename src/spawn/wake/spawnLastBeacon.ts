@@ -80,6 +80,7 @@ export function spawnLastBeacon(
 			safeAngle: 0,
 			volleyIndex: 0,
 			nextVolleyAt: 0,
+			groundShadowMode: "ground" as const,
 			nextSignalState: "sweep" as Exclude<
 				BeaconState,
 				"signalCharge" | "recover" | "dying"

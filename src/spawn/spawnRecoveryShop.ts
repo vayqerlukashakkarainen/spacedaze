@@ -13,6 +13,7 @@ export function spawnRecoveryShop(pos: Vec2) {
 		scale: recoveryShopScale,
 		interactRadius: 180,
 		interactPromptOffset: k.vec2(0, -recoveryShopLabelOffsetY),
+		groundShadowMode: "ground",
 		interactionPrompt: {
 			title: "RECOVERY SHOP",
 			action: "OPEN SHOP",

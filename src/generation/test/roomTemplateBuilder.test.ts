@@ -2,9 +2,11 @@ import { hexDistance, hexKey, hexNeighbors } from "../hexUtils"
 import { generateRoomFloor } from "../rooms/roomFloorGenerator"
 import {
 	buildRoomTemplate,
+	getRoomCellRadius,
 	getRoomDirection,
-	ROOM_CELL_RADIUS,
 } from "../rooms/roomTemplateBuilder"
+import { getRoomStampDefinition } from "../../stamps/roomStampCatalog"
+import { getRoomStampPlans } from "../rooms/roomStampPlanner"
 
 function assert(condition: boolean, message: string) {
 	if (!condition) throw new Error(message)
@@ -14,8 +16,22 @@ for (let seed = 1; seed <= 100; seed++) {
 	const floor = generateRoomFloor(seed, seed % 6 + 1)
 	for (const room of floor.rooms) {
 		const template = buildRoomTemplate(room)
+		const roomRadius = getRoomCellRadius(room)
 		assert(template.doors.length === room.connections.length, `${room.id} lost a connection`)
 		assert(template.spawnSlots.length >= 4, `${room.id} needs at least four enemy sockets`)
+		for (const stampPlan of getRoomStampPlans(room)) {
+			const stamp = getRoomStampDefinition(stampPlan.stampId)
+			assert(
+				template.spawnSlots.length >= stamp.validation.minimumSpawnSlots,
+				`${room.id} does not preserve the stamp's enemy socket budget`
+			)
+			assert(
+				template.map.getAllCells().some((cell) =>
+					cell.tags.has(`room_stamp_${stampPlan.stampId}`)
+				),
+				`${room.id} did not apply its stamp geometry`
+			)
+		}
 		for (const object of room.environment?.objects ?? []) {
 			const cell = template.map.getCell(object.coord)
 			assert(cell !== undefined, `${object.id} is outside the room map`)
@@ -62,7 +78,7 @@ for (let seed = 1; seed <= 100; seed++) {
 		for (const door of template.doors) {
 			const cell = template.map.getCell(door.coord)
 			assert(cell !== undefined && !cell.solid, `${room.id} door is blocked`)
-			assert(hexDistance(door.coord, template.center) === ROOM_CELL_RADIUS, `${room.id} door is off the boundary`)
+			assert(hexDistance(door.coord, template.center) === roomRadius, `${room.id} door is off the boundary`)
 			const destination = floor.rooms.find((candidate) => candidate.id === door.destinationRoomId)!
 			assert(getRoomDirection(room.coord, destination.coord) === door.direction, `${room.id} door points the wrong way`)
 			assert(hasOpenPath(template, door.coord), `${room.id} door has no path to center`)

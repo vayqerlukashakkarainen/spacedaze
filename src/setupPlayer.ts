@@ -60,6 +60,7 @@ import {
 	PLAYER_THRUSTER_SOUND_UPDATE_INTERVAL,
 } from "./services/audio/playerThrusterSound"
 import { loopService } from "./services/core/loopService";
+import { frameRateIndependentBlend } from "./services/core/frameRateService"
 import { profileSection } from "./services/debug/frameProfilerService";
 import {
 	applyKnockbackImpulse,
@@ -772,7 +773,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	let primaryChargeSoundSpeed = 0;
 	const stopPrimaryChargeSound = () => {
 		if (!primaryChargeSound) return;
-		audioService.stopSound(primaryChargeSound, "primary-charge-ended");
+		gameSoundService.stop(primaryChargeSound, "primary-charge-ended");
 		primaryChargeSound = undefined;
 		primaryChargeSoundSpeed = 0;
 	};
@@ -1493,7 +1494,10 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 					playerObj.angle,
 					playerObj.pos,
 					targetObj.pos,
-					0.05 * timeScale * playerObj.getTimescale(),
+					frameRateIndependentBlend(
+						0.05 * timeScale * playerObj.getTimescale(),
+						k.dt()
+					),
 					-90
 				);
 				nextPlayerAngle = movementRotation.lerp;

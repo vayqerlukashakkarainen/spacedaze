@@ -16,14 +16,10 @@ import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { spawnDepositAttendant } from "./npcs/spawnDepositAttendant"
 
 const DEPOSIT_RADIUS = 88
-const FOUNDATION_VISUAL = getWorldVisual("debris-foundation")
 const HOUSE_VISUAL = getWorldVisual("debris-house")
-const FOUNDATION_Y = 8
 const HOUSE_Y = -24
 const RECEIVER_X = 34
 const RECEIVER_Y = -5
-const FLOAT_AMOUNT = 2
-const FLOAT_SPEED = 1.15
 
 interface DebreeDepositOptions {
 	available?: () => boolean
@@ -49,17 +45,20 @@ export function spawnDebreeDeposit(
 		tags.props,
 		tags.gameLoop,
 		tags.runtimeCullable,
-		{ runtimeCullRadius: 120 },
+		{
+			hb: 64,
+			runtimeCullRadius: 120,
+			groundShadowMode: "ground" as const,
+		},
 		...(options.tags ?? []),
 	]) as GameObj<PosComp | InteractableComp>
 	spawnDepositAttendant(pos, options.tags)
 
 	function playDepositEffect(deposited: number) {
 		saveGame("slot1")
-		const floatOffset = Math.sin(k.time() * FLOAT_SPEED) * FLOAT_AMOUNT
 		const effectPos = station.pos.add(
 			RECEIVER_X,
-			RECEIVER_Y + floatOffset
+			RECEIVER_Y
 		)
 		starsEmitter.emitter.position = effectPos.clone()
 		starsEmitter.emit(Math.min(54, 16 + deposited))
@@ -71,15 +70,6 @@ export function spawnDebreeDeposit(
 		options.onDeposit?.(deposited)
 	}
 
-	const foundation = station.add([
-		k.pos(0, FOUNDATION_Y),
-		k.sprite(requirePrimaryVisualSprite(FOUNDATION_VISUAL)),
-		k.anchor("center"),
-		k.scale(FOUNDATION_VISUAL.worldScale),
-		k.shader("rockFoundationPalette"),
-		k.layer(layers.buildings),
-		k.z(-12),
-	])
 	const house = station.add([
 		k.pos(0, HOUSE_Y),
 		k.sprite(requirePrimaryVisualSprite(HOUSE_VISUAL)),
@@ -111,9 +101,6 @@ export function spawnDebreeDeposit(
 			player.pos.dist(station.pos) < DEPOSIT_RADIUS
 		station.setInteractRadius(stationAvailable && hasDebree ? DEPOSIT_RADIUS : 0)
 		prompt.update(stationAvailable && playerInRange)
-		const floatOffset = Math.sin(k.time() * FLOAT_SPEED) * FLOAT_AMOUNT
-		foundation.pos.y = FOUNDATION_Y + floatOffset
-		house.pos.y = HOUSE_Y + floatOffset
 	})
 
 	return station

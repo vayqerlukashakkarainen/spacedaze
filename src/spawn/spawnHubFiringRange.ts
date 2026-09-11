@@ -766,7 +766,7 @@ function spawnLockedAbilityPickup(
 			? () => purchaseArmorerWeapon(ability, rewardDefinition, cost)
 			: undefined,
 		interactionPromptPool,
-		interactionPromptLabel: "",
+		interactionPromptLabel: `${cost} PHASE CORE${cost === 1 ? "" : "S"}`,
 	})
 }
 

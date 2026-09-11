@@ -32,6 +32,7 @@ export function spawnSignalRelay(props: SignalRelayProps) {
 		scale: 0.62,
 		interactRadius: 78,
 		interactPromptOffset: k.vec2(0, -84),
+		groundShadowMode: "ground",
 		interactionPrompt: {
 			title: "SIGNAL RELAY",
 			action: "ACTIVATE RELAY",

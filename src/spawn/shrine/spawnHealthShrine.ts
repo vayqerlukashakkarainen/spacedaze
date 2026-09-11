@@ -36,6 +36,7 @@ export function spawnHealthShrine(props: HealthShrineProps) {
 		k.z(2),
 		{
 			runtimeCullRadius: 82,
+			groundShadowMode: "ground" as const,
 		},
 		tags.props,
 		tags.gameLoop,

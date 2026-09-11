@@ -21,3 +21,7 @@ export function getWakeMiniBossForDepth(depth: number): WakeMiniBossId {
 export function getWakeMiniBossRoster() {
 	return [...WAKE_MINI_BOSS_BY_SUBFLOOR]
 }
+
+export function getWakeMiniBossHealthForDepth(depth: number) {
+	return (20 + Math.max(1, Math.floor(depth)) * 2) * 10
+}

@@ -20,45 +20,6 @@ interface GravityAnomalyProps {
 }
 
 export function spawnGravityAnomaly(props: GravityAnomalyProps) {
-	const platformPieces = [
-		{
-			sprite: "bg_planet_chunk_1",
-			offset: k.vec2(0, 20),
-			scale: 0.62,
-			angle: -4,
-			color: k.rgb(56, 66, 82),
-			z: -3,
-		},
-		{
-			sprite: "asteroid_05",
-			offset: k.vec2(-83, 46),
-			scale: 1.2,
-			angle: 24,
-			color: k.rgb(45, 53, 68),
-			z: -4,
-		},
-		{
-			sprite: "asteroid_12",
-			offset: k.vec2(79, 39),
-			scale: 0.95,
-			angle: -18,
-			color: k.rgb(48, 57, 72),
-			z: -4,
-		},
-	].map((piece) => k.add([
-		k.pos(props.pos.add(piece.offset)),
-		k.sprite(piece.sprite),
-		k.anchor("center"),
-		k.scale(piece.scale),
-		k.rotate(piece.angle),
-		k.color(piece.color),
-		k.layer(layers.buildings),
-		k.z(piece.z),
-		tags.props,
-		tags.gameLoop,
-		tags.runtimeCullable,
-		...(props.tags ?? []),
-	]))
 	const field = k.add([
 		k.pos(props.pos),
 		k.circle(props.radius, { fill: false }),
@@ -66,6 +27,7 @@ export function spawnGravityAnomaly(props: GravityAnomalyProps) {
 		k.anchor("center"),
 		k.opacity(0.24),
 		k.layer(layers.gameEffects),
+		{ groundShadowDisabled: true },
 		tags.props,
 		tags.gameLoop,
 		tags.runtimeCullable,
@@ -78,6 +40,7 @@ export function spawnGravityAnomaly(props: GravityAnomalyProps) {
 		k.scale(GRAVITY_ANOMALY_VISUAL.worldScale),
 		k.color(195, 175, 255),
 		k.layer(layers.buildings),
+		{ groundShadowMode: "ground" as const },
 		tags.props,
 		tags.gameLoop,
 		tags.runtimeCullable,
@@ -112,9 +75,6 @@ export function spawnGravityAnomaly(props: GravityAnomalyProps) {
 		if (field.exists()) k.destroy(field)
 		if (gravity.exists()) k.destroy(gravity)
 		if (wormhole.exists()) k.destroy(wormhole)
-		for (const piece of platformPieces) {
-			if (piece.exists()) k.destroy(piece)
-		}
 	})
 
 	return core

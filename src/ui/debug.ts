@@ -118,6 +118,7 @@ export function updateDebug() {
 			`UI objects ${objectStats.ui}  Areas ${objectStats.areas}  Hit regions ${snapshot.counters.uiPointerRegions ?? 0}  Masks ${objectStats.masks}`,
 			`Text draw ${objectStats.textDrawing}/${objectStats.textTotal}  Emitters upd ${objectStats.emittersUpdating}/${objectStats.emittersTotal} draw ${objectStats.emittersDrawing}/${objectStats.emittersTotal} particles ${objectStats.activeParticles}`,
 			`Primitives walls ${snapshot.counters.wallPrimitives ?? 0}  UI FX ${snapshot.counters.uiEffectPrimitives ?? 0}`,
+			`Ground shadows ${snapshot.counters.groundShadowsDrawn ?? 0}/${snapshot.counters.groundShadowCasters ?? 0}`,
 			`Batches enemies ${snapshot.counters["batch:enemies:count"] ?? 0}  followers ${snapshot.counters["batch:followers:count"] ?? 0}  debris ${snapshot.counters["batch:debris:count"] ?? 0}  world ${snapshot.counters["batch:world:count"] ?? 0}  FX ${snapshot.counters["batch:effects:count"] ?? 0}`,
 			`UI batches ${snapshot.counters["batch:ui:count"] ?? 0}  HUD ${snapshot.counters["batch:ui:hud:count"] ?? 0}  overlays ${snapshot.counters["batch:ui:overlay:count"] ?? 0}  modal ${snapshot.counters["batch:ui:modal:count"] ?? 0}  menu ${snapshot.counters["batch:ui:menu:count"] ?? 0}`,
 			benchmark

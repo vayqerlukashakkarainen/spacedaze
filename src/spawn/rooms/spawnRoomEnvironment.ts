@@ -381,7 +381,7 @@ function spawnDestructibleCover(
 	registerHitAnimation(cover)
 	setHitSoundProfile(cover, "lightMetal")
 	registerDynamicRoomCover(plan.id, cover, radius)
-	registerEnvironmentProjectileHits(cover, false)
+	registerEnvironmentProjectileHits(cover, true)
 	registerRoomObjectPushPhysics(cover, radius, coverMass, profile.maxPushSpeed)
 	persistObjectState(grid, plan, cover)
 	cover.onDeath(() => {

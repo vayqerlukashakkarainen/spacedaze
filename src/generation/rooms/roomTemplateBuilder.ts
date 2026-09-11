@@ -1,10 +1,35 @@
 import { GenerationMap, type GenCell } from "../generationTypes"
 import { hexDistance, hexKey, hexNeighbors, type HexCoord } from "../hexUtils"
 import { SeededRNG } from "../seededRng"
-import type { RoomFloorRoom } from "./roomFloorTypes"
+import type { RoomFloorRoom, RoomSizeClass } from "./roomFloorTypes"
+import { applyRoomStampGeometry } from "./roomStampPlanner"
 
 export const ROOM_CELL_RADIUS = 5
 export const ROOM_CELL_DIAMETER = ROOM_CELL_RADIUS * 2 + 1
+export const ROOM_SIZE_CELL_RADIUS: Readonly<Record<RoomSizeClass, number>> = {
+	compact: 5,
+	standard: 6,
+	arena: 7,
+}
+
+export function getRoomCellRadius(room: RoomFloorRoom) {
+	return ROOM_SIZE_CELL_RADIUS[room.sizeClass ?? "compact"]
+}
+
+export function getRoomCenter(room: RoomFloorRoom): HexCoord {
+	const radius = getRoomCellRadius(room)
+	return { q: radius, r: radius }
+}
+
+export function getRoomUsableAreaScale(room: RoomFloorRoom) {
+	const radius = getRoomCellRadius(room)
+	const interiorRadius = radius - 1
+	const compactInteriorRadius = ROOM_CELL_RADIUS - 1
+	const interiorCells = 1 + 3 * interiorRadius * (interiorRadius + 1)
+	const compactInteriorCells = 1 +
+		3 * compactInteriorRadius * (compactInteriorRadius + 1)
+	return interiorCells / compactInteriorCells
+}
 
 const DIRECTIONS: HexCoord[] = [
 	{ q: 1, r: 0 },
@@ -31,8 +56,9 @@ export interface RoomDoor {
 }
 
 export function buildRoomTemplate(room: RoomFloorRoom): BuiltRoomTemplate {
-	const size = ROOM_CELL_DIAMETER
-	const center = { q: ROOM_CELL_RADIUS, r: ROOM_CELL_RADIUS }
+	const radius = getRoomCellRadius(room)
+	const size = radius * 2 + 1
+	const center = getRoomCenter(room)
 	const map = new GenerationMap(size, size)
 	const connectionByDirection = getConnectionDirections(room)
 	const rng = new SeededRNG(room.seed)
@@ -41,8 +67,8 @@ export function buildRoomTemplate(room: RoomFloorRoom): BuiltRoomTemplate {
 		for (let r = 0; r < size; r++) {
 			const coord = { q, r }
 			const distance = hexDistance(coord, center)
-			const cell = createCell(coord, distance >= ROOM_CELL_RADIUS)
-			if (distance > ROOM_CELL_RADIUS) cell.locked = true
+			const cell = createCell(coord, distance >= radius)
+			if (distance > radius) cell.locked = true
 			map.setCell(coord, cell)
 		}
 	}
@@ -50,8 +76,8 @@ export function buildRoomTemplate(room: RoomFloorRoom): BuiltRoomTemplate {
 	const doors: RoomDoor[] = []
 	for (const [direction, destinationRoomId] of connectionByDirection) {
 		const vector = DIRECTIONS[direction]
-		const doorCoord = addScaled(center, vector, ROOM_CELL_RADIUS)
-		const insideCoord = addScaled(center, vector, ROOM_CELL_RADIUS - 1)
+		const doorCoord = addScaled(center, vector, radius)
+		const insideCoord = addScaled(center, vector, radius - 1)
 		const doorCell = map.getCell(doorCoord)
 		if (doorCell) {
 			doorCell.solid = false
@@ -65,12 +91,34 @@ export function buildRoomTemplate(room: RoomFloorRoom): BuiltRoomTemplate {
 	}
 
 	const protectedCells = getRoomProtectedCellKeys(room, center)
+	applyRoomStampGeometry(map, room, center, protectedCells)
 	applyRoomEnvironment(map, room)
 	if (!room.environment || room.environment.objects.length === 0) {
 		placeRoomObstacles(map, room, protectedCells, rng)
 	}
-	const spawnSlots = selectSlots(map, center, protectedCells, room.seed ^ 0x51f15e, 8, 2, false, 1)
-	const contentSlots = selectSlots(map, center, protectedCells, room.seed ^ 0xc012e, 5, 1)
+	const areaScale = getRoomUsableAreaScale(room)
+	const spawnSlots = selectSlots(
+		map,
+		center,
+		protectedCells,
+		room.seed ^ 0x51f15e,
+		Math.round(8 * areaScale),
+		2,
+		false,
+		1,
+		radius
+	)
+	const contentSlots = selectSlots(
+		map,
+		center,
+		protectedCells,
+		room.seed ^ 0xc012e,
+		Math.round(5 * areaScale),
+		1,
+		true,
+		2,
+		radius
+	)
 	map.getCell(center)?.tags.add("player_spawn")
 	for (const coord of spawnSlots) map.getCell(coord)?.tags.add("enemy_spawn")
 	for (const coord of contentSlots) map.getCell(coord)?.tags.add("content_spawn")
@@ -121,11 +169,12 @@ export function getRoomProtectedCellKeys(
 	room: RoomFloorRoom,
 	center: HexCoord
 ) {
+	const radius = getRoomCellRadius(room)
 	const protectedCells = new Set<string>()
 	protectedCells.add(hexKey(center))
 	for (const [direction] of getConnectionDirections(room)) {
 		const vector = DIRECTIONS[direction]
-		for (let distance = 0; distance <= ROOM_CELL_RADIUS; distance++) {
+		for (let distance = 0; distance <= radius; distance++) {
 			const corridor = addScaled(center, vector, distance)
 			protectedCells.add(hexKey(corridor))
 			for (const neighbor of hexNeighbors(corridor)) {
@@ -168,15 +217,16 @@ function placeRoomObstacles(
 	rng: SeededRNG
 ) {
 	if (room.kind !== "combat" && room.kind !== "event") return
+	const center = getRoomCenter(room)
 	const candidates = map.getAllCells().filter((cell) =>
 		!cell.solid &&
 		!cell.tags.has("room_environment_object") &&
-		hexDistance(cell.coord, { q: ROOM_CELL_RADIUS, r: ROOM_CELL_RADIUS }) >= 2 &&
+		hexDistance(cell.coord, center) >= 2 &&
 		!protectedCells.has(hexKey(cell.coord))
 	)
 	rng.shuffle(candidates)
 	const variant = Math.abs(room.seed) % 4
-	const obstacleCount = 3 + variant
+	const obstacleCount = Math.round((3 + variant) * getRoomUsableAreaScale(room))
 	for (const cell of candidates.slice(0, obstacleCount)) {
 		cell.solid = true
 		cell.hardness = 0.7
@@ -193,14 +243,15 @@ function selectSlots(
 	count: number,
 	minimumDistance: number,
 	excludeProtected: boolean = true,
-	slotSpacing: number = 2
+	slotSpacing: number = 2,
+	roomRadius: number = ROOM_CELL_RADIUS
 ) {
 	const rng = new SeededRNG(seed)
 	const candidates = map.getAllCells().filter((cell) =>
 		!cell.solid &&
 		!cell.tags.has("room_environment_object") &&
 		hexDistance(cell.coord, center) >= minimumDistance &&
-		hexDistance(cell.coord, center) <= ROOM_CELL_RADIUS - 2 &&
+		hexDistance(cell.coord, center) <= roomRadius - 2 &&
 		(!excludeProtected || !protectedCells.has(hexKey(cell.coord)))
 	)
 	rng.shuffle(candidates)

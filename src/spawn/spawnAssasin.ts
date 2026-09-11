@@ -22,6 +22,7 @@ import {
 	type EnemySpawnOptions,
 } from "../services/enemies/threatService";
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
+import { frameRateIndependentBlend } from "../services/core/frameRateService"
 import { setHitSoundProfile } from "../services/audio/hitSoundService";
 import {
 	getEnemyNavigationTarget,
@@ -282,8 +283,11 @@ export function spawnAssasin(
 			m.angle,
 			m.pos,
 			navigationTarget,
-			0.01 * chassis.turnMultiplier * wingMotionMultiplier
-				* timeScale * m.getTimescale(),
+			frameRateIndependentBlend(
+				0.01 * chassis.turnMultiplier * wingMotionMultiplier
+					* timeScale * m.getTimescale(),
+				k.dt()
+			),
 			-90
 		);
 
