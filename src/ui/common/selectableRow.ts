@@ -24,6 +24,7 @@ export interface UiSelectableRowProps {
 	iconSize?: number
 	selected?: boolean
 	disabled?: boolean
+	muted?: boolean
 	notification?: boolean
 	progress?: number
 	progressColor?: readonly [number, number, number]
@@ -65,7 +66,7 @@ export function createUiSelectableRow(
 			k.pos(UI_SPACING.md + iconSize / 2, height / 2),
 			k.anchor("center"),
 			k.color(...(props.iconColor ?? [255, 255, 255])),
-			k.opacity(props.disabled ? 0.35 : 1),
+			k.opacity(props.disabled || props.muted ? 0.35 : 1),
 		])
 	}
 	if (!props.icon && props.iconText) {
@@ -79,9 +80,9 @@ export function createUiSelectableRow(
 		})
 	}
 	addThemedText(row, {
-		text: props.title,
+		text: props.title.toUpperCase(),
 		pos: k.vec2(textLeft, props.description ? 5 : props.meta ? 9 : 15),
-		variant: props.disabled ? "muted" : "body",
+		variant: props.disabled || props.muted ? "muted" : "body",
 		width: props.width - 100,
 	})
 	if (props.notification) {

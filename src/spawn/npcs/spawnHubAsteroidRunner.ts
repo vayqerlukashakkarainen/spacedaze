@@ -78,6 +78,7 @@ export function spawnHubAsteroidRunner(fieldCenter: ReturnType<typeof k.vec2>) {
 		getDialogueId: () => DIALOGUE_ID,
 		isVisible: () => !encounterStarted && !runner.isInRange,
 		offset: k.vec2(0, -45),
+		cameraInterest: true,
 	})
 
 	registerBatchedEntityUpdate("world", runner, () => {

@@ -1,6 +1,10 @@
 import { Color, Vec2 } from "kaplay";
 import { k, layers } from "../main";
-import { emitExplosionSmoke, explosionEmitter } from "../particles";
+import {
+	emitExplosionSmoke,
+	explosionEmitter,
+	sparkEmitter,
+} from "../particles";
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService";
 import { loopService } from "../services/core/loopService";
 import { spawnRing } from "./spawnRing";
@@ -103,4 +107,50 @@ export function spawnExplosionEffect(
 		},
 			5
 		);
+}
+
+export function spawnExplosiveBarrelExplosionEffect(
+	pos: Vec2,
+	damageRadius: number
+) {
+	const scale = Math.max(0.1, damageRadius / 105)
+	spawnFlash(pos, 38 * scale, k.WHITE)
+	spawnExplosionEffect(pos, 132 * scale, {
+		color: k.WHITE,
+		ringIntensity: 1.1,
+		particleCount: Math.max(12, Math.round(52 * scale)),
+		persistentSmoke: true,
+	})
+	spawnRing({
+		pos,
+		speed: 360 * scale,
+		intensity: 0.8,
+		maxRadius: 96 * scale,
+		visualize: true,
+		color: k.WHITE,
+		outlineWidth: Math.max(1, 2 * scale),
+		visualOpacity: 0.9,
+	})
+
+	for (let direction = 0; direction < 360; direction += 45) {
+		sparkEmitter.emitter.position = pos
+		sparkEmitter.emitter.direction = direction
+		sparkEmitter.emit(Math.max(1, Math.round(4 * scale)))
+	}
+
+	for (let burstIndex = 0; burstIndex < 3; burstIndex++) {
+		k.wait(0.045 + burstIndex * 0.055, () => {
+			const direction = k.Vec2.fromAngle(k.rand(0, 360))
+			const burstPosition = pos.add(
+				direction.scale(k.rand(12, 30) * scale)
+			)
+			explosionEmitter.emitter.position = burstPosition
+			explosionEmitter.emit(Math.max(2, Math.round((9 - burstIndex * 2) * scale)))
+			spawnFlash(
+				burstPosition,
+				Math.max(2, (18 - burstIndex * 3) * scale),
+				k.WHITE
+			)
+		})
+	}
 }

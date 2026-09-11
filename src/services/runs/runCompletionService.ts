@@ -7,11 +7,13 @@ import {
 	type RunStats,
 } from "./runStatsService"
 import { finishRunTelemetry } from "./runTelemetryService"
+import { getPhaseCoresEarnedThisRun } from "../economy/phaseCoreService"
 
 export interface RunEndSummary {
 	outcome: RunStats["outcome"]
 	debree: DebreeRunOutcome
 	hub: HubDepositResult
+	phaseCores: number
 	run?: RunStats
 }
 
@@ -36,6 +38,7 @@ export function checkpointRun(totalDepositedThisRun: number): RunEndSummary {
 		outcome: "EXTRACTED",
 		debree: { deposited: hub.deposited, lost: 0 },
 		hub,
+		phaseCores: getPhaseCoresEarnedThisRun(),
 		run: getActiveRunStatsSnapshot(totalDepositedThisRun),
 	}
 }
@@ -49,6 +52,7 @@ export function completeRun(outcome: RunStats["outcome"], debree: DebreeRunOutco
 		outcome,
 		debree: { ...debree, deposited: unsettledDeposit },
 		hub,
+		phaseCores: getPhaseCoresEarnedThisRun(),
 		run,
 	}
 	recordPendingHubLevelReveal(hub)
@@ -90,6 +94,10 @@ export function consumePendingHubLevelReveal() {
 	const reveal = pendingHubLevelReveal
 	pendingHubLevelReveal = undefined
 	return reveal
+}
+
+export function hasPendingHubLevelReveal() {
+	return pendingHubLevelReveal !== undefined
 }
 
 export function clearPendingHubLevelReveal() {

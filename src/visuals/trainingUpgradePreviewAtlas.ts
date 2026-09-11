@@ -72,6 +72,11 @@ const TRAINING_ALTERATION_PREVIEW_SPRITES = [
 	"shrapnel_garden_upg1",
 	"hunters_geometry_upg1",
 	"gravitic_impaler_upg1",
+	"kinetic_coupler_upg1",
+	"torque_spool_upg1",
+	"shock_cradle_upg1",
+	"momentum_relay_upg1",
+	"redline_cable_upg1",
 ] as const
 
 const trainingUpgradePreviewSpriteNames = new Set<string>(

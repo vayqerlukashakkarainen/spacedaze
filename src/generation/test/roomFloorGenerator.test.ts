@@ -4,9 +4,11 @@ import {
 } from "../rooms/roomFloorGenerator"
 import { hexKey, hexNeighbors } from "../hexUtils"
 import {
+	DEFAULT_FLOOR_SUBLEVEL_COUNT,
 	getFloorPositionForDepth,
 	getFloorThemeIdForDepth,
 	selectFloorMusicTrack,
+	shouldSpawnBossRoomForDepth,
 } from "../../levels/floorThemes/floorThemeDirectory"
 
 function assert(condition: boolean, message: string) {
@@ -38,8 +40,8 @@ const openingThemeIds = [
 	"daze-scar",
 ] as const
 for (let floor = 1; floor <= openingThemeIds.length; floor++) {
-	for (let subfloor = 1; subfloor <= 3; subfloor++) {
-		const depth = (floor - 1) * 3 + subfloor
+	for (let subfloor = 1; subfloor <= DEFAULT_FLOOR_SUBLEVEL_COUNT; subfloor++) {
+		const depth = (floor - 1) * DEFAULT_FLOOR_SUBLEVEL_COUNT + subfloor
 		assert(
 			getFloorThemeIdForDepth(depth) === openingThemeIds[floor - 1],
 			`Floor ${floor}.${subfloor} has the wrong opening theme`
@@ -47,32 +49,54 @@ for (let floor = 1; floor <= openingThemeIds.length; floor++) {
 	}
 }
 assert(
-	getFloorThemeIdForDepth(28) === "khelt-moltworks" &&
-	getFloorThemeIdForDepth(30) === "khelt-moltworks" &&
-	getFloorThemeIdForDepth(52) === "khelt-moltworks",
-	"Deep themes should span three subfloors and follow the fixed eight-floor cycle"
+	getFloorThemeIdForDepth(46) === "khelt-moltworks" &&
+	getFloorThemeIdForDepth(50) === "khelt-moltworks" &&
+	getFloorThemeIdForDepth(86) === "khelt-moltworks",
+	"Deep themes should span five subfloors and follow the fixed eight-floor cycle"
 )
+const floorOneMusic = [
+	"press_x_twice",
+	"hysterical",
+	"waynes_demise",
+	"press_x_twice",
+	"press_x_twice",
+]
+for (let depth = 1; depth <= DEFAULT_FLOOR_SUBLEVEL_COUNT; depth++) {
+	const track = selectFloorMusicTrack(depth, 8128)
+	assert(
+		track?.music === floorOneMusic[depth - 1] && track.stems?.length === 4,
+		`Floor 1.${depth} should use its complete assigned stem mix`
+	)
+}
 assert(
-	selectFloorMusicTrack(1, 8128)?.music === "shirobon_fox",
-	"Floor 1.1 should use Fox"
-)
-assert(
-	selectFloorMusicTrack(2, 8128)?.music === "shirobon_on_the_run",
-	"Floor 1.2 should use On The Run"
-)
-assert(
-	selectFloorMusicTrack(3, 8128)?.music === "shirobon_on_the_run",
-	"Floor 1.3 should explicitly retain On The Run until it gets its own track"
-)
-assert(
-	selectFloorMusicTrack(4, 8128) === undefined,
+	selectFloorMusicTrack(6, 8128) === undefined,
 	"A floor without songs should not inherit the previous floor's music"
 )
+assert(
+	shouldSpawnBossRoomForDepth(1) &&
+	!shouldSpawnBossRoomForDepth(2) &&
+	shouldSpawnBossRoomForDepth(DEFAULT_FLOOR_SUBLEVEL_COUNT),
+	"Floor 1.1 should expose the boss test while preserving the normal floor finale"
+)
+
+const wakeBosses = new Set(
+	Array.from({ length: 60 }, (_, seed) => {
+		const floor = generateRoomFloor(seed + 1, 5, { milestoneBoss: true })
+		return floor.rooms.find((room) => room.kind === "boss")?.bossId
+	})
+)
+for (const bossId of [
+	"federation-dreadnought",
+	"wake-yardmaster",
+	"wake-last-beacon",
+] as const) {
+	assert(wakeBosses.has(bossId), `Floor 1 boss pool is missing ${bossId}`)
+}
 
 for (let seed = 1; seed <= 200; seed++) {
 	const depth = seed % 8 + 1
 	const floor = generateRoomFloor(seed, depth, {
-		milestoneBoss: depth % 3 === 0,
+		milestoneBoss: shouldSpawnBossRoomForDepth(depth),
 	})
 	assert(
 		floor.themeId === getFloorThemeIdForDepth(depth),
@@ -81,7 +105,19 @@ for (let seed = 1; seed <= 200; seed++) {
 	assert(floor.rooms.length >= 20 && floor.rooms.length <= 32, `Seed ${seed} has invalid room count`)
 	const ids = new Set(floor.rooms.map((room) => room.id))
 	assert(ids.size === floor.rooms.length, `Seed ${seed} has duplicate room ids`)
+	const startRoom = floor.rooms.find((room) => room.id === floor.startRoomId)
+	assert(startRoom?.connections.length === 1, `Seed ${seed} start room needs exactly one exit`)
 	assert(floor.rooms.some((room) => room.kind === "reward"), `Seed ${seed} has no reward room`)
+	const dangerousRooms = floor.rooms.filter((room) => room.dangerLevel === 3)
+	assert(dangerousRooms.length >= 1, `Seed ${seed} has no extreme-risk room`)
+	assert(
+		dangerousRooms.every((room) =>
+			room.kind === "combat" &&
+			room.dangerReward !== undefined &&
+			room.encounter?.enemies.every((enemy) => enemy.elite) === true
+		),
+		`Seed ${seed} has an invalid extreme-risk encounter`
+	)
 	const depositCount = floor.rooms.filter((room) => room.kind === "deposit").length
 	assert(depositCount >= 1 && depositCount <= 2, `Seed ${seed} needs one or two deposit rooms`)
 	assert(floor.rooms.filter((room) => room.kind === "shop").length === 1, `Seed ${seed} needs one shop room`)
@@ -103,7 +139,7 @@ for (let seed = 1; seed <= 200; seed++) {
 		`Seed ${seed} requires a key to reach its exit`
 	)
 	const subfloor = getFloorPositionForDepth(depth).subfloor
-	const expectedMiniBossCount = subfloor >= 2 ? 1 : 0
+	const expectedMiniBossCount = 1
 	assert(
 		floor.rooms.filter((room) => room.kind === "miniBoss").length ===
 			expectedMiniBossCount,
@@ -113,7 +149,7 @@ for (let seed = 1; seed <= 200; seed++) {
 	assert(floor.rooms.filter((room) => room.kind === "gravity").length === 2, `Seed ${seed} needs two gravity rooms`)
 	const exit = floor.rooms.find((room) => room.id === floor.exitRoomId)
 	assert(exit !== undefined, `Seed ${seed} has no exit room`)
-	assert(exit!.kind === (depth % 3 === 0 ? "boss" : "exit"), `Seed ${seed} has wrong exit kind`)
+	assert(exit!.kind === (shouldSpawnBossRoomForDepth(depth) ? "boss" : "exit"), `Seed ${seed} has wrong exit kind`)
 	const maxDistance = Math.max(...floor.rooms.map((room) => room.distanceFromStart))
 	assert(exit!.distanceFromStart === maxDistance, `Seed ${seed} exit is not farthest from start`)
 	const roomByCoord = new Map(floor.rooms.map((room) => [hexKey(room.coord), room]))
@@ -161,6 +197,25 @@ for (let seed = 1; seed <= 200; seed++) {
 		assert(room.encounter!.enemies.length > 0, `${room.id} has no planned enemies`)
 		const enemyIds = new Set(room.encounter!.enemies.map((enemy) => enemy.id))
 		assert(enemyIds.size === room.encounter!.enemies.length, `${room.id} has duplicate enemy ids`)
+		assert(
+			room.encounter!.enemies.every((enemy) =>
+				enemy.arrivalMode === "resident" || enemy.arrivalMode === "phaseJump"
+			),
+			`${room.id} has an enemy without a valid arrival mode`
+		)
+		const openingWave = Math.min(...room.encounter!.enemies.map((enemy) => enemy.wave))
+		assert(
+			room.encounter!.enemies.some((enemy) =>
+				enemy.wave === openingWave && enemy.arrivalMode === "resident"
+			),
+			`${room.id} should begin with at least one resident enemy`
+		)
+		assert(
+			room.encounter!.enemies.every((enemy) =>
+				enemy.enemyId !== "wake-scrappers-hut" || enemy.arrivalMode === "resident"
+			),
+			`${room.id} phase-jumps a Scrapper's Hut into combat`
+		)
 	}
 }
 
@@ -192,6 +247,28 @@ assert(
 	"The lasso component room should not generate before it is eligible"
 )
 
+const lassoTrialFloors = Array.from({ length: 200 }, (_, index) =>
+	generateRoomFloor(3000 + index, 2, { lassoTrialAvailable: true })
+)
+assert(
+	lassoTrialFloors.every((floor) =>
+		floor.rooms.filter((room) => room.kind === "lassoTrial").length === 1
+	),
+	"Every lasso-enabled floor should contain exactly one precision trial"
+)
+assert(
+	lassoTrialFloors.flatMap((floor) => floor.rooms)
+		.filter((room) => room.kind === "lassoTrial")
+		.every((room) => room.encounter === undefined),
+	"Lasso trials should remain dedicated puzzle rooms without encounters"
+)
+assert(
+	!generateRoomFloor(3000, 2).rooms.some(
+		(room) => room.kind === "lassoTrial"
+	),
+	"Lasso trials should not generate before the permanent lasso is unlocked"
+)
+
 const scrapCircuitEligibleFloors = Array.from({ length: 200 }, (_, index) =>
 	generateRoomFloor(index + 1, 2, { scrapCircuitAvailable: true })
 )
@@ -218,6 +295,28 @@ assert(
 		(room) => room.kind === "scrapCircuit"
 	),
 	"Scrap circuits should not generate before the permanent lasso is unlocked"
+)
+
+const thrusterPuzzleFloors = Array.from({ length: 200 }, (_, index) =>
+	generateRoomFloor(6000 + index, 2, { thrusterPuzzleAvailable: true })
+)
+assert(
+	thrusterPuzzleFloors.every((floor) =>
+		floor.rooms.filter((room) => room.kind === "thrusterPuzzle").length === 1
+	),
+	"Every eligible sublevel should contain exactly one thruster calibration puzzle"
+)
+assert(
+	thrusterPuzzleFloors.flatMap((floor) => floor.rooms)
+		.filter((room) => room.kind === "thrusterPuzzle")
+		.every((room) => room.encounter === undefined),
+	"Thruster calibration should remain a dedicated lasso puzzle without an encounter"
+)
+assert(
+	!generateRoomFloor(6000, 2).rooms.some(
+		(room) => room.kind === "thrusterPuzzle"
+	),
+	"Thruster calibration should not generate before the permanent lasso is unlocked"
 )
 
 const cargoEligibleFloors = Array.from({ length: 240 }, (_, index) =>
@@ -272,6 +371,56 @@ assert(
 	wakeEnvironment.some((object) => object.category === "volatile"),
 	"Wake floors should generate destructible, dynamic, and volatile objects"
 )
+const wakeSubfloorIdentityArchetypes = [
+	["wake-fuel-cell"],
+	["wake-pressure-tank"],
+	["wake-battery-bank", "wake-sorting-gantry"],
+	["wake-coolant-canister", "wake-patchwork-stall", "wake-signal-nest"],
+	["wake-reactor-pod", "wake-breaker-crusher"],
+] as const
+for (let depth = 1; depth <= wakeSubfloorIdentityArchetypes.length; depth++) {
+	const archetypes = new Set(Array.from({ length: 24 }, (_, seedOffset) =>
+		generateRoomFloor(32000 + seedOffset, depth, { roomCount: 20 })
+	).flatMap((floor) => floor.rooms).flatMap(
+		(room) => room.environment?.objects.map((object) => object.archetypeId) ?? []
+	))
+	for (const archetypeId of wakeSubfloorIdentityArchetypes[depth - 1]) {
+		assert(
+			archetypes.has(archetypeId),
+			`Floor 1.${depth} should generate its ${archetypeId} identity prop`
+		)
+	}
+}
+const wakeScrapFields = Array.from({ length: 120 }, (_, seedOffset) =>
+	generateRoomFloor(12000 + seedOffset, 1, { roomCount: 20 })
+).flatMap((floor) => floor.rooms.flatMap((room) =>
+	(room.environment?.scrapFields ?? []).map((field) => ({ room, field }))
+))
+assert(wakeScrapFields.length > 0, "Wake room generation should place scrap fields")
+assert(
+	wakeScrapFields.every(({ room }) => room.kind === "combat"),
+	"Scrap fields should only occupy ordinary combat rooms"
+)
+assert(
+	wakeScrapFields.every(({ field }) =>
+		field.scrap.length === 6 &&
+		new Set(field.scrap.map((piece) => hexKey(piece.coord))).size === 6 &&
+		!field.scrap.some((piece) => hexKey(piece.coord) === hexKey(field.center))
+	),
+	"Scrap fields should seal one reward cell with six unique scrap pieces"
+)
+const barrelClusterRooms = Array.from({ length: 120 }, (_, seedOffset) =>
+	generateRoomFloor(16000 + seedOffset, 1, { roomCount: 20 })
+).flatMap((floor) => floor.rooms).filter((room) =>
+	(room.environment?.objects.filter((object) =>
+		object.id.includes("barrel-cluster")
+	).length ?? 0) >= 3
+)
+assert(barrelClusterRooms.length > 0, "Wake rooms should generate fuel-cell clusters")
+assert(
+	barrelClusterRooms.every((room) => room.kind === "combat"),
+	"Fuel-cell clusters should only occupy ordinary combat rooms"
+)
 assert(
 	deepFloor.rooms.every((room) => room.environment?.objects.length === 0),
 	"Themes without an environment catalog should not inherit Wake objects"
@@ -293,7 +442,7 @@ const endlessFloor = generateRoomFloor(9917, 1, {
 assert(endlessFloor.endless === true, "Endless floors should retain their mode")
 assert(endlessFloor.rooms.length === 4, "Endless floors should start compact")
 assert(
-	endlessFloor.rooms.every((room) => room.kind === "start" || room.kind === "combat"),
+	endlessFloor.rooms.every((room) => room.kind === "chill" || room.kind === "combat"),
 	"Endless floors should not generate exits or utility rooms"
 )
 for (let iteration = 0; iteration < 24; iteration++) {

@@ -9,7 +9,12 @@ import { createEnemySpawnProfile, type EnemySpawnOptions } from "../../services/
 import { easeDirection } from "../../shared"
 import { tags } from "../../tags"
 import { getEnemyVisual } from "../../visuals/enemyVisualCatalog"
-import { addWakeEnemyPart, composeWakeEnemy, handleWakeCompositeCombat } from "./wakeEnemyShared"
+import {
+	addWakeEnemyPart,
+	composeWakeEnemy,
+	handleWakeCompositeCombat,
+	updateWakeEnemyMalfunction,
+} from "./wakeEnemyShared"
 
 const PATCH_TENDER_VISUAL = getEnemyVisual("wake-patch-tender")
 
@@ -60,16 +65,19 @@ export function spawnPatchTender(
 	const welder = addWakeEnemyPart(
 		tender,
 		welderVisual.sprite,
-		Math.max(1, Math.round(profile.hp * 0.5))
+		2 * Math.max(1, Math.round(profile.hp / 2 * 0.5))
 	)
 	composeWakeEnemy(tender, profile, [{
 		obj: welder,
 		hitbox: 5 * profile.scale,
 		hitboxOffset: k.vec2(0, -9).scale(profile.scale),
+		pullForce: 60,
+		pullDuration: 0.5,
 	}], 6, 1.2)
 
 	registerBatchedEntityUpdate("enemies", tender, () => {
 		const delta = k.dt() * tender.getTimescale()
+		if (updateWakeEnemyMalfunction(tender, delta)) return
 		tender.targetTimer -= delta
 		if (
 			welder.hidden ||

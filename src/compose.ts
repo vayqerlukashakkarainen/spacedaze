@@ -9,7 +9,12 @@ import {
 } from "kaplay";
 import { k, layers, subSoundVolume } from "./main";
 import { registerHitAnimation } from "./shared";
-import { emitEnemyTrail, sparkEmitter, starsEmitter } from "./particles";
+import {
+	emitDirectionalParticles,
+	emitEnemyTrail,
+	sparkEmitter,
+	starsEmitter,
+} from "./particles";
 import { spawnDebree } from "./spawn/spawnDebree";
 import { JitterComp } from "./comp/jitter";
 import { enemyOnDeath, type EnemyDeathMaterial } from "./spawn/enemyShared";
@@ -29,15 +34,23 @@ import {
 import { gameSoundService } from "./services/audio/gameSoundService";
 import { spawnPersistentShipPart } from "./services/combat/persistentShipPartService";
 import { emitMechanicalDamageSmokeBurst } from "./services/combat/enemyDamageEffectService";
+import { registerPullableShipPart } from "./services/combat/shipPartPullService";
+import { applyDamage } from "./services/combat/damageService";
 
-interface Part {
-	obj: GameObj<
-		HealthComp | AnimateComp | PosComp | SpriteComp | JitterComp | RotateComp
-	>;
+export type ComposedPartObject = GameObj<
+	HealthComp | AnimateComp | PosComp | SpriteComp | JitterComp | RotateComp
+> & {
+	detachImpactDirection?: Vec2
+}
+
+export interface Part {
+	obj: ComposedPartObject;
 	hitbox: number;
 	hitboxOffset?: Vec2;
 	isBody: boolean;
 	scoreOnDestroy: number;
+	pullForce?: number
+	pullDuration?: number
 	onDestroyed?: (part: GameObj, body: GameObj) => void
 }
 
@@ -75,6 +88,7 @@ export function compose(c: Compose): Component[] {
 
 	for (let i = 0; i < c.parts.length; i++) {
 		const part = c.parts[i];
+		let detachedPart: GameObj | undefined
 		registerHitAnimation(part.obj);
 		if (!part.isBody) {
 			registerShipPartTarget(
@@ -143,7 +157,7 @@ export function compose(c: Compose): Component[] {
 				part.obj.detachImpactDirection
 			);
 			const direction = combineDetachDirections(outward, impactDirection);
-			detach(visualPos, part.obj.sprite, {
+			detachedPart = detach(visualPos, part.obj.sprite, {
 				force: k.rand(55, 90),
 				direction,
 				inheritedVelocity: getBodyVelocity(body!.obj),
@@ -154,6 +168,28 @@ export function compose(c: Compose): Component[] {
 			body!.obj.jitter(20);
 			triggerShipPartExplosion(part.obj, body!.obj, seamPos);
 		});
+		if (!part.isBody && part.pullForce !== undefined) {
+			registerPullableShipPart(
+				part.obj,
+				body!.obj,
+				part.hitbox,
+				{
+					pullForce: part.pullForce,
+					pullDuration: part.pullDuration,
+					detach: (direction) => {
+						if (part.obj.hidden || part.obj.hp <= 0) return undefined
+						detachedPart = undefined
+						part.obj.detachImpactDirection = direction.clone()
+						applyDamage(part.obj, part.obj.hp, {
+							position: part.obj.worldPos?.clone() ??
+								part.obj.pos.clone(),
+							showNumber: false,
+						})
+						return detachedPart
+					},
+				}
+			)
+		}
 
 		composed.push({
 			obj: part.obj,
@@ -211,14 +247,7 @@ function emitPartSparks(
 	spread: number,
 	count: number
 ) {
-	const previousDirection = sparkEmitter.emitter.direction;
-	const previousSpread = sparkEmitter.emitter.spread;
-	sparkEmitter.emitter.position = pos;
-	sparkEmitter.emitter.direction = direction;
-	sparkEmitter.emitter.spread = spread;
-	sparkEmitter.emit(count);
-	sparkEmitter.emitter.direction = previousDirection;
-	sparkEmitter.emitter.spread = previousSpread;
+	emitDirectionalParticles(sparkEmitter, pos, direction, spread, count);
 }
 
 function spawnDamagedSocket(body: GameObj, localPos: Vec2) {

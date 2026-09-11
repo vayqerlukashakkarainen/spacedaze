@@ -9,9 +9,10 @@ export interface TimescaleComp extends Comp {
 }
 
 export function timescale(): TimescaleComp {
+	const modifiers = new Map<number, number>();
 	return {
 		timescale: 1,
-		timescaleModifiers: new Map(),
+		timescaleModifiers: modifiers,
 		id: "timescale",
 		require: ["pos"],
 		setTimescale(value: number) {
@@ -23,7 +24,7 @@ export function timescale(): TimescaleComp {
 		getTimescale() {
 			return (
 				this.timescale *
-				Array.from(this.timescaleModifiers.values()).reduce((a, b) => a * b, 1) *
+				Array.from(modifiers.values()).reduce((product, value) => product * value, 1) *
 				(this.runtimeUpdateScale ?? 1)
 			);
 		},

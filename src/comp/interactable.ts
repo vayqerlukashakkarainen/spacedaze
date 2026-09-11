@@ -14,7 +14,7 @@ export interface InteractableComp extends Comp {
 export function interactable(
 	radius: number,
 	callback: () => void,
-	priority = INTERACTION_PRIORITY.default
+	priority: number = INTERACTION_PRIORITY.default
 ): InteractableComp {
 	return {
 		id: "interactable",

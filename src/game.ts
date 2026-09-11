@@ -1,12 +1,10 @@
 import {
-	AnchorComp,
 	AnimateComp,
-	AreaComp,
 	Color,
 	GameObj,
-	HealthComp,
 	PosComp,
 	RotateComp,
+	ScaleComp,
 	SpriteComp,
 	Vec2,
 } from "kaplay";
@@ -77,6 +75,7 @@ import {
 	resetActiveModuleCooldown,
 } from "./services/abilities/activeModuleService";
 import {
+	hasPendingHubProgression,
 	makeStrafeTrainingAvailable,
 	shouldStartPrologue,
 } from "./services/narrative/narrativeService";
@@ -95,6 +94,7 @@ import { RUN_HULL_REINFORCEMENT_AMOUNT } from "./services/player/playerHealthBal
 import {
 	clearPendingRunEndSummary,
 	completeRun,
+	hasPendingHubLevelReveal,
 	type RunEndSummary,
 } from "./services/runs/runCompletionService";
 import { hideDebreeDepositPanel } from "./ui/debreeDepositPanel";
@@ -112,13 +112,23 @@ import {
 import { getUnlockedWarpZones } from "./services/world/warpZoneService";
 import { showPopover } from "./services/ui/popoverService"
 
-export let playerObj: GameObj<
-	PosComp | SpriteComp | RotateComp | AreaComp | AnchorComp | HealthComp
->;
+export let playerObj: ReturnType<typeof setupPlayer>;
 let timeSinceLastLevel = 0;
 let isPlayerDying = false;
 
-export let debrees: GameObj<AnimateComp | PosComp | SpriteComp>[] = [];
+export type DebreeObject = GameObj<
+	AnimateComp | PosComp | SpriteComp | RotateComp | ScaleComp
+> & {
+	salvageValue: number
+	dir: Vec2
+	speed: number
+	lifeSpan: number
+	collection?: DebreeCollectionState
+	carriedBy?: number
+	readyForPlayer?: boolean
+}
+
+export let debrees: DebreeObject[] = [];
 export const projectiles: GameObj<PosComp | any>[] = [];
 
 export function startGame() {
@@ -137,10 +147,7 @@ export function startGame() {
 	setupGameLoopUi(getPlayerMaxHealth(), hasEquippedActiveModule());
 	if (startsWithPrologue) {
 		loadLevel("level1");
-		beginPrologueExperience(() => {
-			transitionToLevel("hub");
-			saveGame("slot1");
-		});
+		beginPrologueExperience();
 		return;
 	}
 	k.wait(0.6, () => {
@@ -181,6 +188,7 @@ export function updateGameLoop() {
 			angle: number;
 			salvageValue: number;
 			color: Color;
+			runtimeVisibilityCulled?: boolean;
 		};
 
 		if (collectible.carriedBy !== undefined) continue
@@ -334,12 +342,17 @@ export function beginPlayerDeathSequence() {
 	if (diedInPrologue) tracePrologue("death:classified-as-prologue");
 	let debreeOutcome: DebreeRunOutcome = { deposited: 0, lost: 0 };
 	let runEndSummary: RunEndSummary | undefined;
+	let hubReturnRequired = false;
 	if (diedInPrologue) saveGame("slot1");
 	if (!diedInHub && !diedInPrologue) {
 		debreeOutcome = loseCarriedDebree();
 		runEndSummary = completeRun("DESTROYED", debreeOutcome);
 		clearPendingRunEndSummary();
 		prepareDeathRecoveryOffers();
+		makeStrafeTrainingAvailable();
+		hubReturnRequired = hasPendingHubLevelReveal() ||
+			runEndSummary.hub.unlocks.length > 0 ||
+			hasPendingHubProgression();
 	}
 
 	k.shake(8);
@@ -361,7 +374,7 @@ export function beginPlayerDeathSequence() {
 			deathCause,
 			runEndSummary,
 			() => continueAfterPlayerDeath(diedInHub),
-			!diedInHub && retryZoneId
+			!diedInHub && retryZoneId && !hubReturnRequired
 				? () => startNewRunAfterPlayerDeath(retryZoneId, diedInHub)
 				: undefined
 		);

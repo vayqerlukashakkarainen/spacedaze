@@ -8,7 +8,10 @@ import {
 } from "./runLevelPool"
 import { startRunStats } from "./runStatsService"
 import { getUnlockedWarpZones, getWarpZone } from "../world/warpZoneService"
-import { beginDebreeRun } from "../economy/debreeEconomyService"
+import {
+	addAvailableDebree,
+	beginDebreeRun,
+} from "../economy/debreeEconomyService"
 import { getAbilityLoadout } from "../abilities/abilityLoadoutService"
 import { getHubLevel } from "../hub/hubProgressService"
 import { getToolUpgradeLvlValue, loadout } from "../../upg"
@@ -22,6 +25,14 @@ import {
 } from "./runTelemetryService"
 import { runtimeDebug } from "../debug/runtimeDebugService"
 import { recordRewardFloorReached } from "../progression/rewardUnlockProgressService"
+import { canAdvanceRunAfterDepth } from "../../config/buildProfile"
+import {
+	beginExpeditionSupportRun,
+	endExpeditionSupportRun,
+	getExpeditionSupportValue,
+} from "../hub/expeditionSupportService"
+import { grantRerollTokens } from "../../player"
+import { beginPhaseCoreRun } from "../economy/phaseCoreService"
 
 export interface RunFloorSelection {
 	levelKey: RunLevelKey
@@ -78,6 +89,10 @@ export function beginRunSession(zoneId: string): RunFloorSelection | undefined {
 		currentFloor,
 	}
 	beginDebreeRun()
+	beginPhaseCoreRun()
+	beginExpeditionSupportRun()
+	addAvailableDebree(getExpeditionSupportValue("launchStipend"))
+	grantRerollTokens(getExpeditionSupportValue("flightRecorder"))
 	recordRewardFloorReached(currentFloor.depth)
 	beginExtraLifeRun(getToolUpgradeLvlValue("extraLife") ?? 0)
 	startRunStats(getSelectedContract()?.name ?? "UNASSIGNED EXPEDITION")
@@ -120,6 +135,7 @@ export function beginRandomRunSession(): RunFloorSelection | undefined {
 
 export function advanceRunSession(): RunFloorSelection | undefined {
 	if (!activeRun) return undefined
+	if (!canAdvanceRunAfterDepth(activeRun.depth)) return undefined
 	const pool = getRunLevelPool(activeRun.poolId)
 	if (!pool || pool.levelKeys.length === 0) return undefined
 
@@ -172,6 +188,7 @@ export function runSessionActive() {
 
 export function endRunSession() {
 	activeRun = undefined
+	endExpeditionSupportRun()
 	endExtraLifeRun()
 }
 

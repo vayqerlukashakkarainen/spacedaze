@@ -6,6 +6,7 @@ import {
 	getCarriedDebree,
 	getDepositedDebree,
 } from "../services/economy/debreeEconomyService"
+import { getRemainingFloorDepositCount } from "../services/world/roomFloorService"
 import { tags } from "../tags"
 import {
 	addThemedText,
@@ -41,7 +42,7 @@ export function showDebreeDepositPanel(options: DebreeDepositPanelOptions) {
 	open = true
 	uiState.modalOpen = true
 	pausedObjects = new Set()
-	for (const object of k.get<GameObj>(tags.gameLoop)) {
+	for (const object of k.get(tags.gameLoop)) {
 		if (object.paused) continue
 		object.paused = true
 		pausedObjects.add(object)
@@ -102,6 +103,11 @@ export function showDebreeDepositPanel(options: DebreeDepositPanelOptions) {
 		items: [
 			{ label: "CARRIED", value: `${getCarriedDebree()}` },
 			{ label: "SAFE", value: `${getDepositedDebree()}` },
+			{
+				label: "RELAYS LEFT",
+				value: `${getRemainingFloorDepositCount()}`,
+				valueColor: k.rgb(...UI_COLORS.accent),
+			},
 		],
 	})
 

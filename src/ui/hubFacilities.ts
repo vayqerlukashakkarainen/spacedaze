@@ -107,14 +107,26 @@ import {
 import {
 	formatInputBinding,
 	getInputBinding,
+	getStrafeInputMode,
 	type InputActionId,
 } from "../services/input/inputBindingService"
 import { isStrafeTrainingUnlocked } from "../services/narrative/narrativeService"
+import { getLassoRigRank } from "../services/hub/lassoRigService"
 import {
 	getWorldVisual,
 	type WorldVisualId,
 } from "../visuals/worldVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
+import { createUiScrollable } from "./common/scrollable"
+import {
+	equipPilotProtocol,
+	getActivePilotProtocol,
+	getPilotProtocolRank,
+	getPilotProtocolRows,
+	getPilotProtocolUpgradeCost,
+	upgradePilotProtocol,
+	type PilotProtocolId,
+} from "../services/hub/pilotProtocolService"
 
 let panelOpen = false
 let panelClosing = false
@@ -557,8 +569,8 @@ function formatMultiplier(value: number) {
 
 export function showRunTerminal(initialSection: RunTerminalSection = "contracts") {
 	const panelSize = k.vec2(
-		Math.min(860, k.width() - 24),
-		Math.min(520, k.height() - 24)
+		Math.min(1180, k.width() - 24),
+		Math.min(720, k.height() - 24)
 	)
 	const panel = openPanel(undefined, panelSize)
 	if (!panel) return
@@ -567,7 +579,7 @@ export function showRunTerminal(initialSection: RunTerminalSection = "contracts"
 	const top = -panelSize.y / 2
 	const navLeft = left + 16
 	const navTop = top + 70
-	const navWidth = 210
+	const navWidth = Math.min(250, panelSize.x * 0.27)
 	const contentLeft = navLeft + navWidth + 12
 	const contentWidth = panelSize.x - navWidth - 56
 	const contentHeight = panelSize.y - 142
@@ -626,6 +638,17 @@ export function showRunTerminal(initialSection: RunTerminalSection = "contracts"
 			)
 			return
 		}
+		if (section === "protocols") {
+			renderPilotProtocols(
+				contentRoot,
+				contentLeft,
+				navTop,
+				contentWidth,
+				contentHeight,
+				renderContent
+			)
+			return
+		}
 		renderRunTerminalDebrief(
 			contentRoot,
 			contentLeft,
@@ -663,6 +686,13 @@ export function showRunTerminal(initialSection: RunTerminalSection = "contracts"
 			status: `LEVEL ${getForgeLevel()}/3`,
 		},
 		{
+			section: "protocols",
+			facilityId: "salvageForge",
+			title: "PILOT PROTOCOLS",
+			meta: "PAIRED DOCTRINES",
+			status: "SELECT",
+		},
+		{
 			section: "debrief",
 			facilityId: "debriefTerminal",
 			title: "LAST RUN",
@@ -687,7 +717,7 @@ export function showRunTerminal(initialSection: RunTerminalSection = "contracts"
 	renderContent()
 }
 
-type RunTerminalSection = "contracts" | "forge" | "debrief"
+type RunTerminalSection = "contracts" | "forge" | "protocols" | "debrief"
 
 function renderRunTerminalContracts(
 	root: GameObj,
@@ -812,6 +842,104 @@ function renderRunTerminalForge(
 			onUpgrade()
 		},
 	})
+}
+
+function renderPilotProtocols(
+	root: GameObj,
+	left: number,
+	top: number,
+	width: number,
+	height: number,
+	onChanged: () => void
+) {
+	createUiSectionHeader(root, {
+		pos: k.vec2(left, top),
+		width,
+		height: 48,
+		eyebrow: "PERMANENT PILOT CALIBRATION",
+		title: "PILOT PROTOCOLS",
+		action: `${getScore()} SALVAGE`,
+	})
+	const rows = getPilotProtocolRows()
+	const rowHeight = 116
+	const scroll = createUiScrollable({
+		parent: root,
+		pos: k.vec2(left + 8, top + 56),
+		width: width - 16,
+		height: height - 64,
+		contentHeight: rows.length * rowHeight + 8,
+		scrollStep: rowHeight,
+	})
+	for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+		const row = rows[rowIndex]
+		const rowTop = rowIndex * rowHeight
+		addThemedText(scroll.content, {
+			text: row.id.toUpperCase(),
+			pos: k.vec2(8, rowTop + 4),
+			variant: "caption",
+			width: width - 40,
+		})
+		for (let optionIndex = 0; optionIndex < row.protocols.length; optionIndex++) {
+			const protocol = row.protocols[optionIndex]
+			const cardWidth = (width - 42) / 2
+			const cardLeft = 8 + optionIndex * (cardWidth + 10)
+			const rank = getPilotProtocolRank(protocol.id)
+			const active = getActivePilotProtocol(row.id) === protocol.id && rank > 0
+			const cost = getPilotProtocolUpgradeCost(protocol.id)
+			const card = createUiSurface(scroll.content, {
+				pos: k.vec2(cardLeft, rowTop + 20),
+				size: k.vec2(cardWidth, 88),
+				tone: active ? "selected" : "raised",
+				borderColor: active ? UI_COLORS.accent : UI_COLORS.border,
+			})
+			addThemedText(card, {
+				text: `${protocol.name}  //  ${rank}/${protocol.values.length}`,
+				pos: k.vec2(8, 7),
+				variant: "caption",
+				width: cardWidth - 16,
+			})
+			addThemedText(card, {
+				text: protocol.description,
+				pos: k.vec2(8, 25),
+				variant: "muted",
+				width: cardWidth - 16,
+			})
+			createUiActionButton(card, {
+				pos: k.vec2(8, 60),
+				size: k.vec2(cardWidth - 16, 21),
+				text: getProtocolActionLabel(protocol.id, active),
+				disabled: rank === 0 && cost !== undefined && getScore() < cost,
+				onDisabledClick: playRequirementErrorSound,
+				onClick: () => {
+					if (rank > 0 && !active) {
+						equipPilotProtocol(protocol.id)
+						saveGame("slot1")
+						onChanged()
+						return
+					}
+					if (cost === undefined || !spendScore(cost)) {
+						playRequirementErrorSound()
+						return
+					}
+					upgradePilotProtocol(protocol.id)
+					spawnCurrencyBurst(k.mousePos(), {
+						particleCount: purchaseBurstParticleCount(cost),
+						fixed: true,
+					})
+					saveGame("slot1")
+					onChanged()
+				},
+			})
+		}
+	}
+}
+
+function getProtocolActionLabel(id: PilotProtocolId, active: boolean) {
+	const rank = getPilotProtocolRank(id)
+	const cost = getPilotProtocolUpgradeCost(id)
+	if (rank > 0 && !active) return "EQUIP"
+	if (cost === undefined) return active ? "ACTIVE // MAX" : "MAXIMUM"
+	return rank === 0 ? `UNLOCK // ${cost}` : `RANK UP // ${cost}`
 }
 
 function renderRunTerminalDebrief(
@@ -981,6 +1109,7 @@ export function addCompendiumContent(
 	const tabRoot = parent.add([k.pos(0, 0)])
 	const contentRoot = parent.add([k.pos(0, 0)])
 	let activeTab: PhaseStationTab = initialTab
+	let techniquePage = 0
 	let selectedTechniqueId = getCompendiumTechniques()
 		.find((technique) => technique.discovered)?.id
 	let shipPage = 0
@@ -1046,12 +1175,17 @@ export function addCompendiumContent(
 		})
 
 		if (activeTab === "techniques") {
-			renderTechniques(
+			techniquePage = renderTechniques(
 				contentRoot,
 				panelLeft + innerPadding,
 				innerWidth,
 				contentTop,
 				contentBottom,
+				techniquePage,
+				(nextPage) => {
+					techniquePage = nextPage
+					render()
+				},
 				selectedTechniqueId,
 				(id) => {
 					selectedTechniqueId = id
@@ -1208,9 +1342,9 @@ function getPhaseStationTabForBlueprint(key: string): PhaseStationTab {
 }
 
 const REWARD_SOURCE_UNLOCK_LABELS: Readonly<Record<RewardSource, string>> = {
-	crate: "CHEST",
-	enemy: "ENEMY",
-	boss: "BOSS",
+	crate: "Chest",
+	enemy: "enemy",
+	boss: "boss",
 }
 
 function formatUnlockList(items: readonly string[]) {
@@ -1229,22 +1363,26 @@ function getRewardUnlockRequirement(
 		: 1
 	if (minimumHubLevel > 1) {
 		requirements.push(
-			`HUB LEVEL ${minimumHubLevel}  ${Math.min(getHubLevel(), minimumHubLevel)} / ${minimumHubLevel}`
+			`Hub Level ${minimumHubLevel}  ${Math.min(getHubLevel(), minimumHubLevel)} / ${minimumHubLevel}`
 		)
 	}
 	for (const requirement of definition?.unlockRequirements?.allOf ?? []) {
-		requirements.push(describeRewardUnlockRequirement(requirement))
+		requirements.push(formatRequirementBody(
+			describeRewardUnlockRequirement(requirement)
+		))
 	}
 	const alternateRequirements = definition?.unlockRequirements?.anyOf ?? []
 	if (alternateRequirements.length > 0) {
 		requirements.push(
-			`ONE OF: ${alternateRequirements.map(
-				describeRewardUnlockRequirement
+			`One of: ${alternateRequirements.map(
+				(requirement) => formatRequirementBody(
+					describeRewardUnlockRequirement(requirement)
+				)
 			).join(" OR ")}`
 		)
 	}
 	if (additionalRequirement) {
-		requirements.push(additionalRequirement.toUpperCase())
+		requirements.push(formatRequirementBody(additionalRequirement))
 	}
 	const sources = definition?.allowedSources.filter(
 		(source) => (definition.weights[source] ?? 0) > 0
@@ -1253,12 +1391,19 @@ function getRewardUnlockRequirement(
 		requirements.push(
 			`${formatUnlockList(sources.map(
 				(source) => REWARD_SOURCE_UNLOCK_LABELS[source]
-			))} DROP`
+			))} drop`
 		)
 	} else if (requirements.length === 0) {
-		requirements.push("EXPEDITION DISCOVERY")
+		requirements.push("Expedition discovery")
 	}
-	return requirements.join(" + ")
+	return requirements.join(" + ").replaceAll(" OR ", " or ")
+}
+
+function formatRequirementBody(text: string) {
+	const normalized = text.toLowerCase()
+		.replaceAll("hub level", "Hub Level")
+		.replaceAll("burt's", "Burt's")
+	return normalized.charAt(0).toUpperCase() + normalized.slice(1)
 }
 
 function getCompendiumRewardProgress(
@@ -1270,14 +1415,14 @@ function getCompendiumRewardProgress(
 function getDroidUnlockRequirement(id: DroidId) {
 	switch (id) {
 		case "ring-runner":
-			return "COMPLETE THE ASTEROID RUNNER ENCOUNTER"
+			return "Complete the Asteroid Runner encounter."
 		case "ring-watcher":
-			return "COMPLETE THE RANGE KEEPER ENCOUNTER IN THE HUB"
+			return "Complete the Range Keeper encounter in the Hub."
 		case "lamp-keeper":
-			return "COMPLETE THE LAMP KEEPER ENCOUNTER IN THE HUB"
+			return "Complete the Lamp Keeper encounter in the Hub."
 		case "gloom":
 		case "jubilee":
-			return "DISCOVER THE BIRTHDAY ENCOUNTER IN THE HUB"
+			return "Discover the birthday encounter in the Hub."
 	}
 }
 
@@ -1299,14 +1444,63 @@ interface CompendiumTechnique {
 }
 
 function getCompendiumTechniques(): CompendiumTechnique[] {
+	const lassoDiscovered = getPermanentUpgradeLevel("salvageLasso") !== undefined
+	const modifierDiscovered = [
+		"cryoRounds",
+		"empRounds",
+		"stunRounds",
+		"corrosivePayload",
+		"arcCapacitor",
+		"lifesteal",
+		"splitChamber",
+		"singularityPayload",
+		"probabilityAmplifier",
+	].some(isTechniqueUpgradeDiscovered)
+	const droidFrenzyDiscovered = isTechniqueAbilityDiscovered("droidFrenzy")
+	const droidTechniqueDiscovered = [
+		"followerBlasterDmg",
+		"followerMissiles",
+		"followerProjectileLink",
+		"followerInterceptorProtocol",
+		"followerGunship",
+		"followerMedic",
+		"followerSalvager",
+	].some(isTechniqueUpgradeDiscovered) || droidFrenzyDiscovered
 	return [
 		{
 			id: "normalFlight",
 			name: "NORMAL FLIGHT",
 			category: "MOVEMENT",
-			description: "Turn the hull toward the cursor and thrust along the ship's facing direction.",
-			howText: "Aim with the cursor. Use movement input to accelerate, brake, and carve through open space.",
+			description: "Use full engine power while steering the hull with directional movement.",
+			howText: "Movement input turns and accelerates the ship. The turret follows the cursor only inside its forward firing cone.",
+			tipText: "Turn the hull before a target leaves the firing cone. Normal flight is faster than Strafe Mode.",
 			previewVideo: "videos/normal-flight-preview.mp4",
+			discovered: true,
+		},
+		{
+			id: "aimingArc",
+			name: "AIMING ARC",
+			category: "WEAPON CONTROL",
+			description: "The primary turret can only traverse inside the ship's forward firing cone during normal flight.",
+			howText: "Aim anywhere inside the cone to rotate the turret. Outside it, the turret remains clamped at the nearest edge until you turn the hull.",
+			tipText: "Quartermaster turret upgrades widen the total cone by 30 degrees per rank, up to 270 degrees.",
+			noteTitle: "STRAFE MODE",
+			noteText: "Strafe Mode removes the firing-cone restriction while it is active.",
+			input: formatInputBinding(getInputBinding("primary")),
+			inputAction: "AIM / FIRE",
+			discovered: true,
+		},
+		{
+			id: "fireControl",
+			name: "FIRE CONTROL",
+			category: "WEAPON CONTROL",
+			description: "Primary weapons can respond differently to presses, sustained fire, and release timing.",
+			howText: "Tap primary fire for immediate shots. Hold it for a weapon's sustained or charged behavior, then release when required.",
+			tipText: "The Standard Blaster fires as quickly as you click, while held fire uses a slower automatic cadence.",
+			noteTitle: "WEAPON RULE",
+			noteText: "The equipped primary weapon determines whether held fire is sustained or charged.",
+			input: formatInputBinding(getInputBinding("primary")),
+			inputAction: "PRESS / HOLD",
 			discovered: true,
 		},
 		{
@@ -1324,28 +1518,94 @@ function getCompendiumTechniques(): CompendiumTechnique[] {
 			id: "strafeMode",
 			name: "STRAFE MODE",
 			category: "SHIP ORIENTATION",
-			description: "Keep the hull oriented while moving independently around a target.",
-			howText: "Press Space to toggle strafe control. Aim with the cursor while movement input translates the ship independently.",
+			description: "Trade speed for independent movement and unrestricted turret aim.",
+			howText: "Use the Strafe Mode binding to decouple movement from aim. The turret follows the cursor while the hull eases toward it.",
 			tipText: "Keep the cursor over the reticle to increase critical hit chance.",
-			strafeModifier: "Movement decouples from hull orientation.",
-			input: "SPACE",
-			inputAction: "TOGGLE",
+			strafeModifier: "Movement decouples from hull orientation at reduced speed.",
+			input: formatInputBinding(getInputBinding("strafe")),
+			inputAction: getStrafeInputMode().toUpperCase(),
+			discovered: isStrafeTrainingUnlocked(),
+			unlockRequirement: "COMPLETE BURT'S STRAFE TRAINING",
+		},
+		{
+			id: "targetLock",
+			name: "TARGET LOCK",
+			category: "STRAFE COMBAT",
+			description: "Strafe Mode can acquire a hostile beneath the cursor and lead its movement.",
+			howText: "Move the cursor over a hostile while strafing. The reticle follows its predicted position and turns cyan when your aim is precise.",
+			tipText: "A precise lock grants bonus critical chance and gives guidance effects a priority target.",
+			noteTitle: "LOCK WINDOW",
+			noteText: "Move the cursor away from the target to release the lock and return to free aim.",
+			input: formatInputBinding(getInputBinding("strafe")),
+			inputAction: "LOCK TARGET",
 			discovered: isStrafeTrainingUnlocked(),
 			unlockRequirement: "COMPLETE BURT'S STRAFE TRAINING",
 		},
 		{
 			id: "salvageLasso",
-			name: "LASSO TECHNIQUES",
-			category: "SALVAGE COMBAT",
-			description: "Ensnare loose objects, tow them behind the ship, or turn their momentum into a weapon.",
-			howText: "Cast near a chest, mine, fuel cell, movable cover, or ship part. Move to build tension, then cast again to release. Speed and mass increase slam damage.",
-			strafeModifier: "Releasing the lasso launches its target directly toward the reticle.",
+			name: "SALVAGE LASSO",
+			category: "SALVAGE TOOL",
+			description: "Create a physical tether between your ship and a compatible object or unit.",
+			howText: "Aim near a valid target and cast the lasso. Move to tow it and build cable tension. Cast again to release the link.",
+			tipText: "Valid targets include chests, mines, fuel cells, movable cover, loose ship parts, and compatible units.",
+			noteTitle: "CABLE LIMIT",
+			noteText: "The tether breaks if the target is pulled beyond its maximum range.",
 			input: formatInputBinding(getInputBinding("lasso")),
 			inputAction: "CAST / RELEASE",
-			discovered: getPermanentUpgradeLevel("salvageLasso") !== undefined,
+			discovered: lassoDiscovered,
 			unlockRequirement: getRewardUnlockRequirement(
 				getRewardDefinition("salvageLasso")
 			),
+		},
+		{
+			id: "momentumThrow",
+			name: "MOMENTUM THROW",
+			category: "LASSO TECHNIQUE",
+			description: "Turn a tethered object into a projectile by releasing its stored momentum.",
+			howText: "Build speed while towing, then release. In Strafe Mode the target launches directly toward the reticle.",
+			tipText: "Fast, heavy objects deal the strongest collision damage.",
+			input: formatInputBinding(getInputBinding("lasso")),
+			inputAction: "RELEASE / THROW",
+			discovered: lassoDiscovered,
+			unlockRequirement: "UNLOCK THE SALVAGE LASSO",
+		},
+		{
+			id: "partExtraction",
+			name: "PART EXTRACTION",
+			category: "LASSO TECHNIQUE",
+			description: "Rip a detachable system from a hostile ship before its core is destroyed.",
+			howText: "Lasso an exposed ship part and pull until cable tension overcomes the part's remaining integrity.",
+			tipText: "Extracted parts become towable salvage and immediately disable their attached function.",
+			noteTitle: "RIG REQUIREMENT",
+			noteText: "Requires the Part Extractor calibration from the Quartermaster.",
+			input: formatInputBinding(getInputBinding("lasso")),
+			inputAction: "TENSION / EXTRACT",
+			discovered: getLassoRigRank("partExtractor") > 0,
+			unlockRequirement: "INSTALL THE PART EXTRACTOR",
+		},
+		{
+			id: "heavyTowing",
+			name: "HEAVY TOWING",
+			category: "LASSO TECHNIQUE",
+			description: "Target mass and active force determine which side controls a tether.",
+			howText: "Heavy objects resist acceleration. Powered targets can overpower the ship and drag it until the tether is released or broken.",
+			tipText: "A larger, flashing thruster shows when the drive is straining against a heavy load.",
+			noteTitle: "IMPACT MASS",
+			noteText: "Higher effective mass also increases collision damage when the target is thrown.",
+			discovered: lassoDiscovered,
+			unlockRequirement: "UNLOCK THE SALVAGE LASSO",
+		},
+		{
+			id: "collisionCombat",
+			name: "COLLISION COMBAT",
+			category: "SALVAGE COMBAT",
+			description: "Loose wreckage can become a weapon without spending ammunition.",
+			howText: "Accelerate a movable object into a hostile. Impact damage rises with collision speed and effective mass.",
+			tipText: "Use walls, knockback, gravity, and lasso throws to create repeatable impact paths.",
+			noteTitle: "DAMAGE RULE",
+			noteText: "A slow collision may reposition a target without reaching the damaging impact threshold.",
+			discovered: lassoDiscovered,
+			unlockRequirement: "UNLOCK THE SALVAGE LASSO",
 		},
 		{
 			id: "explosiveObjects",
@@ -1365,6 +1625,17 @@ function getCompendiumTechniques(): CompendiumTechnique[] {
 			discovered: true,
 		},
 		{
+			id: "systemDisabling",
+			name: "SYSTEM DISABLING",
+			category: "PRECISION COMBAT",
+			description: "Functional enemy parts alter behavior when damaged, destroyed, or extracted.",
+			howText: "Read the enemy silhouette and break the system that supports its strongest action before attacking the core.",
+			tipText: "Weapons, vents, cutters, armor, and propulsion can each produce a different failure state.",
+			noteTitle: "TRADEOFF",
+			noteText: "Disabling a system can make an enemy safer, but some damaged parts trigger unstable behavior.",
+			discovered: true,
+		},
+		{
 			id: "chargedWeapons",
 			name: "CHARGED WEAPONS",
 			category: "COMBAT",
@@ -1376,6 +1647,44 @@ function getCompendiumTechniques(): CompendiumTechnique[] {
 				isWeaponOwned(weapon.id) && weapon.charge !== undefined
 			),
 			unlockRequirement: "RECOVER A CHARGE-CAPABLE PRIMARY WEAPON",
+		},
+		{
+			id: "modifierRolls",
+			name: "MODIFIER ROLLS",
+			category: "PROJECTILE SYSTEMS",
+			description: "Each shot independently rolls which acquired projectile modifiers it carries.",
+			howText: "Higher upgrade tiers increase a modifier's load chance. A loaded shot changes color to show its active payload before impact.",
+			tipText: "Probability Amplifier raises every projectile modifier roll by 15 percentage points.",
+			noteTitle: "SHOT IDENTITY",
+			noteText: "Several successful rolls can combine on the same projectile.",
+			discovered: modifierDiscovered,
+			unlockRequirement: "RECOVER A PROJECTILE MODIFIER",
+		},
+		{
+			id: "phaseManeuvering",
+			name: "PHASE MANEUVERING",
+			category: "MOBILITY",
+			description: "Phase Jump crosses danger in a short burst while protecting the ship from incoming damage.",
+			howText: "Use movement input to choose the jump direction, then activate the equipped mobility ability. Charges recover over time.",
+			tipText: "A blocked destination cancels the jump without moving the ship.",
+			input: formatInputBinding(getInputBinding("mobility")),
+			inputAction: "PHASE JUMP",
+			discovered: isTechniqueAbilityDiscovered("phaseJump"),
+			unlockRequirement: "RECOVER PHASE JUMP",
+		},
+		{
+			id: "droidCommand",
+			name: "DROID COMMAND",
+			category: "DROID SYSTEMS",
+			description: "Combat droids support the active loadout and can inherit compatible projectile behavior.",
+			howText: "Build around drone damage, role conversions, and projectile links. Droid Frenzy temporarily overclocks every active droid.",
+			tipText: "During Frenzy, droids gain your projectile modifiers even without a permanent projectile link.",
+			input: droidFrenzyDiscovered
+				? formatInputBinding(getInputBinding("secondary"))
+				: undefined,
+			inputAction: droidFrenzyDiscovered ? "DROID FRENZY" : undefined,
+			discovered: droidTechniqueDiscovered,
+			unlockRequirement: "RECOVER A DROID UPGRADE OR DROID FRENZY",
 		},
 		{
 			id: "activeModules",
@@ -1392,17 +1701,39 @@ function getCompendiumTechniques(): CompendiumTechnique[] {
 			unlockRequirement: "RECOVER AN ACTIVE MODULE",
 		},
 		{
+			id: "roomResonance",
+			name: "ROOM RESONANCE",
+			category: "EXPEDITION FLOW",
+			description: "The Phase Daze seals hostile spaces until their encounter is resolved.",
+			howText: "Hostile rooms open after their combat objective clears. Non-hostile rooms never force an objective and complete automatically.",
+			tipText: "A successful clearance tone confirms when every linked door is safe to use.",
+			noteTitle: "ROOM STATE",
+			noteText: "Reward, Shrine, Gravity, Event, and boss rooms are hostile encounter types.",
+			discovered: getHubLevel() >= 2,
+			unlockRequirement: "REACH HUB LEVEL 2",
+		},
+		{
 			id: "lockedRooms",
 			name: "LOCKED ROOMS + KEYS",
 			category: "NAVIGATION",
 			description: "Treasure rooms and shops can require a recovered phase key.",
 			howText: "Recover keys from cleared rooms and enemies. Unlocking a room opens every linked path into it.",
-			input: "F",
+			input: formatInputBinding(getInputBinding("interact")),
 			inputAction: "UNLOCK",
 			discovered: getHubLevel() >= 2,
 			unlockRequirement: "REACH HUB LEVEL 2",
 		},
 	]
+}
+
+function isTechniqueUpgradeDiscovered(toolKey: string) {
+	return isBlueprintDiscovered(toolKey) ||
+		(isToolKey(toolKey) && getEffectiveUpgradeLevel(toolKey) !== undefined)
+}
+
+function isTechniqueAbilityDiscovered(id: AbilityId) {
+	const ability = getAbilityDefinition(id)
+	return ability !== undefined && isAbilityDiscovered(ability)
 }
 
 function renderTechniques(
@@ -1411,30 +1742,35 @@ function renderTechniques(
 	width: number,
 	top: number,
 	bottom: number,
+	requestedPage: number,
+	onPageChange: (page: number) => void,
 	selectedId: string | undefined,
 	onSelect: (id: string) => void
 ) {
 	const techniques = getCompendiumTechniques()
-	const selected = techniques.find((entry) =>
-		entry.id === selectedId && entry.discovered
-	) ?? techniques.find((entry) => entry.discovered)
-	const browser = createUiCatalogBrowser(root, {
-		pos: k.vec2(left, top),
-		size: k.vec2(width, bottom - top),
-		meta: `${techniques.filter((technique) => technique.discovered).length} / ${techniques.length} DISCOVERED`,
-		listWidth: Math.min(360, width * 0.34),
-	})
-	const rowGap = 4
-	const rowHeight = Math.min(
-		64,
-		(bottom - top - browser.rowsTop - rowGap * Math.max(0, techniques.length - 1)) /
-			Math.max(1, techniques.length)
+	const catalog = createPageableCompendiumCatalog(
+		root,
+		left,
+		width,
+		top,
+		bottom,
+		`${techniques.filter((technique) => technique.discovered).length} / ${techniques.length} DISCOVERED`,
+		techniques.length,
+		requestedPage,
+		onPageChange
 	)
-	techniques.forEach((technique, index) => {
-		createUiSelectableRow(browser.root, {
-			pos: k.vec2(0, browser.rowsTop + index * (rowHeight + rowGap)),
-			width: browser.listWidth,
-			height: rowHeight,
+	const visibleTechniques = techniques.slice(catalog.pageStart, catalog.pageEnd)
+	const selected = visibleTechniques.find((entry) =>
+		entry.id === selectedId && entry.discovered
+	) ?? visibleTechniques.find((entry) => entry.discovered)
+	visibleTechniques.forEach((technique, index) => {
+		createUiSelectableRow(catalog.root, {
+			pos: k.vec2(
+				0,
+				catalog.rowsTop + index * (catalog.rowHeight + catalog.rowGap)
+			),
+			width: catalog.listWidth,
+			height: catalog.rowHeight,
 			title: technique.discovered
 				? technique.name
 				: "UNDISCOVERED TECHNIQUE",
@@ -1442,7 +1778,7 @@ function renderTechniques(
 				? `${technique.category}  //  DISCOVERED`
 				: "UNKNOWN  //  UNDISCOVERED",
 			iconText: technique.discovered ? technique.name.slice(0, 1) : "?",
-			iconSize: 28,
+			iconSize: 34,
 			selected: technique.discovered && selected?.id === technique.id,
 			status: technique.discovered ? ">" : "?",
 			disabled: !technique.discovered,
@@ -1451,33 +1787,37 @@ function renderTechniques(
 				: undefined,
 		})
 	})
-	if (!selected) return
-	createUiTutorialDetail(browser.root, {
-		pos: k.vec2(browser.detailLeft, 0),
-		size: k.vec2(browser.detailWidth, browser.detailHeight),
+	if (!selected) return catalog.page
+	createUiTutorialDetail(catalog.root, {
+		pos: k.vec2(catalog.detailLeft, 0),
+		size: k.vec2(catalog.detailWidth, catalog.detailHeight),
+		recordLabel: `${selected.category}  //  TECHNIQUE RECORD`,
 		title: selected.name,
+		description: selected.description,
 		howTitle: "HOW IT WORKS",
-		howText: selected.howText.toUpperCase(),
+		howText: selected.howText,
 		tipTitle: selected.tipText ? "TIP" : undefined,
-		tipText: selected.tipText?.toUpperCase(),
+		tipText: selected.tipText,
 		inputPrompts: selected.id === "normalFlight"
-			? [
-				{ action: "move", label: "MOVE" },
-				{ action: "lock", label: "TOGGLE STRAFE" },
-			]
+			? [{ action: "move", label: "STEER / THRUST" }]
 			: selected.id === "destroyableParts"
 				? [{ action: "fire", label: "TARGET PARTS" }]
+				: selected.id === "salvageLasso" ||
+					selected.id === "momentumThrow" ||
+					selected.id === "partExtraction"
+					? [{ action: "special", label: "LASSO" }]
 				: undefined,
 		noteTitle: selected.noteTitle ?? "STRAFE MODIFIER",
 		noteText: (
 			selected.noteText ??
 			selected.strafeModifier ??
 			"No strafe modifier"
-		).toUpperCase(),
+		),
 		input: selected.input,
 		inputAction: selected.inputAction,
 		videoUrl: selected.previewVideo,
 	})
+	return catalog.page
 }
 
 function renderBuildingArchive(
@@ -1492,25 +1832,23 @@ function renderBuildingArchive(
 	const selected = COMPENDIUM_BUILDINGS.find(
 		(building) => building.id === selectedBuildingId
 	) ?? COMPENDIUM_BUILDINGS[0]
-	const listWidth = Math.min(320, width * 0.38)
-	const columnGap = 12
-	const detailLeft = left + listWidth + columnGap
-	const detailWidth = width - listWidth - columnGap
-	const detailHeight = bottom - top
-	const rowsTop = top + 24
-	const rowGap = 5
+	const browser = createUiCatalogBrowser(root, {
+		pos: k.vec2(left, top),
+		size: k.vec2(width, bottom - top),
+		meta: `STRUCTURE RECORDS  //  ${COMPENDIUM_BUILDINGS.length} CATALOGUED`,
+		listWidth: Math.min(
+			COMPENDIUM_CATALOG_LIST_WIDTH_MAX,
+			width * COMPENDIUM_CATALOG_LIST_WIDTH_RATIO
+		),
+	})
 	const rowHeight = Math.min(
-		68,
-		(detailHeight - 24 - rowGap * (COMPENDIUM_BUILDINGS.length - 1)) /
+		COMPENDIUM_CATALOG_ROW_HEIGHT_MAX,
+		(
+			browser.detailHeight - browser.rowsTop -
+			COMPENDIUM_CATALOG_ROW_GAP * (COMPENDIUM_BUILDINGS.length - 1)
+		) /
 			COMPENDIUM_BUILDINGS.length
 	)
-
-	addThemedText(root, {
-		text: `STRUCTURE RECORDS  //  ${COMPENDIUM_BUILDINGS.length} CATALOGUED`,
-		pos: k.vec2(left, top),
-		variant: "eyebrow",
-		width: listWidth,
-	})
 	COMPENDIUM_BUILDINGS.forEach((building, index) => {
 		const sprite = requirePrimaryVisualSprite(getWorldVisual(building.visualId))
 		const statusColor = building.status === "SUPPORT"
@@ -1520,9 +1858,14 @@ function renderBuildingArchive(
 				: building.status === "HAZARD"
 					? UI_COLORS.warning
 					: UI_COLORS.accent
-		createUiSelectableRow(root, {
-			pos: k.vec2(left, rowsTop + index * (rowHeight + rowGap)),
-			width: listWidth,
+		createUiSelectableRow(browser.root, {
+			pos: k.vec2(
+				0,
+				browser.rowsTop + index * (
+					rowHeight + COMPENDIUM_CATALOG_ROW_GAP
+				)
+			),
+			width: browser.listWidth,
 			height: rowHeight,
 			title: building.name,
 			meta: building.category,
@@ -1535,12 +1878,13 @@ function renderBuildingArchive(
 		})
 	})
 
-	const detail = createUiSurface(root, {
-		pos: k.vec2(detailLeft, top),
-		size: k.vec2(detailWidth, detailHeight),
+	const detail = createUiSurface(browser.root, {
+		pos: k.vec2(browser.detailLeft, 0),
+		size: k.vec2(browser.detailWidth, browser.detailHeight),
 		tone: "raised",
 	})
 	if (!selected) return
+	const detailWidth = browser.detailWidth
 
 	const selectedSprite = requirePrimaryVisualSprite(
 		getWorldVisual(selected.visualId)
@@ -1629,128 +1973,132 @@ function renderDroidArchive(
 	newBlueprintKeys: ReadonlySet<string>
 ) {
 	const definitions = getDroidDefinitions()
-	const listWidth = Math.min(286, width * 0.4)
-	const columnGap = 12
-	const detailLeft = left + listWidth + columnGap
-	const detailWidth = width - listWidth - columnGap
-	const detailHeight = bottom - top
-
-	addThemedText(root, {
-		text: `DROID RECORDS  //  ${definitions.filter((definition) => isDroidDiscovered(definition.id)).length} / ${definitions.length} DISCOVERED`,
+	const discoveredDefinitions = definitions.filter((definition) =>
+		isDroidDiscovered(definition.id)
+	)
+	const selected = definitions.find((definition) =>
+		definition.id === selectedDroidId
+	) ?? discoveredDefinitions[0] ?? definitions[0]
+	const browser = createUiCatalogBrowser(root, {
 		pos: k.vec2(left, top),
-		variant: "eyebrow",
-		width: listWidth,
+		size: k.vec2(width, bottom - top),
+		meta: `DROID RECORDS  //  ${discoveredDefinitions.length} / ${definitions.length} DISCOVERED`,
+		listWidth: Math.min(
+			COMPENDIUM_CATALOG_LIST_WIDTH_MAX,
+			width * COMPENDIUM_CATALOG_LIST_WIDTH_RATIO
+		),
 	})
-	const rowsTop = top + 24
+	const rowGap = COMPENDIUM_CATALOG_ROW_GAP
+	const rowHeight = Math.min(
+		COMPENDIUM_CATALOG_ROW_HEIGHT_MAX,
+		(
+			browser.detailHeight - browser.rowsTop -
+			rowGap * Math.max(0, definitions.length - 1)
+		) / Math.max(1, definitions.length)
+	)
 	definitions.forEach((definition, index) => {
 		const discovered = isDroidDiscovered(definition.id)
 		const discoveryKey = getDroidDiscoveryKey(definition.id)
-		const unlockRequirement = getDroidUnlockRequirement(definition.id)
-		createUiSelectableRow(root, {
-			pos: k.vec2(left, rowsTop + index * 74),
-			width: listWidth,
-			height: 68,
+		createUiSelectableRow(browser.root, {
+			pos: k.vec2(
+				0,
+				browser.rowsTop + index * (rowHeight + rowGap)
+			),
+			width: browser.listWidth,
+			height: rowHeight,
 			title: definition.name,
 			meta: discovered ? definition.model : "LOCKED RECORD",
-			description: discovered
-				? undefined
-				: `UNLOCK: ${unlockRequirement}`,
-			status: discovered ? getDroidArchiveStatus(definition.id) : "LOCKED",
+			status: discovered ? getDroidArchiveStatus(definition.id) : undefined,
 			statusColor: discovered ? UI_COLORS.accent : UI_COLORS.danger,
 			icon: discovered ? definition.sprite : undefined,
 			iconText: discovered ? undefined : "?",
 			iconSize: 34,
 			notification: discovered && newBlueprintKeys.has(discoveryKey),
-			selected: discovered && definition.id === selectedDroidId,
-			disabled: !discovered,
-			onClick: discovered ? () => onSelect(definition.id) : undefined,
+			selected: definition.id === selected?.id,
+			muted: !discovered,
+			onClick: () => onSelect(definition.id),
 		})
 	})
 
-	const selected = selectedDroidId
-		? definitions.find((definition) => definition.id === selectedDroidId)
-		: undefined
-	const detail = createUiSurface(root, {
-		pos: k.vec2(detailLeft, top),
-		size: k.vec2(detailWidth, detailHeight),
-		tone: "raised",
-	})
-	if (!selected || !isDroidDiscovered(selected.id)) {
-		addThemedText(detail, {
-			text: "NO DROID RECORD SELECTED",
-			pos: k.vec2(18, 18),
-			variant: "heading",
-			width: detailWidth - 36,
-		})
-		addThemedText(detail, {
-			text: "LOCKED RECORDS LIST THEIR DISCOVERY REQUIREMENTS ON THE LEFT.",
-			pos: k.vec2(18, 48),
-			variant: "muted",
-			width: detailWidth - 36,
-			lineHeight: 1.3,
-		})
+	if (!selected) {
+		renderEmptyCatalogDetail(browser, "DROID")
 		return
 	}
+	if (!isDroidDiscovered(selected.id)) {
+		renderLockedCatalogDetail(
+			browser,
+			"DROID",
+			selected.name,
+			getDroidUnlockRequirement(selected.id)
+		)
+		return
+	}
+	const detail = createUiSurface(browser.root, {
+		pos: k.vec2(browser.detailLeft, 0),
+		size: k.vec2(browser.detailWidth, browser.detailHeight),
+		tone: "raised",
+	})
+	const detailWidth = browser.detailWidth
 
 	detail.add([
-		k.sprite(selected.sprite, { width: 72, height: 72 }),
-		k.pos(54, 58),
+		k.sprite(selected.sprite, { width: 84, height: 84 }),
+		k.pos(62, 60),
 		k.anchor("center"),
 		k.color(k.WHITE),
 	])
 	addThemedText(detail, {
 		text: selected.name,
-		pos: k.vec2(104, 18),
+		pos: k.vec2(120, 18),
 		variant: "heading",
-		width: detailWidth - 122,
+		width: detailWidth - 138,
 	})
 	addThemedText(detail, {
 		text: `${selected.model}  //  ${selected.role}`,
-		pos: k.vec2(104, 44),
+		pos: k.vec2(120, 44),
 		variant: "eyebrow",
-		width: detailWidth - 122,
+		width: detailWidth - 138,
 	})
 	addThemedText(detail, {
 		text: `STATUS  //  ${getDroidArchiveStatus(selected.id)}`,
-		pos: k.vec2(104, 68),
+		pos: k.vec2(120, 68),
 		variant: "caption",
-		width: detailWidth - 122,
+		width: detailWidth - 138,
 		color: k.rgb(...UI_COLORS.accent),
 	})
 	addThemedText(detail, {
 		text: "ARCHIVE SUMMARY",
-		pos: k.vec2(18, 112),
+		pos: k.vec2(18, 122),
 		variant: "eyebrow",
 		width: detailWidth - 36,
 	})
 	addThemedText(detail, {
 		text: selected.summary,
-		pos: k.vec2(18, 138),
+		pos: k.vec2(18, 148),
 		variant: "body",
 		width: detailWidth - 36,
 		lineHeight: 1.3,
 	})
 	addThemedText(detail, {
 		text: "FIELD NOTES",
-		pos: k.vec2(18, 202),
+		pos: k.vec2(18, 230),
 		variant: "eyebrow",
 		width: detailWidth - 36,
 	})
 	addThemedText(detail, {
 		text: selected.archiveNotes.map((note) => `> ${note}`).join("\n\n"),
-		pos: k.vec2(18, 228),
+		pos: k.vec2(18, 256),
 		variant: "muted",
 		width: detailWidth - 36,
 		lineHeight: 1.35,
 	})
 }
 
-const COMPENDIUM_CATALOG_LIST_WIDTH_RATIO = 0.34
-const COMPENDIUM_CATALOG_LIST_WIDTH_MAX = 360
-const COMPENDIUM_CATALOG_ROW_GAP = 4
-const COMPENDIUM_CATALOG_ROW_HEIGHT_MAX = 64
+const COMPENDIUM_CATALOG_LIST_WIDTH_RATIO = 0.38
+const COMPENDIUM_CATALOG_LIST_WIDTH_MAX = 320
+const COMPENDIUM_CATALOG_ROW_GAP = 5
+const COMPENDIUM_CATALOG_ROW_HEIGHT_MAX = 68
 const COMPENDIUM_CATALOG_ROW_HEIGHT_MIN = 60
-const COMPENDIUM_CATALOG_ROWS_TOP = 48
+const COMPENDIUM_CATALOG_ROWS_TOP = 24
 
 function createPageableCompendiumCatalog(
 	root: GameObj,
@@ -1788,7 +2136,7 @@ function createPageableCompendiumCatalog(
 	const browser = createUiCatalogBrowser(root, {
 		pos: k.vec2(left, top),
 		size: k.vec2(width, bottom - top),
-		meta: `${meta}  //  PAGE ${page + 1} / ${pageCount}`,
+		meta: `${meta}  //  ${page + 1}/${pageCount}`,
 		metaRightInset: 88,
 		listWidth: Math.min(
 			COMPENDIUM_CATALOG_LIST_WIDTH_MAX,
@@ -1796,14 +2144,14 @@ function createPageableCompendiumCatalog(
 		),
 	})
 	createUiActionButton(browser.root, {
-		pos: k.vec2(browser.listWidth - 76, 10),
+		pos: k.vec2(browser.listWidth - 76, 0),
 		size: k.vec2(34, 20),
 		text: "<",
 		disabled: page === 0,
 		onClick: () => onPageChange(page - 1),
 	})
 	createUiActionButton(browser.root, {
-		pos: k.vec2(browser.listWidth - 36, 10),
+		pos: k.vec2(browser.listWidth - 36, 0),
 		size: k.vec2(34, 20),
 		text: ">",
 		disabled: page >= pageCount - 1,
@@ -1845,9 +2193,8 @@ function renderShipCatalog(
 		level: getPermanentUpgradeLevel(key),
 	})).filter((entry) => entry.definition !== undefined)
 	const ownedEntries = entries.filter((entry) => entry.level !== undefined)
-	const selected = entries.find((entry) =>
-		entry.key === selectedKey && entry.level !== undefined
-	) ?? ownedEntries[0]
+	const selected = entries.find((entry) => entry.key === selectedKey) ??
+		ownedEntries[0] ?? entries[0]
 	const catalog = createPageableCompendiumCatalog(
 		root,
 		left,
@@ -1866,10 +2213,6 @@ function renderShipCatalog(
 		const level = owned ? entry.level + 1 : 0
 		const rewardDefinition = getRewardDefinition(entry.key)
 		const rarity = rewardDefinition?.rarity ?? RewardRarity.Common
-		const unlockRequirement = getRewardUnlockRequirement(
-			rewardDefinition,
-			getUpgradeRequirementText(entry.key)
-		)
 		createUiSelectableRow(catalog.root, {
 			pos: k.vec2(
 				0,
@@ -1881,22 +2224,32 @@ function renderShipCatalog(
 			meta: owned
 				? `PERMANENT  //  LEVEL ${level} / ${definition.levels.length}`
 				: "LOCKED SHIP RECORD",
-			description: owned ? undefined : `UNLOCK: ${unlockRequirement}`,
 			status: owned ? ">" : undefined,
+			statusColor: owned ? undefined : UI_COLORS.danger,
 			progress: owned
 				? undefined
 				: getCompendiumRewardProgress(rewardDefinition),
 			icon: owned ? definition.levels[0]?.sprite : undefined,
 			iconText: owned ? undefined : "?",
 			iconColor: REWARD_RARITY_COLORS[rarity],
-			iconSize: 30,
+			iconSize: 34,
 			notification: owned && newBlueprintKeys.has(entry.key),
-			selected: owned && selected?.key === entry.key,
-			disabled: !owned,
-			onClick: owned ? () => onSelect(entry.key) : undefined,
+			selected: selected?.key === entry.key,
+			muted: !owned,
+			onClick: () => onSelect(entry.key),
 		})
 	})
-	if (selected?.definition && selected.level !== undefined) {
+	if (selected?.definition && selected.level === undefined) {
+		renderLockedCatalogDetail(
+			catalog,
+			"SHIP",
+			selected.definition.toolName,
+			getRewardUnlockRequirement(
+				getRewardDefinition(selected.key),
+				getUpgradeRequirementText(selected.key)
+			)
+		)
+	} else if (selected?.definition && selected.level !== undefined) {
 		const definition = selected.definition
 		const currentLevel = definition.levels[selected.level]
 		const nextLevel = definition.levels[selected.level + 1]
@@ -1905,13 +2258,13 @@ function renderShipCatalog(
 			size: k.vec2(catalog.detailWidth, catalog.detailHeight),
 			recordLabel: `SHIP SYSTEM  //  ${String(entries.indexOf(selected) + 1).padStart(2, "0")}`,
 			title: definition.toolName.toUpperCase(),
-			description: currentLevel?.desc.toUpperCase(),
+			description: currentLevel?.desc,
 			howTitle: "CURRENT EFFECT",
-			howText: (currentLevel?.desc ?? "SYSTEM ACTIVE").toUpperCase(),
+			howText: currentLevel?.desc ?? "System active.",
 			noteTitle: nextLevel ? "NEXT LEVEL" : "SYSTEM STATUS",
 			noteText: nextLevel
-				? nextLevel.desc.toUpperCase()
-				: "MAXIMUM LEVEL REACHED",
+				? nextLevel.desc
+				: "Maximum level reached.",
 			icon: definition.levels[0]?.sprite,
 			videoFooter: "PERMANENT SHIP SYSTEM",
 			showRecording: false,
@@ -1937,8 +2290,8 @@ function renderModuleCatalog(
 		equippedModuleId === module.id ||
 		isBlueprintDiscovered(`active:${module.id}`)
 	)
-	const selected = discoveredModules.find((module) => module.id === selectedId) ??
-		discoveredModules[0]
+	const selected = ACTIVE_MODULES.find((module) => module.id === selectedId) ??
+		discoveredModules[0] ?? ACTIVE_MODULES[0]
 	const catalog = createPageableCompendiumCatalog(
 		root,
 		left,
@@ -1957,9 +2310,6 @@ function renderModuleCatalog(
 			const discovered = equippedModuleId === module.id ||
 				isBlueprintDiscovered(discoveryKey)
 			const equipped = equippedModuleId === module.id
-			const unlockRequirement = getRewardUnlockRequirement(
-				rewardDefinition
-			)
 			createUiSelectableRow(catalog.root, {
 				pos: k.vec2(
 					0,
@@ -1971,32 +2321,45 @@ function renderModuleCatalog(
 				meta: discovered
 					? `${module.rarity.toUpperCase()}  //  ${module.cooldown}S COOLDOWN`
 					: "LOCKED ACTIVE RECORD",
-				description: discovered ? undefined : `UNLOCK: ${unlockRequirement}`,
 				status: discovered ? equipped ? "EQUIPPED" : ">" : undefined,
-				statusColor: equipped ? UI_COLORS.accent : undefined,
+				statusColor: discovered
+					? equipped ? UI_COLORS.accent : undefined
+					: UI_COLORS.danger,
 				progress: discovered
 					? undefined
 					: getCompendiumRewardProgress(rewardDefinition),
 				icon: discovered ? module.icon : undefined,
 				iconText: discovered ? undefined : "?",
 				iconColor: REWARD_RARITY_COLORS[module.rarity],
-				iconSize: 30,
+				iconSize: 34,
 				notification: discovered && newBlueprintKeys.has(discoveryKey),
-				selected: discovered && selected?.id === module.id,
-				disabled: !discovered,
-				onClick: discovered ? () => onSelect(module.id) : undefined,
+				selected: selected?.id === module.id,
+				muted: !discovered,
+				onClick: () => onSelect(module.id),
 			})
 		}
 	)
 	if (selected) {
+		const discoveryKey = `active:${selected.id}`
+		const discovered = equippedModuleId === selected.id ||
+			isBlueprintDiscovered(discoveryKey)
+		if (!discovered) {
+			renderLockedCatalogDetail(
+				catalog,
+				"ACTIVE",
+				selected.name,
+				getRewardUnlockRequirement(getRewardDefinition(discoveryKey))
+			)
+			return catalog.page
+		}
 		createUiTutorialDetail(catalog.root, {
 			pos: k.vec2(catalog.detailLeft, 0),
 			size: k.vec2(catalog.detailWidth, catalog.detailHeight),
 			recordLabel: `ACTIVE MODULE  //  ${String(ACTIVE_MODULES.indexOf(selected) + 1).padStart(2, "0")}`,
 			title: selected.name,
-			description: selected.description.toUpperCase(),
+			description: selected.description,
 			howTitle: "HOW TO USE",
-			howText: `ACTIVATE THE MODULE, THEN WAIT ${selected.cooldown} SECONDS FOR IT TO RECOVER.`,
+			howText: `Activate the module, then wait ${selected.cooldown} seconds for it to recover.`,
 			noteTitle: "MODULE PROFILE",
 			noteText: formatCatalogStats(selected.stats),
 			input: formatInputBinding(getInputBinding("secondary")),
@@ -2026,8 +2389,8 @@ function renderAbilityCatalog(
 		...getAbilitiesForSlot("ultimate"),
 	]
 	const discoveredEntries = entries.filter(isAbilityDiscovered)
-	const selected = discoveredEntries.find((ability) => ability.id === selectedId) ??
-		discoveredEntries[0]
+	const selected = entries.find((ability) => ability.id === selectedId) ??
+		discoveredEntries[0] ?? entries[0]
 	const catalog = createPageableCompendiumCatalog(
 		root,
 		left,
@@ -2044,9 +2407,6 @@ function renderAbilityCatalog(
 		const rewardDefinition = getRewardDefinition(discoveryKey)
 		const discovered = isAbilityDiscovered(ability)
 		const equipped = getEquippedAbilityId(ability.slot) === ability.id
-		const unlockRequirement = getRewardUnlockRequirement(
-			rewardDefinition
-		)
 		createUiSelectableRow(catalog.root, {
 			pos: k.vec2(
 				0,
@@ -2058,33 +2418,44 @@ function renderAbilityCatalog(
 			meta: discovered
 				? `${ability.slot.toUpperCase()}  //  ${ability.rarity.toUpperCase()}`
 				: "LOCKED ABILITY RECORD",
-			description: discovered ? undefined : `UNLOCK: ${unlockRequirement}`,
 			status: discovered ? equipped ? "EQUIPPED" : ">" : undefined,
-			statusColor: equipped ? UI_COLORS.accent : undefined,
+			statusColor: discovered
+				? equipped ? UI_COLORS.accent : undefined
+				: UI_COLORS.danger,
 			progress: discovered
 				? undefined
 				: getCompendiumRewardProgress(rewardDefinition),
 			icon: discovered ? ability.icon : undefined,
 			iconText: discovered ? undefined : "?",
 			iconColor: REWARD_RARITY_COLORS[ability.rarity],
-			iconSize: 30,
+			iconSize: 34,
 			notification: discovered && newBlueprintKeys.has(discoveryKey),
-			selected: discovered && selected?.id === ability.id,
-			disabled: !discovered,
-			onClick: discovered ? () => onSelect(ability.id) : undefined,
+			selected: selected?.id === ability.id,
+			muted: !discovered,
+			onClick: () => onSelect(ability.id),
 		})
 	})
 	if (selected) {
+		const discoveryKey = getAbilityDiscoveryKey(selected)
+		if (!isAbilityDiscovered(selected)) {
+			renderLockedCatalogDetail(
+				catalog,
+				"ABILITY",
+				selected.name,
+				getRewardUnlockRequirement(getRewardDefinition(discoveryKey))
+			)
+			return catalog.page
+		}
 		createUiTutorialDetail(catalog.root, {
 			pos: k.vec2(catalog.detailLeft, 0),
 			size: k.vec2(catalog.detailWidth, catalog.detailHeight),
 			recordLabel: `${selected.slot.toUpperCase()} ABILITY  //  ${String(entries.indexOf(selected) + 1).padStart(2, "0")}`,
 			title: selected.name,
-			description: selected.description.toUpperCase(),
+			description: selected.description,
 			howTitle: "HOW TO USE",
-			howText: `${selected.trigger.toUpperCase()} THE ABILITY INPUT. ${formatAbilityResource(selected.resource)}`,
+			howText: `${formatRequirementBody(selected.trigger)} the ability input. ${formatAbilityResource(selected.resource)}`,
 			noteTitle: "ABILITY PROFILE",
-			noteText: `${selected.rarity.toUpperCase()}  //  ${selected.tags.join("  //  ").toUpperCase()}`,
+			noteText: `${formatRequirementBody(selected.rarity)}  //  ${selected.tags.join("  //  ")}`,
 			input: formatInputBinding(getInputBinding(selected.slot)),
 			inputAction: selected.trigger.toUpperCase(),
 			icon: selected.icon,
@@ -2148,8 +2519,8 @@ function renderUnifiedUpgradeCatalog(
 ) {
 	const entries = getCompendiumUpgradeEntries()
 	const discoveredEntries = entries.filter(isCompendiumUpgradeDiscovered)
-	const selected = discoveredEntries.find((entry) => entry.id === selectedId) ??
-		discoveredEntries[0]
+	const selected = entries.find((entry) => entry.id === selectedId) ??
+		discoveredEntries[0] ?? entries[0]
 	const catalog = createPageableCompendiumCatalog(
 		root,
 		left,
@@ -2176,12 +2547,6 @@ function renderUnifiedUpgradeCatalog(
 		const sprite = isReward
 			? entry.definition.sprite
 			: entry.definition.levels[0]?.sprite
-		const unlockRequirement = getRewardUnlockRequirement(
-			getRewardDefinition(entry.id),
-			entry.kind === "upgrade" && isToolKey(entry.definition.toolKey)
-				? getUpgradeRequirementText(entry.definition.toolKey)
-				: undefined
-		)
 		createUiSelectableRow(catalog.root, {
 			pos: k.vec2(
 				0,
@@ -2193,22 +2558,37 @@ function renderUnifiedUpgradeCatalog(
 			meta: discovered
 				? `${category.toUpperCase()}  //  ${rarity.toUpperCase()}`
 				: "LOCKED UPGRADE RECORD",
-			description: discovered ? undefined : `UNLOCK: ${unlockRequirement}`,
 			status: discovered ? ">" : undefined,
+			statusColor: discovered ? undefined : UI_COLORS.danger,
 			progress: discovered
 				? undefined
 				: getCompendiumRewardProgress(getRewardDefinition(entry.id)),
 			icon: discovered ? sprite : undefined,
 			iconText: discovered ? undefined : "?",
 			iconColor: REWARD_RARITY_COLORS[rarity],
-			iconSize: 30,
+			iconSize: 34,
 			notification: discovered && newBlueprintKeys.has(entry.id),
-			selected: discovered && selected?.id === entry.id,
-			disabled: !discovered,
-			onClick: discovered ? () => onSelect(entry.id) : undefined,
+			selected: selected?.id === entry.id,
+			muted: !discovered,
+			onClick: () => onSelect(entry.id),
 		})
 	})
-	if (selected) renderCompendiumUpgradeDetail(catalog, selected)
+	if (selected && !isCompendiumUpgradeDiscovered(selected)) {
+		const name = selected.kind === "reward"
+			? selected.definition.name
+			: selected.definition.toolName
+		renderLockedCatalogDetail(
+			catalog,
+			"UPGRADE",
+			name,
+			getRewardUnlockRequirement(
+				getRewardDefinition(selected.id),
+				selected.kind === "upgrade" && isToolKey(selected.definition.toolKey)
+					? getUpgradeRequirementText(selected.definition.toolKey)
+					: undefined
+			)
+		)
+	} else if (selected) renderCompendiumUpgradeDetail(catalog, selected)
 	else renderEmptyCatalogDetail(catalog, "UPGRADE")
 	return catalog.page
 }
@@ -2224,11 +2604,11 @@ function renderCompendiumUpgradeDetail(
 			size: k.vec2(catalog.detailWidth, catalog.detailHeight),
 			recordLabel: `${reward.kind.toUpperCase()} RECORD`,
 			title: reward.name.toUpperCase(),
-			description: reward.description.toUpperCase(),
+			description: reward.description,
 			howTitle: "EFFECT",
 			howText: formatCatalogStats(reward.stats),
 			noteTitle: "DISCOVERY PROFILE",
-			noteText: `${getRewardDisplayTier(reward).toUpperCase()}  //  ${reward.progression.persistence.toUpperCase()}  //  ${reward.progression.repeatability.toUpperCase()}`,
+			noteText: `${getRewardDisplayTier(reward)}  //  ${reward.progression.persistence}  //  ${reward.progression.repeatability}`,
 			icon: reward.sprite,
 			videoFooter: "UPGRADE FIELD RECORDING",
 			showRecording: false,
@@ -2248,13 +2628,13 @@ function renderCompendiumUpgradeDetail(
 		size: k.vec2(catalog.detailWidth, catalog.detailHeight),
 		recordLabel: `${definition.alteration ? "ALTERED" : rarity.toUpperCase()} UPGRADE RECORD`,
 		title: definition.toolName.toUpperCase(),
-		description: level.desc.toUpperCase(),
+		description: level.desc,
 		howTitle: currentLevel === undefined ? "BASE EFFECT" : "CURRENT EFFECT",
-		howText: `${level.desc.toUpperCase()}\n\n${describeLevelEffects(level)}`,
+		howText: `${level.desc}\n\n${describeLevelEffects(level)}`,
 		noteTitle: nextLevel ? "NEXT LEVEL" : "UPGRADE PROFILE",
 		noteText: nextLevel
-			? nextLevel.desc.toUpperCase()
-			: `${definition.category.toUpperCase()}  //  ${definition.type.toUpperCase()}  //  ${definition.levels.length} LEVELS`,
+			? nextLevel.desc
+			: `${definition.category}  //  ${definition.type}  //  ${definition.levels.length} levels`,
 		icon: definition.levels[0]?.sprite,
 		videoFooter: "UPGRADE FIELD RECORDING",
 		showRecording: false,
@@ -2263,14 +2643,41 @@ function renderCompendiumUpgradeDetail(
 
 function formatCatalogStats(stats: Readonly<Record<string, number | string>>) {
 	const entries = Object.entries(stats)
-	if (entries.length === 0) return "NO ADDITIONAL STAT RECORDS"
+	if (entries.length === 0) return "No additional stat records."
 	return entries
-		.map(([label, value]) => `${label.toUpperCase()}  //  ${String(value).toUpperCase()}`)
+		.map(([label, value]) =>
+			`${formatRequirementBody(label.replace(/([a-z0-9])([A-Z])/g, "$1 $2"))}  //  ${String(value)}`
+		)
 		.join("\n")
 }
 
+type CompendiumDetailCatalog = Pick<
+	ReturnType<typeof createUiCatalogBrowser>,
+	"root" | "detailLeft" | "detailWidth" | "detailHeight"
+>
+
+function renderLockedCatalogDetail(
+	catalog: CompendiumDetailCatalog,
+	recordType: string,
+	title: string,
+	unlockRequirement: string
+) {
+	createUiTutorialDetail(catalog.root, {
+		pos: k.vec2(catalog.detailLeft, 0),
+		size: k.vec2(catalog.detailWidth, catalog.detailHeight),
+		recordLabel: `LOCKED ${recordType} RECORD`,
+		title,
+		description: "This reward has not been discovered.",
+		howTitle: "REQUIREMENTS",
+		howText: unlockRequirement,
+		noteTitle: "ARCHIVE STATUS",
+		noteText: "Complete the requirement to reveal the full record.",
+		showRecording: false,
+	})
+}
+
 function renderEmptyCatalogDetail(
-	catalog: ReturnType<typeof createPageableCompendiumCatalog>,
+	catalog: CompendiumDetailCatalog,
 	recordType: string
 ) {
 	const article = /^[AEIOU]/.test(recordType) ? "AN" : "A"
@@ -2280,9 +2687,9 @@ function renderEmptyCatalogDetail(
 		recordLabel: `${recordType} RECORD`,
 		title: `NO ${recordType} SELECTED`,
 		howTitle: "DISCOVERY REQUIRED",
-		howText: `RECOVER ${article} ${recordType} TO OPEN ITS FULL COMPENDIUM RECORD.`,
+		howText: `Recover ${article.toLowerCase()} ${recordType.toLowerCase()} to open its full Compendium record.`,
 		noteTitle: "ARCHIVE STATUS",
-		noteText: "UNDISCOVERED RECORDS REMAIN LISTED IN THE CATALOG.",
+		noteText: "Undiscovered records remain listed in the catalog.",
 		showRecording: false,
 	})
 }
@@ -2292,15 +2699,15 @@ function formatAbilityResource(
 ) {
 	switch (resource.type) {
 		case "none":
-			return "NO RESOURCE COST."
+			return "No resource cost."
 		case "cooldown":
-			return `RECOVERS AFTER ${resource.duration} SECONDS.`
+			return `Recovers after ${resource.duration} seconds.`
 		case "charges":
-			return `${resource.count} CHARGES. EACH CHARGE RECOVERS AFTER ${resource.recharge} SECONDS.`
+			return `${resource.count} charges. Each charge recovers after ${resource.recharge} seconds.`
 		case "drain":
-			return `DRAINS FOR UP TO ${resource.duration} SECONDS AND RECOVERS OVER ${resource.recharge} SECONDS.`
+			return `Drains for up to ${resource.duration} seconds and recovers over ${resource.recharge} seconds.`
 		case "meter":
-			return `REQUIRES ${resource.required} METER.`
+			return `Requires ${resource.required} meter.`
 	}
 }
 
@@ -2318,8 +2725,8 @@ function renderArsenal(
 ) {
 	const weapons = WEAPONS
 	const ownedWeapons = weapons.filter((weapon) => isWeaponOwned(weapon.id))
-	const selected = ownedWeapons.find((weapon) => weapon.id === selectedWeaponId) ??
-		ownedWeapons[0]
+	const selected = weapons.find((weapon) => weapon.id === selectedWeaponId) ??
+		ownedWeapons[0] ?? weapons[0]
 	const browser = createPageableCompendiumCatalog(
 		root,
 		left,
@@ -2337,9 +2744,6 @@ function renderArsenal(
 		const owned = isWeaponOwned(weapon.id)
 		const rewardDefinition = getRewardDefinition(`weapon:${weapon.id}`)
 		const rarity = rewardDefinition?.rarity ?? RewardRarity.Common
-		const unlockRequirement = getRewardUnlockRequirement(
-			rewardDefinition
-		)
 		createUiSelectableRow(browser.root, {
 			pos: k.vec2(
 				0,
@@ -2351,28 +2755,39 @@ function renderArsenal(
 			meta: owned
 				? `${getWeaponTriggerLabel(weapon)}  //  IN ARSENAL`
 				: "LOCKED PRIMARY RECORD",
-			description: owned ? undefined : `UNLOCK: ${unlockRequirement}`,
 			icon: owned ? weapon.icon : undefined,
 			iconText: owned ? undefined : "?",
 			iconColor: REWARD_RARITY_COLORS[rarity],
-			iconSize: 30,
+			iconSize: 34,
 			notification: owned && newBlueprintKeys.has(`weapon:${weapon.id}`),
-			selected: owned && selected?.id === weapon.id,
+			selected: selected?.id === weapon.id,
 			status: owned ? ">" : undefined,
+			statusColor: owned ? undefined : UI_COLORS.danger,
 			progress: owned
 				? undefined
 				: getCompendiumRewardProgress(rewardDefinition),
-			disabled: !owned,
-			onClick: owned ? () => onSelect(weapon.id) : undefined,
+			muted: !owned,
+			onClick: () => onSelect(weapon.id),
 		})
 	}
 	if (selected) {
+		if (!isWeaponOwned(selected.id)) {
+			renderLockedCatalogDetail(
+				browser,
+				"PRIMARY",
+				selected.name,
+				getRewardUnlockRequirement(
+					getRewardDefinition(`weapon:${selected.id}`)
+				)
+			)
+			return browser.page
+		}
 		createUiTutorialDetail(browser.root, {
 			pos: k.vec2(browser.detailLeft, 0),
 			size: k.vec2(browser.detailWidth, browser.detailHeight),
 			recordLabel: `PRIMARY RECORD  //  ${String(ownedWeapons.indexOf(selected) + 1).padStart(2, "0")}`,
 			title: selected.name,
-			description: selected.description.toUpperCase(),
+			description: selected.description,
 			howTitle: "HOW TO USE",
 			howText: getWeaponTutorial(selected),
 			noteTitle: "WEAPON PROFILE",
@@ -2393,25 +2808,25 @@ function getWeaponTriggerLabel(weapon: typeof WEAPONS[number]) {
 
 function getWeaponTutorial(weapon: typeof WEAPONS[number]) {
 	if (weapon.charge) {
-		return "HOLD PRIMARY FIRE TO BUILD CHARGE, THEN RELEASE. PARTIAL CHARGES FIRE EARLIER; FULL CHARGES MAXIMIZE THE WEAPON'S SPECIAL PROPERTIES."
+		return "Hold primary fire to build charge, then release. Partial charges fire earlier; full charges maximize the weapon's special properties."
 	}
 	if (weapon.triggerModifier?.mode === "hold") {
-		return "HOLD PRIMARY FIRE TO MAINTAIN PRESSURE. CONTROL YOUR AIM AND DISTANCE WHILE THE WEAPON CONTINUES FIRING."
+		return "Hold primary fire to maintain pressure. Control your aim and distance while the weapon continues firing."
 	}
-	return "PRESS PRIMARY FIRE FOR A DELIBERATE SHOT. CYCLE THE ARSENAL WHEN ANOTHER WEAPON BETTER FITS THE TARGET OR ROOM."
+	return "Press primary fire for a deliberate shot. Cycle the arsenal when another weapon better fits the target or room."
 }
 
 function getWeaponProfile(weapon: typeof WEAPONS[number]) {
 	const traits: string[] = []
-	if (weapon.charge) traits.push("CHARGE")
-	if (weapon.splash) traits.push("SPLASH")
-	if (weapon.piercing) traits.push("PIERCING")
-	if (weapon.bounce) traits.push("RICOCHET")
-	if (weapon.chain) traits.push("CHAIN")
-	if (weapon.knockback) traits.push("KNOCKBACK")
+	if (weapon.charge) traits.push("Charge")
+	if (weapon.splash) traits.push("Splash")
+	if (weapon.piercing) traits.push("Piercing")
+	if (weapon.bounce) traits.push("Ricochet")
+	if (weapon.chain) traits.push("Chain")
+	if (weapon.knockback) traits.push("Knockback")
 	return traits.length > 0
 		? traits.join("  //  ")
-		: "BALANCED  //  DIRECT FIRE"
+		: "Balanced  //  Direct fire"
 }
 
 function describeLevelEffects(
@@ -2421,24 +2836,23 @@ function describeLevelEffects(
 	for (const modifier of level.effects.modifiers ?? []) {
 		const stat = modifier.stat
 			.replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-			.toUpperCase()
 		const value = modifier.type === "multiply"
-			? `X${modifier.value}`
+			? `x${modifier.value}`
 			: modifier.type === "additive"
 				? `+${modifier.value}`
 				: `=${modifier.value}`
-		effects.push(`${stat} ${value}`)
+		effects.push(`${formatRequirementBody(stat)} ${value}`)
 	}
 	for (const unlock of level.effects.unlocks ?? []) {
-		effects.push(`UNLOCK: ${unlock.description.toUpperCase()}`)
+		effects.push(`Unlock: ${unlock.description}`)
 	}
 	for (const ability of level.effects.abilities ?? []) {
 		const cooldown = ability.cooldown === undefined
 			? ""
-			: ` (${ability.cooldown}S COOLDOWN)`
-		effects.push(`ABILITY: ${ability.description.toUpperCase()}${cooldown}`)
+			: ` (${ability.cooldown}s cooldown)`
+		effects.push(`Ability: ${ability.description}${cooldown}`)
 	}
-	return effects.join("  //  ") || "NO ADDITIONAL STAT CHANGE"
+	return effects.join("  //  ") || "No additional stat change."
 }
 
 export function hideHubFacilityPanel(playTransitionSound = true) {
@@ -2467,10 +2881,10 @@ function finishClosingHubFacilityPanel(playTransitionSound: boolean) {
 	panelOpen = false
 	panelClosing = false
 	uiState.modalOpen = false
-	for (const obj of k.get<GameObj>(tags.hubFacilityUi)) {
+	for (const obj of k.get(tags.hubFacilityUi)) {
 		destroyObjectTree(obj)
 	}
-	for (const obj of k.get<GameObj>(tags.gameLoop)) obj.paused = false
+	for (const obj of k.get(tags.gameLoop)) obj.paused = false
 	closeHandler?.()
 	if (playTransitionSound) playShopMenuCloseSound()
 	activePanel = undefined
@@ -2488,7 +2902,7 @@ function openPanel(
 	panelOpen = true
 	panelCloseHandler = onClose
 	uiState.modalOpen = true
-	for (const obj of k.get<GameObj>(tags.gameLoop)) obj.paused = true
+	for (const obj of k.get(tags.gameLoop)) obj.paused = true
 
 	const backdrop = k.add([
 		k.rect(k.width(), k.height()),

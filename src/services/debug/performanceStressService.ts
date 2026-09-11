@@ -4,8 +4,16 @@ import { spawnAllDebugEnemies } from "./debugEnemySpawnService";
 import { spawnDebreeValues } from "../../spawn/spawnDebree";
 import { tags } from "../../tags";
 import { spawnProjectile } from "../combat/projectileService";
+import { snareable } from "../../comp/snareable";
+import { registerBatchedEntityUpdate } from "../core/entityUpdateService";
+import { forEachSpatialNearby } from "../core/runtimeSpatialIndexService";
+import { registerPushableInteractionPhysics } from "../world/interactionPhysicsService";
+import { incrementPerformanceCounter } from "./frameProfilerService";
 
 const STRESS_PROJECTILE_LIFETIME = 60;
+const PHYSICS_STRESS_RADIUS = 270;
+const PHYSICS_BODY_RADIUS = 6;
+const PHYSICS_BODY_MAX_SPEED = 230;
 
 export function spawnEnemyStressTest(
 	count: number,
@@ -14,7 +22,7 @@ export function spawnEnemyStressTest(
 ) {
 	const removed = clearEnemyStressTest();
 	const result = spawnAllDebugEnemies(count, origin, [tags.stressEnemy]);
-	for (const enemy of k.get<GameObj>(tags.stressEnemy)) enemy.paused = paused;
+	for (const enemy of k.get(tags.stressEnemy)) enemy.paused = paused;
 	return { ...result, removed };
 }
 
@@ -163,7 +171,7 @@ export function spawnDebreeStressTest(
 		maxSpeed: 60,
 		tags: [tags.stressDebree],
 	});
-	for (const debris of k.get<GameObj>(tags.stressDebree)) debris.paused = paused;
+	for (const debris of k.get(tags.stressDebree)) debris.paused = paused;
 	return { spawned: count, removed };
 }
 
@@ -177,4 +185,89 @@ export function clearDebreeStressTest() {
 
 export function countStressDebree() {
 	return k.get(tags.stressDebree).length;
+}
+
+export function spawnPhysicsStressTest(
+	count: number,
+	origin: Vec2,
+	paused: boolean
+) {
+	const removed = clearPhysicsStressTest();
+	for (let index = 0; index < count; index++) {
+		const angle = index * 137.508;
+		const normalizedRadius = Math.sqrt((index + 0.5) / count);
+		const spawnRadius = 24 + normalizedRadius * (PHYSICS_STRESS_RADIUS - 24);
+		const radius = PHYSICS_BODY_RADIUS + index % 3;
+		const objectMass = 0.8 + index % 5 * 0.22;
+		const direction = k.Vec2.fromAngle(angle + 72 + index % 7 * 11);
+		const body = k.add([
+			k.pos(origin.add(k.Vec2.fromAngle(angle).scale(spawnRadius))),
+			k.rect(radius * 2, radius * 2),
+			k.anchor("center"),
+			k.rotate(angle),
+			k.color(index % 5 === 0 ? k.rgb(70, 220, 255) : k.WHITE),
+			k.opacity(0.72),
+			snareable({
+				mass: objectMass,
+				radius,
+				releaseDrag: 0.035,
+				angularDrag: 0.08,
+			}),
+			{
+				hb: radius,
+				stressOrigin: origin.clone(),
+			},
+			tags.props,
+			tags.gameLoop,
+			tags.stressPhysics,
+		]);
+		body.snareVelocity = direction.scale(80 + index % 9 * 13);
+		body.snareAngularVelocity = (index % 2 === 0 ? 1 : -1) *
+			(75 + index % 8 * 22);
+		body.paused = paused;
+
+		registerPushableInteractionPhysics(body, {
+			radius,
+			mass: objectMass,
+			maxSpeed: PHYSICS_BODY_MAX_SPEED,
+			pushTransfer: 0.92,
+			separationResponse: 16,
+			forEachPusher: (visitor) => forEachSpatialNearby(
+				body.pos,
+				radius * 4 + 12,
+				{
+					allTags: [tags.stressPhysics],
+					excludeIds: [body.id],
+				},
+				visitor
+			),
+			getPusherRadius: (pusher) => pusher.snareRadius ?? PHYSICS_BODY_RADIUS,
+		});
+		registerBatchedEntityUpdate("world", body, () => {
+			incrementPerformanceCounter("physicsStressObjects");
+			const offset = body.pos.sub(body.stressOrigin);
+			if (offset.len() <= PHYSICS_STRESS_RADIUS) return;
+			const normal = offset.unit();
+			body.pos = body.stressOrigin.add(normal.scale(PHYSICS_STRESS_RADIUS));
+			const outwardSpeed = body.snareVelocity.dot(normal);
+			if (outwardSpeed > 0) {
+				body.snareVelocity = body.snareVelocity.sub(
+					normal.scale(outwardSpeed * 1.85)
+				);
+			}
+		});
+	}
+	return { spawned: count, removed, radius: PHYSICS_STRESS_RADIUS };
+}
+
+export function clearPhysicsStressTest() {
+	const bodies = k.get(tags.stressPhysics) as GameObj[];
+	for (const body of bodies) {
+		if (body.exists()) k.destroy(body);
+	}
+	return bodies.length;
+}
+
+export function countStressPhysicsObjects() {
+	return k.get(tags.stressPhysics).length;
 }

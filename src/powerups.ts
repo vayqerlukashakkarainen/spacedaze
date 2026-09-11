@@ -14,6 +14,7 @@ import {
 } from "./spawn/spawnFollower";
 import { spawnRing } from "./spawn/spawnRing";
 import { gameSoundService } from "./services/audio/gameSoundService"
+import { getPrimaryWeaponDamage } from "./services/player/playerCombatScalingService"
 import { tags } from "./tags";
 
 // Track active slowdown timer and accumulated duration
@@ -87,7 +88,9 @@ function spawnCombatDrone(deploymentStart?: Vec2) {
 		hp: 6,
 		speed: k.rand(80, 110),
 		blasterDmg:
-			player.followerBlasterDmg * player.followerBlasterDmgMultiplier,
+				getPrimaryWeaponDamage() *
+				player.followerBlasterDmg *
+				player.followerBlasterDmgMultiplier,
 		deploymentStart,
 	});
 }
@@ -147,7 +150,6 @@ export const powerupsSprites: Record<PowerupKey, string> = {
 	addPrimaryRocketChance: "rocket_upg1",
 	slowdownTime: "overclock_thrusters_upg1",
 };
-
 
 export function chance(c: number, max: number) {
 	return k.rand(0, max) < c;

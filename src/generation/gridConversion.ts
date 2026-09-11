@@ -1,6 +1,7 @@
 import { HexGrid, CellType } from "../grid/hexGrid";
 import { GenerationMap } from "./generationTypes";
 import { hexCoord } from "../grid/hexCoord";
+import { k } from "../main";
 
 /**
  * Convert GenerationMap to HexGrid for gameplay
@@ -16,7 +17,7 @@ export function generationMapToHexGrid(
 		width: map.width,
 		height: map.height,
 		hexSize,
-		offset: { x: offsetX, y: offsetY },
+		offset: k.vec2(offsetX, offsetY),
 		projectionYScale,
 	});
 

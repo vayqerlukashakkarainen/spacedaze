@@ -10,7 +10,12 @@ import { createEnemySpawnProfile, type EnemySpawnOptions } from "../../services/
 import { easeDirection } from "../../shared"
 import { tags } from "../../tags"
 import { getEnemyVisual } from "../../visuals/enemyVisualCatalog"
-import { addWakeEnemyPart, composeWakeEnemy, handleWakeCompositeCombat } from "./wakeEnemyShared"
+import {
+	addWakeEnemyPart,
+	composeWakeEnemy,
+	handleWakeCompositeCombat,
+	updateWakeEnemyMalfunction,
+} from "./wakeEnemyShared"
 
 const TOWHOOK_VISUAL = getEnemyVisual("wake-towhook-rig")
 const TOWHOOK_RANGE = 245
@@ -71,7 +76,7 @@ export function spawnTowhookRig(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
-	const partHp = Math.max(1, Math.round(profile.hp * 0.42))
+	const partHp = 2 * Math.max(1, Math.round(profile.hp / 2 * 0.42))
 	const leftHook = addWakeEnemyPart(rig, leftVisual.sprite, partHp)
 	const rightHook = addWakeEnemyPart(rig, rightVisual.sprite, partHp)
 	composeWakeEnemy(rig, profile, [
@@ -79,16 +84,19 @@ export function spawnTowhookRig(
 			obj: leftHook,
 			hitbox: 5 * profile.scale,
 			hitboxOffset: k.vec2(-7, -8).scale(profile.scale),
+			pullForce: 75,
 		},
 		{
 			obj: rightHook,
 			hitbox: 5 * profile.scale,
 			hitboxOffset: k.vec2(7, -8).scale(profile.scale),
+			pullForce: 75,
 		},
 	], 7, 1.25)
 
 	registerBatchedEntityUpdate("enemies", rig, () => {
 		const delta = k.dt() * rig.getTimescale()
+		if (updateWakeEnemyMalfunction(rig, delta)) return
 		const toPlayer = playerObj.pos.sub(rig.pos)
 		const distance = toPlayer.len()
 		const direction = distance > 0 ? toPlayer.unit() : k.vec2(0, 1)

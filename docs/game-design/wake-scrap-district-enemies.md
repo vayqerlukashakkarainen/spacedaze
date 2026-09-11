@@ -38,6 +38,8 @@ allies from whatever is nearby.
 | Fuse Rat | Environmental support | Primes fuel cells, barrels, or improvised mines | Interrupt sabotage or exploit the explosion |
 | Shredder Skiff | Area denial | Consumes loose scrap and cover for a fragment cone | Reposition, then break the loaded machinery |
 | Boiler Hulk | Artillery miniboss | Turns marked areas into dangerous scrap fields | Commit during its long vent window |
+| Magnet Maw | Controller miniboss | Pulls the player and loose props into a fixed crane platform, then releases them | Break either magnetic drum to weaken the field; break both to disable it |
+| Railbreaker Rig | Pressure miniboss | Telegraphs a high-speed ram that crushes cover and volatile props | Bait a wall crash, then attack during the stun |
 
 ### Scrap Nipper
 
@@ -191,6 +193,35 @@ the Hulk must open its armor and vent.
 - **Elite variant — Overpressure Hulk:** Fires four shells before venting. Each
   shot increases its movement speed and the chance of an early self-stagger.
 
+### Magnet Maw
+
+A fixed scrapyard crane built directly into a salvage platform. Both magnetic
+drums charge together, pull the player and movable room props inward, then
+release everything in a short outward burst.
+
+- **Silhouette:** 64x64 circular work platform, central crane pedestal, and two
+  large side drums.
+- **Tell:** A cyan field grows from the platform before the pull begins.
+- **Counterplay:** Break one drum to reduce pull strength, both to disable the
+  field, or destroy the independently animated crane to shut it down directly.
+  The platform cannot chase the player.
+- **Room use:** The platform occupies the miniboss room center as part of the
+  map and never performs the enemy landing jump.
+
+### Railbreaker Rig
+
+A demolition vehicle that tracks the player before locking a direction and
+charging through destructible cover. Volatile props struck at charge speed can
+detonate and damage the rig as well as nearby enemies.
+
+- **Silhouette:** 64x64 broad wedge ram, narrow armored core, and two rear
+  track-thrusters.
+- **Tell:** The rig stops, flashes, and holds its facing before launch.
+- **Counterplay:** Sidestep the locked path and punish its wall-crash stun.
+  Destroying the ram lowers impact damage; destroying thrusters lowers speed.
+- **Room use:** Best paired with breakable barricades and explosive barrels so
+  its route changes the room during the fight.
+
 ## Encounter progression
 
 The floor introduces one interaction at a time before combining roles.
@@ -205,8 +236,9 @@ The floor introduces one interaction at a time before combining roles.
    in clear view so the repair relationship is readable.
 6. **Late-floor formation:** Two Towhook Rigs, one Tender, two Gunners, and a
    delayed Nipper wave.
-7. **Miniboss room:** One Boiler Hulk with Nippers arriving after its first
-   vent. Later runs may add a Tender, but it must not repair the exposed boiler.
+7. **Miniboss room:** Every sublevel contains one. Sublevel 1.1 uses Boiler
+   Hulk, 1.2 uses the fixed Magnet Maw platform, and 1.3 uses Railbreaker Rig.
+   The stable order teaches artillery, forced movement, then destructive charge.
 
 Difficulty should add combinations and elite rules before increasing raw enemy
 health. The opening floor remains readable for a new player even when hub
@@ -217,7 +249,7 @@ progression increases its threat budget.
 The first playable art and behavior pass should cover Scrap Nipper, Rivet
 Gunner, Towhook Rig, and Patch Tender. They establish pressure, ranged,
 controller, and support roles using one shared scrap-machine parts sheet.
-Boiler Hulk follows as the floor's bespoke miniboss.
+Boiler Hulk, Magnet Maw, and Railbreaker Rig form the floor miniboss sequence.
 
 Each enemy needs a north-facing idle sprite, a two- or three-frame movement
 loop, one anticipation frame, one attack frame, one damage flash mask, and a

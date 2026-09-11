@@ -1,0 +1,58 @@
+import type { HubFacilityId } from "../services/hub/hubProgressService"
+
+const HUB_UNLOCK_ICONS: Readonly<Record<string, string>> = {
+	COMPENDIUM: "facility_training_range",
+	"SALVAGE GHOST CHEST": "chest_salvage_ui",
+	"EMERGENCY SERVICE DRONE": "drone_combat",
+	"CONTRACT TERMINAL": "facility_contract_terminal_1bit",
+	"SECOND SALVAGE GHOST CHEST": "chest_salvage_ui",
+	"COURIER TRAFFIC": "hub_ship_ring_runner",
+	"SALVAGE FORGE": "facility_salvage_forge_1bit",
+	"GHOST WEAPON CACHE": "chest_weapon_ui",
+	"SALVAGE HAULERS": "hub_salvage_hauler",
+	"POST-RUN DEBRIEF TERMINAL": "facility_debrief_terminal_1bit",
+	"SIGNAL ARRAY": "room_signal_relay",
+	"TRAINING RANGE EXPANSION": "facility_training_range",
+	"THIRD SALVAGE GHOST CHEST": "chest_salvage_ui",
+	"MAINTENANCE WING": "hub_droid_repair",
+	"DOCKING GANTRIES": "hub_ship_ring_runner",
+	"OUTPOST TRAFFIC GRID": "hub_ship_jubilee",
+	"HUB RESTORATION COMPLETE": "hub_progression_lamp",
+	"PHASE CROWN": "hub_progression_lamp",
+}
+
+const HUB_UNLOCK_DESCRIPTIONS: Readonly<Record<string, string>> = {
+	COMPENDIUM: "ARCHIVES DISCOVERED TECHNIQUES, GEAR, AND DROIDS",
+	"SALVAGE GHOST CHEST": "ADDS A SALVAGE REWARD CHEST TO THE HUB",
+	"EMERGENCY SERVICE DRONE": "PROVIDES SUPPORT AFTER FAILED EXPEDITIONS",
+	"CONTRACT TERMINAL": "OFFERS OPTIONAL CONTRACTS FOR FUTURE RUNS",
+	"SECOND SALVAGE GHOST CHEST": "ADDS A SECOND SALVAGE REWARD CHEST TO THE HUB",
+	"COURIER TRAFFIC": "BRINGS COURIER SHIPS AND DELIVERIES TO THE HUB",
+	"SALVAGE FORGE": "IMPROVES REWARDS RECOVERED FROM DESTROYED HOSTILES",
+	"GHOST WEAPON CACHE": "ADDS A HUB CACHE CONTAINING PRIMARY WEAPON RECORDS",
+	"SALVAGE HAULERS": "RESTORES WORKING SALVAGE SHIPS AROUND THE HUB",
+	"POST-RUN DEBRIEF TERMINAL": "STORES DETAILED RECORDS FROM COMPLETED RUNS",
+	"SIGNAL ARRAY": "RESTORES LONG-RANGE SIGNALS AND STATION COMMUNICATIONS",
+	"TRAINING RANGE EXPANSION": "ADDS MORE TARGETS AND FIRING-RANGE TRIALS",
+	"THIRD SALVAGE GHOST CHEST": "ADDS A THIRD SALVAGE REWARD CHEST TO THE HUB",
+	"MAINTENANCE WING": "RESTORES REPAIR INFRASTRUCTURE AND DROID ACTIVITY",
+	"DOCKING GANTRIES": "RESTORES HEAVY DOCKING STRUCTURES",
+	"OUTPOST TRAFFIC GRID": "EXPANDS AUTONOMOUS TRAFFIC THROUGHOUT THE HUB",
+	"HUB RESTORATION COMPLETE": "MARKS THE STATION CORE RECONSTRUCTION AS COMPLETE",
+	"PHASE CROWN": "REVEALS THE FINAL MONUMENT TO THE RESTORED HUB",
+}
+
+export const HUB_FACILITY_ICONS: Readonly<Record<HubFacilityId, string>> = {
+	contractTerminal: "facility_contract_terminal_1bit",
+	trainingRange: "facility_training_range",
+	salvageForge: "facility_salvage_forge_1bit",
+	debriefTerminal: "facility_debrief_terminal_1bit",
+}
+
+export function getHubUnlockIcon(unlock: string) {
+	return HUB_UNLOCK_ICONS[unlock] ?? "hub_progression_lamp"
+}
+
+export function getHubUnlockDescription(unlock: string) {
+	return HUB_UNLOCK_DESCRIPTIONS[unlock] ?? "NEW HUB SYSTEM NOW AVAILABLE"
+}

@@ -18,12 +18,22 @@ import {
 	type DebreeValue,
 } from "../spawnDebree"
 import { spawnFlash } from "../spawnFlash"
+import {
+	canEnemyClaimThrowable,
+	carryEnemyThrowable,
+	claimEnemyThrowable,
+	findNearestEnemyThrowableProp,
+	releaseEnemyThrowable,
+	throwEnemyThrowable,
+	type EnemyThrowableProp,
+} from "../rooms/spawnRoomEnvironment"
 import { spawnRivetGunner } from "./spawnRivetGunner"
 import { spawnScrapNipper } from "./spawnScrapNipper"
 import {
 	addWakeEnemyPart,
 	composeWakeEnemy,
 	handleWakeCompositeCombat,
+	updateWakeEnemyMalfunction,
 } from "./wakeEnemyShared"
 
 type ScrapRaiserPhase = "forage" | "reconstruct" | "recover" | "exhausted"
@@ -42,6 +52,10 @@ const RECONSTRUCTION_DURATION = 2
 const RECONSTRUCTION_LIMIT = 2
 const DEBREE_SEARCH_RADIUS = 440
 const DEBREE_COLLECTION_RADIUS = 15
+const PROP_SEARCH_RADIUS = 420
+const PROP_PICKUP_RADIUS = 24
+const PROP_THROW_WINDUP = 0.72
+const PROP_THROW_COOLDOWN = 3.2
 
 export function spawnScrapRaiser(
 	pos: Vec2,
@@ -79,6 +93,10 @@ export function spawnScrapRaiser(
 				? initialDirection.unit()
 				: k.vec2(0, 1),
 			targetDebree: undefined as CollectibleEnemyDebree | undefined,
+			targetProp: undefined as EnemyThrowableProp | undefined,
+			carriedProp: undefined as EnemyThrowableProp | undefined,
+			propThrowTimer: 0,
+			propThrowCooldown: 0.8,
 			storedDebree: [] as DebreeValue[],
 			storedValue: 0,
 			reconstructions: 0,
@@ -94,7 +112,7 @@ export function spawnScrapRaiser(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
-	const collectorHp = Math.max(1, Math.round(profile.hp * 0.4))
+	const collectorHp = 2 * Math.max(1, Math.round(profile.hp / 2 * 0.4))
 	const leftCollector = addWakeEnemyPart(
 		raiser,
 		leftCollectorVisual.sprite,
@@ -110,13 +128,16 @@ export function spawnScrapRaiser(
 			obj: leftCollector,
 			hitbox: 6 * profile.scale,
 			hitboxOffset: k.vec2(-8, 1).scale(profile.scale),
+			pullForce: 70,
 		},
 		{
 			obj: rightCollector,
 			hitbox: 6 * profile.scale,
 			hitboxOffset: k.vec2(8, 0).scale(profile.scale),
+			pullForce: 70,
 		},
 	], 5, 1, () => {
+		releaseEnemyThrowable(raiser.carriedProp)
 		if (raiser.storedDebree.length === 0) return
 		spawnDebreeValues(raiser.pos.clone(), [...raiser.storedDebree], {
 			pattern: "radial",
@@ -126,6 +147,7 @@ export function spawnScrapRaiser(
 
 	registerBatchedEntityUpdate("enemies", raiser, () => {
 		const delta = k.dt() * raiser.getTimescale()
+		if (updateWakeEnemyMalfunction(raiser, delta)) return
 		const collectorCount = Number(!leftCollector.hidden) + Number(!rightCollector.hidden)
 		if (collectorCount !== raiser.collectorCount) {
 			raiser.collectorCount = collectorCount
@@ -134,6 +156,19 @@ export function spawnScrapRaiser(
 		raiser.phaseTimer += raiser.phase === "reconstruct" && collectorCount === 1
 			? delta * 0.65
 			: delta
+		raiser.propThrowCooldown = Math.max(0, raiser.propThrowCooldown - delta)
+		if (
+			raiser.phase === "forage" &&
+			collectorCount > 0 &&
+			updateThrowableAttack(raiser, profile.speedMultiplier, delta)
+		) {
+			handleWakeCompositeCombat(
+				raiser,
+				"SCRAP RAISER",
+				"enemy_wake_scrap_raiser_core"
+			)
+			return
+		}
 
 		if (raiser.phase === "reconstruct") {
 			raiser.opacity = k.wave(0.58, 1, k.time() * 9)
@@ -236,6 +271,9 @@ function collectDebree(raiser: GameObj, debris: CollectibleEnemyDebree) {
 }
 
 function disableScrapRaiserCollectors(raiser: GameObj) {
+	releaseEnemyThrowable(raiser.carriedProp)
+	raiser.carriedProp = undefined
+	raiser.targetProp = undefined
 	raiser.phase = "exhausted"
 	raiser.phaseTimer = 0
 	raiser.targetDebree = undefined
@@ -247,6 +285,96 @@ function disableScrapRaiserCollectors(raiser: GameObj) {
 	})
 	raiser.storedDebree.length = 0
 	raiser.storedValue = 0
+}
+
+function updateThrowableAttack(
+	raiser: GameObj,
+	speedMultiplier: number,
+	delta: number
+) {
+	if (raiser.carriedProp && !raiser.carriedProp.exists()) {
+		raiser.carriedProp = undefined
+		raiser.propThrowTimer = 0
+	}
+	if (raiser.carriedProp) {
+		updateCarriedPropAttack(raiser, speedMultiplier, delta)
+		return true
+	}
+	if (!canEnemyClaimThrowable(raiser.targetProp)) raiser.targetProp = undefined
+	if (!raiser.targetProp && raiser.propThrowCooldown <= 0) {
+		raiser.targetProp = findNearestEnemyThrowableProp(
+			raiser.pos,
+			PROP_SEARCH_RADIUS
+		)
+	}
+	const target = raiser.targetProp as EnemyThrowableProp | undefined
+	if (!target) return false
+	const toTarget = target.pos.sub(raiser.pos)
+	if (toTarget.len() <= PROP_PICKUP_RADIUS) {
+		if (claimEnemyThrowable(target, raiser.id)) {
+			raiser.carriedProp = target
+			raiser.targetProp = undefined
+			raiser.propThrowTimer = 0
+			spawnFlash(target.pos.clone(), 6, k.rgb(255, 190, 70))
+		}
+		return true
+	}
+	const desired = getEnemyNavigationDirection(
+		raiser,
+		toTarget.unit(),
+		target.pos
+	)
+	raiser.moveDirection = easeDirection(raiser.moveDirection, desired, 5.5, delta)
+	raiser.move(raiser.moveDirection.scale(
+		112 * speedMultiplier * velocityScale() * raiser.getTimescale()
+	))
+	raiser.angle = raiser.moveDirection.angle() + 90
+	return true
+}
+
+function updateCarriedPropAttack(
+	raiser: GameObj,
+	speedMultiplier: number,
+	delta: number
+) {
+	const prop = raiser.carriedProp as EnemyThrowableProp
+	const toPlayer = playerObj.pos.sub(raiser.pos)
+	const direction = toPlayer.len() > 0.001 ? toPlayer.unit() : k.vec2(0, 1)
+	const distance = toPlayer.len()
+	const desired = distance < 145
+		? direction.scale(-1)
+		: distance > 230
+			? direction
+			: direction.normal().scale(raiser.id % 2 === 0 ? 1 : -1)
+	const navigationDirection = getEnemyNavigationDirection(
+		raiser,
+		desired,
+		playerObj.pos
+	)
+	raiser.moveDirection = easeDirection(
+		raiser.moveDirection,
+		navigationDirection,
+		3.8,
+		delta
+	)
+	raiser.move(raiser.moveDirection.scale(
+		62 * speedMultiplier * velocityScale() * raiser.getTimescale()
+	))
+	raiser.angle = direction.angle() + 90
+	const carryOffset = direction.scale(22 + Math.sin(k.time() * 10) * 2)
+	carryEnemyThrowable(prop, raiser.pos.add(carryOffset))
+	raiser.propThrowTimer += delta
+	if (raiser.propThrowTimer < PROP_THROW_WINDUP) return
+	throwEnemyThrowable(
+		prop,
+		direction,
+		prop.enemyThrowableKind === "barrel" ? 300 : 360,
+		raiser.id
+	)
+	spawnFlash(prop.pos.clone(), 7, k.rgb(255, 190, 70))
+	raiser.carriedProp = undefined
+	raiser.propThrowTimer = 0
+	raiser.propThrowCooldown = PROP_THROW_COOLDOWN
 }
 
 function completeReconstruction(raiser: GameObj, options: EnemySpawnOptions) {
@@ -261,9 +389,9 @@ function completeReconstruction(raiser: GameObj, options: EnemySpawnOptions) {
 		tags: [...new Set([tags.reconstructedEnemy, ...(options.tags ?? [])])],
 	}
 	if (k.chance(0.7)) {
-		spawnScrapNipper(spawnPos, 2, summonOptions)
+		spawnScrapNipper(spawnPos, 4, summonOptions)
 	} else {
-		spawnRivetGunner(spawnPos, 5, summonOptions)
+		spawnRivetGunner(spawnPos, 10, summonOptions)
 	}
 	spawnFlash(spawnPos, 10, k.rgb(70, 180, 255))
 	raiser.storedDebree.length = 0

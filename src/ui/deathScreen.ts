@@ -3,12 +3,17 @@ import type { PlayerDeathCause } from "../services/combat/damageService"
 import {
 	getHubLevelDefinition,
 	getHubLevelForDeposited,
+	getNextHubLevelDefinition,
 	HUB_LEVELS,
 } from "../services/hub/hubProgressService"
 import type { RunEndSummary } from "../services/runs/runCompletionService"
 import { gameSoundService } from "../services/audio/gameSoundService"
 import { tags } from "../tags"
 import { uiState } from "./uiState"
+import {
+	getHubUnlockDescription,
+	getHubUnlockIcon,
+} from "./hubUnlockIcons"
 import {
 	addThemedText,
 	createUiActionButton,
@@ -17,6 +22,7 @@ import {
 	createUiScrollable,
 	createUiSectionHeader,
 	createUiTelemetryStrip,
+	createUiUnlockList,
 	UI_COLORS,
 	UI_FONT_SIZES,
 } from "./common"
@@ -25,6 +31,10 @@ const KILLER_REVEAL_DELAY = 1
 const DEPOSIT_COUNT_DELAY = 0.25
 const LEVEL_CELEBRATION_INTERVAL = 0.18
 const LEVEL_CELEBRATION_PARTICLES = 48
+const UNLOCK_REVEAL_INTERVAL = 0.14
+const UNLOCK_ROW_HEIGHT = 40
+const UNLOCK_ROW_GAP = 4
+const UNLOCK_ROW_STEP = UNLOCK_ROW_HEIGHT + UNLOCK_ROW_GAP
 
 export function showDeathScreen(
 	cause: PlayerDeathCause,
@@ -44,7 +54,7 @@ export function showDeathScreen(
 	])
 
 	k.add([
-		k.text("DEAD", { font: "", size: UI_FONT_SIZES.death }),
+		k.text("DEAD", { font: "unscii", size: UI_FONT_SIZES.death }),
 		k.pos(k.center().add(0, runSummary ? -210 : -90)),
 		k.anchor("center"),
 		k.color(k.WHITE),
@@ -151,8 +161,8 @@ export function showRunClearScreen(
 
 	k.add([
 		k.text(options.title ?? "RUN CLEARED", {
-			font: "",
-			size: UI_FONT_SIZES.death,
+			font: "unscii",
+			size: UI_FONT_SIZES.logo,
 		}),
 		k.pos(k.center().add(0, -210)),
 		k.anchor("center"),
@@ -203,11 +213,21 @@ export function showRunClearScreen(
 
 function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunEndSummary) {
 	const showsLevelUnlocks = summary.hub.currentLevel > summary.hub.previousLevel
+	const panelGap = 12
+	const groupWidth = Math.min(900, k.width() - 40)
+	const unlockPanelWidth = showsLevelUnlocks
+		? Math.min(390, Math.max(320, groupWidth * 0.44))
+		: 0
 	const panelSize = k.vec2(
-		Math.min(600, k.width() - 40),
-		showsLevelUnlocks ? 296 : 250
+		showsLevelUnlocks
+			? groupWidth - unlockPanelWidth - panelGap
+			: Math.min(600, groupWidth),
+		250
 	)
-	const panelPos = k.center().add(0, showsLevelUnlocks ? 82 : 105)
+	const groupLeft = k.width() / 2 - groupWidth / 2
+	const panelPos = showsLevelUnlocks
+		? k.vec2(groupLeft + panelSize.x / 2, k.center().y + 82)
+		: k.center().add(0, 105)
 	const levelBurst = createLevelCelebrationEmitter(panelPos)
 	const panel = createUiPanel({
 		pos: panelPos,
@@ -225,6 +245,12 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 		height: 52,
 		eyebrow: `${summary.outcome} EXPEDITION`,
 		title: "SALVAGE DEPOSIT",
+		action: summary.phaseCores > 0
+			? `+${summary.phaseCores} PHASE CORE${summary.phaseCores === 1 ? "" : "S"}`
+			: undefined,
+		actionColor: summary.phaseCores > 0
+			? k.rgb(...UI_COLORS.phaseCore)
+			: undefined,
 	})
 	const depositValue = addThemedText(panel, {
 		text: "+0",
@@ -262,41 +288,75 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 		variant: "body",
 		width: panelSize.x - 64,
 	})
-	const unlockScroll = showsLevelUnlocks
+	const unlockEntries = HUB_LEVELS
+		.filter((definition) =>
+			definition.level > summary.hub.previousLevel &&
+			definition.level <= summary.hub.currentLevel
+		)
+		.flatMap((definition) => definition.unlocks.map((unlock) => ({
+			name: unlock,
+			description: getHubUnlockDescription(unlock),
+			meta: `LEVEL ${definition.level}`,
+			level: definition.level,
+			sprite: getHubUnlockIcon(unlock),
+		})))
+	const unlockPanelSize = k.vec2(unlockPanelWidth, 326)
+	const unlockPanelPos = k.vec2(
+		groupLeft + panelSize.x + panelGap + unlockPanelWidth / 2,
+		k.center().y + 82
+	)
+	const unlockPanel = showsLevelUnlocks
+		? createUiPanel({
+			pos: unlockPanelPos,
+			size: unlockPanelSize,
+			anchor: "center",
+			layer: layers.ui,
+			animated: true,
+			tags: [tags.deathScreen],
+		})
+		: undefined
+	if (unlockPanel) {
+		createUiSectionHeader(unlockPanel, {
+			pos: k.vec2(-unlockPanelSize.x / 2 + 1, -unlockPanelSize.y / 2 + 1),
+			width: unlockPanelSize.x - 2,
+			height: 52,
+			eyebrow: "RESTORATION EXPANSION",
+			title: "HUB UNLOCKS",
+			action: `${unlockEntries.length} NEW`,
+			actionColor: k.rgb(...UI_COLORS.success),
+		})
+	}
+	const unlockViewportHeight = unlockPanelSize.y - 84
+	const unlockScroll = unlockPanel
 		? createUiScrollable({
-			parent: panel,
-			pos: k.vec2(left + 32, top + 196),
-			width: panelSize.x - 64,
-			height: 48,
-			contentHeight: 48,
-			scrollStep: 20,
+			parent: unlockPanel,
+			pos: k.vec2(
+				-unlockPanelSize.x / 2 + 18,
+				-unlockPanelSize.y / 2 + 66
+			),
+			width: unlockPanelSize.x - 36,
+			height: unlockViewportHeight,
+			contentHeight: unlockViewportHeight,
+			scrollStep: UNLOCK_ROW_STEP,
 			captureWheel: true,
 			tags: [tags.deathScreen],
 		})
 		: undefined
-	const unlockHeader = unlockScroll
-		? addThemedText(unlockScroll.content, {
-			text: "",
-			pos: k.vec2(0, 2),
-			variant: "caption",
-			width: panelSize.x - 72,
-			color: k.rgb(...UI_COLORS.success),
-		})
-		: undefined
 	const unlockList = unlockScroll
-		? addThemedText(unlockScroll.content, {
-			text: "",
-			pos: k.vec2(0, 20),
-			variant: "body",
-			size: UI_FONT_SIZES.small,
-			width: panelSize.x - 72,
-			color: k.WHITE,
+		? createUiUnlockList(unlockScroll.content, {
+			pos: k.vec2(0, 0),
+			width: unlockPanelSize.x - 44,
+			entries: unlockEntries,
+			rowHeight: UNLOCK_ROW_HEIGHT,
+			gap: UNLOCK_ROW_GAP,
 		})
 		: undefined
-	if (unlockHeader) unlockHeader.hidden = true
-	if (unlockList) unlockList.hidden = true
+	if (unlockScroll && unlockList) {
+		unlockScroll.setContentHeight(unlockList.obj.pos.y + unlockList.contentHeight + 4)
+		unlockScroll.scrollToStart()
+	}
 	createUiTelemetryStrip(panel, {
-		pos: k.vec2(left + 32, top + (showsLevelUnlocks ? 248 : 198)),
+		pos: k.vec2(left + 32, top + 198),
 		width: panelSize.x - 64,
 		gap: 12,
 		items: [
@@ -326,7 +386,8 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 	let lastCount = -1
 	let lastTickAt = 0
 	let celebratedLevel = summary.hub.previousLevel
-	let displayedUnlockLevel = summary.hub.previousLevel
+	let nextUnlockIndex = 0
+	let nextUnlockRevealAt = 0
 	let nextLevelCelebrationAt = 0
 	let finished = false
 	const countDuration = Math.min(1.8, 0.85 + summary.debree.deposited * 0.012)
@@ -342,32 +403,33 @@ function addAnimatedDepositPanel(screen: ReturnType<typeof k.add>, summary: RunE
 		const count = Math.round(summary.debree.deposited * eased)
 		const xp = summary.hub.previousXp + count
 		const level = getHubLevelForDeposited(xp)
-		const next = HUB_LEVELS.find((candidate) => candidate.level === level + 1)
+		const next = getNextHubLevelDefinition(level)
 		depositValue.text = `+${count}`
 		levelLabel.text = level > summary.hub.previousLevel
 			? `HUB LEVEL ${summary.hub.previousLevel}  >  ${level}`
 			: `HUB LEVEL ${level}`
+		if (level > summary.hub.previousLevel && nextUnlockRevealAt === 0) {
+			nextUnlockRevealAt = elapsed
+		}
 		if (
-			unlockHeader &&
 			unlockList &&
-			level !== displayedUnlockLevel
+			nextUnlockIndex < unlockEntries.length &&
+			unlockEntries[nextUnlockIndex].level <= level &&
+			elapsed >= nextUnlockRevealAt
 		) {
-			displayedUnlockLevel = level
-			const unlocks = level > summary.hub.previousLevel
-				? getHubLevelDefinition(level).unlocks
-				: []
-			unlockHeader.hidden = unlocks.length === 0
-			unlockList.hidden = unlocks.length === 0
-			unlockHeader.text = unlocks.length > 0
-				? `NEW HUB UNLOCKS  //  LEVEL ${level}`
-				: ""
-			unlockList.text = unlocks.join("  //  ")
-			unlockScroll?.setContentHeight(
-				unlocks.length > 0
-					? unlockList.pos.y + unlockList.height + 4
-					: 48
-			)
-			unlockScroll?.scrollToStart()
+			const revealIndex = nextUnlockIndex
+			unlockList.reveal(revealIndex, () => {
+				gameSoundService.play("run_level_up", {
+					volume: mainSoundVolume * 0.72,
+					detune: revealIndex * 55,
+				})
+			})
+			nextUnlockIndex++
+			nextUnlockRevealAt = elapsed + UNLOCK_REVEAL_INTERVAL
+			unlockScroll?.setScroll(Math.max(
+				0,
+				(revealIndex + 1) * UNLOCK_ROW_STEP - unlockViewportHeight
+			))
 		}
 		xpLabel.text = next
 			? `${xp} / ${next.requiredDeposited} HUB XP  //  ${Math.max(0, next.requiredDeposited - xp)} NEEDED`
@@ -480,7 +542,7 @@ function formatDuration(durationSeconds: number) {
 function getProgressAtXp(xp: number) {
 	const level = getHubLevelForDeposited(xp)
 	const current = getHubLevelDefinition(level)
-	const next = HUB_LEVELS.find((definition) => definition.level === level + 1)
+	const next = getNextHubLevelDefinition(level)
 	if (!next) return 1
 	return k.clamp(
 		(xp - current.requiredDeposited) /

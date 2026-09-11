@@ -170,6 +170,9 @@ been recovered.
   and small maintenance droids hiding when combat begins.
 - **Encounters:** Scavengers compete for debris while hacked defenses protect
   old homes. Enemies use whatever cover and machinery the room provides.
+- **Main bosses:** The Yardmaster consumes and rebuilds from room material; The
+  Last Beacon turns the room into a changing emergency-signal pattern. See
+  [Wake Scrap District Main Bosses](wake-main-bosses.md).
 - **Reward bias:** Salvage, repair, starter weapons, and broadly useful upgrades.
 - **Story use:** Memories of ordinary life in the Wake before the Claim.
 

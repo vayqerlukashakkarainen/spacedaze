@@ -6,7 +6,12 @@ import {
 	resetAbilityLoadout,
 	setAbilityLoadout,
 } from "./abilityLoadoutService"
-import { getAbilityDefinition } from "./abilityRegistry"
+import {
+	ABILITIES,
+	discoverAbility,
+	getAbilityDefinition,
+	hasUndiscoveredAbilities,
+} from "./abilityRegistry"
 import {
 	beginAbilityTierRun,
 	endAbilityTierRun,
@@ -18,7 +23,6 @@ import { RewardRarity } from "../../types/rewardTypes"
 const hubLevelOneAdditions = [
 	"pulseRepeater",
 	"twinNeedle",
-	"impactDriver",
 	"repulsorPulse",
 	"decoyBeacon",
 	"scrapMine",
@@ -35,6 +39,19 @@ for (const id of hubLevelOneAdditions) {
 		`${id} should be available at hub level 1`
 	)
 }
+
+for (const id of ["gravitonCollapse", "ghostFleet", "scrapColossus"] as const) {
+	const definition = getAbilityDefinition(id)
+	assert.ok(definition, `${id} should be registered as an ability`)
+	assert.equal(definition.slot, "ultimate")
+	assert.equal(definition.resource.type, "meter")
+}
+
+const droidFrenzy = getAbilityDefinition("droidFrenzy")
+assert.equal(droidFrenzy?.slot, "secondary")
+assert.equal(droidFrenzy?.minimumHubLevel, 3)
+assert.equal(droidFrenzy?.icon, "active_droid_frenzy")
+assert.deepEqual(droidFrenzy?.resource, { type: "cooldown", duration: 18 })
 
 resetAbilityLoadout()
 assert.deepEqual(getAbilityLoadout(), { primary: "standardBlaster" })
@@ -59,6 +76,12 @@ assert.deepEqual(getAbilityLoadout(), {
 	mobility: "gravitySling",
 	ultimate: "phaseNova",
 })
+
+const phaseSurge = getAbilityDefinition("phaseSurge")
+assert.equal(phaseSurge?.resource.type, "charges")
+assert.equal(phaseSurge?.description.includes("2 seconds"), true)
+equipAbility("mobility", "phaseSurge")
+assert.equal(getAbilityLoadout().mobility, "phaseSurge")
 
 beginAbilityTierRun()
 registerAbilityTier({
@@ -88,5 +111,9 @@ assert.deepEqual(getAbilityLoadout(), {
 	mobility: "thrusterOverdrive",
 	ultimate: undefined,
 })
+
+assert.equal(hasUndiscoveredAbilities(), true)
+for (const ability of ABILITIES) discoverAbility(ability.id, false)
+assert.equal(hasUndiscoveredAbilities(), false)
 
 console.log("Ability loadout service tests passed")

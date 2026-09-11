@@ -72,24 +72,3 @@ export const blasterSpeed: UpgradeDefinition = {
 		},
 	],
 };
-
-export const blasterDmg: UpgradeDefinition = {
-	toolKey: "blasterDmg",
-	toolName: "Blaster dmg",
-	category: "combat",
-	type: "stat",
-	requirements: { allOf: [{ toolKey: "blaster" }] },
-	levels: [
-		{
-			name: "Level 1",
-			desc: "Increase damage of the ships primary blasters",
-			price: 12,
-			sprite: "blaster_upg_dmg1",
-			effects: {
-				modifiers: [
-					{ stat: "blasterDmgMultiplier", value: 2, type: "multiply" },
-				],
-			},
-		},
-	],
-};

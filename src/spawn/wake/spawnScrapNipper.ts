@@ -4,31 +4,23 @@ import { snareable } from "../../comp/snareable"
 import { timescale } from "../../comp/timescale"
 import { playerObj } from "../../game"
 import { k, velocityScale } from "../../main"
-import { applyDamage } from "../../services/combat/damageService"
-import { emitMechanicalAccelerationSmoke } from "../../services/combat/enemyDamageEffectService"
 import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
-import { querySpatialNearby } from "../../services/core/runtimeSpatialIndexService"
 import { getEnemyNavigationDirection, hasEnemyLineOfSight } from "../../services/enemies/enemyNavigationService"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../../services/enemies/threatService"
 import { easeDirection } from "../../shared"
 import { tags } from "../../tags"
 import { getEnemyVisual } from "../../visuals/enemyVisualCatalog"
-import { spawnExplosionEffect } from "../spawnFlash"
 import {
 	addWakeEnemyPart,
 	composeWakeEnemy,
 	handleWakeCompositeCombat,
+	updateWakeEnemyMalfunction,
 } from "./wakeEnemyShared"
 
-type NipperPhase = "approach" | "windup" | "lunge" | "recover" | "malfunction"
+type NipperPhase = "approach" | "windup" | "lunge" | "recover"
 
 const NIPPER_VISUAL = getEnemyVisual("wake-scrap-nipper")
-const CUTTER_MALFUNCTION_CHANCE = 0.35
-const ELITE_CUTTER_MALFUNCTION_CHANCE = 0.5
-const MALFUNCTION_EXPLOSION_RADIUS = 42
 const NIPPER_SNARE_MASS = 0.9
-const MALFUNCTION_SNARE_FORCE_MIN = 140
-const MALFUNCTION_SNARE_FORCE_MAX = 380
 
 export function spawnScrapNipper(
 	pos: Vec2,
@@ -66,9 +58,6 @@ export function spawnScrapNipper(
 			phaseTimer: 0,
 			moveDirection: initialDirection,
 			lockedDirection: initialDirection,
-			malfunctionDuration: 0,
-			malfunctionTurnDirection: 1,
-			malfunctionSmokeTimer: 0,
 		},
 		tags.enemy,
 		tags.unit,
@@ -77,7 +66,7 @@ export function spawnScrapNipper(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
-	const cutterHp = Math.max(1, Math.round(profile.hp * 0.5))
+	const cutterHp = 2 * Math.max(1, Math.round(profile.hp / 2 * 0.5))
 	const leftCutter = addWakeEnemyPart(
 		nipper,
 		leftCutterVisual.sprite,
@@ -93,26 +82,27 @@ export function spawnScrapNipper(
 			obj: leftCutter,
 			hitbox: 5 * profile.scale,
 			hitboxOffset: k.vec2(-6, -8).scale(profile.scale),
+			pullForce: 55,
+			pullDuration: 0.45,
 			onDestroyed: () => handleCutterDestroyed(nipper, profile),
 		},
 		{
 			obj: rightCutter,
 			hitbox: 5 * profile.scale,
 			hitboxOffset: k.vec2(6, -8).scale(profile.scale),
+			pullForce: 55,
+			pullDuration: 0.45,
 			onDestroyed: () => handleCutterDestroyed(nipper, profile),
 		},
 	], 2, 0.7)
 
 	registerBatchedEntityUpdate("enemies", nipper, () => {
 		const delta = k.dt() * nipper.getTimescale()
+		if (updateWakeEnemyMalfunction(nipper, delta)) return
 		nipper.phaseTimer += delta
 		const toPlayer = playerObj.pos.sub(nipper.pos)
 		const distance = toPlayer.len()
 		const playerDirection = distance > 0 ? toPlayer.unit() : nipper.moveDirection
-		if (nipper.phase === "malfunction") {
-			updateNipperMalfunction(nipper, profile, delta)
-			return
-		}
 		if (nipper.snared) {
 			handleWakeCompositeCombat(
 				nipper,
@@ -208,107 +198,4 @@ function handleCutterDestroyed(
 ) {
 	nipper.cutterCount = Math.max(0, nipper.cutterCount - 1)
 	nipper.damage = profile.damage * (nipper.cutterCount === 1 ? 0.6 : 0.25)
-	if (nipper.phase === "malfunction") return
-	const chance = profile.elite
-		? ELITE_CUTTER_MALFUNCTION_CHANCE
-		: CUTTER_MALFUNCTION_CHANCE
-	if (!k.chance(chance)) return
-	nipper.phase = "malfunction"
-	nipper.phaseTimer = 0
-	nipper.malfunctionDuration = k.rand(2.2, 3.2)
-	nipper.malfunctionTurnDirection = k.chance(0.5) ? -1 : 1
-	nipper.malfunctionSmokeTimer = 0
-	nipper.opacity = 1
-	nipper.setSnareForce(MALFUNCTION_SNARE_FORCE_MIN, nipper.moveDirection)
-}
-
-function updateNipperMalfunction(
-	nipper: GameObj,
-	profile: ReturnType<typeof createEnemySpawnProfile>,
-	delta: number
-) {
-	const progress = k.clamp(
-		nipper.phaseTimer / Math.max(0.01, nipper.malfunctionDuration),
-		0,
-		1
-	)
-	const movementTurnSpeed = k.lerp(105, 360, progress)
-	nipper.moveDirection = nipper.moveDirection.rotate(
-		nipper.malfunctionTurnDirection * movementTurnSpeed * delta
-	).unit()
-	const speed = k.lerp(80, 320, progress * progress)
-	nipper.setSnareForce(
-		k.lerp(
-			MALFUNCTION_SNARE_FORCE_MIN,
-			MALFUNCTION_SNARE_FORCE_MAX,
-			progress * progress
-		),
-		nipper.moveDirection
-	)
-	nipper.move(nipper.moveDirection.scale(
-		speed * profile.speedMultiplier * velocityScale() * nipper.getTimescale()
-	))
-	nipper.angle += nipper.malfunctionTurnDirection *
-		k.lerp(260, 980, progress) * delta
-	nipper.opacity = k.wave(0.48, 1, k.time() * k.lerp(8, 22, progress))
-
-	nipper.malfunctionSmokeTimer -= delta
-	if (nipper.malfunctionSmokeTimer <= 0) {
-		const exhaustPosition = nipper.pos.sub(
-			nipper.moveDirection.scale(k.lerp(7, 11, progress) * profile.scale)
-		)
-		emitMechanicalAccelerationSmoke(
-			exhaustPosition,
-			nipper,
-			nipper.moveDirection.angle() + 180,
-			progress >= 0.65 ? 2 : 1
-		)
-		nipper.malfunctionSmokeTimer = k.lerp(0.14, 0.04, progress)
-	}
-
-	if (nipper.phaseTimer < nipper.malfunctionDuration) {
-		handleWakeCompositeCombat(
-			nipper,
-			"MALFUNCTIONING SCRAP NIPPER",
-			"enemy_wake_scrap_nipper_core"
-		)
-		return
-	}
-	detonateNipperMalfunction(nipper, profile)
-}
-
-function detonateNipperMalfunction(
-	nipper: GameObj,
-	profile: ReturnType<typeof createEnemySpawnProfile>
-) {
-	if (!nipper.exists()) return
-	const position = nipper.pos.clone()
-	const enemies = querySpatialNearby(position, MALFUNCTION_EXPLOSION_RADIUS, {
-		allTags: [tags.enemy, tags.unit],
-		excludeIds: [nipper.id],
-	})
-	for (const target of [playerObj, ...enemies]) {
-		if (
-			!target.exists() ||
-			target.pos.dist(position) > MALFUNCTION_EXPLOSION_RADIUS
-		) {
-			continue
-		}
-		applyDamage(target, profile.damage, {
-			position,
-			source: {
-				name: "MALFUNCTIONING SCRAP NIPPER",
-				sprite: "enemy_wake_scrap_nipper_core",
-			},
-		})
-	}
-	spawnExplosionEffect(position, 30, {
-		particleCount: 16,
-		persistentSmoke: true,
-	})
-	k.shake(2.5)
-	applyDamage(nipper, Math.max(1, nipper.hp), {
-		position,
-		showNumber: false,
-	})
 }

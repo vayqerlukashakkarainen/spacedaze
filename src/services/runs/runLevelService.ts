@@ -2,7 +2,6 @@ import { RewardRarity } from "../../types/rewardTypes"
 
 export type RunLevelBonusId =
 	| "weaponDamage"
-	| "moveSpeed"
 	| "criticalChance"
 	| "collectionRange"
 	| "blastRadius"
@@ -34,7 +33,6 @@ export interface RunLevelPlayerStats {
 	blasterDmgMultiplier: number
 	rocketDmgMultiplier: number
 	followerBlasterDmgMultiplier: number
-	speedMultiplier: number
 	critChance: number
 	debreeSeekDistanceMultiplier: number
 	rocketSplashSizeMultiplier: number
@@ -49,17 +47,6 @@ export const RUN_LEVEL_BONUSES: readonly RunLevelBonusDefinition[] = [
 		baseValue: 0.08,
 		percentage: true,
 		sprite: "blaster_upg_dmg1",
-		rarity: RewardRarity.Common,
-		maxStacks: 8,
-	},
-	{
-		id: "moveSpeed",
-		name: "THRUSTER TUNING",
-		description: "Increase ship movement speed for the rest of this expedition",
-		stat: "MOVE SPEED",
-		baseValue: 0.07,
-		percentage: true,
-		sprite: "faster_speed_upg1",
 		rarity: RewardRarity.Common,
 		maxStacks: 8,
 	},
@@ -257,7 +244,6 @@ export function applyRunLevelBonuses(target: RunLevelPlayerStats) {
 	target.blasterDmgMultiplier *= damageMultiplier
 	target.rocketDmgMultiplier *= damageMultiplier
 	target.followerBlasterDmgMultiplier *= damageMultiplier
-	target.speedMultiplier *= 1 + 0.07 * bonusPower.moveSpeed
 	target.critChance += 3 * bonusPower.criticalChance
 	target.debreeSeekDistanceMultiplier *= 1 + 0.15 * bonusPower.collectionRange
 	target.rocketSplashSizeMultiplier *= 1 + 0.1 * bonusPower.blastRadius
@@ -266,7 +252,6 @@ export function applyRunLevelBonuses(target: RunLevelPlayerStats) {
 function createEmptyBonusStacks(): Record<RunLevelBonusId, number> {
 	return {
 		weaponDamage: 0,
-		moveSpeed: 0,
 		criticalChance: 0,
 		collectionRange: 0,
 		blastRadius: 0,

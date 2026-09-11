@@ -29,12 +29,28 @@ Do not apply the dense detail of a 256x256 facility to a 16x16 drone or pickup. 
 - Keep colored accents small enough that white silhouettes remain the game's identity.
 - Avoid broad full-spectrum palettes, painterly shading, smooth gradients, and realistic lighting. Glows and distortion should behave like restrained game feedback rather than changing the base art style.
 
+### Grayscale discipline
+
+- Build source sprites in black and white or in a compact grayscale palette with three or four opaque value levels, plus transparency. Count black and white among those levels.
+- Use three levels for most 32x32 gameplay icons and compact actors. Use a fourth only when a larger structure or mechanically important part needs an extra separation value.
+- Keep each value intentional: black for negative space and outlines, dark gray for recessed structure, pale gray for secondary planes, and white for the readable focal silhouette.
+- Apply semantic colors through runtime tint, shaders, particles, and surrounding UI whenever practical. This keeps one reusable grayscale asset while red still means danger, green recovery, cyan interaction, and gold value.
+- After importing generated art, run the project's grayscale simplifier with the chosen level count and visually confirm the native-size result. Do not accept a technically reduced sprite if its silhouette became muddy.
+
 Use the canonical UI values from `src/ui/common/theme.ts`; do not approximate them by eye when building UI.
+
+## Sprite generation
+
+- Generate new raster sprites through the PixelLab MCP unless the user explicitly chooses another source. “Pixel Bay” in project discussion refers to PixelLab unless the surrounding request clearly means Pixabay audio.
+- State the exact runtime canvas size, transparent background, hard pixel edges, intended silhouette, grayscale restriction, and forbidden details in every prompt.
+- Follow the repository orientation rule for directional ships, enemies, and droids: source art faces north. Icons and non-directional symbols should use the clearest front-facing presentation.
+- Inspect every result at native size. Reroll an image that is undersized, noisy, ambiguous, antialiased, or dependent on color before it enters the runtime asset folder.
+- Use the `spacedaze-assets` skill for placement, registration, grayscale processing, batching protection, and verification.
 
 ## Pixel construction
 
 - Use hard pixel edges and transparent backgrounds. Do not antialias sprite contours.
-- Work on the intended runtime canvas, commonly 16x16 for gameplay sprites and icons. Do not create a detailed large illustration and shrink it down as the final pixel-art workflow.
+- Work on the intended runtime canvas. New standalone ability and upgrade icons use 32x32; compact atlas cells may use 16x16 only when that atlas explicitly establishes it. Do not create a detailed large illustration and shrink it down as the final pixel-art workflow.
 - Favor connected pixel clusters, stepped diagonals, and purposeful single-pixel highlights.
 - Reserve isolated pixels for sparks, stars, debris, or a clearly intentional highlight. Random isolated pixels make small sprites look noisy.
 - Use one-pixel negative-space cuts to separate wings, tools, eyes, barrels, or mechanical joints.
@@ -55,7 +71,7 @@ Reference: `public/sprites/ship-v2.png`, `public/sprites/enemies/rammer.png`, `p
 
 ### Upgrades, weapons, pickups, and emotes
 
-- Communicate one idea with one bold symbol. At 16x16, remove anything that does not help recognition.
+- Communicate one idea with one bold symbol. Standalone ability and upgrade icons are 32x32; remove anything that does not help recognition at native size.
 - Prefer negative space and a recognizable outer shape over tiny texture.
 - Show rarity through the surrounding UI, shine, particles, or tint unless color is intrinsic to the object. Do not make separate art styles for each rarity.
 - Emotes should read instantly as punctuation or expression above a moving character.
@@ -90,6 +106,15 @@ Reference: `src/ui/common/theme.ts`, the components under `src/ui/common`, and `
 - Scale intensity by gameplay importance and rarity. Common feedback is quick and restrained; rare reveals can pause, ramp up, shake, shine, and burst more strongly.
 - Use larger but fewer readable shards instead of clouds of tiny visual noise.
 - Keep background animation slower and dimmer than combat feedback.
+
+### Direct feedback and juiciness
+
+- Every player action should acknowledge input immediately, even when its gameplay result is delayed. Use a small activation flash, pose or scale change, sound onset, or recoil at input time, then reserve the strongest beat for impact.
+- Combine two or three complementary channels for important feedback: silhouette or scale, semantic color, particles, sound, camera motion, or time shaping. Do not stack every channel at full strength.
+- Make feedback describe state. A charging object should intensify in frequency or size; an active buff should leave a continuous but restrained signature; expiry should return cleanly to the exact baseline.
+- Prefer fast attack and readable decay: effects reach their peak quickly, then clear before they compete with the next combat decision.
+- Scale feedback with consequence. Routine shots use tiny flashes and recoil, temporary powers gain a clear pulse or trail, and boss or legendary events may add shake, god rays, distortion, and larger bursts.
+- Protect control clarity. Juice must never obscure enemies, aiming, collision boundaries, interaction prompts, or the player's current ship orientation.
 
 ## Review checklist
 

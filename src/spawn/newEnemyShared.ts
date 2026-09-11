@@ -1,4 +1,4 @@
-import type { GameObj } from "kaplay"
+import type { AnimateComp, GameObj, HealthComp, PosComp } from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k } from "../main"
 import { applyDamage } from "../services/combat/damageService"
@@ -9,8 +9,13 @@ import { tags } from "../tags"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 
+type EnemyCombatObject = GameObj<PosComp | HealthComp | AnimateComp> & {
+	hb: number
+	damage: number
+}
+
 export function handleEnemyCombat(
-	enemy: GameObj,
+	enemy: EnemyCombatObject,
 	name: string,
 	sprite: string
 ) {
@@ -31,7 +36,7 @@ export function handleEnemyCombat(
 }
 
 export function registerEnemyLifecycle(
-	enemy: GameObj,
+	enemy: EnemyCombatObject,
 	profile: EnemySpawnProfile,
 	score: number,
 	powerupMultiplier: number,

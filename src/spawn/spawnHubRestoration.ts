@@ -1,4 +1,4 @@
-import type { GameObj, Vec2 } from "kaplay"
+import type { GameObj, PosComp, RotateComp, Vec2 } from "kaplay"
 import { k, layers } from "../main"
 import {
 	getHubLevel,
@@ -128,7 +128,7 @@ export function spawnHubRestoration(
 
 function spawnRestorationDebrisDisplay(center: Vec2) {
 	const pieces: Array<{
-		object: ReturnType<typeof k.add>
+		object: GameObj<PosComp | RotateComp>
 		basePos: Vec2
 		baseAngle: number
 		phase: number
@@ -192,7 +192,7 @@ function spawnRestorationDebrisPiece(center: Vec2, index: number) {
 		k.anchor("center"),
 		k.rotate(baseAngle),
 		k.scale(visual.worldScale),
-		k.color(...visual.color),
+		k.color(visual.color[0], visual.color[1], visual.color[2]),
 		k.layer(layers.game2),
 		k.z(-2 + normalizedRadius),
 		tags.hubRestoration,
@@ -226,13 +226,18 @@ function spawnRestorationLamps(center: Vec2, initialLevel: number) {
 			tags.hubRestoration,
 			tags.gameLoop,
 		])
+		const initialLampColor = lit ? HUB_LAMP_COLOR : HUB_BROKEN_LAMP_COLOR
 		const lamp = k.add([
 			k.pos(lampPos),
 			k.sprite(
 				lit ? "hub_progression_lamp" : "hub_progression_lamp_broken"
 			),
 			k.anchor("center"),
-			k.color(...(lit ? HUB_LAMP_COLOR : HUB_BROKEN_LAMP_COLOR)),
+			k.color(
+				initialLampColor[0],
+				initialLampColor[1],
+				initialLampColor[2]
+			),
 			k.scale(1),
 			k.layer(layers.game2),
 			k.z(-1),
@@ -258,7 +263,8 @@ function spawnRestorationLamps(center: Vec2, initialLevel: number) {
 			lamp.use(k.sprite(
 				lit ? "hub_progression_lamp" : "hub_progression_lamp_broken"
 			))
-			lamp.color = k.rgb(...(lit ? HUB_LAMP_COLOR : HUB_BROKEN_LAMP_COLOR))
+			const lampColor = lit ? HUB_LAMP_COLOR : HUB_BROKEN_LAMP_COLOR
+			lamp.color = k.rgb(lampColor[0], lampColor[1], lampColor[2])
 			light.object.opacity = lit ? 0.82 : 0
 			light.object.scale = k.vec2(1)
 		}

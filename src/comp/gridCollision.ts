@@ -25,7 +25,9 @@ export interface GridCollisionComp extends Comp {
 	isOnWalkableCell(): boolean
 
 	// Event when collision occurs
-	onGridCollide(callback: (cell: HexCell) => void): KEventController
+	onGridCollide(
+		callback: (cell: HexCell, normal: Vec2) => void
+	): KEventController
 }
 
 /**
@@ -114,15 +116,14 @@ export function gridCollision(gridKey: string): GridCollisionComp {
 						const nextCell = this.grid.screenToHex(nextPos)
 						const nextCellData = this.grid.getCell(nextCell)
 
-						if (nextCellData) {
-							this.trigger("gridCollide", nextCellData)
-						}
-
 						const obstacleCenter = this.grid.hexToScreen(nextCell)
 						const awayFromObstacle = this.pos.sub(obstacleCenter)
 						const collisionNormal = awayFromObstacle.len() > 0.001
 							? awayFromObstacle.unit()
 							: moveVec.scale(-1).unit()
+						if (nextCellData) {
+							this.trigger("gridCollide", nextCellData, collisionNormal)
+						}
 						const inwardSpeed = Math.min(0, moveVec.dot(collisionNormal))
 						const tangentVelocity = moveVec.sub(
 							collisionNormal.scale(inwardSpeed)
@@ -227,7 +228,9 @@ export function gridCollision(gridKey: string): GridCollisionComp {
 			return this.grid.isWalkable(cell)
 		},
 
-		onGridCollide(callback: (cell: HexCell) => void): KEventController {
+		onGridCollide(
+			callback: (cell: HexCell, normal: Vec2) => void
+		): KEventController {
 			return this.on("gridCollide", callback)
 		},
 	}

@@ -1,4 +1,4 @@
-import { Vec2 } from "kaplay";
+import type { AnimateComp, GameObj, OpacityComp, Vec2 } from "kaplay";
 import {
 	changeGameState,
 	GameState,
@@ -26,11 +26,15 @@ import { createNpcInteractionPrompt, UI_COLORS } from "../ui/common";
 import { getPickupVisual } from "../visuals/pickupVisualCatalog";
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation";
 import { snareable } from "../comp/snareable"
+import { spawnFlash } from "./spawnFlash"
+import { spawnRing } from "./spawnRing"
 
 const CHEST_AURA_RADIUS = 20;
 const CHEST_RING_RADIUS = 25;
 const CHEST_OPEN_ANTICIPATION_DURATION = 0.22;
 const CHEST_OPEN_RELEASE_DURATION = 0.28;
+const CHEST_REVEAL_ANTICIPATION_DURATION = 0.12;
+const CHEST_REVEAL_SETTLE_DURATION = 0.42;
 
 interface ChestOptions {
 	rewardType?: ChestRewardType;
@@ -43,7 +47,13 @@ interface ChestOptions {
 	onOpened?: () => void;
 	onRewardCollected?: () => void;
 	tags?: string[];
+	revealOnSpawn?: boolean;
+	revealWhenAvailable?: boolean;
+	revealDelay?: number;
 }
+
+type ChestObject = ReturnType<typeof spawnBuilding> &
+	GameObj<OpacityComp | AnimateComp>
 
 export function spawnChest(
 	pos: Vec2,
@@ -52,6 +62,7 @@ export function spawnChest(
 ) {
 	let opened = false;
 	let snared = false
+	let revealing = false
 	const rewardType = options.rewardType ?? "salvage";
 	const weaponChest = rewardType === "weapon";
 	const chestVisual = getPickupVisual(weaponChest ? "weapon-chest" : "salvage-chest");
@@ -82,7 +93,7 @@ export function spawnChest(
 		interactionPrompt: false,
 		tags: options.tags,
 		onInteract: () => {
-			if (opened || snared || !isAvailable()) return;
+			if (opened || snared || revealing || !isAvailable()) return;
 			if (!purchased && requiresPurchase) {
 				const purchaseCost = getPurchaseCost();
 				if (!spendScore(purchaseCost)) {
@@ -106,12 +117,16 @@ export function spawnChest(
 			opened = true;
 			startChestSequence();
 		},
-	});
+	}) as ChestObject;
+	chest.use(k.opacity(
+		ghost || (options.ghostWhenUnavailable && !available) ? 0.38 : 1
+	));
+	chest.use(k.animate());
 	chest.use(snareable({
 		mass: 1.4,
 		radius: 15,
 		releaseDrag: 2.1,
-		canSnare: () => !opened && isAvailable(),
+		canSnare: () => !opened && !revealing && isAvailable(),
 		onSnareStart: () => {
 			snared = true
 			chest.isInRange = false
@@ -134,9 +149,78 @@ export function spawnChest(
 			}
 			: { text: "OPEN" },
 	});
-	chest.use(k.opacity(
-		ghost || (options.ghostWhenUnavailable && !available) ? 0.38 : 1
-	));
+	if (options.revealOnSpawn && available) startRoomClearReveal();
+
+	function startRoomClearReveal() {
+		if (revealing || opened || !chest.exists()) return;
+		revealing = true;
+		chest.isInRange = false;
+		chest.setInteractRadius(0);
+		const chestScale = chestVisual.worldScale;
+		chest.opacity = 0;
+		chest.scale = k.vec2(chestScale * 0.18, chestScale * 1.28);
+		const delay = Math.max(0, options.revealDelay ?? 0);
+		k.wait(delay, () => {
+			if (!chest.exists()) return;
+			gameSoundService.play("chest_open_charge", {
+				volume: mainSoundVolume * 0.24,
+				speed: 1.9,
+			});
+			spawnRing({
+				pos: chest.pos.clone(),
+				speed: 105,
+				intensity: 0.14,
+				maxRadius: 24,
+				color: k.rgb(...UI_COLORS.accent),
+				outlineWidth: 1,
+				visualOpacity: 0.55,
+				excludeIds: [chest.id],
+			});
+			k.wait(CHEST_REVEAL_ANTICIPATION_DURATION, () => {
+				if (!chest.exists()) return;
+				chest.opacity = 1;
+				chest.animate(
+					"scale",
+					[
+						k.vec2(chestScale * 0.18, chestScale * 1.28),
+						k.vec2(chestScale * 1.24, chestScale * 0.74),
+						k.vec2(chestScale * 0.9, chestScale * 1.12),
+						k.vec2(chestScale),
+					],
+					{
+						duration: CHEST_REVEAL_SETTLE_DURATION,
+						loops: 1,
+						timing: [0, 0.28, 0.68, 1],
+						easing: k.easings.easeOutCubic,
+					}
+				);
+				spawnFlash(chest.pos.clone(), 14, k.WHITE);
+				spawnRing({
+					pos: chest.pos.clone(),
+					speed: 210,
+					intensity: 0.3,
+					maxRadius: 52,
+					color: k.rgb(...UI_COLORS.accent),
+					outlineWidth: 1,
+					visualOpacity: 0.82,
+					excludeIds: [chest.id],
+				});
+				starsEmitter.emitter.position = chest.pos.clone();
+				starsEmitter.emit(18);
+				gameSoundService.play("powerup1", {
+					volume: mainSoundVolume * 0.48,
+					detune: -120,
+				});
+				k.shake(1.4);
+				k.wait(CHEST_REVEAL_SETTLE_DURATION, () => {
+					if (!chest.exists()) return;
+					chest.scale = k.vec2(chestScale);
+					revealing = false;
+					chest.setInteractRadius(available && !opened ? 60 : 0);
+				});
+			});
+		});
+	}
 
 	function startChestSequence() {
 		if (!chest.exists()) return;
@@ -157,7 +241,6 @@ export function spawnChest(
 	async function playChestOpenAnimation() {
 		if (!chest.exists()) return;
 		const chestScale = chestVisual.worldScale;
-		chest.use(k.animate());
 		chest.animate(
 			"scale",
 			[
@@ -208,6 +291,7 @@ export function spawnChest(
 		k.anchor("center"),
 		k.color(k.WHITE),
 		k.opacity(0.08),
+		k.scale(1),
 		k.z(-1),
 		k.layer(layers.gameEffects),
 	]);
@@ -216,6 +300,7 @@ export function spawnChest(
 		k.anchor("center"),
 		k.opacity(0.3),
 		k.outline(1, k.WHITE),
+		k.scale(1),
 		k.layer(layers.gameEffects),
 		k.z(-1),
 	]);
@@ -250,9 +335,12 @@ export function spawnChest(
 		if (nextAvailable !== available) {
 			available = nextAvailable;
 			chest.setInteractRadius(available && !opened ? 60 : 0);
-			if (available && !opened) chest.opacity = 1;
+			if (available && !opened) {
+				if (options.revealWhenAvailable) startRoomClearReveal();
+				else chest.opacity = 1;
+			}
 		}
-		const canInteract = available && !opened && !snared
+		const canInteract = available && !opened && !snared && !revealing
 		chest.setInteractRadius(canInteract ? 60 : 0)
 		interactionPrompt.update(canInteract && chest.isInRange);
 		if (opened) return;

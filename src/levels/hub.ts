@@ -5,7 +5,7 @@ import {
 	spawnDecorativeWormhole,
 	spawnLevel,
 } from "../spawn/spawnLevel";
-import { getScore, k, layers, spendScore } from "../main";
+import { getScore, k, layers, mainSoundVolume, spendScore } from "../main";
 import { Level } from "./levels";
 import { spawnBackgroundObject } from "../spawn/spawnBackgroundObject";
 import { getReddishBackgroundTint } from "../services/world/backgroundPaletteService";
@@ -14,19 +14,17 @@ import { playerObj, projectiles } from "../game";
 import { tags } from "../tags";
 import { interactable } from "../comp/interactable";
 import {
-	createInteractionPrompt,
+	createNpcInteractionPrompt,
 	UI_COLORS,
 	UI_FONT_SIZES,
 } from "../ui/common";
 import {
 	consumeHubGhostChest,
 	getFacilityConstruction,
-	getFacilityConstructionRemainingMs,
 	getHubGhostChestCapacity,
 	getHubGhostChestStock,
 	getHubLevel,
 	hasUnseenBlueprints,
-	HUB_FACILITY_BUILD_DURATION_MS,
 	HUB_FACILITIES,
 	HubFacilityDefinition,
 	HubFacilityId,
@@ -66,11 +64,16 @@ import {
 	spawnHubRepairCrew,
 } from "../spawn/npcs/spawnHubRepairCrew";
 import { playRequirementErrorSound } from "../services/audio/uiSoundService";
+import { gameSoundService } from "../services/audio/gameSoundService";
+import { registerHubCameraInterest } from "../services/hub/hubCameraInterestService";
 import { spawnHubAsteroidRunner } from "../spawn/npcs/spawnHubAsteroidRunner";
 import { spawnHubRangeKeeper } from "../spawn/npcs/spawnHubRangeKeeper";
 import { spawnHubBirthdayPair } from "../spawn/npcs/spawnHubBirthdayPair";
 import { spawnHubLampKeeper } from "../spawn/npcs/spawnHubLampKeeper";
 import { spawnHubBurt } from "../spawn/npcs/spawnHubBurt";
+import { spawnHubArmorer } from "../spawn/npcs/spawnHubArmorer";
+import { spawnHubQuartermaster } from "../spawn/npcs/spawnHubQuartermaster";
+import { spawnHubRace } from "../spawn/npcs/spawnHubRace";
 import { getHubBurtLocation } from "../services/narrative/narrativeService";
 import { spawnHubSettlement } from "../spawn/spawnHubSettlement";
 import { spawnHubFiringRange } from "../spawn/spawnHubFiringRange";
@@ -88,6 +91,7 @@ import {
 	HUB_WORMHOLE_OFFSET,
 } from "../services/hub/hubLayoutService";
 import { restoreStrafeTrainingSequence } from "../services/hub/strafeTrainingService";
+import { hasUndiscoveredAbilities } from "../services/abilities/abilityRegistry";
 
 let lvlData: any = {};
 let bgAsteroidTimer = 0;
@@ -100,19 +104,19 @@ const phaseFieldOffsetY = HUB_PHASE_FIELD_OFFSET[1];
 const phaseFieldInnerRadius = 162;
 const phaseFieldOuterRadius = 220;
 const hubFacilityBuiltScales: Record<HubFacilityId, number> = {
-	contractTerminal: 1.78,
-	trainingRange: 1.59,
-	salvageForge: 1.49,
-	debriefTerminal: 1.41,
+	contractTerminal: 1,
+	trainingRange: 1,
+	salvageForge: 1,
+	debriefTerminal: 1,
 }
 const hubFacilityDestroyedScales: Record<HubFacilityId, number> = {
-	contractTerminal: 1.84,
-	trainingRange: 1.33,
-	salvageForge: 1.49,
-	debriefTerminal: 1.36,
+	contractTerminal: 1,
+	trainingRange: 1,
+	salvageForge: 1,
+	debriefTerminal: 1,
 }
 const hubFacilityInteractRadius = 120;
-const hubFacilityLabelOffsetY = 126;
+const hubFacilityLabelMargin = 28;
 const ghostChestCosts = [15, 30, 50] as const;
 const ghostWeaponChestCost = 30;
 const hubFacilitySprites: Record<
@@ -177,6 +181,20 @@ export const hub: Level = {
 				});
 			},
 		});
+		registerHubCameraInterest(wormhole, {
+			radius: 420,
+			strength: 0.34,
+			priority: 1.1,
+		});
+		const hubCenterInterest = k.add([
+			k.pos(k.center()),
+			tags.gameLoop,
+		]);
+		registerHubCameraInterest(hubCenterInterest, {
+			radius: 420,
+			strength: 0.18,
+			priority: 0.65,
+		});
 		const wormholeGravity = spawnGravityPull({
 			pos: wormholePos,
 			radius: 130,
@@ -207,6 +225,10 @@ export const hub: Level = {
 			pos: k.center().add(...HUB_FIRING_RANGE_OFFSET),
 			isHubSessionActive: () => lvlData === hubSession,
 		});
+		spawnHubArmorer(
+			k.center().add(...HUB_FIRING_RANGE_OFFSET).add(-280, -238),
+			firingRange.primaryWeaponsPos
+		);
 		spawnHubSettlement();
 		const burtHomePosition = hubFacilityPositions.trainingRange.add(-260, 40);
 		const burtLocation = getHubBurtLocation();
@@ -232,6 +254,8 @@ export const hub: Level = {
 		spawnHubAsteroidRunner(getPhaseFieldCenter());
 		spawnHubRangeKeeper(firingRange);
 		spawnHubBirthdayPair(k.center().add(-150, 245));
+		spawnHubQuartermaster(k.center().add(150, 245));
+		spawnHubRace();
 		saveGame("slot1");
 		k.wait(0.45, () => {
 			if (!pendingHubLevelReveal) {
@@ -330,6 +354,7 @@ function spawnHubGhostChest(pos: Vec2) {
 }
 
 function spawnHubGhostWeaponChest(pos: Vec2) {
+	if (!hasUndiscoveredAbilities()) return;
 	if (getHubGhostChestStock("weapon") <= 0) return;
 	spawnChest(pos, 1, {
 		rewardType: "weapon",
@@ -602,6 +627,10 @@ function spawnHubFacility(
 		tags.gameLoop,
 		tags.props,
 	]);
+	registerHubCameraInterest(building, {
+		radius: 360,
+		strength: 0.3,
+	});
 	const buildingVisual = building.add([
 		k.pos(0, 0),
 		k.sprite(built ? sprites.built : sprites.destroyed),
@@ -611,6 +640,22 @@ function spawnHubFacility(
 		k.color(getHubFacilityVisualColor(facility.id, built)),
 		k.opacity(1),
 	]);
+	const facilityPromptOffset = k.vec2();
+	const updateFacilityPromptOffset = () => {
+		const renderedHalfHeight = buildingVisual.height
+			* Math.abs(buildingVisual.scale.y)
+			* k.getCamScale().y
+			/ 2;
+		facilityPromptOffset.y = -(renderedHalfHeight + hubFacilityLabelMargin);
+	};
+	updateFacilityPromptOffset();
+	let constructionSmoke: ReturnType<typeof spawnFacilityConstructionSmoke> | undefined;
+	let constructionSmokeTimer = 0;
+	const ensureConstructionSmoke = () => {
+		if (constructionSmoke?.exists()) return constructionSmoke;
+		constructionSmoke = spawnFacilityConstructionSmoke(building.pos);
+		return constructionSmoke;
+	};
 	let phaseStationRingLight: ReturnType<typeof addLocalLight> | undefined;
 	const addPhaseStationRingGlow = () => {
 		if (facility.id !== "trainingRange" || phaseStationRingLight) return;
@@ -652,6 +697,7 @@ function spawnHubFacility(
 	}
 	if (getFacilityConstruction()?.facilityId === facility.id) {
 		repairCrew.setRepairTarget(pos);
+		ensureConstructionSmoke();
 	}
 	const finishBuilding = () => {
 		if (built) return;
@@ -661,60 +707,75 @@ function spawnHubFacility(
 		buildingVisual.color = getHubFacilityVisualColor(facility.id, true);
 		buildingVisual.opacity = 1;
 		repairCrew.setRepairTarget(undefined);
+		if (constructionSmoke?.exists()) {
+			const completedSmoke = constructionSmoke;
+			constructionSmoke = undefined;
+			k.wait(1.7, () => {
+				if (completedSmoke.exists()) k.destroy(completedSmoke);
+			});
+		}
 		starsEmitter.emitter.position = building.pos;
 		starsEmitter.emit(28);
+		gameSoundService.play("run_level_up", {
+			volume: mainSoundVolume * 0.85,
+		});
+		k.shake(7);
 		if (facility.id === "trainingRange") {
 			addPhaseStationRingGlow();
 		}
 		saveGame("slot1");
 	};
-	const prompt = createInteractionPrompt({
+	const prompt = createNpcInteractionPrompt({
 		target: building,
-		offset: k.vec2(0, hubFacilityLabelOffsetY),
-		width: 280,
-		content: () => built
-			? {
-				title: facility.name,
-				notification: facility.id === "trainingRange" && hasUnseenBlueprints(),
-				action: "OPEN FACILITY",
+		offset: facilityPromptOffset,
+		label: () => {
+			if (built) return { text: `OPEN ${facility.name}` }
+			if (getFacilityConstruction()?.facilityId === facility.id) {
+				return {
+					text: "DRONES REPAIRING",
+					color: k.rgb(...UI_COLORS.muted),
+				}
 			}
-			: getFacilityConstruction()?.facilityId === facility.id
-				? {
-					title: facility.name,
-					action: "DRONES REPAIRING",
-					detailLeft: `${Math.ceil(getFacilityConstructionRemainingMs(facility.id) / 1000)} SECONDS`,
-					detailRight: `${Math.min(100, Math.round((1 - getFacilityConstructionRemainingMs(facility.id) / HUB_FACILITY_BUILD_DURATION_MS) * 100))}%`,
+			if (getFacilityConstruction()) {
+				return {
+					text: "REPAIR CREW BUSY",
+					color: k.rgb(...UI_COLORS.danger),
 				}
-			: getFacilityConstruction()
-				? {
-					title: facility.name,
-					action: "REPAIR CREW BUSY",
+			}
+			if (!unlocked()) {
+				return {
+					text: `LOCKED: HUB LEVEL ${facility.requiredHubLevel}`,
+					color: k.rgb(...UI_COLORS.danger),
 				}
-			: !unlocked()
-				? {
-					title: facility.name,
-					action: "RESTORATION LOCKED",
-					detailLeft: `REQUIRES HUB LEVEL ${facility.requiredHubLevel}`,
-					detailRight: `LEVEL ${getHubLevel()}`,
-					requirementsMet: false,
-				}
-				: {
-				title: facility.name,
-				action: "BUILD FACILITY",
-				detailLeft: facility.cost === 0
-					? "FREE"
-					: `COST ${facility.cost} SALVAGE`,
-				detailRight: `${getScore()} AVAILABLE`,
-				requirementsMet: getScore() >= facility.cost,
-			},
+			}
+			return {
+				text: facility.cost === 0
+					? `BUILD ${facility.name}`
+					: `BUILD FOR ${facility.cost} SALVAGE`,
+				color: getScore() >= facility.cost
+					? k.rgb(...UI_COLORS.text)
+					: k.rgb(...UI_COLORS.danger),
+			}
+		},
 	});
 
 	registerBatchedEntityUpdate("world", building, () => {
+		updateFacilityPromptOffset();
 		const construction = getFacilityConstruction();
 		if (!built && isFacilityBuilt(facility.id)) finishBuilding();
 		if (!built && construction?.facilityId === facility.id) {
 			const repairPulse = k.wave(96, 132, k.time() * 5);
 			buildingVisual.color = k.rgb(repairPulse, repairPulse + 10, repairPulse + 20);
+			const smoke = ensureConstructionSmoke();
+			constructionSmokeTimer -= k.dt();
+			if (constructionSmokeTimer <= 0) {
+				smoke.emitter.position = k.vec2(
+					k.rand(-96, 96),
+					k.rand(-42, 38)
+				);
+				smoke.emit(4);
+				constructionSmokeTimer = k.rand(0.055, 0.09);
+			}
 		}
 		if (newInfoMarker) {
 			const visible = built && hasUnseenBlueprints();
@@ -727,6 +788,37 @@ function spawnHubFacility(
 		if (phaseStationRingLight) updateLocalLight(phaseStationRingLight);
 		prompt.update(building.isInRange);
 	});
+}
+
+function spawnFacilityConstructionSmoke(pos: Vec2) {
+	return k.add([
+		k.pos(pos.clone()),
+		k.particles(
+			{
+				max: 150,
+				speed: [8, 26],
+				acceleration: [k.vec2(-5, -20), k.vec2(5, -42)],
+				angle: [0, 360],
+				lifeTime: [0.9, 1.65],
+				colors: [k.rgb(190, 200, 205), k.rgb(62, 72, 80)],
+				opacities: [0, 0.78, 0.62, 0],
+				scales: [1.4, 3.4, 5.6],
+				angularVelocity: [-75, 75],
+				texture: k.getSprite("particle3")!.data!.frames[0].tex,
+				quads: [k.getSprite("particle3")!.data!.frames[0].q],
+			},
+			{
+				rate: 0,
+				direction: -90,
+				spread: 100,
+				position: k.vec2(),
+			}
+		),
+		k.layer(layers.gameEffects),
+		k.z(0),
+		tags.props,
+		tags.gameLoop,
+	]);
 }
 
 function getHubFacilityVisualScale(id: HubFacilityId, built: boolean) {

@@ -5,6 +5,7 @@ import type { FloorThemeId } from "../../levels/floorThemes/floorThemeDirectory"
 
 export type RoomFloorKind =
 	| "start"
+	| "chill"
 	| "combat"
 	| "reward"
 	| "health"
@@ -14,7 +15,9 @@ export type RoomFloorKind =
 	| "shop"
 	| "droneShop"
 	| "lassoComponent"
+	| "lassoTrial"
 	| "scrapCircuit"
+	| "thrusterPuzzle"
 	| "cargoPuzzleSource"
 	| "cargoPuzzleTarget"
 	| "deposit"
@@ -24,6 +27,13 @@ export type RoomFloorKind =
 
 export type RoomFloorState = "unseen" | "discovered" | "active" | "cleared"
 
+export type RoomIntelLevel = 0 | 1 | 2 | 3
+export type RoomDangerReward = "doubleChest" | "salvageBurst"
+export type RoomResonanceBonus = "rewardCache" | "salvageSurge" | "keyEcho" | "deepScan"
+export type RoomResonanceState = "available" | "claimed" | "expired"
+
+export type RoomEnemyArrivalMode = "resident" | "phaseJump"
+
 export interface RoomEnemyPlan {
 	id: string
 	enemyId: ProgressionEnemyId
@@ -32,6 +42,7 @@ export interface RoomEnemyPlan {
 	elite: boolean
 	defeated: boolean
 	keyDropRolled?: boolean
+	arrivalMode?: RoomEnemyArrivalMode
 }
 
 export interface RoomEncounterPlan {
@@ -65,6 +76,14 @@ export type RoomEnvironmentArchetypeId =
 	| "wake-memory-console"
 	| "wake-cable-reel"
 	| "wake-pipe-manifold"
+	| "wake-pressure-tank"
+	| "wake-battery-bank"
+	| "wake-sorting-gantry"
+	| "wake-coolant-canister"
+	| "wake-patchwork-stall"
+	| "wake-signal-nest"
+	| "wake-reactor-pod"
+	| "wake-breaker-crusher"
 
 export type RoomEnvironmentCategory =
 	| "structural"
@@ -87,6 +106,34 @@ export interface RoomEnvironmentObjectPlan {
 
 export interface RoomEnvironmentPlan {
 	objects: RoomEnvironmentObjectPlan[]
+	groundPlatforms?: RoomGroundPlatformPlan[]
+	scrapFields?: RoomScrapFieldPlan[]
+}
+
+export interface RoomGroundPlatformPlan {
+	id: string
+	style: "wake-rock"
+	cells: HexCoord[]
+}
+
+export interface RoomScrapFieldPiecePlan {
+	id: string
+	coord: HexCoord
+	orientation: number
+	variant: number
+	destroyed?: boolean
+}
+
+export interface RoomScrapFieldPlan {
+	id: string
+	center: HexCoord
+	seed: number
+	rewardTier: number
+	rewardId?: string
+	rewardRarity?: RewardRarity
+	rewardRevealed?: boolean
+	rewardCollected?: boolean
+	scrap: RoomScrapFieldPiecePlan[]
 }
 
 export interface RoomCargoPuzzlePlan {
@@ -106,7 +153,13 @@ export interface RoomFloorRoom {
 	connections: string[]
 	state: RoomFloorState
 	mapIdentityRevealed?: boolean
+	intelLevel?: RoomIntelLevel
+	dangerLevel?: 1 | 2 | 3
+	dangerReward?: RoomDangerReward
+	resonanceBonus?: RoomResonanceBonus
+	resonanceState?: RoomResonanceState
 	contentCompleted: boolean
+	rewardClaims?: number
 	keyRequired?: boolean
 	keyUnlocked?: boolean
 	keyRewardRolled?: boolean
@@ -114,6 +167,7 @@ export interface RoomFloorRoom {
 	encounter?: RoomEncounterPlan
 	shopOffers?: RoomShopOffer[]
 	shopPricing?: RoomShopPricing
+	bossId?: "federation-dreadnought" | "wake-yardmaster" | "wake-last-beacon"
 }
 
 export interface RoomFloor {
@@ -127,6 +181,8 @@ export interface RoomFloor {
 	exitRoomId: string
 	currentRoomId: string
 	keys: number
+	sealedStartRoomExit?: boolean
+	shopDiscountUsed?: boolean
 	rooms: RoomFloorRoom[]
 	cargoPuzzles: RoomCargoPuzzlePlan[]
 }
@@ -138,6 +194,8 @@ export interface RoomFloorGenerationOptions {
 	hubLevel?: number
 	endless?: boolean
 	lassoComponentAvailable?: boolean
+	lassoTrialAvailable?: boolean
 	scrapCircuitAvailable?: boolean
+	thrusterPuzzleAvailable?: boolean
 	cargoPuzzleAvailable?: boolean
 }

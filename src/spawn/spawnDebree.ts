@@ -72,7 +72,7 @@ export function spawnDebreeValues(
 			k.animate({ relative: true }),
 			k.rotate(k.rand(360)),
 			k.scale(tier.worldScale),
-			k.color(...tier.color),
+			k.color(tier.color[0], tier.color[1], tier.color[2]),
 			k.opacity(1),
 			{
 				salvageValue,

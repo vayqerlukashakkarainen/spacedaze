@@ -4,9 +4,13 @@ import { querySpatialNearby } from "../core/runtimeSpatialIndexService"
 
 interface TargetingComponent {
 	obj: GameObj<PosComp>
-	owner: GameObj<PosComp>
+	owner: TargetOwner
 	hitRadius: number
 	ownerOffset?: Vec2
+}
+
+type TargetOwner = GameObj<PosComp> & {
+	angle?: number
 }
 
 // Every enemy unit has an implicit body component. Multi-part enemies register
@@ -15,7 +19,7 @@ const targetingComponents = new Map<number, TargetingComponent>()
 
 export function registerShipPartTarget(
 	obj: GameObj<PosComp>,
-	owner: GameObj<PosComp>,
+	owner: TargetOwner,
 	hitRadius: number,
 	ownerOffset?: Vec2
 ) {
@@ -163,7 +167,7 @@ function isTargetableOwner(owner: GameObj) {
 }
 
 function isRootTarget(target: GameObj, targetTags: readonly string[]) {
-	return target.exists() &&
+	return isLiveTarget(target) &&
 		target.is(tags.unit) &&
 		targetTags.some((tag) => target.is(tag))
 }

@@ -1,12 +1,18 @@
-import { GameObj, PosComp, Vec2 } from "kaplay";
+import {
+	GameObj,
+	PosComp,
+	Vec2,
+} from "kaplay";
 import {
 	checkProjectileIntersection,
 	debrees,
 	playerObj,
+	type DebreeObject,
 } from "../game";
 import {
 	k,
 	BULLET_SPEED,
+	layers,
 	mainSoundVolume,
 	subSoundVolume,
 	timeScale,
@@ -24,6 +30,7 @@ import {
 	spawnBasicBlaster,
 	spawnHomingRocket,
 } from "../services/combat/projectileHelpers";
+import { isPlayerTargetable } from "../services/combat/targetingService"
 import { timescale } from "../comp/timescale";
 import { target } from "../comp/target";
 import { applyProjectileDamage } from "../services/combat/projectileService";
@@ -36,7 +43,7 @@ import { registerBatchedEntityUpdate } from "../services/core/entityUpdateServic
 import { findClosestSpatial } from "../services/core/runtimeSpatialIndexService";
 import { isDebreeAvailable, SalvagerCargo } from "../services/economy/salvagerCargoService"
 import { recoverPlayerHealth } from "../services/player/playerHealthService"
-import { MEDIC_DRONE_RECOVERY } from "../services/player/playerHealthBalance"
+import { MEDIC_DRONE_RECOVERY_RATIO } from "../services/player/playerHealthBalance"
 import { getPlayerTargetLock } from "../services/player/playerTargetLockService"
 import { getCompanionVisual } from "../visuals/companionVisualCatalog"
 import {
@@ -48,12 +55,21 @@ import {
 	requirePrimaryVisualSprite,
 	type VisualRepresentation,
 } from "../visuals/visualRepresentation"
+import {
+	getDroneFrenzyDamageMultiplier,
+	getDroneFrenzyFireRateMultiplier,
+	isDroneFrenzyActive,
+} from "../services/abilities/droneFrenzyService"
+
+type FollowerAnchor = GameObj<PosComp> & {
+	angle?: number
+}
 
 interface Props {
 	hp: number;
 	blasterDmg: number;
 	speed: number;
-	follow: GameObj<PosComp>;
+	follow: FollowerAnchor;
 	deploymentStart?: Vec2;
 }
 
@@ -74,10 +90,7 @@ const salvagerSeekRange = 320;
 const SALVAGER_DELIVERY_RANGE = 24
 const SALVAGER_CLAW_SLOTS = [[-3, -4], [0, -6], [3, -4], [-1.5, -2], [1.5, -2]] as const
 
-type CarriedDebree = GameObj<PosComp> & {
-	carriedBy?: number
-	readyForPlayer?: boolean
-	collection?: unknown
+type CarriedDebree = DebreeObject & {
 	cargoScale?: Vec2
 }
 const swarmRadius = 54;
@@ -95,7 +108,11 @@ const FORMATION_MAX_LATERAL = 76
 const FORMATION_MIN_SEPARATION = 27
 const fusionScale = 1.65;
 const fusionDamageMultiplier = 2.4;
+const DRONE_FRENZY_PULSE_AMPLITUDE = 0.2
+const DRONE_FRENZY_PULSE_FREQUENCY = 12
+const DRONE_FRENZY_TRAIL_INTERVAL = 0.08
 let fusionInProgress = false;
+let droneFrenzyTrailEmitter: GameObj | undefined
 type DroneMovementType =
 	| "swarm"
 	| "intercept"
@@ -237,9 +254,12 @@ export function spawnFollower(props: Props) {
 			missileCooldown: k.rand(0.35, missileDroneCooldown),
 			gunshipCooldown: k.rand(0.2, gunshipCooldown),
 			medicKillCharge: 0,
+			frenzyPulsePhase: k.rand(0, Math.PI * 2),
+			frenzyTrailElapsed: 0,
 			droneType: "combat" as DroneType,
 			movementType: "swarm" as DroneMovementType,
 			droneScale: droneProfiles.combat.visual.worldScale,
+			temporaryActiveModuleDrone: false,
 		},
 		tags.friendly,
 		tags.follower,
@@ -247,7 +267,11 @@ export function spawnFollower(props: Props) {
 		tags.gameLoop,
 	]);
 
-	m.use({ salvageCargo: new SalvagerCargo<CarriedDebree>(m.id) })
+	const salvageCargoComp = {
+		id: "salvagerCargo",
+		salvageCargo: new SalvagerCargo<CarriedDebree>(m.id),
+	}
+	m.use(salvageCargoComp)
 	m.onDestroy(() => releaseSalvagerCargo(m, false))
 
 	gameSoundService.play("collect1", { volume: mainSoundVolume });
@@ -308,6 +332,7 @@ export function spawnFollower(props: Props) {
 			);
 		}
 		updateDroneMovement(m, props.follow);
+		updateDroneFrenzyFeedback(m)
 
 		checkProjectileIntersection(m.pos, m.hb, tags.enemy, (p) => {
 			if (m.droneType === "interceptor") {
@@ -320,7 +345,8 @@ export function spawnFollower(props: Props) {
 		});
 
 		if (m.droneType === "interceptor") {
-			m.interceptorCooldown -= k.dt() * m.getTimescale();
+			m.interceptorCooldown -= k.dt() * m.getTimescale() *
+				getDroneFrenzyFireRateMultiplier();
 			if (m.interceptorCooldown <= 0) {
 				const hostileProjectile = findClosestHostileProjectile(
 					m.pos,
@@ -339,7 +365,8 @@ export function spawnFollower(props: Props) {
 		}
 
 		if (m.droneType === "gunship") {
-			m.gunshipCooldown -= k.dt() * m.getTimescale();
+			m.gunshipCooldown -= k.dt() * m.getTimescale() *
+				getDroneFrenzyFireRateMultiplier();
 			if (
 				m.gunshipCooldown <= 0 &&
 				m.pickTarget(m.pos, 460, tags.enemy)
@@ -348,13 +375,13 @@ export function spawnFollower(props: Props) {
 					m.pos,
 					k.Vec2.fromAngle(m.targetAngle()),
 					m.targetAngle() + 90,
-					m.dmg * 4 * getPackDamageMultiplier(m),
+					m.dmg * 4 * getDroneAttackDamageMultiplier(m),
 					Math.max(
 						GUNSHIP_PROJECTILE_SPEED_MULTIPLIER,
 						getHelperProjectileSpeedMultiplier()
 					),
 					[tags.friendly, tags.blaster],
-					player.followerProjectileLink !== undefined
+					shouldDroneInheritPlayerModifiers()
 				);
 				m.gunshipCooldown = (player.droneSetBonus
 					? gunshipCooldown * 0.78
@@ -365,7 +392,8 @@ export function spawnFollower(props: Props) {
 		if (m.droneType === "medic") updateMedicBehavior(m);
 
 		if (m.droneType === "missile") {
-			m.missileCooldown -= k.dt() * m.getTimescale();
+			m.missileCooldown -= k.dt() * m.getTimescale() *
+				getDroneFrenzyFireRateMultiplier();
 			if (
 				m.missileCooldown <= 0 &&
 				m.pickTarget(m.pos, player.rocketSeekDistance, tags.enemy)
@@ -374,12 +402,12 @@ export function spawnFollower(props: Props) {
 					m.pos,
 					k.Vec2.fromAngle(m.angle - 90),
 					m.angle,
-					player.rocketImpactDmg * player.rocketDmgMultiplier * getPackDamageMultiplier(m),
-					player.rocketSplashDmg * player.rocketDmgMultiplier * getPackDamageMultiplier(m),
+					player.rocketImpactDmg * player.rocketDmgMultiplier * getDroneAttackDamageMultiplier(m),
+					player.rocketSplashDmg * player.rocketDmgMultiplier * getDroneAttackDamageMultiplier(m),
 					player.rocketSplashSize * player.rocketSplashSizeMultiplier,
 					true,
 					[tags.friendly, tags.rocket],
-					player.followerProjectileLink !== undefined,
+					shouldDroneInheritPlayerModifiers(),
 					m.lockedTarget
 				);
 				m.missileCooldown = (player.droneSetBonus
@@ -392,7 +420,9 @@ export function spawnFollower(props: Props) {
 			m.droneType === "combat" &&
 			Math.floor(k.rand(
 				0,
-				(player.droneSetBonus ? 105 : 150) * getFusionCooldownMultiplier(m)
+				(player.droneSetBonus ? 105 : 150) *
+					getFusionCooldownMultiplier(m) /
+					getDroneFrenzyFireRateMultiplier()
 			)) == 1
 		) {
 			if (m.pickTarget(m.pos, 400, tags.enemy)) {
@@ -400,10 +430,10 @@ export function spawnFollower(props: Props) {
 					m.pos,
 					k.Vec2.fromAngle(m.targetAngle()),
 					m.targetAngle() + 90,
-					m.dmg * getPackDamageMultiplier(m),
+					m.dmg * getDroneAttackDamageMultiplier(m),
 					getHelperProjectileSpeedMultiplier(),
 					[tags.friendly, tags.blaster],
-					player.followerProjectileLink !== undefined
+					shouldDroneInheritPlayerModifiers()
 				);
 			}
 		}
@@ -434,6 +464,10 @@ function getHelperProjectileSpeedMultiplier() {
 }
 
 function syncPlayerDirectedTarget(drone: GameObj) {
+	if (drone.lockedTarget && !isPlayerTargetable(drone.lockedTarget)) {
+		drone.lockedTarget = null
+		drone.playerDirectedTargetId = undefined
+	}
 	const directedTarget = getPlayerTargetLock()
 	if (directedTarget) {
 		drone.lockedTarget = directedTarget
@@ -459,6 +493,82 @@ function getPackDamageMultiplier(drone: GameObj) {
 			candidate.lockedTarget?.id === drone.lockedTarget.id
 	).length;
 	return (1 + Math.min(0.8, focusedDrones * 0.2)) * fusionMultiplier;
+}
+
+function getDroneAttackDamageMultiplier(drone: GameObj) {
+	return getPackDamageMultiplier(drone) * getDroneFrenzyDamageMultiplier()
+}
+
+function shouldDroneInheritPlayerModifiers() {
+	return player.followerProjectileLink !== undefined || isDroneFrenzyActive()
+}
+
+function getDroneRenderScale(drone: GameObj) {
+	if (!isDroneFrenzyActive()) return drone.droneScale
+	return drone.droneScale * (
+		1 + Math.cos(
+			k.time() * DRONE_FRENZY_PULSE_FREQUENCY +
+				drone.frenzyPulsePhase
+		) * DRONE_FRENZY_PULSE_AMPLITUDE
+	)
+}
+
+function updateDroneFrenzyFeedback(drone: GameObj) {
+	if (!isDroneFrenzyActive()) {
+		drone.color = k.WHITE
+		drone.frenzyTrailElapsed = 0
+		return
+	}
+
+	drone.color = k.rgb(255, 88, 88)
+	drone.frenzyTrailElapsed += k.dt() * drone.getTimescale()
+	if (drone.frenzyTrailElapsed < DRONE_FRENZY_TRAIL_INTERVAL) return
+	drone.frenzyTrailElapsed %= DRONE_FRENZY_TRAIL_INTERVAL
+
+	const emitter = getDroneFrenzyTrailEmitter()
+	const backward = k.Vec2.fromAngle(drone.angle + 90)
+	emitter.emitter.position = drone.pos.add(
+		backward.scale(7 * drone.droneScale)
+	)
+	emitter.emitter.direction = drone.angle + 90
+	emitter.emit(drone.fusionCore ? 2 : 1)
+}
+
+function getDroneFrenzyTrailEmitter() {
+	if (droneFrenzyTrailEmitter?.exists()) return droneFrenzyTrailEmitter
+	droneFrenzyTrailEmitter = k.add([
+		k.pos(),
+		k.particles(
+			{
+				max: 120,
+				speed: [8, 24],
+				angle: [0, 360],
+				lifeTime: [0.35, 0.7],
+				colors: [
+					k.rgb(255, 70, 70),
+					k.rgb(90, 8, 12),
+					k.BLACK,
+				],
+				opacities: [0.82, 0.5, 0],
+				scales: [0.7, 1.25, 0.15],
+				damping: [2, 4],
+				angularVelocity: [-100, 100],
+				texture: k.getSprite("particle4")!.data!.frames[0].tex,
+				quads: [k.getSprite("particle4")!.data!.frames[0].q],
+			},
+			{
+				rate: 0,
+				direction: 90,
+				spread: 55,
+				position: k.vec2(),
+			}
+		),
+		k.layer(layers.gameEffects),
+		k.z(-1),
+		tags.props,
+		tags.gameLoop,
+	])
+	return droneFrenzyTrailEmitter
 }
 
 function getFusionCooldownMultiplier(drone: GameObj) {
@@ -565,7 +675,7 @@ function getDroneSlotSignature() {
 	].join(":");
 }
 
-function updateDroneMovement(drone: GameObj, follow: GameObj<PosComp>) {
+function updateDroneMovement(drone: GameObj, follow: FollowerAnchor) {
 	if (isPlayerTargetModeActive()) {
 		updateAttackFormationMovement(drone, follow)
 		return
@@ -591,7 +701,7 @@ function updateDroneMovement(drone: GameObj, follow: GameObj<PosComp>) {
 
 function updateAttackFormationMovement(
 	drone: GameObj,
-	follow: GameObj<PosComp>
+	follow: FollowerAnchor
 ) {
 	const forward = k.Vec2.fromAngle((follow.angle ?? 0) - 90)
 	const right = k.Vec2.fromAngle(follow.angle ?? 0)
@@ -631,7 +741,7 @@ function updateAttackFormationMovement(
 
 function updateSwarmMovement(
 	drone: GameObj,
-	follow: GameObj<PosComp>,
+	follow: FollowerAnchor,
 	centerOffset = k.vec2(0),
 	driftScale = 1
 ) {
@@ -687,7 +797,7 @@ function updateSwarmMovement(
 
 function updateTrailingFormationMovement(
 	drone: GameObj,
-	follow: GameObj<PosComp>,
+	follow: FollowerAnchor,
 	driftScale = 0.42
 ) {
 	const forward = k.Vec2.fromAngle((follow.angle ?? 0) - 90)
@@ -698,7 +808,7 @@ function updateTrailingFormationMovement(
 	updateSwarmMovement(drone, follow, trailingOffset, driftScale)
 }
 
-function updateInterceptorMovement(drone: GameObj, follow: GameObj<PosComp>) {
+function updateInterceptorMovement(drone: GameObj, follow: FollowerAnchor) {
 	const projectile = findClosestHostileProjectile(drone.pos, 320);
 	if (!projectile) {
 		updateTrailingFormationMovement(drone, follow, 0.35)
@@ -711,11 +821,11 @@ function updateInterceptorMovement(drone: GameObj, follow: GameObj<PosComp>) {
 	);
 }
 
-function updateRearGuardMovement(drone: GameObj, follow: GameObj<PosComp>) {
+function updateRearGuardMovement(drone: GameObj, follow: FollowerAnchor) {
 	updateTrailingFormationMovement(drone, follow, 0.3)
 }
 
-function updateSalvagerMovement(drone: GameObj, follow: GameObj<PosComp>) {
+function updateSalvagerMovement(drone: GameObj, follow: FollowerAnchor) {
 	const cargo = drone.salvageCargo as SalvagerCargo<CarriedDebree>
 	const withinRange = drone.pos.dist(follow.pos) <= salvagerSeekRange
 	const debris = withinRange && !cargo.returning
@@ -812,6 +922,12 @@ function moveDroneToward(
 	if (movement.len() > distance) movement = delta;
 	if (movement.len() <= 0.001) {
 		drone.movementVelocity = k.vec2(0);
+		applySteeringLean(
+			drone,
+			drone.angle,
+			drone.angle,
+			getDroneRenderScale(drone)
+		)
 		return;
 	}
 
@@ -828,7 +944,7 @@ function moveDroneToward(
 		drone,
 		lerp,
 		correctedDesiredRot,
-		drone.droneScale
+		getDroneRenderScale(drone)
 	);
 }
 
@@ -866,7 +982,10 @@ function updateMedicBehavior(medic: GameObj) {
 	if ((medic.medicKillCharge ?? 0) < requiredKills) return;
 	if (!playerObj.exists() || playerObj.hp >= playerObj.maxHP) return;
 	medic.medicKillCharge = 0;
-	recoverPlayerHealth(playerObj, MEDIC_DRONE_RECOVERY);
+	recoverPlayerHealth(
+		playerObj,
+		Math.max(1, Math.round(playerObj.maxHP * MEDIC_DRONE_RECOVERY_RATIO))
+	);
 	spawnFlash(playerObj.pos.clone(), 10, k.WHITE);
 	gameSoundService.play("collect1", { volume: subSoundVolume });
 }
@@ -874,7 +993,7 @@ function updateMedicBehavior(medic: GameObj) {
 function findClosestDebree(pos: Vec2, range: number) {
 	let closest: CarriedDebree | undefined;
 	let closestDistance = range;
-	for (const debris of debrees as CarriedDebree[]) {
+	for (const debris of debrees) {
 		if (!isDebreeAvailable(debris)) continue;
 		const distance = debris.pos.dist(pos);
 		if (distance >= closestDistance) continue;
@@ -887,7 +1006,7 @@ function findClosestDebree(pos: Vec2, range: number) {
 function findClosestHostileProjectile(pos: Vec2, range: number) {
 	return findClosestSpatial(pos, range, {
 		allTags: [tags.projectile, tags.enemy],
-	}) as GameObj<PosComp> | undefined;
+	}) as FollowerAnchor | undefined;
 }
 
 function spawnInterceptorPulse(start: Vec2, end: Vec2) {

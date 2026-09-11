@@ -1,15 +1,39 @@
-export const UI_COLORS = {
-	background: [2, 7, 11] as const,
-	panel: [3, 10, 14] as const,
-	panelRaised: [5, 13, 18] as const,
-	panelHover: [10, 28, 35] as const,
-	border: [23, 49, 59] as const,
-	accent: [0, 207, 255] as const,
-	text: [234, 247, 250] as const,
-	muted: [88, 114, 125] as const,
-	warning: [240, 184, 75] as const,
-	success: [90, 220, 145] as const,
-	danger: [255, 90, 90] as const,
+export type UiColor = readonly [number, number, number]
+
+interface UiColorPalette {
+	background: UiColor
+	panel: UiColor
+	panelRaised: UiColor
+	panelHover: UiColor
+	border: UiColor
+	accent: UiColor
+	text: UiColor
+	muted: UiColor
+	phaseCore: UiColor
+	psionicPlate: UiColor
+	thrusterPart: UiColor
+	lassoToken: UiColor
+	warning: UiColor
+	success: UiColor
+	danger: UiColor
+}
+
+export const UI_COLORS: UiColorPalette = {
+	background: [2, 7, 11],
+	panel: [3, 10, 14],
+	panelRaised: [5, 13, 18],
+	panelHover: [10, 28, 35],
+	border: [23, 49, 59],
+	accent: [0, 207, 255],
+	text: [234, 247, 250],
+	muted: [88, 114, 125],
+	phaseCore: [255, 90, 90],
+	psionicPlate: [90, 220, 145],
+	thrusterPart: [240, 184, 75],
+	lassoToken: [80, 220, 255],
+	warning: [240, 184, 75],
+	success: [90, 220, 145],
+	danger: [255, 90, 90],
 }
 
 export const UI_SPACING = {

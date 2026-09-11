@@ -8,6 +8,7 @@ import type { CombatCredit } from "./combatCredit"
 
 export type RewardUnlockMetric =
 	| "maxDepth"
+	| "completedRuns"
 	| "totalKills"
 	| "criticalKills"
 	| "primaryKills"
@@ -29,6 +30,7 @@ export interface RewardUnlockRequirementSet {
 interface RewardUnlockProgress {
 	version: 1
 	maxDepth: number
+	completedRuns: number
 	totalKills: number
 	criticalKills: number
 	primaryKills: Record<string, number>
@@ -43,6 +45,8 @@ interface RewardIdentity {
 	minimumHubLevel?: number
 	upgradeKey?: string
 }
+
+export const PRIMARY_WEAPON_REQUIRED_COMPLETED_RUNS = 5
 
 const PRIMARY_REQUIREMENTS: Readonly<Record<string, readonly RewardUnlockRequirement[]>> = {
 	pulseRepeater: [killsWith("primaryKills", 15, "standardBlaster")],
@@ -70,14 +74,16 @@ const SECONDARY_REQUIREMENTS: Readonly<Record<string, readonly RewardUnlockRequi
 const ABILITY_REQUIREMENTS: Readonly<Record<string, readonly RewardUnlockRequirement[]>> = {
 	thrusterOverdrive: [reachDepth(2)],
 	phaseJump: [reachDepth(4)],
+	phaseSurge: [reachDepth(5)],
 	retroBurst: [stat("lassoKills", 3)],
 	gravitySling: [stat("lassoKills", 10)],
 	phaseNova: [reachDepth(10), stat("totalKills", 200)],
+	gravitonCollapse: [reachDepth(6), stat("explosiveKills", 40)],
+	ghostFleet: [reachDepth(8), stat("criticalKills", 40)],
+	scrapColossus: [reachDepth(7), stat("lassoKills", 25)],
 }
 
 const EXPLOSIVE_UPGRADE_KEYS = new Set([
-	"nrOfRockets",
-	"rocketShards",
 	"singularityPayload",
 	"fragmentationCore",
 	"proximityFuse",
@@ -101,6 +107,11 @@ export function recordRewardFloorReached(depth: number) {
 	saveProgress()
 }
 
+export function recordRewardRunCompleted() {
+	progress.completedRuns++
+	saveProgress()
+}
+
 export function recordRewardKill(credit?: CombatCredit) {
 	progress.totalKills++
 	if (credit?.critical) progress.criticalKills++
@@ -115,25 +126,9 @@ export function getRewardUnlockRequirements(
 	reward: RewardIdentity
 ): RewardUnlockRequirementSet | undefined {
 	const id = getCatalogId(reward.id)
-	if (reward.kind === "weapon" && id === "impactDriver") {
-		return {
-			allOf: [],
-			anyOf: [stat("lassoKills", 5), reachDepth(3)],
-		}
-	}
-	if (reward.kind === "weapon" && id === "breachCannon") {
-		return {
-			allOf: [],
-			anyOf: [
-				stat("explosiveKills", 10),
-				killsWith("secondaryKills", 12, "rocketPod"),
-			],
-		}
-	}
+	if (reward.kind === "weapon") return getPrimaryWeaponRequirements(id)
 	let requirements: readonly RewardUnlockRequirement[] = []
-	if (reward.kind === "weapon") {
-		requirements = PRIMARY_REQUIREMENTS[id] ?? []
-	} else if (reward.kind === "activeModule") {
+	if (reward.kind === "activeModule") {
 		requirements = SECONDARY_REQUIREMENTS[id] ?? []
 	} else if (reward.kind === "mobility" || reward.kind === "ultimate") {
 		requirements = ABILITY_REQUIREMENTS[id] ?? []
@@ -168,6 +163,7 @@ export function getRewardUnlockRequirementProgress(
 ) {
 	switch (requirement.metric) {
 		case "maxDepth": return progress.maxDepth
+		case "completedRuns": return progress.completedRuns
 		case "totalKills": return progress.totalKills
 		case "criticalKills": return progress.criticalKills
 		case "primaryKills": return getCounter(progress.primaryKills, requirement.id)
@@ -198,6 +194,24 @@ export function resetRewardUnlockProgress() {
 	saveProgress()
 }
 
+export function unlockRewardRequirementsForDebug(
+	requirementSets: readonly (RewardUnlockRequirementSet | undefined)[]
+) {
+	let requirementCount = 0
+	for (const requirements of requirementSets) {
+		if (!requirements) continue
+		for (const requirement of [
+			...requirements.allOf,
+			...(requirements.anyOf ?? []),
+		]) {
+			requirementCount++
+			setRequirementProgressAtLeast(requirement)
+		}
+	}
+	saveProgress()
+	return requirementCount
+}
+
 function getUpgradeRequirements(reward: RewardIdentity) {
 	const key = reward.upgradeKey ?? getCatalogId(reward.id)
 	if (key === "salvageLasso") return [stat("totalKills", 8)]
@@ -206,6 +220,32 @@ function getUpgradeRequirements(reward: RewardIdentity) {
 	const hubLevel = Math.max(1, Math.round(reward.minimumHubLevel ?? 1))
 	if (hubLevel <= 1) return []
 	return [reachDepth((hubLevel - 1) * 3 + 1)]
+}
+
+function getPrimaryWeaponRequirements(
+	id: string
+): RewardUnlockRequirementSet | undefined {
+	if (id === "standardBlaster") return undefined
+	const allOf = [
+		stat("completedRuns", PRIMARY_WEAPON_REQUIRED_COMPLETED_RUNS),
+		...(PRIMARY_REQUIREMENTS[id] ?? []),
+	]
+	if (id === "phaseBoomerang") {
+		return {
+			allOf,
+			anyOf: [stat("lassoKills", 5), reachDepth(3)],
+		}
+	}
+	if (id === "breachCannon") {
+		return {
+			allOf,
+			anyOf: [
+				stat("explosiveKills", 10),
+				killsWith("secondaryKills", 12, "rocketPod"),
+			],
+		}
+	}
+	return { allOf }
 }
 
 function getCatalogId(id: string) {
@@ -238,6 +278,44 @@ function increment(counters: Record<string, number>, id?: string) {
 	counters[id] = (counters[id] ?? 0) + 1
 }
 
+function setRequirementProgressAtLeast(requirement: RewardUnlockRequirement) {
+	const target = Math.max(0, Math.floor(requirement.target))
+	switch (requirement.metric) {
+		case "maxDepth":
+			progress.maxDepth = Math.max(progress.maxDepth, target)
+			return
+		case "completedRuns":
+			progress.completedRuns = Math.max(progress.completedRuns, target)
+			return
+		case "totalKills":
+			progress.totalKills = Math.max(progress.totalKills, target)
+			return
+		case "criticalKills":
+			progress.criticalKills = Math.max(progress.criticalKills, target)
+			return
+		case "lassoKills":
+			progress.lassoKills = Math.max(progress.lassoKills, target)
+			return
+		case "explosiveKills":
+			progress.explosiveKills = Math.max(progress.explosiveKills, target)
+			return
+		case "primaryKills":
+			setCounterAtLeast(progress.primaryKills, requirement.id, target)
+			return
+		case "secondaryKills":
+			setCounterAtLeast(progress.secondaryKills, requirement.id, target)
+	}
+}
+
+function setCounterAtLeast(
+	counters: Record<string, number>,
+	id: string | undefined,
+	target: number
+) {
+	const key = id ?? "debug"
+	counters[key] = Math.max(counters[key] ?? 0, target)
+}
+
 function getCounter(counters: Record<string, number>, id?: string) {
 	if (id) return counters[id] ?? 0
 	return Object.values(counters).reduce((total, value) => total + value, 0)
@@ -245,6 +323,7 @@ function getCounter(counters: Record<string, number>, id?: string) {
 
 function getMetricLabel(requirement: RewardUnlockRequirement) {
 	switch (requirement.metric) {
+		case "completedRuns": return "RUNS COMPLETED"
 		case "totalKills": return "HOSTILES DESTROYED"
 		case "criticalKills": return "CRITICAL KILLS"
 		case "lassoKills": return "LASSO KILLS"
@@ -273,11 +352,16 @@ function loadProgress(): RewardUnlockProgress {
 	const empty = createEmptyProgress()
 	if (!saved || saved.version !== 1) {
 		empty.totalKills = getLegacyLifetimeKills()
+		empty.completedRuns = getLegacyCompletedRuns()
 		return empty
 	}
 	return {
 		...empty,
 		maxDepth: validCount(saved.maxDepth),
+		completedRuns: Math.max(
+			validCount(saved.completedRuns),
+			getLegacyCompletedRuns()
+		),
 		totalKills: validCount(saved.totalKills),
 		criticalKills: validCount(saved.criticalKills),
 		primaryKills: validCounters(saved.primaryKills),
@@ -291,6 +375,7 @@ function createEmptyProgress(): RewardUnlockProgress {
 	return {
 		version: 1,
 		maxDepth: 0,
+		completedRuns: 0,
 		totalKills: 0,
 		criticalKills: 0,
 		primaryKills: {},
@@ -324,6 +409,21 @@ function getLegacyLifetimeKills() {
 	try {
 		const parsed = JSON.parse(saved) as { enemiesKilled?: number }
 		return validCount(parsed.enemiesKilled)
+	} catch {
+		return 0
+	}
+}
+
+function getLegacyCompletedRuns() {
+	if (typeof localStorage === "undefined") return 0
+	const saved = localStorage.getItem("spacedaze_lifetime_stats_v1")
+	if (!saved) return 0
+	try {
+		const parsed = JSON.parse(saved) as {
+			completedRuns?: number
+			runs?: number
+		}
+		return validCount(parsed.completedRuns ?? parsed.runs)
 	} catch {
 		return 0
 	}

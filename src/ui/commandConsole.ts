@@ -234,7 +234,7 @@ function escapeStyledText(value: string) {
 }
 
 function pauseGameObjects(paused: boolean) {
-	for (const obj of k.get<GameObj>(tags.gameLoop)) {
+	for (const obj of k.get(tags.gameLoop)) {
 		obj.paused = paused;
 	}
 }

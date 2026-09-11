@@ -53,6 +53,10 @@ interface RarityFeedback {
 const REWARD_PICKUP_SCALE = getPickupVisual("reward").worldScale;
 const REWARD_PICKUP_LABEL_SIZE = 7;
 const POWERUP_PICKUP_VOLUME = 0.8;
+const PLAYER_SEEK_START_SPEED = 90;
+const PLAYER_SEEK_MAX_SPEED = 440;
+const PLAYER_SEEK_RESPONSE = 4.5;
+const PLAYER_SEEK_COLLECT_RADIUS = 18;
 
 const RARITY_FEEDBACK: Record<RewardRarity, RarityFeedback> = {
 	[RewardRarity.Common]: {
@@ -134,6 +138,7 @@ interface RewardPickupOptions {
 	onCollected?: (reward: Reward) => void;
 	telemetrySource?: RewardTelemetrySource;
 	recordOffer?: boolean;
+	seekPlayer?: boolean;
 	launch?: {
 		endOffset?: Vec2;
 		height?: number;
@@ -207,6 +212,7 @@ export function spawnRewardPickup(
 	const launchDuration = options.launch?.duration ?? 0.52;
 	const launchHeight = options.launch?.height ?? 34;
 	let launchElapsed = 0;
+	let playerSeekElapsed = 0;
 	const pickupBackdrop = createRewardTypeFrame(m, {
 		size: (compactAura ? auraRadius : auraRadius - 3) * 2,
 		color: getRewardDisplayColor(reward),
@@ -376,6 +382,34 @@ export function spawnRewardPickup(
 			return;
 		}
 		if (!armed && dist > collectionRange + 8) armed = true;
+		if (options.seekPlayer && armed) {
+			const toPlayer = playerObj.pos.sub(m.pos);
+			const seekDistance = toPlayer.len();
+			if (seekDistance <= PLAYER_SEEK_COLLECT_RADIUS) {
+				collectPowerup();
+				return;
+			}
+			const seekDelta = dt() * m.getTimescale();
+			playerSeekElapsed += seekDelta;
+			const acceleration = 1 - Math.exp(
+				-PLAYER_SEEK_RESPONSE * playerSeekElapsed
+			);
+			const seekSpeed = k.lerp(
+				PLAYER_SEEK_START_SPEED,
+				PLAYER_SEEK_MAX_SPEED,
+				acceleration
+			);
+			const seekStep = Math.min(
+				seekDistance,
+				seekSpeed * seekDelta
+			);
+			m.pos = m.pos.add(toPlayer.scale(seekStep / seekDistance));
+			m.angle += 240 * seekDelta;
+			if (seekDistance - seekStep <= PLAYER_SEEK_COLLECT_RADIUS) {
+				collectPowerup();
+				return;
+			}
+		}
 
 		const pulseAmount = compactAura ? 0.015 : feedback.pulseAmount;
 		const pulse = k.wave(

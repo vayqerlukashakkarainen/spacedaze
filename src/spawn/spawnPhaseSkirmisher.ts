@@ -1,4 +1,4 @@
-import type { Vec2 } from "kaplay"
+import type { GameObj, PosComp, Vec2 } from "kaplay"
 import { playerObj } from "../game"
 import { k, velocityScale } from "../main"
 import { applyDamage } from "../services/combat/damageService"
@@ -16,6 +16,12 @@ import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
 import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
 
 const PHASE_SKIRMISHER_VISUAL = getEnemyVisual("phase-skirmisher")
+
+type PhaseSkirmisher = GameObj<PosComp> & {
+	blinking: boolean
+	blinkTimer: number
+	damage: number
+}
 
 export function spawnPhaseSkirmisher(pos: Vec2, hp = 5, options: EnemySpawnOptions = {}) {
 	const profile = createEnemySpawnProfile(hp, 1, PHASE_SKIRMISHER_VISUAL.worldScale, options)
@@ -58,7 +64,7 @@ export function spawnPhaseSkirmisher(pos: Vec2, hp = 5, options: EnemySpawnOptio
 	return skirmisher
 }
 
-function beginBlink(skirmisher: ReturnType<typeof k.add>, elite: boolean, extraTags?: string[]) {
+function beginBlink(skirmisher: PhaseSkirmisher, elite: boolean, extraTags?: string[]) {
 	skirmisher.blinking = true
 	const start = skirmisher.pos.clone()
 	const toPlayer = playerObj.pos.sub(start)

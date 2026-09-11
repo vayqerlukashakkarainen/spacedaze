@@ -38,7 +38,7 @@ export const resonanceCoil = stackingDefinition({
 	toolName: "Resonance coil",
 	category: "combat",
 	name: "Resonance Coil",
-	desc: "Hits dealing at least 8 damage discharge a shock ring; stacks improve it",
+	desc: "Heavy hits discharge a shock ring for a percentage of the triggering hit; stacks improve it",
 	sprite: "resonance_coil_upg1",
 	stat: "resonanceCoilStacks",
 	values: [1, 2, 3, 4, 5],
@@ -49,10 +49,10 @@ export const wreckHarvester = stackingDefinition({
 	toolName: "Wreck harvester",
 	category: "combat",
 	name: "Wreck Harvester",
-	desc: "Destroyed enemies launch two seeking shards; stacks increase shard damage",
+	desc: "Destroyed enemies launch two seeking shards; stacks raise their primary-damage ratio",
 	sprite: "wreck_harvester_upg1",
-	stat: "wreckHarvesterDamage",
-	values: [1, 1.5, 2, 2.5, 3],
+	stat: "wreckHarvesterDamageRatio",
+	values: [0.5, 0.75, 1, 1.25, 1.5],
 })
 
 function stackingDefinition(config: {

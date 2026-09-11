@@ -48,6 +48,7 @@ export function spawnOrbitLancer(
 		{
 			hb: 12 * profile.scale,
 			damage: profile.damage,
+			shieldFireRateMultiplier: 1,
 			orbitDirection: k.chance(0.5) ? 1 : -1,
 			moveDirection: k.vec2(0, 1),
 			fireTimer: k.rand(0.4, 1.15),

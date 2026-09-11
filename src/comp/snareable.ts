@@ -37,6 +37,7 @@ export interface SnareableOptions {
 }
 
 export interface SnareableComp extends Comp {
+	lassoCollisionOwnerId?: number
 	snareMass: number
 	snareForce: number
 	snareForceDirection: Vec2
@@ -55,7 +56,9 @@ export interface SnareableComp extends Comp {
 	consumeSnareRoomImpact(): Vec2 | undefined
 }
 
-type SnareableObject = GameObj<PosComp | SnareableComp>
+type SnareableObject = GameObj<PosComp | SnareableComp> & {
+	angle?: number
+}
 
 interface TimescaleCarrier {
 	timescaleModifiers?: Map<number, number>
@@ -72,6 +75,7 @@ export function snareable(
 	return {
 		id: "snareable",
 		require: ["pos"],
+		lassoCollisionOwnerId: undefined,
 		snareMass: Math.max(0.1, options.mass ?? 1),
 		snareForce: Math.max(0, options.force ?? 0),
 		snareForceDirection: options.forceDirection?.len()
@@ -108,6 +112,7 @@ export function snareable(
 
 		beginSnare() {
 			if (!this.canBeSnared()) return false
+			this.lassoCollisionOwnerId = undefined
 			if (options.returnAfterRelease && !returnPosition) {
 				returnPosition = this.pos.clone()
 				if (typeof this.angle === "number") {
@@ -176,6 +181,7 @@ export function snareable(
 			if (deltaSeconds <= 0) return
 			if (this.snareVelocity.len() < STOP_SPEED) {
 				this.snareVelocity = k.vec2(0, 0)
+				this.lassoCollisionOwnerId = undefined
 				setSnareTimescaleSuspended(this, options, false)
 				advanceSnareRotation(this, options, deltaSeconds)
 				if (returnPosition) this.returningFromSnare = true

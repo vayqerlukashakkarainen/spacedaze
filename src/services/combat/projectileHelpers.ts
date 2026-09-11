@@ -5,18 +5,34 @@ import {
 	getTargetWorldPosition,
 	isProjectileTargetForTags,
 } from "./targetingService";
-import { ProjectileConfig } from "../../projectiles/projectileConfig";
-import { spawnProjectile } from "./projectileService";
+import {
+	ProjectileConfig,
+	ProjectileModifierVisualKey,
+} from "../../projectiles/projectileConfig";
+import {
+	placeProjectileInFrontOfMuzzle,
+	spawnProjectile,
+} from "./projectileService";
 import { player, session } from "../../player";
 import { getEquippedWeapon } from "../player/weaponService";
+import { getPrimaryWeaponDamage as getScaledPrimaryWeaponDamage } from "../player/playerCombatScalingService"
 import { spawnFlash } from "../../spawn/spawnFlash";
 import { getAbilityTierValues } from "../abilities/abilityTierService";
 import { isEnemyEmpDisrupted } from "../enemies/enemyEmpService"
+import {
+	rollPlayerProjectileModifier,
+} from "./playerProjectileModifierChance"
+import type { PlayerProjectileModifierUpgradeKey } from "./playerProjectileModifierChance"
 
 const ROCKET_ACQUIRE_DELAY = 0.2;
 const ROCKET_TURN_SPEED = 0.065;
 const RAIL_LANCE_MIN_KNOCKBACK_MULTIPLIER = 0.04;
 const SPLIT_CHAMBER_MAX_DISTANCE = 520;
+const PLAYER_WEAPON_PROJECTILE_SPEED_MULTIPLIER = 1.5;
+const MISSILE_VISUAL_PULSE = {
+	amplitude: 0.2,
+	frequency: 12,
+};
 
 export interface BasicBlasterOptions {
 	suppressHitRecoil?: boolean
@@ -48,6 +64,7 @@ export function spawnBasicBlaster(
 		},
 		fireSound: "shoot1",
 	};
+	placeProjectileInFrontOfMuzzle(config, pos, 1)
 	if (inheritPlayerModifiers) applyPlayerProjectileModifiers(config, true);
 
 	return spawnProjectile(config);
@@ -62,10 +79,12 @@ export interface PlayerBlasterShotOptions {
 	isFullyCharged?: boolean
 	chargeRatio?: number
 	critChanceBonus?: number
+	ultimateChargeMultiplier?: number
 	preferredTarget?: GameObj<PosComp>
 	alteredTargeting?: boolean
 	splitTargetPosition?: Vec2
 	wigglePhase?: number
+	spreadMultiplier?: number
 }
 
 // Player Blaster with all modifiers
@@ -76,9 +95,10 @@ export function spawnPlayerBlaster(
 	shotOptions: PlayerBlasterShotOptions = {}
 ) {
 	const weapon = getEquippedWeapon();
+	const spreadMultiplier = shotOptions.spreadMultiplier ?? 1
 	const spreadAngle = k.rand(
-		-weapon.spreadDegrees,
-		weapon.spreadDegrees
+		-weapon.spreadDegrees * spreadMultiplier,
+		weapon.spreadDegrees * spreadMultiplier
 	) + (shotOptions.angleOffset ?? 0);
 	const impactDamage = player.blasterDmg *
 		weapon.damageMultiplier *
@@ -87,9 +107,6 @@ export function spawnPlayerBlaster(
 		? k.rgb(...weapon.projectileTint)
 		: undefined;
 	const projectileDirection = k.Vec2.fromAngle(rot + spreadAngle - 90)
-	const projectilePos = pos.add(
-		projectileDirection.scale(weapon.projectileSpawnOffset ?? 0)
-	)
 	const isFullyChargedWeapon =
 		weapon.charge !== undefined && shotOptions.isFullyCharged === true;
 	const isFullyChargedRailLance =
@@ -127,11 +144,19 @@ export function spawnPlayerBlaster(
 				shotOptions.chargeRatio ?? (isFullyChargedWeapon ? 1 : 0)
 			)
 			: weapon.knockback;
+	const arsenalSpeedMultiplier =
+		weapon.id === "railLance" || weapon.id === "railgun"
+			? 1
+			: PLAYER_WEAPON_PROJECTILE_SPEED_MULTIPLIER;
 	const inheritedSpeedMultiplier =
 		player.blasterSpeedMultiplier *
-		(shotOptions.speedMultiplier ?? 1);
+		(shotOptions.speedMultiplier ?? 1) *
+		arsenalSpeedMultiplier;
+	const projectileSpeed = getPlayerWeaponProjectileSpeed(
+		shotOptions.speedMultiplier ?? 1
+	)
 	const config: ProjectileConfig = {
-		pos: projectilePos,
+		pos,
 		dir: projectileDirection,
 		rotation: rot + spreadAngle,
 		sprite: weapon.projectileSprite ?? "bullet1",
@@ -143,12 +168,18 @@ export function spawnPlayerBlaster(
 		visualWobble: weapon.projectileWobble,
 		visualScale: (weapon.projectileScale ?? 1) * chargeScale,
 		visualLengthScale: weapon.projectileLengthScale,
+		persistOffscreen: weapon.returning !== undefined,
 		explosionDelay: weapon.explosionDelay,
 		speed: BULLET_SPEED,
-		speedMultiplier:
-			inheritedSpeedMultiplier * weapon.projectileSpeedMultiplier,
+		speedMultiplier: projectileSpeed / BULLET_SPEED,
 		tags: [tags.friendly, tags.blaster],
-		combatCredit: { kind: "primary", id: weapon.id },
+		combatCredit: {
+			kind: "primary",
+			id: weapon.id,
+			ultimateCharge:
+				weapon.ultimateChargePerHit *
+				(shotOptions.ultimateChargeMultiplier ?? 1),
+		},
 		impact: {
 			damage: impactDamage,
 			damageMultiplier: player.blasterDmgMultiplier,
@@ -234,6 +265,11 @@ export function spawnPlayerBlaster(
 		explosionSoundPool: weapon.explosionSoundPool,
 		explosionSoundVolume: weapon.explosionSoundVolume,
 	};
+	placeProjectileInFrontOfMuzzle(
+		config,
+		pos,
+		weapon.projectileSpawnOffset ?? 0
+	)
 	const preferredTarget = shotOptions.preferredTarget?.exists()
 		? shotOptions.preferredTarget
 		: undefined
@@ -261,6 +297,13 @@ export function spawnPlayerBlaster(
 		Boolean(preferredTarget),
 		shotOptions.splitTargetPosition
 	);
+	if (weapon.returning) config.returning = { ...weapon.returning }
+	if (weapon.mine) config.mine = { ...weapon.mine }
+	if (weapon.hitCombo) config.hitCombo = { ...weapon.hitCombo }
+	config.componentDamageMultiplier = weapon.componentDamageMultiplier
+	config.impactFragment = weapon.impactFragment
+		? { ...weapon.impactFragment }
+		: undefined
 	if (shotOptions.alteredTargeting && preferredTarget) {
 		config.seek = {
 			enabled: true,
@@ -294,6 +337,22 @@ export function spawnPlayerBlaster(
 		: projectile
 }
 
+export function getPlayerWeaponProjectileSpeed(
+	shotSpeedMultiplier: number = 1
+) {
+	const weapon = getEquippedWeapon()
+	const arsenalSpeedMultiplier =
+		weapon.id === "railLance" || weapon.id === "railgun" ? 1 : 1.5
+	const speed = BULLET_SPEED *
+		player.blasterSpeedMultiplier *
+		shotSpeedMultiplier *
+		arsenalSpeedMultiplier *
+		weapon.projectileSpeedMultiplier
+	return weapon.projectileSpeedCap === undefined
+		? speed
+		: Math.min(speed, weapon.projectileSpeedCap)
+}
+
 function scaleChargedKnockback(maxStrength: number, chargeRatio: number) {
 	const charge = k.clamp(chargeRatio, 0, 1);
 	const multiplier = k.lerp(
@@ -315,7 +374,9 @@ export function spawnPrimaryLinkedRocket(
 		pos,
 		dir,
 		rotation: rot,
-		sprite: "rocket1",
+		sprite: "missile_passive",
+		visualScale: 0.5,
+		visualPulse: MISSILE_VISUAL_PULSE,
 		speed: ROCKET_SPEED,
 		speedMultiplier: 1,
 		tags: [tags.friendly, tags.rocket],
@@ -323,6 +384,7 @@ export function spawnPrimaryLinkedRocket(
 			kind: "primary",
 			id: getEquippedWeapon().id,
 			explosive: true,
+			ultimateCharge: getEquippedWeapon().ultimateChargePerHit,
 		},
 		impact: {
 			damage: inheritedDamage,
@@ -352,6 +414,7 @@ export function spawnPrimaryLinkedRocket(
 		fireSound: "fire_rocket1",
 		explosionSoundPool: "general",
 	};
+	placeProjectileInFrontOfMuzzle(config, pos, 2)
 	applyPlayerProjectileModifiers(config, false);
 
 	return applyPreferredProjectileTarget(
@@ -379,8 +442,7 @@ function applyPreferredProjectileTarget(
 }
 
 export function getPrimaryWeaponDamage() {
-	const weapon = getEquippedWeapon();
-	return player.blasterDmg * weapon.damageMultiplier * player.blasterDmgMultiplier;
+	return getScaledPrimaryWeaponDamage();
 }
 
 export function spawnPhaseMagazineSalvo(pos: Vec2) {
@@ -441,7 +503,9 @@ export function spawnHomingRocket(
 		pos,
 		dir,
 		rotation: rot,
-		sprite: "rocket1",
+		sprite: "missile_passive",
+		visualScale: 0.5,
+		visualPulse: MISSILE_VISUAL_PULSE,
 		speed: ROCKET_SPEED,
 		speedMultiplier: 1,
 		tags: projectileTags,
@@ -477,6 +541,16 @@ export function spawnHomingRocket(
 	);
 }
 
+function markLoadedProjectileModifier(
+	config: ProjectileConfig,
+	modifier: ProjectileModifierVisualKey
+) {
+	config.loadedModifierVisuals ??= [];
+	if (!config.loadedModifierVisuals.includes(modifier)) {
+		config.loadedModifierVisuals.push(modifier);
+	}
+}
+
 function applyPlayerProjectileModifiers(
 	config: ProjectileConfig,
 	allowSplit: boolean,
@@ -484,6 +558,8 @@ function applyPlayerProjectileModifiers(
 	splitTargetPosition?: Vec2
 ) {
 	const projectileDamage = getConfiguredProjectileDamage(config)
+	const inherits = (key: PlayerProjectileModifierUpgradeKey) =>
+		rollPlayerProjectileModifier(key, () => k.rand())
 	const modifierFallbacks = {
 		piercing: config.piercing ? { ...config.piercing } : undefined,
 		chain: config.chain
@@ -501,7 +577,8 @@ function applyPlayerProjectileModifiers(
 		lifesteal: config.lifesteal ? { ...config.lifesteal } : undefined,
 	};
 
-	if (player.projectilePierces > 0) {
+	if (player.projectilePierces > 0 && inherits("armorPiercing")) {
+		markLoadedProjectileModifier(config, "piercing");
 		const builtInPierces = config.piercing?.maxPierces ?? 0;
 		config.piercing = {
 			maxPierces: builtInPierces + player.projectilePierces,
@@ -512,7 +589,8 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileBounceCount > 0) {
+	if (player.projectileBounceCount > 0 && inherits("ricochetRounds")) {
+		markLoadedProjectileModifier(config, "bounce");
 		const builtInBounceCount = config.bounce?.maxBounces ?? 0;
 		const builtInDamageRetention = config.bounce?.damageRetention ?? 0.7;
 		config.bounce = {
@@ -531,7 +609,8 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileSlowPercentage > 0) {
+	if (player.projectileSlowPercentage > 0 && inherits("cryoRounds")) {
+		markLoadedProjectileModifier(config, "slow");
 		config.slow = {
 			duration:
 				1.25 +
@@ -541,22 +620,25 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileStunChance > 0) {
+	if (player.projectileStunDuration > 0 && inherits("stunRounds")) {
+		markLoadedProjectileModifier(config, "stun");
 		config.stun = {
-			chance: player.projectileStunChance,
+			chance: 1,
 			duration: player.projectileStunDuration,
 		}
 	}
 
-	if (player.projectileEmpChance > 0) {
+	if (player.projectileEmpDuration > 0 && inherits("empRounds")) {
+		markLoadedProjectileModifier(config, "emp");
 		config.emp = {
-			chance: player.projectileEmpChance,
+			chance: 1,
 			duration: player.projectileEmpDuration,
 			slowPercentage: player.projectileEmpSlowPercentage,
 		}
 	}
 
-	if (player.projectileDotDamage > 0) {
+	if (player.projectileDotDamage > 0 && inherits("corrosivePayload")) {
+		markLoadedProjectileModifier(config, "damageTick");
 		config.damageTick = {
 			damagePerTick: projectileDamage * player.projectileDotDamage,
 			tickInterval: 0.5,
@@ -566,7 +648,8 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileChainCount > 0) {
+	if (player.projectileChainCount > 0 && inherits("arcCapacitor")) {
+		markLoadedProjectileModifier(config, "chain");
 		const builtInChains = config.chain?.maxChains ?? 0;
 		config.chain = {
 			maxChains: builtInChains + player.projectileChainCount,
@@ -579,7 +662,8 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileLifesteal > 0) {
+	if (player.projectileLifesteal > 0 && inherits("lifesteal")) {
+		markLoadedProjectileModifier(config, "lifesteal");
 		config.lifesteal = {
 			healthRatio:
 				(config.lifesteal?.healthRatio ?? 0) +
@@ -587,7 +671,12 @@ function applyPlayerProjectileModifiers(
 		}
 	}
 
-	if (allowSplit && player.projectileSplitCount > 0) {
+	if (
+		allowSplit &&
+		player.projectileSplitCount > 0 &&
+		inherits("splitChamber")
+	) {
+		markLoadedProjectileModifier(config, "split");
 		const totalDamageMultiplier =
 			1.2 + (player.projectileSplitCount - 2) * 0.1;
 		config.split = {
@@ -602,7 +691,11 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileGravityStrength > 0) {
+	if (
+		player.projectileGravityStrength > 0 &&
+		inherits("singularityPayload")
+	) {
+		markLoadedProjectileModifier(config, "gravity");
 		config.gravity = {
 			strength: player.projectileGravityStrength,
 			range:
@@ -612,7 +705,11 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileFragmentCount > 0) {
+	if (
+		player.projectileFragmentCount > 0 &&
+		inherits("fragmentationCore")
+	) {
+		markLoadedProjectileModifier(config, "fragment");
 		config.fragment = {
 			count: player.projectileFragmentCount,
 			spreadAngle: 150,
@@ -620,7 +717,12 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (targetModeActive && player.projectileGuidance > 0) {
+	if (
+		targetModeActive &&
+		player.projectileGuidance > 0 &&
+		inherits("hunterGuidance")
+	) {
+		markLoadedProjectileModifier(config, "seek");
 		config.seek = {
 			enabled: true,
 			acquireDelay: 0.08,
@@ -636,7 +738,11 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileProximityRadius > 0 || config.proximity) {
+	if (
+		player.projectileProximityRadius > 0 &&
+		inherits("proximityFuse")
+	) {
+		markLoadedProjectileModifier(config, "proximity");
 		const weaponProximity = config.proximity
 		config.proximity = {
 			radius: Math.max(
@@ -656,7 +762,8 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileEchoCount > 0) {
+	if (player.projectileEchoCount > 0 && inherits("afterimageRounds")) {
+		markLoadedProjectileModifier(config, "echo");
 		config.echo = {
 			count: player.projectileEchoCount,
 			delay: 0.16,
@@ -664,15 +771,8 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileReturnSpeed > 0) {
-		config.returning = {
-			delay: player.projectileReturnDelay,
-			speedMultiplier: player.projectileReturnSpeed,
-			turnDuration: 0.28,
-		};
-	}
-
-	if (player.projectileGrowthDamage > 0) {
+	if (player.projectileGrowthDamage > 0 && inherits("growingCharge")) {
+		markLoadedProjectileModifier(config, "growth");
 		config.growth = {
 			maxDistance: 420,
 			maxScale: player.projectileGrowthScale,
@@ -680,7 +780,12 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileStasisRadius > 0 && config.slow) {
+	if (
+		player.projectileStasisRadius > 0 &&
+		config.slow &&
+		inherits("stasisBurst")
+	) {
+		markLoadedProjectileModifier(config, "slow");
 		config.slow.stasisBurst = {
 			radius: player.projectileStasisRadius,
 			duration: config.slow.duration * 0.8,
@@ -688,7 +793,12 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileVolatileRadius > 0 && config.damageTick) {
+	if (
+		player.projectileVolatileRadius > 0 &&
+		config.damageTick &&
+		inherits("volatileCorrosion")
+	) {
+		markLoadedProjectileModifier(config, "volatile");
 		config.volatile = {
 			radius: player.projectileVolatileRadius,
 			damage: projectileDamage * player.projectileVolatileDamage,
@@ -697,7 +807,11 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileCriticalShards > 0) {
+	if (
+		player.projectileCriticalShards > 0 &&
+		inherits("criticalShatter")
+	) {
+		markLoadedProjectileModifier(config, "criticalShatter");
 		config.criticalShatter = {
 			count: player.projectileCriticalShards,
 			spreadAngle: 110,
@@ -705,14 +819,19 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileExecutionDamage > 0) {
+	if (
+		player.projectileExecutionDamage > 0 &&
+		inherits("executionRounds")
+	) {
+		markLoadedProjectileModifier(config, "execution");
 		config.execution = {
 			healthThreshold: player.projectileExecutionThreshold,
 			damageMultiplier: player.projectileExecutionDamage,
 		};
 	}
 
-	if (player.projectilePaintDamage > 0) {
+	if (player.projectilePaintDamage > 0 && inherits("targetPainter")) {
+		markLoadedProjectileModifier(config, "paint");
 		config.paint = {
 			damagePerStack: player.projectilePaintDamage,
 			maxStacks: player.projectilePaintStacks,
@@ -720,19 +839,30 @@ function applyPlayerProjectileModifiers(
 		};
 	}
 
-	if (player.projectileMineDuration > 0) {
+	if (
+		player.projectileMineDuration > 0 &&
+		!config.mine &&
+		inherits("mineLayer")
+	) {
+		markLoadedProjectileModifier(config, "mine");
 		config.mine = {
 			duration: player.projectileMineDuration,
-			chance: player.projectileMineChance,
+			chance: 1,
 			placementDistance: 100,
+			placementCount: 5,
+			placementDuration: 3,
+			followPlayer: true,
 			armDelay: 2,
 			triggerRadius: 34,
 			explosionRadius: 58,
 			damageMultiplier: player.projectileMineDamage,
+			maxActive: 15,
+			replaceOldest: true,
 		};
 	}
 
-	if (player.projectilePhasePierces > 0) {
+	if (player.projectilePhasePierces > 0 && inherits("voidLance")) {
+		markLoadedProjectileModifier(config, "piercing");
 		config.piercing = {
 			maxPierces:
 				(config.piercing?.maxPierces ?? 0) +
@@ -767,7 +897,9 @@ export function spawnPlayerRocket(
 		pos,
 		dir,
 		rotation: rot,
-		sprite: "rocket1",
+		sprite: "missile_player",
+		visualScale: 0.5,
+		visualPulse: MISSILE_VISUAL_PULSE,
 		speed: ROCKET_SPEED,
 		speedMultiplier: tier.speed,
 		tags: [tags.friendly, tags.rocket],
@@ -822,6 +954,7 @@ export function spawnPlayerRocket(
 		fireSound: "fire_rocket1",
 		destroySound: "explosion1",
 	};
+	placeProjectileInFrontOfMuzzle(config, pos, 2)
 	applyPlayerProjectileModifiers(config, false);
 
 	return applyPreferredProjectileTarget(

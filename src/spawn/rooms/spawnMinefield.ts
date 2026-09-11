@@ -3,11 +3,14 @@ import { snareable } from "../../comp/snareable"
 import { checkProjectileIntersection, playerObj } from "../../game"
 import { k, layers, mainSoundVolume } from "../../main"
 import { gameSoundService } from "../../services/audio/gameSoundService"
+import { grantUltimateChargeForDestruction } from "../../services/abilities/ultimateAbilityService"
 import { applyDamage } from "../../services/combat/damageService"
+import { applyDefaultExplosionForce } from "../../services/combat/explosionPulseService"
 import { tags } from "../../tags"
-import { spawnExplosionEffect } from "../spawnFlash"
+import { spawnExplosiveBarrelExplosionEffect } from "../spawnFlash"
 import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import { querySpatialNearby } from "../../services/core/runtimeSpatialIndexService"
+import { damageDestructibleWallsInRadius } from "../../services/world/destructibleWallService"
 import { getWorldVisual } from "../../visuals/worldVisualCatalog"
 import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 
@@ -49,18 +52,24 @@ function spawnProximityMine(pos: Vec2, damage: number, extraTags?: string[]) {
 		k.scale(MINEFIELD_VISUAL.worldScale),
 		k.color(150, 150, 150),
 		k.opacity(0.9),
+		k.health(1),
+		{
+			detonated: false,
+		},
 		snareable({
 			mass: 0.45,
 			radius: 10,
 			releaseDrag: 1.25,
 		}),
 		tags.props,
+		tags.roomVolatile,
 		tags.gameLoop,
 		tags.runtimeCullable,
 		...(extraTags ?? []),
 	])
+	mine.onDeath(() => detonateMine(mine, damage))
 
-		registerBatchedEntityUpdate("world", mine, () => {
+	registerBatchedEntityUpdate("world", mine, () => {
 		mine.angle += k.dt() * 18
 		armedElapsed += k.dt()
 		if (armedElapsed < 0.7) return
@@ -100,7 +109,13 @@ function spawnProximityMine(pos: Vec2, damage: number, extraTags?: string[]) {
 }
 
 function detonateMine(mine: GameObj, damage: number) {
+	if (mine.detonated) return
+	mine.detonated = true
 	const explosionPos = mine.pos.clone()
+	grantUltimateChargeForDestruction("environment", explosionPos)
+	damageDestructibleWallsInRadius(explosionPos, 52, damage, {
+		explosive: true,
+	})
 	const enemies = querySpatialNearby(mine.pos, 52, {
 		allTags: [tags.enemy, tags.unit],
 	})
@@ -115,7 +130,8 @@ function detonateMine(mine: GameObj, damage: number) {
 			combatCredit: { kind: "environment", id: "proximityMine", explosive: true },
 		})
 	}
-	spawnExplosionEffect(explosionPos, 52, { persistentSmoke: true })
+	applyDefaultExplosionForce(explosionPos, 52, { excludeIds: [mine.id] })
+	spawnExplosiveBarrelExplosionEffect(explosionPos, 52)
 	gameSoundService.playPositional("explosive_blast", explosionPos, {
 		volume: mainSoundVolume * 0.8,
 		maxDistance: 650,

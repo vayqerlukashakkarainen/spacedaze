@@ -2,12 +2,15 @@ import assert from "node:assert/strict"
 import {
 	formatInputBinding,
 	getInputBinding,
+	getStrafeInputMode,
 	onInputBindingsChanged,
 	rebindInputAction,
 	resetInputBindings,
+	setStrafeInputMode,
 } from "./inputBindingService"
 
 resetInputBindings()
+assert.equal(getStrafeInputMode(), "toggle")
 assert.deepEqual(getInputBinding("moveUp"), {
 	device: "key",
 	input: "w",
@@ -18,15 +21,23 @@ assert.deepEqual(getInputBinding("moveDown"), {
 })
 assert.deepEqual(getInputBinding("primaryWheel"), {
 	device: "key",
-	input: "shift",
+	input: "q",
 })
 assert.deepEqual(getInputBinding("lasso"), {
-	device: "key",
-	input: "q",
+	device: "mouse",
+	input: "right",
 })
 assert.deepEqual(getInputBinding("secondary"), {
 	device: "key",
 	input: "e",
+})
+assert.deepEqual(getInputBinding("strafe"), {
+	device: "key",
+	input: "shift",
+})
+assert.deepEqual(getInputBinding("mobility"), {
+	device: "key",
+	input: "space",
 })
 
 let changeCount = 0
@@ -50,7 +61,11 @@ unsubscribe()
 assert.equal(formatInputBinding({ device: "mouse", input: "right" }), "RIGHT MOUSE")
 assert.equal(formatInputBinding({ device: "key", input: "escape" }), "ESC")
 
+setStrafeInputMode("hold")
+assert.equal(getStrafeInputMode(), "hold")
+
 resetInputBindings()
+assert.equal(getStrafeInputMode(), "toggle")
 assert.deepEqual(getInputBinding("moveUp"), {
 	device: "key",
 	input: "w",

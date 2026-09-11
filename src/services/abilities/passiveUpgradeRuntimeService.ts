@@ -2,23 +2,28 @@ import type { GameObj, PosComp, Vec2 } from "kaplay"
 import { k, layers, mainSoundVolume } from "../../main"
 import { player } from "../../player"
 import { spawnFlash } from "../../spawn/spawnFlash"
+import { getPilotProtocolValue } from "../hub/pilotProtocolService"
 import { spawnRing } from "../../spawn/spawnRing"
 import { tags } from "../../tags"
 import { applyDamage } from "../combat/damageService"
 import { forEachSpatialNearby } from "../core/runtimeSpatialIndexService"
 import { gameSoundService } from "../audio/gameSoundService"
+import {
+	getDamageFromPrimaryRatio,
+} from "../player/playerCombatScalingService"
 
 const SAW_ORBIT_RADIUS = 42
-const SAW_DAMAGE = 3
+const SAW_DAMAGE_RATIO = 1.5
 const SAW_HIT_COOLDOWN = 0.28
-const RAM_DAMAGE = 6
+const RAM_DAMAGE_RATIO = 3
 const RAM_HIT_COOLDOWN = 0.45
 const NEAR_MISS_INNER_RADIUS = 18
 const NEAR_MISS_OUTER_RADIUS = 42
 const NEAR_MISS_REQUIRED = 5
 const NEAR_MISS_BURST_RADIUS = 180
-const NEAR_MISS_BURST_DAMAGE = 8
-const RESONANCE_DAMAGE_THRESHOLD = 8
+const NEAR_MISS_BURST_DAMAGE_RATIO = 4
+const RESONANCE_DAMAGE_THRESHOLD_RATIO = 4
+const RESONANCE_DAMAGE_RATIO_PER_STACK = 0.1875
 
 let sawSatellite: GameObj | undefined
 let sawOrbitAngle = 0
@@ -110,20 +115,28 @@ function updateSawSatellite(playerObj: GameObj<PosComp>) {
 	}, (enemy) => {
 		const nextHitAt = sawHitTimes.get(enemy) ?? 0
 		if (k.time() < nextHitAt) return
-		if (!applyDamage(enemy, SAW_DAMAGE, { position: sawSatellite?.pos })) return
+		if (!applyDamage(
+			enemy,
+			getDamageFromPrimaryRatio(SAW_DAMAGE_RATIO),
+			{ position: sawSatellite?.pos }
+		)) return
 		sawHitTimes.set(enemy, k.time() + SAW_HIT_COOLDOWN)
 		spawnFlash(sawSatellite!.pos.clone(), 5, k.WHITE)
 	})
 }
 
 function updateKineticRam(playerObj: GameObj<PosComp>, isBoosting: boolean) {
-	if (player.kineticRam === undefined || !isBoosting) return
+	const impactBonus = getPilotProtocolValue("impactDoctrine")
+	if ((player.kineticRam === undefined && impactBonus <= 0) || !isBoosting) return
 	forEachSpatialNearby(playerObj.pos, 30, {
 		allTags: [tags.unit, tags.enemy],
 	}, (enemy) => {
 		const nextHitAt = ramHitTimes.get(enemy) ?? 0
 		if (k.time() < nextHitAt) return
-		if (!applyDamage(enemy, RAM_DAMAGE, { position: enemy.pos?.clone() })) return
+		const damage = getDamageFromPrimaryRatio(RAM_DAMAGE_RATIO, {
+			movementMultiplier: player.speedMultiplier,
+		}) * (1 + impactBonus / 100)
+		if (!applyDamage(enemy, damage, { position: enemy.pos?.clone() })) return
 		ramHitTimes.set(enemy, k.time() + RAM_HIT_COOLDOWN)
 		const away = enemy.pos.sub(playerObj.pos)
 		if (away.len() > 0.001) enemy.pos = enemy.pos.add(away.unit().scale(18))
@@ -227,16 +240,20 @@ export function triggerResonanceCoil(
 	directDamage: number
 ) {
 	const stacks = player.resonanceCoilStacks
+	const damageThreshold = getDamageFromPrimaryRatio(
+		RESONANCE_DAMAGE_THRESHOLD_RATIO
+	)
 	if (
 		stacks <= 0 ||
-		directDamage < RESONANCE_DAMAGE_THRESHOLD ||
+		directDamage < damageThreshold ||
 		!projectile.tags.includes(tags.friendly) ||
 		k.time() < resonanceReadyAt
 	) return
 
 	const cooldown = Math.max(4, 9 - stacks)
 	const radius = 60 + stacks * 10
-	const damage = 1.5 + stacks * 1.5
+	const damageRatio = RESONANCE_DAMAGE_RATIO_PER_STACK * (stacks + 1)
+	const damage = directDamage * damageRatio
 	resonanceReadyAt = k.time() + cooldown
 	resonanceCooldownDuration = cooldown
 	procSerials.resonanceCoil++
@@ -293,7 +310,11 @@ function spawnNearMissBurst(playerObj: GameObj<PosComp>) {
 	forEachSpatialNearby(playerObj.pos, NEAR_MISS_BURST_RADIUS, {
 		allTags: [tags.unit, tags.enemy],
 	}, (enemy) => {
-		applyDamage(enemy, NEAR_MISS_BURST_DAMAGE, { position: enemy.pos?.clone() })
+		applyDamage(
+			enemy,
+			getDamageFromPrimaryRatio(NEAR_MISS_BURST_DAMAGE_RATIO),
+			{ position: enemy.pos?.clone() }
+		)
 	})
 	spawnRing({
 		pos: playerObj.pos.clone(),

@@ -30,7 +30,7 @@ export const afterburnerWake: UpgradeDefinition = {
 	levels: [
 		{
 			name: "Plasma Trail",
-			desc: "Overclocked thrusters leave a burning wake that damages enemies",
+			desc: "Overclocked thrusters leave a burning wake that deals 100% primary damage",
 			sprite: "overclock_thrusters_upg1",
 			price: 28,
 			effects: {
@@ -94,14 +94,31 @@ export const phaseEcho: UpgradeDefinition = {
 	toolName: "Phase echo",
 	category: "movement",
 	type: "passive",
-	requirements: { allOf: [{ toolKey: "spaceJump" }] },
+	requirements: { allOf: [{ toolKey: "phaseJump" }] },
 	levels: [{
 		name: "Phase Echo",
-		desc: "Phase jump leaves a decoy that pulls enemies in and detonates",
+		desc: "Phase jump leaves a decoy that pulls enemies in and detonates for 400% primary damage",
 		sprite: "phase_echo_upg1",
 		price: 36,
 		effects: {
 			unlocks: [{ unlockId: "phaseEcho", description: "Phase jumps leave explosive decoys" }],
+		},
+	}],
+}
+
+export const phaseWake: UpgradeDefinition = {
+	toolKey: "phaseWake",
+	toolName: "Phase wake",
+	category: "movement",
+	type: "passive",
+	requirements: { allOf: [{ toolKey: "phaseJump" }] },
+	levels: [{
+		name: "Phase Wake",
+		desc: "Phase jump leaves a wake that slows hostiles and accelerates you when crossed again",
+		sprite: "phase_wake_upg1",
+		price: 38,
+		effects: {
+			unlocks: [{ unlockId: "phaseWake", description: "Phase jumps leave a reusable acceleration wake" }],
 		},
 	}],
 }
@@ -130,7 +147,7 @@ export const reactivePlating: UpgradeDefinition = {
 	type: "passive",
 	levels: [{
 		name: "Reactive Plating",
-		desc: "Hull damage releases a close-range armor blast, with a short cooldown",
+		desc: "Hull damage releases a close-range blast for 300% primary damage, with a short cooldown",
 		sprite: "reactive_plating_upg1",
 		price: 34,
 		effects: {
@@ -196,7 +213,7 @@ export const sawSatellite: UpgradeDefinition = {
 	type: "passive",
 	levels: [{
 		name: "Saw Satellite",
-		desc: "A toothed satellite orbits the ship, damaging enemies and cutting down hostile projectiles",
+		desc: "A toothed satellite orbits the ship, dealing 150% primary damage per hit and cutting down hostile projectiles",
 		sprite: "saw_satellite_upg1",
 		price: 36,
 		effects: {
@@ -211,11 +228,11 @@ export const kineticRam: UpgradeDefinition = {
 	category: "movement",
 	type: "passive",
 	requirements: {
-		anyOf: [{ toolKey: "thrusterOverdrive" }, { toolKey: "spaceJump" }],
+		anyOf: [{ toolKey: "thrusterOverdrive" }, { toolKey: "phaseJump" }],
 	},
 	levels: [{
 		name: "Kinetic Ram",
-		desc: "Boosting collisions and Phase Jump paths deal heavy impact damage",
+		desc: "Boosting collisions and Phase Jump paths deal 300% primary damage, scaled by movement speed",
 		sprite: "kinetic_ram_upg1",
 		price: 38,
 		effects: {
@@ -231,7 +248,7 @@ export const nearMissCapacitor: UpgradeDefinition = {
 	type: "passive",
 	levels: [{
 		name: "Near-Miss Capacitor",
-		desc: "Graze five hostile projectiles to discharge a damaging defensive shockwave",
+		desc: "Graze five hostile projectiles to discharge a shockwave for 400% primary damage",
 		sprite: "near_miss_capacitor_upg1",
 		price: 40,
 		effects: {

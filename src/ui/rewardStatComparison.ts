@@ -16,8 +16,9 @@ import { BASE_PLAYER_HEALTH } from "../services/player/playerHealthBalance"
 
 const BASE_STAT_VALUES: Readonly<Record<string, number>> = {
 	blasterCount: 1,
-	followerBlasterDmg: 1,
+	followerBlasterDmg: 0.5,
 	maxHealth: BASE_PLAYER_HEALTH,
+	maxHealthMultiplier: 1,
 	rocketCount: 3,
 	rocketShards: 0,
 }
@@ -31,9 +32,13 @@ const STAT_LABELS: Readonly<Record<string, string>> = {
 	debreeSeekDistanceMultiplier: "COLLECTION RANGE",
 	debreeValueMultiplier: "SALVAGE VALUE",
 	followerBlasterDmg: "DRONE DAMAGE",
+	spaceJumpDamageRatio: "PHASE RAM DAMAGE",
+	wreckHarvesterDamageRatio: "SHARD DAMAGE",
 	maxHealth: "MAX HULL",
+	maxHealthMultiplier: "MAX HULL",
 	lassoImpactVelocityRetentionBonus: "IMPACT RETENTION",
 	lassoPullAccelerationMultiplier: "PULL ACCELERATION",
+	lassoPullForceMultiplier: "PULL FORCE",
 	lassoRedlineDamageMultiplier: "REDLINE DAMAGE",
 	lassoRedlineLaunchSpeedMultiplier: "REDLINE SPEED",
 	lassoSelfDamageReduction: "SELF DAMAGE REDUCTION",
@@ -52,9 +57,9 @@ const STAT_LABELS: Readonly<Record<string, string>> = {
 	projectilePaintDamage: "BONUS DAMAGE",
 	projectilePaintStacks: "MAX MARK STACKS",
 	projectileProximityDamage: "BLAST DAMAGE",
-	projectileStunChance: "STUN CHANCE",
+	projectileModifierChance: "LOAD CHANCE",
+	projectileModifierChanceBonus: "ALL LOAD CHANCES",
 	projectileStunDuration: "STUN DURATION",
-	projectileEmpChance: "EMP CHANCE",
 	projectileEmpDuration: "EMP DURATION",
 	projectileEmpSlowPercentage: "EMP SLOW",
 	projectileVolatileDamage: "BURST DAMAGE",
@@ -62,7 +67,6 @@ const STAT_LABELS: Readonly<Record<string, string>> = {
 	rocketShards: "SHRAPNEL",
 	speedMultiplier: "MOVE SPEED",
 	strafeSpeedMultiplier: "STRAFE SPEED",
-	sprintSpeedMultiplier: "OVERCLOCK SPEED",
 }
 
 const PERCENTAGE_STATS = new Set([
@@ -80,10 +84,13 @@ const PERCENTAGE_STATS = new Set([
 	"projectilePaintDamage",
 	"projectileProximityDamage",
 	"projectileSlowPercentage",
-	"projectileStunChance",
-	"projectileEmpChance",
+	"projectileModifierChance",
+	"projectileModifierChanceBonus",
 	"projectileEmpSlowPercentage",
 	"projectileVolatileDamage",
+	"followerBlasterDmg",
+	"spaceJumpDamageRatio",
+	"wreckHarvesterDamageRatio",
 ])
 
 const MULTIPLIER_STATS = new Set([

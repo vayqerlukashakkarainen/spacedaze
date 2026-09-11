@@ -106,15 +106,49 @@ const phaseRam = getAllUpgradeDefinitions().find(
 assert(!!phaseRam, "phase ram should be registered")
 assert(phaseRam!.levels.length === 3, "phase ram should have three levels")
 assert(
+	JSON.stringify(phaseRam!.levels.map((level) =>
+		level.effects.modifiers?.find(
+			(modifier) => modifier.stat === "spaceJumpDamageRatio"
+		)?.value
+	)) === JSON.stringify([1.5, 2.5, 4]),
+	"phase ram should scale from primary damage"
+)
+assert(
 	!evaluateRequirements(phaseRam!, () => undefined).met,
-	"phase ram should require Space Jump"
+	"phase ram should require Phase Jump"
 )
 assert(
 	evaluateRequirements(
 		phaseRam!,
-		(toolKey) => toolKey === "spaceJump" ? 0 : undefined
+		(toolKey) => toolKey === "phaseJump" ? 0 : undefined
 	).met,
-	"Space Jump should unlock phase ram"
+	"Phase Jump should unlock phase ram"
+)
+
+const hullUpgrade = getAllUpgradeDefinitions().find(
+	(definition) => definition.toolKey === "maxHealth"
+)
+assert(!!hullUpgrade, "stronger hull should be registered")
+assert(
+	JSON.stringify(hullUpgrade!.levels.map((level) =>
+		level.effects.modifiers?.find(
+			(modifier) => modifier.stat === "maxHealthMultiplier"
+		)?.value
+	)) === JSON.stringify([1.15, 1.3, 1.45, 1.6, 1.75, 1.9, 2.05]),
+	"stronger hull should use aggregate maximum-health multipliers"
+)
+
+const followerDamage = getAllUpgradeDefinitions().find(
+	(definition) => definition.toolKey === "followerBlasterDmg"
+)
+assert(!!followerDamage, "follower damage should be registered")
+assert(
+	JSON.stringify(followerDamage!.levels.map((level) =>
+		level.effects.modifiers?.find(
+			(modifier) => modifier.stat === "followerBlasterDmg"
+		)?.value
+	)) === JSON.stringify([0.5, 1]),
+	"followers should use primary-damage ratios"
 )
 
 const lassoUpgradeKeys = [
@@ -160,6 +194,10 @@ for (const [toolKey, ingredients] of Object.entries(alterationIngredients)) {
 		(definition) => definition.toolKey === toolKey
 	)
 	assert(!!upgrade?.alteration, `${toolKey} should be a registered alteration`)
+	assert(
+		upgrade?.category === "alteration",
+		`${toolKey} should be listed in the alteration category`
+	)
 	assert(
 		!evaluateRequirements(upgrade!, () => undefined).met,
 		`${toolKey} should stay locked without its ingredients`

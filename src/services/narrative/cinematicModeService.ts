@@ -12,7 +12,6 @@ interface HiddenUiState {
 const CINEMATIC_UI_TAGS = [
 	tags.gameLoopUi,
 	tags.damageNumber,
-	"debug",
 ] as const
 
 let kaplayContext: KAPLAYCtx | undefined

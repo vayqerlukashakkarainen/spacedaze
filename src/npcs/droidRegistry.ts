@@ -79,6 +79,45 @@ export const DROID_REGISTRY: readonly DroidDefinition[] = [
 			"Played six seconds of celebratory music before being destroyed.",
 		],
 	},
+	{
+		id: "armorer",
+		kind: "droid",
+		name: "ARMORER",
+		model: "FOUNDRY DROID",
+		role: "WEAPON PATTERN RECONSTRUCTOR",
+		sprite: "hub_droid_armorer",
+		summary: "A meticulous foundry droid that reconstructs cleared weapon patterns from deposited salvage.",
+		archiveNotes: [
+			"Maintains the training range's recovered weapon-pattern archive.",
+			"Charges heavily for first builds because test failures are considered part of the material cost.",
+		],
+	},
+	{
+		id: "quartermaster",
+		kind: "droid",
+		name: "QUARTERMASTER",
+		model: "LOGISTICS DROID",
+		role: "EXPEDITION SUPPLY OFFICER",
+		sprite: "hub_droid_quartermaster",
+		summary: "A severe logistics droid that converts deposited salvage into permanent expedition support.",
+		archiveNotes: [
+			"Maintains the station's reserve launch supplies and reconstruction records.",
+			"Will not extend credit, regardless of projected survival probability.",
+		],
+	},
+	{
+		id: "race-marshal",
+		kind: "droid",
+		name: "RACE MARSHAL",
+		model: "CIRCUIT MARSHAL",
+		role: "HUB RACE OBSERVER",
+		sprite: "hub_droid_race_marshal",
+		summary: "A track marshal watching the restored hub attract reckless pilots again.",
+		archiveNotes: [
+			"Marks the circuit with magnetic lamps rather than painted lines.",
+			"Considers engine noise the most reliable sign that Drius Wake is alive.",
+		],
+	},
 ]
 
 export function getDroidDiscoveryKey(id: DroidId) {

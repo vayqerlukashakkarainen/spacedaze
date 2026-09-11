@@ -4,7 +4,6 @@ import { grantRerollTokens, loadPlayer, player } from "../../player"
 import { tags } from "../../tags"
 import {
 	PowerupKey,
-	powerupReq,
 	powerups,
 	powerupsSprites,
 } from "../../powerups"
@@ -44,6 +43,7 @@ import {
 } from "../abilities/activeModuleService"
 import {
 	clampRewardRarity,
+	formatScaledUpgradeDescription,
 	getRarityRank,
 	REWARD_RARITY_ORDER,
 	scaleUpgradeEffects,
@@ -79,6 +79,10 @@ import {
 	meetsRewardUnlockRequirements,
 	type RewardUnlockRequirementSet,
 } from "../progression/rewardUnlockProgressService"
+import {
+	getExtraLifeSnapshot,
+	refillExtraLifeCharge,
+} from "../progression/extraLifeService"
 
 export { RewardRarity }
 export type { RewardKind, RewardSource }
@@ -231,7 +235,6 @@ const powerupRewardRegistry: Record<PowerupKey, RewardDefinition> = {
 		progression: scalingProgression(RewardRarity.Uncommon, "stack"),
 		allowedSources: ["crate", "enemy", "boss"],
 		weights: { crate: 120, enemy: 120, boss: 180 },
-		canReceive: powerupReq.addExtraRockets,
 	},
 	addSpaceDebree: {
 		id: "addSpaceDebree",
@@ -245,7 +248,6 @@ const powerupRewardRegistry: Record<PowerupKey, RewardDefinition> = {
 		progression: scalingProgression(RewardRarity.Common, "stack"),
 		allowedSources: ["crate", "enemy", "boss"],
 		weights: { crate: 110, enemy: 110, boss: 160 },
-		canReceive: powerupReq.addSpaceDebree,
 	},
 	addPrimaryRocketChance: {
 		id: "addPrimaryRocketChance",
@@ -288,6 +290,22 @@ const itemRewardRegistry: Record<string, RewardDefinition> = {
 		progression: scalingProgression(RewardRarity.Uncommon, "stack"),
 		allowedSources: ["enemy", "boss"],
 		weights: { enemy: 60, boss: 120 },
+	},
+	phaseRecallCharge: {
+		id: "phaseRecallCharge",
+		kind: "item",
+		name: "PHASE RECALL CHARGE",
+		description: "Replenishes one spent Phase Recall charge",
+		stats: { phaseRecall: "+1 CHARGE" },
+		sprite: "phase_recall_upg1",
+		rarity: RewardRarity.Legendary,
+		progression: fixedProgression(RewardRarity.Legendary, "stack", "run"),
+		allowedSources: ["crate"],
+		weights: { crate: 18 },
+		canReceive: () => {
+			const snapshot = getExtraLifeSnapshot()
+			return snapshot.capacity > 0 && snapshot.remaining < snapshot.capacity
+		},
 	},
 }
 
@@ -711,6 +729,11 @@ export function applyReward(reward: Reward, pos: Vec2): boolean {
 		grantRerollTokens(reward.quantity ?? 1)
 		return true
 	}
+	if (reward.kind === "item" && reward.id === "phaseRecallCharge") {
+		const previousRemaining = getExtraLifeSnapshot().remaining
+		const result = refillExtraLifeCharge(reward.quantity ?? 1)
+		return result.remaining > previousRemaining
+	}
 
 	if (reward.kind === "powerup" && reward.powerupKey) {
 		for (let index = 0; index < (reward.quantity ?? 1); index++) {
@@ -778,10 +801,8 @@ function buildActiveModuleReward(
 }
 
 function isRocketDependentReward(definition: RewardDefinition) {
-	if (definition.powerupKey === "addExtraRockets") return true
-	if (definition.powerupKey === "addSpaceDebree") return true
-	return definition.upgradeKey === "nrOfRockets" ||
-		definition.upgradeKey === "rocketShards"
+	return definition.powerupKey === "addExtraRockets" ||
+		definition.powerupKey === "addSpaceDebree"
 }
 
 function buildWeaponReward(weapon: WeaponDefinition): RewardDefinition {
@@ -796,7 +817,11 @@ function buildWeaponReward(weapon: WeaponDefinition): RewardDefinition {
 			? `${weapon.pattern?.projectileCount} PROJECTILES`
 			: (weapon.pattern?.burstCount ?? 1) > 1
 				? `${weapon.pattern?.burstCount}-ROUND BURST`
-				: weapon.splash
+				: weapon.mine
+					? `MINE FIELD x${weapon.mine.maxActive ?? 1}`
+					: weapon.returning
+						? "RETURNING SHOT"
+						: weapon.splash
 					? `SPLASH ${weapon.splash.radius}`
 					: weapon.piercing
 						? `PIERCE +${weapon.piercing.maxPierces}`
@@ -897,6 +922,8 @@ function buildUpgradeReward(
 		? true
 		: false
 	const permanent = isPermanentUpgradeKey(toolKey)
+	const permanentCrateEnabled = permanent &&
+		policy.allowedSources.includes("crate")
 	const repeatability = definition.levels.length > 1 ? "stack" : "once"
 	const rarity = permanent ? RewardRarity.Legendary : policy.rarity
 	const levelDescription = toolKey === "tacticalUplink"
@@ -936,9 +963,11 @@ function buildUpgradeReward(
 				repeatability,
 				"run"
 			),
-		allowedSources: permanent ? ["crate"] : policy.allowedSources,
+		allowedSources: permanent
+			? permanentCrateEnabled ? ["crate"] : []
+			: policy.allowedSources,
 		weights: permanent
-			? { crate: policy.weights.crate ?? 1 }
+			? permanentCrateEnabled ? { crate: policy.weights.crate ?? 1 } : {}
 			: policy.weights,
 		minimumHubLevel: policy.minimumHubLevel,
 		canReceive: () =>
@@ -1016,10 +1045,13 @@ const PROJECTILE_DAMAGE_PERCENTAGE_STATS = new Set([
 	"projectilePartDamageMultiplier",
 	"projectilePaintDamage",
 	"projectileProximityDamage",
-	"projectileStunChance",
-	"projectileEmpChance",
+	"projectileModifierChance",
+	"projectileModifierChanceBonus",
 	"projectileEmpSlowPercentage",
 	"projectileVolatileDamage",
+	"followerBlasterDmg",
+	"spaceJumpDamageRatio",
+	"wreckHarvesterDamageRatio",
 ])
 
 function formatMultiplier(value: number) {
@@ -1193,7 +1225,7 @@ function toReward(
 		? formatUpgradeStats(scaledEffects)
 		: scaleQuantityStats(definition.stats, quantity)
 	const description = level && scaledEffects
-		? formatScaledDescription(level.desc, level.effects, scaledEffects)
+		? formatScaledUpgradeDescription(level.desc, level.effects, scaledEffects)
 		: quantity && quantity > 1
 			? `${definition.description}\nRARITY BONUS: APPLIES ${quantity} TIMES`
 			: definition.description
@@ -1328,31 +1360,4 @@ function scaleQuantityStats(
 		if (!match) return [key, value]
 		return [key, `+${Number(match[1]) * quantity}${match[2]}`]
 	}))
-}
-
-function formatScaledDescription(
-	description: string,
-	baseEffects: UpgradeEffect,
-	scaledEffects: UpgradeEffect
-) {
-	let result = description
-	for (let index = 0; index < (baseEffects.modifiers?.length ?? 0); index++) {
-		const base = baseEffects.modifiers?.[index]?.value
-		const scaled = scaledEffects.modifiers?.[index]?.value
-		if (base === undefined || scaled === undefined || base === scaled) continue
-		const percentPattern = `${Math.round(base * 100)}%`
-		if (result.includes(percentPattern)) {
-			result = result.replace(percentPattern, `${Math.round(scaled * 100)}%`)
-			continue
-		}
-		result = result.replace(
-			new RegExp(`\\b${escapeRegExp(String(base))}\\b`),
-			String(scaled)
-		)
-	}
-	return result
-}
-
-function escapeRegExp(value: string) {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }

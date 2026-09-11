@@ -49,6 +49,7 @@ export function spawnVolatileCargoObjective(
 		k.anchor("center"),
 		k.outline(2, k.rgb(255, 145, 45)),
 		k.opacity(0.75),
+		k.scale(1),
 		k.layer(layers.gameEffects),
 		k.z(-1),
 	])

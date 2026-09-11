@@ -1,3 +1,6 @@
+import { getBuildLimits } from "../../config/buildProfile"
+import { getPilotProtocolValue } from "./pilotProtocolService"
+
 export type HubFacilityId =
 	| "contractTerminal"
 	| "salvageForge"
@@ -81,7 +84,9 @@ export function getHubLevel() {
 
 export function getHubLevelForDeposited(xp: number) {
 	let level = 1
+	const maximumLevel = getBuildLimits().maxHubLevel
 	for (const definition of HUB_LEVELS) {
+		if (definition.level > maximumLevel) break
 		if (definition.requiredDeposited > xp) break
 		level = definition.level
 	}
@@ -100,10 +105,16 @@ export function getHubLevelDefinition(level: number) {
 	return HUB_LEVELS.find((definition) => definition.level === level) ?? HUB_LEVELS[0]
 }
 
+export function getNextHubLevelDefinition(level: number) {
+	const nextLevel = level + 1
+	if (nextLevel > getBuildLimits().maxHubLevel) return undefined
+	return HUB_LEVELS.find((definition) => definition.level === nextLevel)
+}
+
 export function getHubLevelProgress() {
 	const level = getHubLevel()
 	const current = getHubLevelDefinition(level)
-	const next = HUB_LEVELS.find((definition) => definition.level === level + 1)
+	const next = getNextHubLevelDefinition(level)
 	if (!next) {
 		return { level, current: progress.lifetimeDeposited, required: progress.lifetimeDeposited, progress: 1 }
 	}
@@ -119,9 +130,11 @@ export function getHubLevelProgress() {
 
 export function recordHubDeposit(amount: number): HubDepositResult {
 	const deposited = normalizeAmount(amount)
+	const restorationBonus = getPilotProtocolValue("restorationTithe")
+	const credited = deposited + Math.round(deposited * restorationBonus / 100)
 	const previousXp = progress.lifetimeDeposited
 	const previousLevel = getHubLevelForDeposited(previousXp)
-	progress.lifetimeDeposited += deposited
+	progress.lifetimeDeposited += credited
 	const currentLevel = getHubLevel()
 	const unlocks = HUB_LEVELS
 		.filter((definition) => definition.level > previousLevel && definition.level <= currentLevel)

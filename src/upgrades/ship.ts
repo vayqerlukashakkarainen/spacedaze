@@ -1,4 +1,5 @@
 import { Tool } from "../upg";
+import { PLAYER_TURRET_CONE_LEVEL_DEGREES } from "../services/input/playerSteeringModeService"
 
 export const salvageLasso: Tool = {
 	toolName: "Salvage Lasso",
@@ -43,7 +44,7 @@ export const kineticCoupler = lassoTool(
 
 export const torqueSpool = lassoTool(
 	"Torque Spool",
-	["Pull tethered objects with 10% more acceleration", "Pull tethered objects with 20% more acceleration", "Pull tethered objects with 30% more acceleration"],
+	["Gain 10% pull acceleration and 15% pull force", "Gain 20% pull acceleration and 30% pull force", "Gain 30% pull acceleration and 50% pull force"],
 	"torque_spool_upg1",
 	[1.1, 1.2, 1.3],
 	[22, 30, 40]
@@ -114,27 +115,6 @@ export const debreeDist: Tool = {
 	],
 };
 
-export const sprintSpeed: Tool = {
-	toolName: "Thrusters cooling",
-	requirements: { allOf: [{ toolKey: "thrusterOverdrive" }] },
-	upgrades: [
-		{
-			name: "Level 1",
-			desc: "Pouring unknown liquid on the thrusters seems to make them go faster during overclock??",
-			sprite: "faster_speed_upg1",
-			price: 32,
-			value: 1.3,
-		},
-		{
-			name: "Level 2",
-			desc: "Pour more liquid, the ship probably need some pumps soon...",
-			sprite: "faster_speed_upg1",
-			price: 32,
-			value: 1.4,
-		},
-	],
-};
-
 export const spaceJump: Tool = {
 	toolName: "Space Jump",
 	upgrades: [
@@ -171,28 +151,28 @@ export const spaceJumpUpgrades: Tool = {
 
 export const phaseRam: Tool = {
 	toolName: "Phase Ram",
-	requirements: { allOf: [{ toolKey: "spaceJump" }] },
+	requirements: { allOf: [{ toolKey: "phaseJump" }] },
 	upgrades: [
 		{
 			name: "Level 1",
-			desc: "Space Jump damages enemies passed through",
+			desc: "Phase Jump deals 150% primary damage, scaled by movement speed",
 			sprite: "space_jump_upg1",
 			price: 36,
-			value: 3,
+			value: 1.5,
 		},
 		{
 			name: "Level 2",
-			desc: "Increase Space Jump impact damage",
+			desc: "Phase Jump deals 250% primary damage, scaled by movement speed",
 			sprite: "space_jump_upg1",
 			price: 48,
-			value: 5,
+			value: 2.5,
 		},
 		{
 			name: "Level 3",
-			desc: "Further increase Space Jump impact damage",
+			desc: "Phase Jump deals 400% primary damage, scaled by movement speed",
 			sprite: "space_jump_upg1",
 			price: 62,
-			value: 8,
+			value: 4,
 		},
 	],
 };
@@ -272,57 +252,17 @@ export const debreeValue: Tool = {
 
 export const maxHealth: Tool = {
 	toolName: "Stronger hull",
-	upgrades: [
-		{
-			name: "Level 1",
-			desc: "Upgrade hull and increase health by 15",
+	upgrades: [1.15, 1.3, 1.45, 1.6, 1.75, 1.9, 2.05].map(
+		(multiplier, index) => ({
+			name: `Level ${index + 1}`,
+			desc: `Increase maximum health by ${Math.round(
+				(multiplier - 1) * 100
+			)}%`,
 			sprite: "hull_upg1",
 			price: 32,
-			value: 115,
-		},
-		{
-			name: "Level 2",
-			desc: "Upgrade hull and increase health by 15",
-			sprite: "hull_upg1",
-			price: 32,
-			value: 130,
-		},
-		{
-			name: "Level 3",
-			desc: "Upgrade hull and increase health by 15",
-			sprite: "hull_upg1",
-			price: 32,
-			value: 145,
-		},
-		{
-			name: "Level 4",
-			desc: "Upgrade hull and increase health by 15",
-			sprite: "hull_upg1",
-			price: 32,
-			value: 160,
-		},
-		{
-			name: "Level 5",
-			desc: "Upgrade hull and increase health by 15",
-			sprite: "hull_upg1",
-			price: 32,
-			value: 175,
-		},
-		{
-			name: "Level 6",
-			desc: "Upgrade hull and increase health by 15",
-			sprite: "hull_upg1",
-			price: 32,
-			value: 190,
-		},
-		{
-			name: "Level 7",
-			desc: "Upgrade hull and increase health by 15",
-			sprite: "hull_upg1",
-			price: 32,
-			value: 205,
-		},
-	],
+			value: multiplier,
+		})
+	),
 };
 
 export const extraLife: Tool = {
@@ -350,4 +290,15 @@ export const extraLife: Tool = {
 			value: 3,
 		},
 	],
+};
+
+export const turretTraverse: Tool = {
+	toolName: "Turret Traverse",
+	upgrades: PLAYER_TURRET_CONE_LEVEL_DEGREES.map((degrees, index) => ({
+		name: `Mark ${["I", "II", "III", "IV", "V", "VI"][index]}`,
+		desc: `Expand the primary weapon firing cone to ${degrees} degrees`,
+		sprite: "turret_traverse_upg1",
+		price: 32,
+		value: degrees,
+	})),
 };

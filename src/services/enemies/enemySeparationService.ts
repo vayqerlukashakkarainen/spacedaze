@@ -36,7 +36,7 @@ export function updateEnemySeparation(context: RunFrameContext) {
 		separationElapsed = 0
 		return
 	}
-	const enemies = getRuntimeEnemyUnits() as GameObj[]
+	const enemies = getRuntimeEnemyUnits()
 	const interval = enemies.length >= CROWDED_ENEMY_THRESHOLD
 		? CROWDED_SEPARATION_INTERVAL
 		: SEPARATION_INTERVAL
@@ -105,7 +105,7 @@ export function updateEnemySeparation(context: RunFrameContext) {
 	setPerformanceCounter("enemySeparationCorrections", correctedEnemies)
 }
 
-function prepareAccumulators(enemies: GameObj[]) {
+function prepareAccumulators(enemies: readonly GameObj[]) {
 	enemyIndices.clear()
 	correctionX.length = enemies.length
 	correctionY.length = enemies.length

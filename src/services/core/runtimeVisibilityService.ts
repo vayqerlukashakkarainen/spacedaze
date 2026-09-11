@@ -72,8 +72,8 @@ export function updateRuntimeVisibility(context: RunFrameContext) {
 function ensureRegistry() {
 	if (initialized) return
 	initialized = true
-	for (const obj of k.get<GameObj>(tags.gameLoop)) registerObject(obj)
-	for (const obj of k.get<GameObj>(tags.runtimeCullable)) registerObject(obj)
+	for (const obj of k.get(tags.gameLoop)) registerObject(obj)
+	for (const obj of k.get(tags.runtimeCullable)) registerObject(obj)
 	k.onAdd(tags.gameLoop, registerObject)
 	k.onAdd(tags.runtimeCullable, registerObject)
 	k.onTag(tags.runtimeCullable, registerObject)

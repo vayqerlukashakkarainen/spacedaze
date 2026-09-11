@@ -1,15 +1,24 @@
-import type { GameObj, Vec2 } from "kaplay"
+import type { Color, GameObj, PosComp, Vec2 } from "kaplay"
 import { k, mainSoundVolume } from "../../main"
 import { player } from "../../player"
 import { resolveCriticalDamage } from "../../projectiles/shared"
-import { spawnExplosionEffect, spawnFlash } from "../../spawn/spawnFlash"
+import {
+	spawnExplosionEffect,
+	spawnExplosiveBarrelExplosionEffect,
+	spawnFlash,
+} from "../../spawn/spawnFlash"
 import { spawnRing } from "../../spawn/spawnRing"
 import { tags } from "../../tags"
 import { applyDamage } from "./damageService"
-import { applyExplosionPulse } from "./explosionPulseService"
+import {
+	applyDefaultExplosionForce,
+	applyExplosionForce,
+	applyExplosionPulse,
+} from "./explosionPulseService"
 import { audioService } from "../audio/audioService"
 import { querySpatialNearby } from "../core/runtimeSpatialIndexService"
 import type { CombatCredit } from "../progression/combatCredit"
+import { damageDestructibleWallsInRadius } from "../world/destructibleWallService"
 
 export interface ExplosionOptions {
 	pos: Vec2
@@ -19,9 +28,14 @@ export interface ExplosionOptions {
 	visualScale?: number
 	visualIntensity?: number
 	visualParticleCount?: number
+	visualStyle?: "default" | "explosiveBarrel"
 	persistentSmoke?: boolean
 	damageFalloff?: number
 	falloffDistance?: number
+	forceStrength?: number
+	forceRadius?: number
+	suppressForce?: boolean
+	forceExcludeIds?: readonly number[]
 	canCrit?: boolean
 	targets?: GameObj[]
 	onResolved?: (explosion: ExplosionContext) => void
@@ -29,7 +43,7 @@ export interface ExplosionOptions {
 }
 
 export interface ExplosionHit {
-	target: GameObj
+	target: GameObj<PosComp>
 	damage: number
 	critical: boolean
 }
@@ -64,21 +78,36 @@ export function createExplosion(options: ExplosionOptions) {
 		})
 	}
 
-	spawnExplosionEffect(
-		context.pos,
-		context.radius * (context.visualScale ?? 1),
-		{
-			ringIntensity: context.visualIntensity,
-			particleCount: context.visualParticleCount,
-			color: context.visualColor,
-			persistentSmoke: context.persistentSmoke,
-		}
-	)
-	applyPlayerExplosionPulse(context)
+	if (context.visualStyle === "explosiveBarrel") {
+		spawnExplosiveBarrelExplosionEffect(context.pos, context.radius)
+	} else {
+		spawnExplosionEffect(
+			context.pos,
+			context.radius * (context.visualScale ?? 1),
+			{
+				ringIntensity: context.visualIntensity,
+				particleCount: context.visualParticleCount,
+				color: context.visualColor,
+				persistentSmoke: context.persistentSmoke,
+			}
+		)
+	}
+	if (context.combatCredit?.explosive === true) {
+		damageDestructibleWallsInRadius(
+			context.pos,
+			context.radius,
+			context.damage,
+			{ explosive: true }
+		)
+	}
 	let playedCritSound = false
 
 	for (const target of context.targets) {
-		if (!target.exists() || !target.pos || target.pos.dist(context.pos) >= context.radius) {
+		if (
+			!target.exists() ||
+			!hasPosition(target) ||
+			target.pos.dist(context.pos) >= context.radius
+		) {
 			continue
 		}
 		const result = context.canCrit === false
@@ -109,9 +138,28 @@ export function createExplosion(options: ExplosionOptions) {
 			}
 		}
 	}
+	applyPlayerExplosionPulse(context)
+	if (!context.suppressForce) {
+		if (context.forceStrength === undefined && context.forceRadius === undefined) {
+			applyDefaultExplosionForce(context.pos, context.radius, {
+				excludeIds: context.forceExcludeIds,
+			})
+		} else {
+			applyExplosionForce(
+				context.pos,
+				context.forceRadius ?? context.radius * 1.15,
+				context.forceStrength ?? k.clamp(context.radius * 1.35, 48, 190),
+				{ excludeIds: context.forceExcludeIds }
+			)
+		}
+	}
 	context.onResolved?.(context)
 
 	return context
+}
+
+function hasPosition(target: GameObj): target is GameObj<PosComp> {
+	return target.pos !== undefined && typeof target.pos?.dist === "function"
 }
 
 function applyPlayerExplosionPulse(context: ExplosionContext) {

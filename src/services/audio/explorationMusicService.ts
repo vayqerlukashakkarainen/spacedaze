@@ -3,12 +3,16 @@ import { selectFloorMusicTrack } from "../../levels/floorThemes/floorThemeDirect
 import { audioService } from "./audioService"
 import { getWarpZone } from "../world/warpZoneService"
 
-const NON_COMBAT_MUSIC_MULTIPLIER = 0
+const SAFE_ROOM_MUSIC_MULTIPLIER = 0
+const CHILL_ROOM_MUSIC_MULTIPLIER = 0.28
+const COMBAT_ROOM_MUSIC_MULTIPLIER = 1
 const ROOM_MUSIC_FADE_DURATION = 0.8
 const SAFE_ROOM_AMBIENT_VOLUME = 0.12
 const SAFE_ROOM_AMBIENT_FADE_DURATION = 1.2
 let floorMusicBaseVolume = 1
 let floorMusicMultiplier = 1
+
+export type FloorMusicRoomState = "safe" | "chill" | "combat"
 
 export async function playZoneExplorationMusic(
 	zoneId: string,
@@ -43,6 +47,15 @@ export function playFloorExplorationMusic(
 		audioService.stopMusic()
 		return false
 	}
+	if (song.stems) {
+		audioService.playStemmedMusic(song.music, song.stems, {
+			volume: floorMusicBaseVolume,
+			loop: true,
+			combatIntensity: floorMusicMultiplier,
+		})
+		loadSongData(song.title, song.author, song.albumCover ?? "")
+		return true
+	}
 
 	audioService.playMusic(song.music, {
 		volume: floorMusicBaseVolume * floorMusicMultiplier,
@@ -54,7 +67,20 @@ export function playFloorExplorationMusic(
 }
 
 export function setFloorMusicCombatState(inCombat: boolean) {
-	floorMusicMultiplier = inCombat ? 1 : NON_COMBAT_MUSIC_MULTIPLIER
+	setFloorMusicRoomState(inCombat ? "combat" : "safe")
+}
+
+export function setFloorMusicRoomState(state: FloorMusicRoomState) {
+	floorMusicMultiplier = state === "combat"
+		? COMBAT_ROOM_MUSIC_MULTIPLIER
+		: state === "chill"
+			? CHILL_ROOM_MUSIC_MULTIPLIER
+			: SAFE_ROOM_MUSIC_MULTIPLIER
+	if (audioService.fadeMusicStemIntensity(floorMusicMultiplier, ROOM_MUSIC_FADE_DURATION)) {
+		audioService.fadeMusicBaseVolume(floorMusicBaseVolume, ROOM_MUSIC_FADE_DURATION)
+		audioService.fadeAmbientMusicBaseVolume(0, 0.35, 0, true)
+		return
+	}
 	audioService.fadeMusicBaseVolume(
 		floorMusicBaseVolume * floorMusicMultiplier,
 		ROOM_MUSIC_FADE_DURATION
@@ -63,8 +89,8 @@ export function setFloorMusicCombatState(inCombat: boolean) {
 }
 
 function syncSafeRoomAmbience(fadeInDelay: number) {
-	const inCombat = floorMusicMultiplier > NON_COMBAT_MUSIC_MULTIPLIER
-	if (inCombat) {
+	const musicIsAudible = floorMusicMultiplier > SAFE_ROOM_MUSIC_MULTIPLIER
+	if (musicIsAudible) {
 		audioService.fadeAmbientMusicBaseVolume(0, 0.35, 0, true)
 		return
 	}

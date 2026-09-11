@@ -1,4 +1,5 @@
 import type { UpgradeDefinition, UpgradeLevel } from "../types/upgradeTypes"
+import { THREE_LEVEL_PROJECTILE_MODIFIER_CHANCES } from "../services/combat/playerProjectileModifierChance"
 
 const LEVEL_NAMES = ["Mark I", "Mark II", "Mark III"]
 
@@ -15,13 +16,24 @@ function level(
 		price,
 		sprite,
 		effects: {
-			modifiers: Object.entries(stats).map(([stat, value]) => ({
-				stat,
-				value,
-				type: "base",
-			})),
+			modifiers: [
+				...Object.entries(stats).map(([stat, value]) => ({
+					stat,
+					value,
+					type: "base" as const,
+				})),
+				{
+					stat: "projectileModifierChance",
+					value: THREE_LEVEL_PROJECTILE_MODIFIER_CHANCES[index],
+					type: "base",
+				},
+			],
 		},
 	}
+}
+
+function chanceLabel(index: number) {
+	return Math.round(THREE_LEVEL_PROJECTILE_MODIFIER_CHANCES[index] * 100)
 }
 
 export const fragmentationCore: UpgradeDefinition = {
@@ -31,7 +43,7 @@ export const fragmentationCore: UpgradeDefinition = {
 	type: "passive",
 	levels: [3, 4, 5].map((count, index) => level(
 		index,
-		`Destroyed projectiles burst into ${count} short-lived fragments dealing ${28 + index * 6}% projectile damage each`,
+		`${chanceLabel(index)}% chance to load fragmentation rounds that burst into ${count} short-lived fragments dealing ${28 + index * 6}% projectile damage each`,
 		"fragmentation_core_upg1",
 		28 + index * 8,
 		{
@@ -52,7 +64,7 @@ export const hunterGuidance: UpgradeDefinition = {
 		{ turnSpeed: 0.036, distance: 320 },
 	].map(({ turnSpeed, distance }, index) => level(
 		index,
-		`Target-locked Strafe Mode shots steer within ${distance}px with ${index + 1} guidance strength`,
+		`${chanceLabel(index)}% chance for target-locked Strafe Mode shots to load guidance within ${distance}px with ${index + 1} guidance strength`,
 		"hunter_guidance_upg1",
 		24 + index * 7,
 		{
@@ -69,7 +81,7 @@ export const proximityFuse: UpgradeDefinition = {
 	type: "passive",
 	levels: [20, 25, 30].map((radius, index) => level(
 		index,
-		`Near misses detonate within ${radius}px for ${55 + index * 10}% projectile damage`,
+		`${chanceLabel(index)}% chance to load proximity rounds that detonate near targets within ${radius}px for ${55 + index * 10}% projectile damage`,
 		"proximity_fuse_upg1",
 		30 + index * 8,
 		{
@@ -86,29 +98,12 @@ export const afterimageRounds: UpgradeDefinition = {
 	type: "passive",
 	levels: [1, 2, 3].map((count, index) => level(
 		index,
-		`Shots repeat ${count} ${count === 1 ? "time" : "times"} from their firing point at ${40 + index * 5}% projectile damage`,
+		`${chanceLabel(index)}% chance for shots to repeat ${count} ${count === 1 ? "time" : "times"} from their firing point at ${40 + index * 5}% projectile damage`,
 		"afterimage_rounds_upg1",
 		32 + index * 10,
 		{
 			projectileEchoCount: count,
 			projectileEchoDamage: 0.4 + index * 0.05,
-		}
-	)),
-}
-
-export const boomerangPayload: UpgradeDefinition = {
-	toolKey: "boomerangPayload",
-	toolName: "Boomerang payload",
-	category: "combat",
-	type: "passive",
-	levels: [0.58, 0.72, 0.86].map((speed, index) => level(
-		index,
-		`Projectiles loop back after ${[0.7, 0.62, 0.54][index]} seconds at ${Math.round(speed * 100)}% speed`,
-		"boomerang_payload_upg1",
-		26 + index * 8,
-		{
-			projectileReturnSpeed: speed,
-			projectileReturnDelay: [0.7, 0.62, 0.54][index],
 		}
 	)),
 }
@@ -120,7 +115,7 @@ export const growingCharge: UpgradeDefinition = {
 	type: "passive",
 	levels: [1.45, 1.7, 2].map((damageRatio, index) => level(
 		index,
-		`Shots grow with distance, reaching ${Math.round(damageRatio * 100)}% projectile damage`,
+		`${chanceLabel(index)}% chance to load growing charges that reach ${Math.round(damageRatio * 100)}% projectile damage over distance`,
 		"growing_charge_upg1",
 		24 + index * 8,
 		{
@@ -138,7 +133,7 @@ export const stasisBurst: UpgradeDefinition = {
 	requirements: { allOf: [{ toolKey: "cryoRounds" }] },
 	levels: [70, 95, 125].map((radius, index) => level(
 		index,
-		`Frozen kills release a ${radius}px slowing burst`,
+		`${chanceLabel(index)}% chance for cryogenic rounds to load stasis, releasing a ${radius}px slowing burst on frozen kills`,
 		"stasis_burst_upg1",
 		32 + index * 9,
 		{ projectileStasisRadius: radius }
@@ -153,7 +148,7 @@ export const volatileCorrosion: UpgradeDefinition = {
 	requirements: { allOf: [{ toolKey: "corrosivePayload" }] },
 	levels: [55, 75, 100].map((radius, index) => level(
 		index,
-		`Corroded enemies explode in a ${radius}px cloud for ${[100, 175, 250][index]}% projectile damage and spread corrosion`,
+		`${chanceLabel(index)}% chance for corrosive rounds to become volatile, exploding in a ${radius}px cloud for ${[100, 175, 250][index]}% projectile damage and spreading corrosion`,
 		"volatile_corrosion_upg1",
 		36 + index * 10,
 		{
@@ -171,7 +166,7 @@ export const criticalShatter: UpgradeDefinition = {
 	requirements: { allOf: [{ toolKey: "targetingMatrix" }] },
 	levels: [2, 3, 4].map((count, index) => level(
 		index,
-		`Critical hits release ${count} penetrating shards dealing ${35 + index * 5}% projectile damage each`,
+		`${chanceLabel(index)}% chance to load shatter rounds whose critical hits release ${count} penetrating shards dealing ${35 + index * 5}% projectile damage each`,
 		"critical_shatter_upg1",
 		34 + index * 9,
 		{
@@ -188,7 +183,7 @@ export const executionRounds: UpgradeDefinition = {
 	type: "passive",
 	levels: [1.4, 1.65, 1.9].map((damageRatio, index) => level(
 		index,
-		`Deal ${Math.round(damageRatio * 100)}% projectile damage to enemies below ${[25, 30, 35][index]}% health`,
+		`${chanceLabel(index)}% chance to load execution rounds that deal ${Math.round(damageRatio * 100)}% projectile damage to enemies below ${[25, 30, 35][index]}% health`,
 		"execution_rounds_upg1",
 		24 + index * 7,
 		{
@@ -205,7 +200,7 @@ export const targetPainter: UpgradeDefinition = {
 	type: "passive",
 	levels: [0.08, 0.12, 0.16].map((bonus, index) => level(
 		index,
-		`Hits mark targets for ${Math.round(bonus * 100)}% bonus damage per stack`,
+		`${chanceLabel(index)}% chance to load painter rounds that mark targets for ${Math.round(bonus * 100)}% bonus damage per stack`,
 		"target_painter_upg1",
 		26 + index * 8,
 		{
@@ -221,15 +216,13 @@ export const mineLayer: UpgradeDefinition = {
 	category: "combat",
 	type: "passive",
 	levels: [2.5, 3.5, 4.5].map((duration, index) => {
-		const chance = [0.12, 0.18, 0.24][index]
 		return level(
 			index,
-			`${Math.round(chance * 100)}% chance after 100px to place a mine dealing ${70 + index * 10}% projectile damage`,
+			`${chanceLabel(index)}% chance to load a mine-layer round that deploys 5 mines from your ship over 3 seconds after travelling 100px, dealing ${70 + index * 10}% projectile damage each`,
 			"mine_layer_upg1",
 			30 + index * 9,
 			{
 				projectileMineDuration: duration,
-				projectileMineChance: chance,
 				projectileMineDamage: 0.7 + index * 0.1,
 			}
 		)
@@ -243,7 +236,7 @@ export const voidLance: UpgradeDefinition = {
 	type: "passive",
 	levels: [4, 7, 10].map((pierces, index) => level(
 		index,
-		`Shots phase through ${pierces} extra targets with high damage retention`,
+		`${chanceLabel(index)}% chance to load void lances that phase through ${pierces} extra targets with high damage retention`,
 		"void_lance_upg1",
 		38 + index * 11,
 		{ projectilePhasePierces: pierces }

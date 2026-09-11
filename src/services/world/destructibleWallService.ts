@@ -11,6 +11,7 @@ interface DestructibleWallRegistration extends DestructibleWallState {
 	gridKey: string
 	coord: { q: number; r: number }
 	worldPos?: Vec2
+	requiresExplosive: boolean
 	onDamaged?: (state: DestructibleWallState, impactPos?: Vec2) => void
 	onDestroyed?: (state: DestructibleWallState) => void
 }
@@ -22,6 +23,7 @@ export function registerDestructibleWall(options: {
 	coord: { q: number; r: number }
 	maxHp: number
 	worldPos?: Vec2
+	requiresExplosive?: boolean
 	onDamaged?: (state: DestructibleWallState, impactPos?: Vec2) => void
 	onDestroyed?: (state: DestructibleWallState) => void
 }) {
@@ -32,6 +34,7 @@ export function registerDestructibleWall(options: {
 		maxHp: options.maxHp,
 		destroyed: false,
 		worldPos: options.worldPos?.clone(),
+		requiresExplosive: options.requiresExplosive ?? false,
 		onDamaged: options.onDamaged,
 		onDestroyed: options.onDestroyed,
 	}
@@ -61,13 +64,17 @@ export function getNearestDestructibleWall(pos: Vec2, range: number) {
 export function damageDestructibleWallsInRadius(
 	pos: Vec2,
 	radius: number,
-	damage: number
+	damage: number,
+	options: { explosive?: boolean } = {}
 ) {
 	let hits = 0
 	for (const state of walls.values()) {
 		if (state.destroyed || !state.worldPos) continue
 		if (state.worldPos.dist(pos) > radius) continue
-		const appliedDamage = Math.min(state.hp, Math.max(0, damage))
+		if (state.requiresExplosive && options.explosive !== true) continue
+		const appliedDamage = state.requiresExplosive
+			? state.hp
+			: Math.min(state.hp, Math.max(0, damage))
 		state.hp = Math.max(0, state.hp - appliedDamage)
 		showDamageNumber(state.worldPos, appliedDamage)
 		state.onDamaged?.(state, state.worldPos)
@@ -83,12 +90,16 @@ export function damageDestructibleWall(
 	gridKey: string,
 	coord: { q: number; r: number },
 	damage: number,
-	impactPos?: Vec2
+	impactPos?: Vec2,
+	options: { explosive?: boolean } = {}
 ) {
 	const state = walls.get(wallKey(gridKey, coord))
 	if (!state || state.destroyed) return undefined
+	if (state.requiresExplosive && options.explosive !== true) return undefined
 
-	const appliedDamage = Math.min(state.hp, Math.max(0, damage))
+	const appliedDamage = state.requiresExplosive
+		? state.hp
+		: Math.min(state.hp, Math.max(0, damage))
 	state.hp = Math.max(0, state.hp - appliedDamage)
 	if (impactPos) showDamageNumber(impactPos, appliedDamage)
 	state.onDamaged?.(state, impactPos)

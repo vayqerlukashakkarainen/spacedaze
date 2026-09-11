@@ -1,4 +1,4 @@
-import type { GameObj, Vec2 } from "kaplay"
+import type { GameObj, PosComp, RotateComp, Vec2 } from "kaplay"
 import { gridCollision } from "../../comp/gridCollision"
 import { snareable, type SnareableComp } from "../../comp/snareable"
 import { timescale } from "../../comp/timescale"
@@ -27,7 +27,7 @@ interface CargoSocketSpawnOptions extends CargoPuzzleSpawnOptions {
 	onActivate: () => boolean
 }
 
-type CargoCrate = GameObj & SnareableComp & {
+type CargoCrate = GameObj<PosComp | RotateComp | SnareableComp> & {
 	puzzleId: string
 }
 

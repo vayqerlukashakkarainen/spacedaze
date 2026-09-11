@@ -12,4 +12,5 @@ export interface CombatCredit {
 	id?: string
 	explosive?: boolean
 	critical?: boolean
+	ultimateCharge?: number
 }

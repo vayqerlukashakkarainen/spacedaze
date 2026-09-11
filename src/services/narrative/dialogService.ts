@@ -547,7 +547,7 @@ function getAutomaticHold(text: string) {
 }
 
 function getGameplayObjects(pauseVisualEffects: boolean) {
-	return k.get<GameObj>(tags.gameLoop).filter(
+	return k.get(tags.gameLoop).filter(
 		(object) => pauseVisualEffects || !isVisualEffect(object)
 	)
 }
@@ -576,9 +576,10 @@ function getDialogueSegmentText(segment: DialogueTextSegment) {
 
 function getRenderedDialogueSegments(line: DialogueLine) {
 	if (typeof line.text === "string") return []
-	return line.text.map((segment, index) => {
+	const segments = line.text
+	return segments.map((segment, index) => {
 		let text = getDialogueSegmentText(segment)
-		if (!segment.reference && line.text[index + 1]?.reference) {
+		if (!segment.reference && segments[index + 1]?.reference) {
 			text = text.trimEnd()
 		}
 		return { segment, text }

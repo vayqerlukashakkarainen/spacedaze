@@ -44,13 +44,14 @@ const kaplayCongrats = () => {
     };
 };
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
     // index.html out file will start with a relative path for script
     base: "./",
     server: {
         port: 3001,
     },
     build: {
+		outDir: mode === "demo" ? "dist-demo" : "dist",
         // disable this for low bundle sizes
         sourcemap: true,
         rollupOptions: {
@@ -66,4 +67,4 @@ export default defineConfig({
         // Disable messages removing this line
         kaplayCongrats(),
     ],
-});
+}));

@@ -5,6 +5,10 @@ import { spawnRing } from "../../spawn/spawnRing"
 import { tags } from "../../tags"
 import { getScreenFlashIntensity } from "../ui/displaySettingsService"
 import { registerBatchedUiUpdate } from "../ui/uiUpdateService"
+import {
+	getCombatStatusBaseColor,
+	getCombatStatusTintColor,
+} from "./combatStatusTintService"
 
 interface EnemyProjectileImpactOptions {
 	position: Vec2
@@ -66,11 +70,11 @@ export function applyEnemyPartDamageFlash(target: GameObj) {
 	const hadColor = alreadyFlashing
 		? target.partDamageFlashHadColor === true
 		: target.has("color")
-	const original = alreadyFlashing
+	const original = getCombatStatusBaseColor(target) ?? (alreadyFlashing
 		? target.partDamageFlashBaseColor
 		: hadColor
 			? k.rgb(target.color.r, target.color.g, target.color.b)
-			: k.WHITE
+			: k.WHITE)
 
 	target.partDamageFlashToken = token
 	target.partDamageFlashBaseColor = original
@@ -80,7 +84,9 @@ export function applyEnemyPartDamageFlash(target: GameObj) {
 
 	k.wait(PART_DAMAGE_TINT_DURATION, () => {
 		if (!target.exists() || target.partDamageFlashToken !== token) return
-		if (target.partDamageFlashHadColor) target.color = original
+		const statusTint = getCombatStatusTintColor(target)
+		if (statusTint) target.color = statusTint
+		else if (target.partDamageFlashHadColor) target.color = original
 		else if (target.has("color")) target.unuse("color")
 		delete target.partDamageFlashBaseColor
 		delete target.partDamageFlashHadColor
@@ -213,7 +219,8 @@ function spawnImpactSpark(
 function applyEnemyHitTint(target: GameObj, tint: Color) {
 	if (!target.color) return
 	const token = (target.combatHitTintToken ?? 0) + 1
-	const original = target.combatHitBaseColor ?? k.rgb(
+	const original = getCombatStatusBaseColor(target) ??
+		target.combatHitBaseColor ?? k.rgb(
 		target.color.r,
 		target.color.g,
 		target.color.b
@@ -223,7 +230,7 @@ function applyEnemyHitTint(target: GameObj, tint: Color) {
 	target.color = tint
 	k.wait(HIT_TINT_DURATION, () => {
 		if (!target.exists() || target.combatHitTintToken !== token) return
-		target.color = original
+		target.color = getCombatStatusTintColor(target) ?? original
 		delete target.combatHitBaseColor
 	})
 }

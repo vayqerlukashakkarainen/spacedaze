@@ -27,7 +27,7 @@ export const threatReactor = stackingTool(
 export const resonanceCoil = stackingTool(
 	"Resonance coil",
 	"Resonance Coil",
-	"Heavy projectile hits discharge a damaging shock ring",
+	"Heavy projectile hits discharge a percentage of the triggering hit",
 	"resonance_coil_upg1",
 	[1, 2, 3, 4, 5]
 )
@@ -35,9 +35,9 @@ export const resonanceCoil = stackingTool(
 export const wreckHarvester = stackingTool(
 	"Wreck harvester",
 	"Wreck Harvester",
-	"Destroyed enemies launch two seeking energy shards",
+	"Destroyed enemies launch two seeking shards scaled from primary damage",
 	"wreck_harvester_upg1",
-	[1, 1.5, 2, 2.5, 3]
+	[0.5, 0.75, 1, 1.25, 1.5]
 )
 
 function stackingTool(

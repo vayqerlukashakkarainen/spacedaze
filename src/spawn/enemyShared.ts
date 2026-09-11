@@ -29,6 +29,8 @@ import { gameSoundService } from "../services/audio/gameSoundService";
 import { spawnRockDestructionFragments } from "../services/combat/rockDestructionEffectService";
 import { spawnEnemyDeathWreckage } from "../services/combat/persistentShipPartService";
 import { getLastCombatCredit } from "../services/combat/damageService"
+import { getPrimaryWeaponDamage } from "../services/player/playerCombatScalingService"
+import type { DamageableCombatTarget } from "../services/combat/combatTarget"
 
 export type EnemyDeathMaterial = "ship" | "rock"
 
@@ -40,7 +42,7 @@ interface EnemyDeathVisualOptions {
 	material?: EnemyDeathMaterial;
 }
 
-export function onEnemyHit(m: GameObj, p: GameObj) {
+export function onEnemyHit(m: DamageableCombatTarget, p: GameObj) {
 	// Use new projectile damage system
 	const shouldDestroy = applyProjectileDamage(m, p);
 
@@ -68,7 +70,8 @@ export function enemyOnDeath(
 	grantUltimateCharge(
 		rewardSource === "boss"
 			? 40
-			: Math.min(14, 5 + Math.sqrt(Math.max(1, powerupMultiplier)) * 2)
+			: Math.min(14, 5 + Math.sqrt(Math.max(1, powerupMultiplier)) * 2),
+		pos
 	);
 	spawnEnemyDeathEffect(
 		pos,
@@ -123,7 +126,7 @@ export function enemyOnDeath(
 }
 
 function spawnWreckHarvesterShards(pos: Vec2) {
-	if (player.wreckHarvesterDamage <= 0) return;
+	if (player.wreckHarvesterDamageRatio <= 0) return;
 	triggerWreckHarvesterFeedback(pos);
 	for (const angle of [-25, 25]) {
 		const direction = k.Vec2.fromAngle(angle - 90);
@@ -137,7 +140,9 @@ function spawnWreckHarvesterShards(pos: Vec2) {
 			visualScale: 0.65,
 			speed: 105,
 			tags: [tags.friendly, tags.blaster],
-			impact: { damage: player.wreckHarvesterDamage },
+			impact: {
+				damage: getPrimaryWeaponDamage() * player.wreckHarvesterDamageRatio,
+			},
 			seek: {
 				enabled: true,
 				acquireDelay: 0.05,

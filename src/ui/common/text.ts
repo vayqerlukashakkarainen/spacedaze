@@ -50,12 +50,15 @@ export function addThemedText(parent: GameObj, props: ThemedTextProps) {
 	const style = UI_TEXT_STYLES[variant]
 	const color = props.color ?? k.rgb(...style.color)
 	const size = props.size ?? style.size
+	const text = variant === "display" || variant === "title" || variant === "heading"
+		? props.text.toUpperCase()
+		: props.text
 	const lineSpacing = props.lineSpacing ?? getScaledLineSpacing(
 		size,
 		props.lineHeight ?? style.lineHeight
 	)
 	const components: any[] = [
-		k.text(props.text, {
+		k.text(text, {
 			size,
 			font: "unscii",
 			width: props.width,

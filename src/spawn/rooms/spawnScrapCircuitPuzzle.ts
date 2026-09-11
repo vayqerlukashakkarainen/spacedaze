@@ -73,6 +73,7 @@ export function spawnScrapCircuitPuzzle(
 	spawnChest(center.add(0, CHEST_OFFSET_Y), options.difficulty, {
 		available: () => circuitClosed,
 		ghostWhenUnavailable: true,
+		revealWhenAvailable: true,
 		onOpened: options.onCompleted,
 		tags: options.tags,
 	})

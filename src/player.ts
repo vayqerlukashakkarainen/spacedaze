@@ -13,6 +13,12 @@ import {
 	GLASS_REACTOR_HEALTH,
 } from "./services/player/playerHealthBalance";
 import { PLAYER_VISUAL } from "./visuals/playerVisualCatalog";
+import { getPilotProtocolValue } from "./services/hub/pilotProtocolService";
+import {
+	PLAYER_PROJECTILE_MODIFIER_UPGRADE_KEYS,
+	setPlayerProjectileModifierChance,
+	setPlayerProjectileModifierChanceBonus,
+} from "./services/combat/playerProjectileModifierChance"
 
 interface Ship {
 	speed: number;
@@ -20,13 +26,13 @@ interface Ship {
 	strafeSpeedMultiplier: number;
 	speedPwrUpMultiplier: number;
 
-	sprintSpeedMultiplier: number;
 	spaceJumpLvl: number | undefined;
 	spaceJumpUpgradeLvl: number | undefined;
-	spaceJumpDamage: number;
+	spaceJumpDamageRatio: number;
 	phaseMagazine: number | undefined;
 
 	maxHealth: number;
+	maxHealthMultiplier: number;
 	scorePerPickup: number;
 	blasterDmg: number;
 	blasterDmgMultiplier: number;
@@ -79,7 +85,7 @@ interface Ship {
 	phaseCounterCapacity: number;
 	threatReactorStacks: number;
 	resonanceCoilStacks: number;
-	wreckHarvesterDamage: number;
+	wreckHarvesterDamageRatio: number;
 	droneSetBonus: boolean;
 	mobilitySetBonus: boolean;
 	ordnanceSetBonus: boolean;
@@ -91,9 +97,7 @@ interface Ship {
 
 	projectilePierces: number;
 	projectileSlowPercentage: number;
-	projectileStunChance: number;
 	projectileStunDuration: number;
-	projectileEmpChance: number
 	projectileEmpDuration: number
 	projectileEmpSlowPercentage: number
 	projectileDotDamage: number;
@@ -112,8 +116,6 @@ interface Ship {
 	projectileProximityDamage: number;
 	projectileEchoCount: number;
 	projectileEchoDamage: number;
-	projectileReturnSpeed: number;
-	projectileReturnDelay: number;
 	projectileGrowthDamage: number;
 	projectileGrowthScale: number;
 	projectileStasisRadius: number;
@@ -126,7 +128,6 @@ interface Ship {
 	projectilePaintDamage: number;
 	projectilePaintStacks: number;
 	projectileMineDuration: number;
-	projectileMineChance: number;
 	projectileMineDamage: number;
 	projectilePhasePierces: number;
 }
@@ -151,7 +152,13 @@ export const PLAYER_SCALE = PLAYER_VISUAL.worldScale;
 export function getPlayerMaxHealth() {
 	return player.glassReactor !== undefined
 		? GLASS_REACTOR_HEALTH
-		: player.maxHealth + session.extraHealth;
+		: Math.round(
+			(
+				BASE_PLAYER_HEALTH +
+				session.extraHealth +
+				getPilotProtocolValue("reinforcedLaunch")
+			) * player.maxHealthMultiplier
+		);
 }
 
 export const session: Session = {
@@ -207,6 +214,7 @@ export function resetVolatileCargoObjective() {
 
 export const player: Ship = {
 	maxHealth: BASE_PLAYER_HEALTH,
+	maxHealthMultiplier: 1,
 	scorePerPickup: 1,
 	blasterDmg: 2,
 	blasterDmgMultiplier: 1,
@@ -227,16 +235,15 @@ export const player: Ship = {
 	rocketSplashDmgFallOverDistance: 0.7, // How much the splash dmg is reduced after distance met
 	rocketSplashDmgFallDistanceValue: 0.6,
 	rocketSeekDistance: 200,
-	speed: 130,
-	sprintSpeedMultiplier: 1,
+	speed: 143,
 	spaceJumpLvl: undefined,
 	spaceJumpUpgradeLvl: undefined,
-	spaceJumpDamage: 0,
+	spaceJumpDamageRatio: 0,
 	phaseMagazine: undefined,
 	speedMultiplier: 1,
 	strafeSpeedMultiplier: 1,
 	speedPwrUpMultiplier: 1,
-	followerBlasterDmg: 1,
+	followerBlasterDmg: 0.5,
 	followerBlasterDmgMultiplier: 1,
 	missileDroneSlots: 0,
 	followerProjectileLink: undefined,
@@ -261,7 +268,7 @@ export const player: Ship = {
 	phaseCounterCapacity: 0,
 	threatReactorStacks: 0,
 	resonanceCoilStacks: 0,
-	wreckHarvesterDamage: 0,
+	wreckHarvesterDamageRatio: 0,
 	droneSetBonus: false,
 	mobilitySetBonus: false,
 	ordnanceSetBonus: false,
@@ -271,9 +278,7 @@ export const player: Ship = {
 	explosionPulseStrength: 0,
 	projectilePierces: 0,
 	projectileSlowPercentage: 0,
-	projectileStunChance: 0,
 	projectileStunDuration: 0,
-	projectileEmpChance: 0,
 	projectileEmpDuration: 0,
 	projectileEmpSlowPercentage: 0,
 	projectileDotDamage: 0,
@@ -292,8 +297,6 @@ export const player: Ship = {
 	projectileProximityDamage: 0,
 	projectileEchoCount: 0,
 	projectileEchoDamage: 0,
-	projectileReturnSpeed: 0,
-	projectileReturnDelay: 0,
 	projectileGrowthDamage: 0,
 	projectileGrowthScale: 1,
 	projectileStasisRadius: 0,
@@ -306,7 +309,6 @@ export const player: Ship = {
 	projectilePaintDamage: 0,
 	projectilePaintStacks: 0,
 	projectileMineDuration: 0,
-	projectileMineChance: 0,
 	projectileMineDamage: 0,
 	projectilePhasePierces: 0,
 };
@@ -325,18 +327,19 @@ export function loadPlayer() {
 		getToolUpgradeLvlValue("debreeDist") ?? 1;
 	player.debreeValueMultiplier = getToolUpgradeLvlValue("debreeValue") ?? 1;
 
-	const coolingSpeedMultiplier = getToolUpgradeLvlValue("sprintSpeed") ?? 1;
-	player.sprintSpeedMultiplier = coolingSpeedMultiplier;
 	player.spaceJumpLvl = getToolUpgradeLvlValue("spaceJump");
 	player.spaceJumpUpgradeLvl = getToolUpgradeLvlValue("spaceJumpUpgrades");
-	player.spaceJumpDamage = getToolUpgradeLvlValue("phaseRam") ?? 0;
+	player.spaceJumpDamageRatio = getToolUpgradeLvlValue("phaseRam") ?? 0;
 	player.phaseMagazine = getToolUpgradeLvlValue("phaseMagazine");
 
 	player.speedMultiplier = getToolUpgradeLvlValue("movespeed") ?? 1;
 	player.strafeSpeedMultiplier = getToolUpgradeLvlValue("strafeSpeed") ?? 1;
-	player.maxHealth = getToolUpgradeLvlValue("maxHealth") ?? BASE_PLAYER_HEALTH;
+	player.maxHealthMultiplier =
+		getToolUpgradeLvlValue("maxHealth") ?? 1;
+	player.maxHealth = Math.round(BASE_PLAYER_HEALTH * player.maxHealthMultiplier);
 
-	player.followerBlasterDmg = getToolUpgradeLvlValue("followerBlasterDmg") ?? 1;
+	player.followerBlasterDmg =
+		getToolUpgradeLvlValue("followerBlasterDmg") ?? 0.5;
 	player.missileDroneSlots = getToolUpgradeLvlValue("followerMissiles") ?? 0;
 	player.followerProjectileLink = getToolUpgradeLvlValue("followerProjectileLink");
 	player.followerInterceptorProtocol = getToolUpgradeLvlValue(
@@ -369,7 +372,8 @@ export function loadPlayer() {
 	player.resonanceCoilStacks = Math.round(
 		getToolUpgradeLvlValue("resonanceCoil") ?? 0
 	);
-	player.wreckHarvesterDamage = getToolUpgradeLvlValue("wreckHarvester") ?? 0;
+	player.wreckHarvesterDamageRatio =
+		getToolUpgradeLvlValue("wreckHarvester") ?? 0;
 	if (player.glassReactor !== undefined) player.maxHealth = GLASS_REACTOR_HEALTH;
 	player.droneSetBonus = hasTechnologySet([
 		"followerBlasterDmg",
@@ -385,7 +389,6 @@ export function loadPlayer() {
 		"packIntelligence",
 	]);
 	player.mobilitySetBonus = hasTechnologySet([
-		"sprintSpeed",
 		"spaceJump",
 		"spaceJumpUpgrades",
 		"phaseMagazine",
@@ -393,6 +396,7 @@ export function loadPlayer() {
 		"strafeSpeed",
 		"afterburnerWake",
 		"phaseEcho",
+		"phaseWake",
 		"kineticRam",
 	]);
 	player.ordnanceSetBonus = hasTechnologySet([
@@ -427,10 +431,8 @@ export function loadPlayer() {
 
 	player.projectilePierces = getToolUpgradeLvlValue("armorPiercing") ?? 0;
 	player.projectileSlowPercentage = getToolUpgradeLvlValue("cryoRounds") ?? 0;
-	player.projectileStunChance = getToolUpgradeLvlValue("stunRounds") ?? 0;
 	player.projectileStunDuration =
 		getToolUpgradeStatValue("stunRounds", "projectileStunDuration") ?? 0;
-	player.projectileEmpChance = getToolUpgradeLvlValue("empRounds") ?? 0
 	player.projectileEmpDuration =
 		getToolUpgradeStatValue("empRounds", "projectileEmpDuration") ?? 0
 	player.projectileEmpSlowPercentage =
@@ -473,9 +475,6 @@ export function loadPlayer() {
 	player.projectileEchoCount = getToolUpgradeLvlValue("afterimageRounds") ?? 0;
 	player.projectileEchoDamage =
 		getToolUpgradeStatValue("afterimageRounds", "projectileEchoDamage") ?? 0;
-	player.projectileReturnSpeed = getToolUpgradeLvlValue("boomerangPayload") ?? 0;
-	player.projectileReturnDelay =
-		getToolUpgradeStatValue("boomerangPayload", "projectileReturnDelay") ?? 0;
 	player.projectileGrowthDamage = getToolUpgradeLvlValue("growingCharge") ?? 0;
 	player.projectileGrowthScale =
 		getToolUpgradeStatValue("growingCharge", "projectileGrowthScale") ?? 1;
@@ -505,11 +504,18 @@ export function loadPlayer() {
 	player.projectilePaintStacks =
 		getToolUpgradeStatValue("targetPainter", "projectilePaintStacks") ?? 0;
 	player.projectileMineDuration = getToolUpgradeLvlValue("mineLayer") ?? 0;
-	player.projectileMineChance =
-		getToolUpgradeStatValue("mineLayer", "projectileMineChance") ?? 0;
 	player.projectileMineDamage =
 		getToolUpgradeStatValue("mineLayer", "projectileMineDamage") ?? 0;
 	player.projectilePhasePierces = getToolUpgradeLvlValue("voidLance") ?? 0;
+	setPlayerProjectileModifierChanceBonus(
+		getToolUpgradeLvlValue("probabilityAmplifier") ?? 0
+	)
+	for (const key of PLAYER_PROJECTILE_MODIFIER_UPGRADE_KEYS) {
+		setPlayerProjectileModifierChance(
+			key,
+			getToolUpgradeStatValue(key, "projectileModifierChance") ?? 0
+		)
+	}
 	player.followerBlasterDmgMultiplier = 1;
 	player.rocketSplashSizeMultiplier = 1;
 	applyRunLevelBonuses(player);

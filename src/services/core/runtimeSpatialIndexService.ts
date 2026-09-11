@@ -1,4 +1,4 @@
-import type { GameObj, Vec2 } from "kaplay"
+import type { GameObj, PosComp, Vec2 } from "kaplay"
 import { k } from "../../main"
 import { tags } from "../../tags"
 import { setPerformanceCounter } from "../debug/frameProfilerService"
@@ -7,12 +7,26 @@ import { SpatialHash } from "./spatialHash"
 
 const SPATIAL_CELL_SIZE = 96
 const LEGACY_POSITION_PADDING = 48
-const spatialHash = new SpatialHash<GameObj & { pos: Vec2 }>(SPATIAL_CELL_SIZE)
-const projectileSpatialHash = new SpatialHash<GameObj & { pos: Vec2 }>(SPATIAL_CELL_SIZE)
-const enemyUnitSpatialHash = new SpatialHash<GameObj & { pos: Vec2 }>(SPATIAL_CELL_SIZE)
-const spatialObjects: Array<GameObj & { pos: Vec2 }> = []
-const projectileObjects: Array<GameObj & { pos: Vec2 }> = []
-const enemyUnitObjects: Array<GameObj & { pos: Vec2 }> = []
+export type RuntimeSpatialObject = GameObj<PosComp> & {
+	hb?: number
+	hp?: number
+	width?: number
+	height?: number
+	previousPos?: Vec2
+	dir?: Vec2
+	getTimescale?: () => number
+	gravitySteerable?: boolean
+	gravityVelocity?: Vec2
+	gravitySteeringMultiplier?: number
+	dataOrientedVisual?: boolean
+}
+
+const spatialHash = new SpatialHash<RuntimeSpatialObject>(SPATIAL_CELL_SIZE)
+const projectileSpatialHash = new SpatialHash<RuntimeSpatialObject>(SPATIAL_CELL_SIZE)
+const enemyUnitSpatialHash = new SpatialHash<RuntimeSpatialObject>(SPATIAL_CELL_SIZE)
+const spatialObjects: RuntimeSpatialObject[] = []
+const projectileObjects: RuntimeSpatialObject[] = []
+const enemyUnitObjects: RuntimeSpatialObject[] = []
 const spatialObjectIndices = new Map<number, number>()
 let registryInitialized = false
 let maxProjectileSweepDistance = 0
@@ -76,7 +90,7 @@ export function getMaxProjectileSweepDistance() {
 	return maxProjectileSweepDistance
 }
 
-export function getRuntimeEnemyUnits(): readonly GameObj[] {
+export function getRuntimeEnemyUnits(): readonly RuntimeSpatialObject[] {
 	return enemyUnitObjects
 }
 
@@ -84,7 +98,7 @@ export function forEachSpatialNearby(
 	pos: Vec2,
 	radius: number,
 	options: SpatialQueryOptions,
-	visitor: (obj: GameObj) => boolean | void
+	visitor: (obj: RuntimeSpatialObject) => boolean | void
 ) {
 	const radiusSquared = radius * radius
 	return selectSpatialHash(options).forEachNearby(
@@ -116,7 +130,7 @@ export function findSpatialNearby(
 	radius: number,
 	options: SpatialQueryOptions
 ) {
-	let found: GameObj | undefined
+	let found: RuntimeSpatialObject | undefined
 	forEachSpatialNearby(pos, radius, options, (obj) => {
 		found = obj
 		return false
@@ -129,7 +143,7 @@ export function findClosestSpatial(
 	radius: number,
 	options: SpatialQueryOptions
 ) {
-	let closest: GameObj | undefined
+	let closest: RuntimeSpatialObject | undefined
 	let closestDistanceSquared = radius * radius
 	forEachSpatialNearby(pos, radius, options, (obj) => {
 		const dx = obj.pos.x - pos.x
@@ -147,8 +161,10 @@ export function querySpatialNearby(
 	radius: number,
 	options: SpatialQueryOptions
 ) {
-	const results: GameObj[] = []
-	forEachSpatialNearby(pos, radius, options, (obj) => results.push(obj))
+	const results: RuntimeSpatialObject[] = []
+	forEachSpatialNearby(pos, radius, options, (obj) => {
+		results.push(obj)
+	})
 	return results
 }
 
@@ -173,15 +189,15 @@ function matchesTags(obj: GameObj, options: SpatialQueryOptions) {
 function ensureSpatialObjectRegistry() {
 	if (registryInitialized) return
 	registryInitialized = true
-	for (const obj of k.get(tags.gameLoop) as Array<GameObj & { pos: Vec2 }>) {
+	for (const obj of k.get(tags.gameLoop) as RuntimeSpatialObject[]) {
 		registerSpatialObject(obj)
 	}
 	k.onAdd(tags.gameLoop, (obj) => {
-		registerSpatialObject(obj as GameObj & { pos: Vec2 })
+		registerSpatialObject(obj as RuntimeSpatialObject)
 	})
 }
 
-function registerSpatialObject(obj: GameObj & { pos: Vec2 }) {
+function registerSpatialObject(obj: RuntimeSpatialObject) {
 	if (spatialObjectIndices.has(obj.id)) return
 	spatialObjectIndices.set(obj.id, spatialObjects.length)
 	spatialObjects.push(obj)

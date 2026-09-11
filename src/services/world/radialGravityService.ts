@@ -1,6 +1,7 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { k } from "../../main"
 import { forEachSpatialNearby } from "../core/runtimeSpatialIndexService"
+import type { RuntimeSpatialObject } from "../core/runtimeSpatialIndexService"
 
 export interface RadialGravityConfig {
 	strength: number
@@ -10,7 +11,7 @@ export interface RadialGravityConfig {
 	targetTagMode?: "and" | "or"
 	tagStrengthMultipliers?: Record<string, number>
 	excludeIds?: number[]
-	onPull?: (target: GameObj, sample: RadialGravitySample) => void
+	onPull?: (target: RuntimeSpatialObject, sample: RadialGravitySample) => void
 }
 
 export interface RadialGravitySample {

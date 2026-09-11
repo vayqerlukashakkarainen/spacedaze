@@ -1,7 +1,9 @@
 import type { GameObj, Vec2 } from "kaplay"
+import { gridCollision } from "../../comp/gridCollision"
 import { jitter } from "../../comp/jitter"
 import { timescale } from "../../comp/timescale"
 import { checkProjectileIntersection, playerObj } from "../../game"
+import { ACTIVE_RUN_GRID_KEY } from "../../grid/gridKeys"
 import { k, layers, mainSoundVolume, velocityScale } from "../../main"
 import { ASTEROID_SPRITES } from "../../asteroidSprites"
 import { applyDamage } from "../../services/combat/damageService"
@@ -14,6 +16,7 @@ import { gameSoundService } from "../../services/audio/gameSoundService"
 import { setHitSoundProfile } from "../../services/audio/hitSoundService"
 import { isPlayerDamageInvulnerable } from "../../services/player/playerDamageState"
 import { isEnemyEmpDisrupted } from "../../services/enemies/enemyEmpService"
+import { createMiniBossDesperationRam } from "../../services/enemies/miniBossDesperationRamService"
 import { createEnemySpawnProfile, type EnemySpawnOptions } from "../../services/enemies/threatService"
 import { easeDirection, registerHitAnimation } from "../../shared"
 import { tags } from "../../tags"
@@ -37,7 +40,7 @@ const PLAYER_HITBOX = 8
 const DESTROYED_VENT_SPEED_MULTIPLIER = 0.55
 
 export interface BoilerHulkSpawnOptions extends EnemySpawnOptions {
-	onDefeated?: () => void
+	onDefeated?: (pos: Vec2) => void
 }
 
 export function spawnBoilerHulk(
@@ -59,10 +62,12 @@ export function spawnBoilerHulk(
 		k.scale(profile.scale),
 		timescale(),
 		jitter(),
+		gridCollision(ACTIVE_RUN_GRID_KEY),
 		...(options.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		{
 			hb: 19 * profile.scale,
 			damage: profile.damage,
+			shieldFireRateMultiplier: 1,
 			moveDirection: k.vec2(0, 1),
 			attackTimer: 1.1,
 			shotsSinceVent: 0,
@@ -84,7 +89,7 @@ export function spawnBoilerHulk(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
-	const partHp = Math.max(2, Math.round(profile.hp * 0.28))
+	const partHp = 2 * Math.max(2, Math.round(profile.hp / 2 * 0.28))
 	const scoop = addWakeEnemyPart(hulk, scoopVisual.sprite, partHp)
 	const vent = addWakeEnemyPart(hulk, ventVisual.sprite, partHp)
 	const mortar = addWakeEnemyPart(hulk, mortarVisual.sprite, partHp)
@@ -103,11 +108,15 @@ export function spawnBoilerHulk(
 			obj: scoop,
 			hitbox: 9 * profile.scale,
 			hitboxOffset: k.vec2(16, 9).scale(profile.scale),
+			pullForce: 105,
+			pullDuration: 1,
 		},
 		{
 			obj: vent,
 			hitbox: 7 * profile.scale,
 			hitboxOffset: k.vec2(5, -18).scale(profile.scale),
+			pullForce: 95,
+			pullDuration: 0.9,
 			onDestroyed: () => {
 				hulk.movementSpeedMultiplier = DESTROYED_VENT_SPEED_MULTIPLIER
 			},
@@ -116,6 +125,8 @@ export function spawnBoilerHulk(
 			obj: mortar,
 			hitbox: 7 * profile.scale,
 			hitboxOffset: k.vec2(-8, -18).scale(profile.scale),
+			pullForce: 90,
+			pullDuration: 0.85,
 			onDestroyed: () => {
 				hulk.mortarOperational = false
 			},
@@ -135,6 +146,17 @@ export function spawnBoilerHulk(
 		})
 	})
 	spawnMiniBossHealthBar(hulk, profile.hp)
+	const desperationRam = createMiniBossDesperationRam(hulk, {
+		name: "BOILER HULK",
+		sprite: coreVisual.sprite,
+		baseScale: profile.scale,
+		damage: profile.damage,
+		speedMultiplier: profile.speedMultiplier,
+		isDisarmed: () => !hulk.mortarOperational,
+	})
+	hulk.onGridCollide((_cell, normal) => {
+		desperationRam.onWallCollision(normal)
+	})
 
 	registerBatchedEntityUpdate("enemies", hulk, () => {
 		if (hulk.deathSequenceActive) return
@@ -143,6 +165,19 @@ export function spawnBoilerHulk(
 		const distance = toPlayer.len()
 		const direction = distance > 0 ? toPlayer.unit() : k.vec2(0, 1)
 		removeDestroyedScrap(scrapShield)
+		if (desperationRam.update(delta)) {
+			destroyScrapShield(scrapShield)
+			defenseChargeRing.opacity = 0
+			hulk.attacking = false
+			hulk.defenseCharging = false
+			handleWakeCompositeCombat(
+				hulk,
+				"BOILER HULK",
+				"enemy_wake_boiler_hulk_core",
+				false
+			)
+			return
+		}
 
 		if (hulk.defenseCharging) {
 			updateScrapShieldCharge(
@@ -258,7 +293,7 @@ function spawnScrapShield(
 	profile: ReturnType<typeof createEnemySpawnProfile>,
 	extraTags?: string[]
 ) {
-	const scrapHealth = Math.max(3, Math.round(profile.hp * 0.035))
+	const scrapHealth = 2 * Math.max(3, Math.round(profile.hp / 2 * 0.035))
 	for (let index = 0; index < SCRAP_SHIELD_COUNT; index++) {
 		const orbitAngle = index * 360 / SCRAP_SHIELD_COUNT
 		const sprite = ASTEROID_SPRITES[(hulk.id + index * 3) % ASTEROID_SPRITES.length]

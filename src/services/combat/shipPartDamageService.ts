@@ -5,6 +5,7 @@ import { tags } from "../../tags"
 import { applyDamage, getLastCombatCredit } from "./damageService"
 import { startMechanicalDamageSmoke } from "./enemyDamageEffectService"
 import { gameSoundService } from "../audio/gameSoundService"
+import { applyDefaultExplosionForce } from "./explosionPulseService"
 
 const MIN_EXPLOSION_RADIUS = 34
 const MAX_EXPLOSION_RADIUS = 72
@@ -37,7 +38,7 @@ export function triggerShipPartExplosion(
 		1,
 		partMaxHealth * PART_EXPLOSION_DAMAGE_MULTIPLIER
 	)
-	const excludedIds = new Set([part.id, ...(options.excludeIds ?? [])])
+	const excludeIds = new Set([part.id, ...(options.excludeIds ?? [])])
 	const partCredit = getLastCombatCredit(part)
 
 	spawnExplosionEffect(position, radius * 0.72, {
@@ -61,7 +62,7 @@ export function triggerShipPartExplosion(
 	for (const target of targets) {
 		if (
 			!target.exists() ||
-			excludedIds.has(target.id) ||
+			excludeIds.has(target.id) ||
 			target.hidden ||
 			typeof target.hp !== "number" ||
 			target.hp <= 0 ||
@@ -79,6 +80,7 @@ export function triggerShipPartExplosion(
 				: undefined,
 		})
 	}
+	applyDefaultExplosionForce(position, radius, { excludeIds })
 }
 
 function emitPartExplosionSmoke(position: Vec2, explosionRadius: number) {

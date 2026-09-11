@@ -1,4 +1,10 @@
-import { GameObj, ParticlesComp, PosComp, Vec2 } from "kaplay";
+import {
+	EmitterOpt,
+	GameObj,
+	ParticlesComp,
+	PosComp,
+	Vec2,
+} from "kaplay";
 import { k, layers } from "./main";
 import {
 	incrementPerformanceCounter,
@@ -18,6 +24,28 @@ export let debreeRocketEmitter: GameObj<PosComp | ParticlesComp>;
 export let dustTrailEmitter: GameObj<PosComp | ParticlesComp>;
 export let sparkEmitter: GameObj<PosComp | ParticlesComp>;
 export let shineEmitter: GameObj<PosComp | ParticlesComp>;
+
+type DirectionalEmitter = ParticlesComp["emitter"] & Pick<EmitterOpt, "spread">;
+
+export function emitDirectionalParticles(
+	emitterObject: GameObj<PosComp | ParticlesComp>,
+	position: Vec2,
+	direction: number,
+	spread: number,
+	count: number
+) {
+	// Kaplay accepts `spread` in EmitterOpt and exposes it at runtime, but its
+	// ParticlesComp emitter declaration currently omits that mutable field.
+	const emitter = emitterObject.emitter as DirectionalEmitter;
+	const previousDirection = emitter.direction;
+	const previousSpread = emitter.spread;
+	emitter.position = position;
+	emitter.direction = direction;
+	emitter.spread = spread;
+	emitterObject.emit(count);
+	emitter.direction = previousDirection;
+	emitter.spread = previousSpread;
+}
 
 interface ImpactChip {
 	position: Vec2;
@@ -143,8 +171,8 @@ export function emitImpactChips(
 			velocity: chipDirection.scale(launchSpeed),
 			angle: k.rand(0, 360),
 			angularVelocity: k.rand(-760, 760),
-			width: k.rand() > 0.55 ? 2 : 1,
-			height: k.rand() > 0.65 ? 3 : 2,
+			width: k.rand(0, 1) > 0.55 ? 2 : 1,
+			height: k.rand(0, 1) > 0.65 ? 3 : 2,
 			lifetime: k.rand(0.2, critical ? 0.42 : 0.34),
 			elapsed: 0,
 			brightness: k.rand(0.58, 1),

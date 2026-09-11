@@ -42,8 +42,9 @@ import { showPopover } from "../ui/popoverService"
 import {
 	formatInputBinding,
 	getInputBinding,
-	isInputActionDown,
+	getStrafeInputMode,
 } from "../input/inputBindingService"
+import { isPlayerTargetModeActive } from "../input/playerSteeringModeService"
 import { addLvl, getPermanentUpgradeLevel } from "../../upg"
 import { spawnRewardPickup } from "../../spawn/spawnPowerup"
 import type { Reward } from "../economy/rewardService"
@@ -54,6 +55,7 @@ import {
 	getMaxProjectileSweepDistance,
 } from "../core/runtimeSpatialIndexService"
 import { applyProjectileDamage } from "../combat/projectileService"
+import type { DamageableCombatTarget } from "../combat/combatTarget"
 import { playVisualHitKnockback } from "../combat/visualHitKnockbackService"
 
 const STRAFE_MODULE_TAG = "strafeTrainingModule"
@@ -71,6 +73,13 @@ const PROGRESSION_COLOR = [255, 158, 62] as const
 const HUB_RING_BURT_OFFSET = [-104, 56] as const
 const STRAFE_TRAINING_DAMAGE = 18
 const STRAFE_TRAINING_HIT_RADIUS = 18
+
+type TrainingBurt = GameObj<PosComp> & {
+	scale?: Vec2
+	angle?: number
+	setVisualLean?: (angle: number) => void
+	settleVisual?: () => void
+}
 
 let offerStarting = false
 let tutorialStarting = false
@@ -177,6 +186,7 @@ function prepareBurtProgressionOffer(burt: GameObj<PosComp>) {
 			!interactiveBurt.isInRange,
 		offset: k.vec2(0, -48),
 		color: progressionColor,
+		cameraInterest: true,
 	})
 	registerBatchedEntityUpdate("world", interactiveBurt, () => {
 		const offerAvailable = (
@@ -327,7 +337,10 @@ function createTutorialExplanationCutscene(
 ): CutsceneDefinition {
 	const conversationTarget = burt.pos.lerp(player.pos, 0.5)
 	const strafeBinding = formatInputBinding(getInputBinding("strafe"))
-	const tutorialDialogue = dialogue.strafeTraining.tutorial(strafeBinding)
+	const tutorialDialogue = dialogue.strafeTraining.tutorial(
+		strafeBinding,
+		getStrafeInputMode()
+	)
 	return {
 		id: STRAFE_TUTORIAL_CUTSCENE_ID,
 		speakerActors: { BURT: BURT_ACTOR },
@@ -384,7 +397,7 @@ function startStrafeTargetPractice(burt: GameObj<PosComp>) {
 		inputAction: "primary",
 		requireInteractionTarget: false,
 		label: () => ({
-			text: `HOLD ${strafeBinding} // HIT BURT ${Math.max(0, Math.ceil(target.hp))}`,
+			text: `${getStrafeInputMode() === "toggle" ? "TAP" : "HOLD"} ${strafeBinding} // HIT BURT ${Math.max(0, Math.ceil(target.hp))}`,
 			color: k.rgb(...UI_COLORS.danger),
 		}),
 	})
@@ -418,8 +431,11 @@ function startStrafeTargetPractice(burt: GameObj<PosComp>) {
 	}
 }
 
-function checkStrafeTrainingProjectileHits(target: GameObj, burt: GameObj) {
-	if (!isInputActionDown("strafe")) return
+function checkStrafeTrainingProjectileHits(
+	target: DamageableCombatTarget,
+	burt: GameObj
+) {
+	if (!isPlayerTargetModeActive()) return
 	const queryRadius = STRAFE_TRAINING_HIT_RADIUS +
 		getMaxProjectileSweepDistance() + 12
 	forEachSpatialNearby(target.pos, queryRadius, {
@@ -449,7 +465,10 @@ async function showStrafeTrainingConclusion(burt: GameObj<PosComp>) {
 		return false
 	}
 	const strafeBinding = formatInputBinding(getInputBinding("strafe"))
-	const tutorialDialogue = dialogue.strafeTraining.tutorial(strafeBinding)
+	const tutorialDialogue = dialogue.strafeTraining.tutorial(
+		strafeBinding,
+		getStrafeInputMode()
+	)
 	const firingRangePosition = k.center().add(...HUB_FIRING_RANGE_OFFSET)
 	try {
 		const result = await playCutscene({
@@ -581,7 +600,7 @@ function createLassoConstructionCutscene(
 }
 
 function animateLassoConstruction(
-	burt: GameObj<PosComp>,
+	burt: TrainingBurt,
 	context: CutsceneContext
 ) {
 	return new Promise<void>((resolve) => {
@@ -621,7 +640,7 @@ function animateLassoConstruction(
 }
 
 function ensureBuiltLasso(burt: GameObj<PosComp>) {
-	const existing = k.get<GameObj>(LASSO_PICKUP_TAG)[0]
+	const existing = k.get(LASSO_PICKUP_TAG)[0]
 	if (existing?.exists()) return existing
 	const facing = burt.has("horizontalDirectionalVisual")
 		? (burt as GameObj<PosComp | HorizontalDirectionalVisualComp>).facing
@@ -779,7 +798,7 @@ async function showLassoOriginDialogue(burt: GameObj<PosComp>) {
 }
 
 function ensureStrafeTrainingModule(burt: GameObj<PosComp>) {
-	const existing = k.get<GameObj>(STRAFE_MODULE_TAG)[0]
+	const existing = k.get(STRAFE_MODULE_TAG)[0]
 	if (existing?.exists()) return existing
 	return spawnStrafeTrainingModule(burt)
 }
@@ -810,12 +829,13 @@ function spawnStrafeTrainingModule(burt: GameObj<PosComp>) {
 		tags.props,
 		tags.gameLoop,
 		tags.runtimeCullable,
-	]) as GameObj<PosComp | InteractableComp>
+	])
 	const aura = pickup.add([
 		k.circle(20, { fill: false }),
 		k.anchor("center"),
 		k.outline(1, k.rgb(80, 205, 255)),
 		k.opacity(0.7),
+		k.scale(1),
 		k.z(-1),
 		k.layer(layers.gameEffects),
 	])
@@ -862,7 +882,7 @@ function spawnStrafeTrainingModule(burt: GameObj<PosComp>) {
 		showPopover({
 			title: "PERMANENT UPGRADE",
 			message: "STRAFE TRAINING UNLOCKED",
-			description: `Hold ${formatInputBinding(getInputBinding("strafe"))} for independent flight and aim.`,
+			description: `${getStrafeInputMode() === "toggle" ? "Tap" : "Hold"} ${formatInputBinding(getInputBinding("strafe"))} for independent flight and aim.`,
 			sprite: "target_painter_upg1",
 			color: k.rgb(100, 220, 255),
 			duration: 4,
@@ -874,7 +894,7 @@ function spawnStrafeTrainingModule(burt: GameObj<PosComp>) {
 }
 
 function animateBurtEjection(
-	burt: GameObj<PosComp>,
+	burt: TrainingBurt,
 	context: CutsceneContext
 ) {
 	return new Promise<void>((resolve) => {
@@ -955,11 +975,11 @@ function resolveTrainingActor(id: string) {
 }
 
 function getBurt() {
-	const burt = k.get<GameObj<PosComp>>(BURT_TAG)[0]
+	const burt = k.get<PosComp>(BURT_TAG)[0]
 	return burt?.exists() ? burt : undefined
 }
 
 function getPlayer() {
-	const player = k.get<GameObj<PosComp>>(tags.player)[0]
+	const player = k.get<PosComp>(tags.player)[0]
 	return player?.exists() ? player : undefined
 }

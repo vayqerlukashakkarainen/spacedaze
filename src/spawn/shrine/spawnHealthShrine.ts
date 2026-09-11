@@ -20,6 +20,7 @@ const HEALTH_COLOR = [70, 255, 120] as const
 interface HealthShrineProps {
 	pos: Vec2
 	respawnOrbs?: boolean
+	totalRecovery?: number
 	tags?: string[]
 	onDepleted?: () => void
 }
@@ -67,6 +68,7 @@ export function spawnHealthShrine(props: HealthShrineProps) {
 		k.anchor("center"),
 		k.outline(1, k.rgb(...HEALTH_COLOR)),
 		k.opacity(0.48),
+		k.scale(1),
 		k.layer(layers.gameEffects),
 		k.z(0),
 	])
@@ -92,6 +94,7 @@ export function spawnHealthShrine(props: HealthShrineProps) {
 		spawnHealthOrb(orbPos, {
 			stationary: true,
 			persistOffscreen: true,
+			recovery: getOrbRecovery(props.totalRecovery, index),
 			tags: props.tags,
 			onCollected: () => {
 				if (!props.respawnOrbs) {
@@ -108,4 +111,11 @@ export function spawnHealthShrine(props: HealthShrineProps) {
 	}
 
 	return shrine
+}
+
+function getOrbRecovery(totalRecovery: number | undefined, index: number) {
+	if (totalRecovery === undefined) return undefined
+	const total = Math.max(0, Math.floor(totalRecovery))
+	const baseRecovery = Math.floor(total / HEALTH_ORB_COUNT)
+	return baseRecovery + (index < total % HEALTH_ORB_COUNT ? 1 : 0)
 }

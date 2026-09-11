@@ -19,6 +19,7 @@ import {
 	addWakeEnemyPart,
 	composeWakeEnemy,
 	handleWakeCompositeCombat,
+	updateWakeEnemyMalfunction,
 } from "./wakeEnemyShared"
 
 const SHREDDER_SKIFF_VISUAL = getEnemyVisual("wake-shredder-skiff")
@@ -106,30 +107,34 @@ export function spawnShredderSkiff(
 	const grinder = addWakeEnemyPart(
 		skiff,
 		grinderVisual.sprite,
-		Math.max(3, Math.round(profile.hp * 0.48))
+		2 * Math.max(3, Math.round(profile.hp / 2 * 0.48))
 	)
 	const hopper = addWakeEnemyPart(
 		skiff,
 		hopperVisual.sprite,
-		Math.max(3, Math.round(profile.hp * 0.58))
+		2 * Math.max(3, Math.round(profile.hp / 2 * 0.58))
 	)
 	composeWakeEnemy(skiff, profile, [
 		{
 			obj: grinder,
 			hitbox: 9 * profile.scale,
 			hitboxOffset: k.vec2(0, -10).scale(profile.scale),
+			pullForce: 90,
+			pullDuration: 0.8,
 			onDestroyed: () => disableGrinder(skiff),
 		},
 		{
 			obj: hopper,
 			hitbox: 8 * profile.scale,
 			hitboxOffset: k.vec2(9, 1).scale(profile.scale),
+			pullForce: 70,
 			onDestroyed: (part) => destroyHopper(part, skiff),
 		},
 	], 10, 1.45)
 
 	registerBatchedEntityUpdate("enemies", skiff, () => {
 		const delta = k.dt() * skiff.getTimescale()
+		if (updateWakeEnemyMalfunction(skiff, delta)) return
 		skiff.phaseTimer += delta
 		skiff.searchTimer -= delta
 		skiff.fallbackLoadTimer -= delta
@@ -354,7 +359,7 @@ function fireFragmentCone(
 ) {
 	const count = profile.elite ? 9 : 7
 	for (let index = 0; index < count; index++) {
-		const spread = count === 1 ? 0 : k.lerp(-24, 24, index / (count - 1))
+		const spread = k.lerp(-24, 24, index / (count - 1))
 		const direction = skiff.lockedDirection.rotate(spread)
 		spawnProjectile({
 			pos: skiff.pos.add(direction.scale(15 * profile.scale)),

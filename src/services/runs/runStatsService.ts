@@ -3,6 +3,7 @@ import { recordTelemetrySalvageEarned } from "./runTelemetryService"
 import type { CombatCredit } from "../progression/combatCredit"
 import {
 	recordRewardKill,
+	recordRewardRunCompleted,
 	resetRewardUnlockProgress,
 } from "../progression/rewardUnlockProgressService"
 
@@ -144,6 +145,7 @@ export function finishRunStats(
 		highestRarity: activeRun.highestRarity,
 	}
 	lifetimeStats.completedRuns++
+	recordRewardRunCompleted()
 	saveLifetimeStats()
 	activeRun = undefined
 	clearSelectedContract()

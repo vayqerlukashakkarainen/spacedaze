@@ -1,10 +1,12 @@
 import type { GameObj, Vec2 } from "kaplay"
 import { jitter } from "../../comp/jitter"
+import { snareable } from "../../comp/snareable"
 import { timescale } from "../../comp/timescale"
 import { checkProjectileIntersection, playerObj } from "../../game"
 import { k, layers, mainSoundVolume, velocityScale } from "../../main"
 import { gameSoundService } from "../../services/audio/gameSoundService"
 import { applyDamage } from "../../services/combat/damageService"
+import { applyDefaultExplosionForce } from "../../services/combat/explosionPulseService"
 import { registerBatchedEntityUpdate } from "../../services/core/entityUpdateService"
 import {
 	getEnemyNavigationDirection,
@@ -14,15 +16,17 @@ import {
 	type EnemySpawnOptions,
 } from "../../services/enemies/threatService"
 import { isPlayerDamageInvulnerable } from "../../services/player/playerDamageState"
+import { damageDestructibleWallsInRadius } from "../../services/world/destructibleWallService"
 import { easeDirection } from "../../shared"
 import { tags } from "../../tags"
 import { getEnemyVisual } from "../../visuals/enemyVisualCatalog"
 import { onEnemyHit } from "../enemyShared"
-import { spawnExplosionEffect } from "../spawnFlash"
+import { spawnExplosiveBarrelExplosionEffect } from "../spawnFlash"
 import {
 	addWakeEnemyPart,
 	composeWakeEnemy,
 	handleWakeCompositeCombat,
+	updateWakeEnemyMalfunction,
 } from "./wakeEnemyShared"
 
 type FuseRatPhase = "seek" | "prime" | "cooldown" | "disabled"
@@ -104,17 +108,20 @@ export function spawnFuseRat(
 	const overcharger = addWakeEnemyPart(
 		rat,
 		overchargerVisual.sprite,
-		Math.max(2, Math.round(profile.hp * 0.55))
+		2 * Math.max(2, Math.round(profile.hp / 2 * 0.55))
 	)
 	composeWakeEnemy(rat, profile, [{
 		obj: overcharger,
 		hitbox: 6 * profile.scale,
 		hitboxOffset: k.vec2(0, 0).scale(profile.scale),
+		pullForce: 80,
+		pullDuration: 0.65,
 		onDestroyed: () => disableFuseRat(rat),
 	}], 6, 1.2)
 
 	registerBatchedEntityUpdate("enemies", rat, () => {
 		const delta = k.dt() * rat.getTimescale()
+		if (updateWakeEnemyMalfunction(rat, delta)) return
 		rat.phaseTimer += delta
 		rat.targetTimer -= delta
 		rat.mineTimer -= delta
@@ -334,6 +341,11 @@ function spawnFuseMine(pos: Vec2, damage: number, extraTags: string[]) {
 		k.health(2),
 		k.animate(),
 		timescale(),
+		snareable({
+			mass: 0.45,
+			radius: 10,
+			releaseDrag: 1.25,
+		}),
 		{
 			hb: 9,
 			armedElapsed: 0,
@@ -376,6 +388,12 @@ function spawnFuseMine(pos: Vec2, damage: number, extraTags: string[]) {
 		if (detonated) return
 		detonated = true
 		const explosionPos = targetMine.pos.clone()
+		damageDestructibleWallsInRadius(
+			explosionPos,
+			FUSE_MINE_DAMAGE_RADIUS,
+			mineDamage,
+			{ explosive: true }
+		)
 		if (
 			!isPlayerDamageInvulnerable() &&
 			playerObj.exists() &&
@@ -389,10 +407,13 @@ function spawnFuseMine(pos: Vec2, damage: number, extraTags: string[]) {
 				},
 			})
 		}
-		spawnExplosionEffect(explosionPos, FUSE_MINE_DAMAGE_RADIUS, {
-			particleCount: 12,
-			persistentSmoke: true,
+		applyDefaultExplosionForce(explosionPos, FUSE_MINE_DAMAGE_RADIUS, {
+			excludeIds: [targetMine.id],
 		})
+		spawnExplosiveBarrelExplosionEffect(
+			explosionPos,
+			FUSE_MINE_DAMAGE_RADIUS
+		)
 		gameSoundService.playPositional("explosive_blast", explosionPos, {
 			volume: mainSoundVolume * 0.62,
 			maxDistance: 620,

@@ -15,6 +15,7 @@ export type ActiveModuleId =
 	| "gravityCharge"
 	| "breachCharge"
 	| "droneBeacon"
+	| "droidFrenzy"
 	| "repairPulse"
 	| "empBeacon"
 
@@ -39,9 +40,9 @@ export const ACTIVE_MODULES: readonly ActiveModuleDefinition[] = [
 		shortName: "MISSILE",
 		description: "Fires a salvo of guided rockets using your installed missile upgrades.",
 		icon: "rocket_upg1",
-		cooldown: 6,
+		cooldown: 30,
 		rarity: RewardRarity.Common,
-		stats: { ROLE: "DAMAGE", COOLDOWN: "6.0S" },
+		stats: { ROLE: "DAMAGE", COOLDOWN: "30S" },
 		crateWeight: 100,
 	},
 	{
@@ -51,9 +52,9 @@ export const ACTIVE_MODULES: readonly ActiveModuleDefinition[] = [
 		shortName: "REPULSOR",
 		description: "Emits a defensive shockwave that throws nearby enemies and hostile projectiles away.",
 		icon: "active_repulsor_pulse",
-		cooldown: 7,
+		cooldown: 10.5,
 		rarity: RewardRarity.Uncommon,
-		stats: { ROLE: "DEFENSE", RADIUS: 100, COOLDOWN: "7S" },
+		stats: { ROLE: "DEFENSE", RADIUS: 100, COOLDOWN: "10.5S" },
 		crateWeight: 105,
 	},
 	{
@@ -63,9 +64,9 @@ export const ACTIVE_MODULES: readonly ActiveModuleDefinition[] = [
 		shortName: "DECOY",
 		description: "Launches a carrier that deploys a holographic ship to draw nearby enemies off course.",
 		icon: "active_decoy_beacon",
-		cooldown: 9,
+		cooldown: 13.5,
 		rarity: RewardRarity.Uncommon,
-		stats: { ROLE: "CONTROL", DURATION: "5S", COOLDOWN: "9S" },
+		stats: { ROLE: "CONTROL", DURATION: "5S", COOLDOWN: "13.5S" },
 		crateWeight: 96,
 	},
 	{
@@ -75,9 +76,9 @@ export const ACTIVE_MODULES: readonly ActiveModuleDefinition[] = [
 		shortName: "MINE",
 		description: "Drops an armed proximity mine behind the ship. Deploying another replaces it.",
 		icon: "active_scrap_mine",
-		cooldown: 6,
+		cooldown: 9,
 		rarity: RewardRarity.Common,
-		stats: { ROLE: "DAMAGE", DAMAGE: 16, COOLDOWN: "6S" },
+		stats: { ROLE: "DAMAGE", DAMAGE: 16, COOLDOWN: "9S" },
 		crateWeight: 112,
 	},
 	{
@@ -87,9 +88,9 @@ export const ACTIVE_MODULES: readonly ActiveModuleDefinition[] = [
 		shortName: "BARRIER",
 		description: "Projects a barrier that blocks all incoming damage for 1.6 seconds.",
 		icon: "active_kinetic_barrier",
-		cooldown: 10,
+		cooldown: 15,
 		rarity: RewardRarity.Uncommon,
-		stats: { ROLE: "DEFENSE", DURATION: "1.6S", COOLDOWN: "10S" },
+		stats: { ROLE: "DEFENSE", DURATION: "1.6S", COOLDOWN: "15S" },
 		crateWeight: 90,
 	},
 	{
@@ -99,9 +100,9 @@ export const ACTIVE_MODULES: readonly ActiveModuleDefinition[] = [
 		shortName: "GRAVITY",
 		description: "Launches a carrier that deploys a singularity, pulling enemies, projectiles, and salvage before collapsing.",
 		icon: "active_gravity_charge",
-		cooldown: 11,
+		cooldown: 16.5,
 		rarity: RewardRarity.Rare,
-		stats: { ROLE: "CONTROL", DURATION: "2.4S", COOLDOWN: "11S" },
+		stats: { ROLE: "CONTROL", DURATION: "2.4S", COOLDOWN: "16.5S" },
 		crateWeight: 72,
 	},
 	{
@@ -111,9 +112,9 @@ export const ACTIVE_MODULES: readonly ActiveModuleDefinition[] = [
 		shortName: "BREACH",
 		description: "Launches a carrier that plants a delayed charge, devastating enemies and destructible walls.",
 		icon: "active_breach_charge",
-		cooldown: 8,
+		cooldown: 12,
 		rarity: RewardRarity.Uncommon,
-		stats: { ROLE: "BREACH", DAMAGE: 28, COOLDOWN: "8S" },
+		stats: { ROLE: "BREACH", DAMAGE: 28, COOLDOWN: "12S" },
 		crateWeight: 88,
 	},
 	{
@@ -123,10 +124,27 @@ export const ACTIVE_MODULES: readonly ActiveModuleDefinition[] = [
 		shortName: "DRONES",
 		description: "Launches a carrier that deploys two temporary combat drones for 12 seconds.",
 		icon: "active_drone_beacon",
-		cooldown: 14,
+		cooldown: 21,
 		rarity: RewardRarity.Rare,
 		stats: { ROLE: "SUPPORT", DRONES: 2, DURATION: "12S" },
 		crateWeight: 68,
+	},
+	{
+		id: "droidFrenzy",
+		minimumHubLevel: 3,
+		name: "DROID FRENZY",
+		shortName: "FRENZY",
+		description: "Overclocks every active droid for 5 seconds, increasing damage and fire rate while granting your projectile modifiers.",
+		icon: "active_droid_frenzy",
+		cooldown: 18,
+		rarity: RewardRarity.Rare,
+		stats: {
+			ROLE: "DROID BOOST",
+			DAMAGE: "+50%",
+			"FIRE RATE": "+75%",
+			DURATION: "5S",
+		},
+		crateWeight: 64,
 	},
 	{
 		id: "repairPulse",
@@ -135,7 +153,7 @@ export const ACTIVE_MODULES: readonly ActiveModuleDefinition[] = [
 		shortName: "REPAIR",
 		description: "Channels a hull repair over 1.5 seconds. Taking damage interrupts it.",
 		icon: "active_repair_pulse",
-		cooldown: 12,
+		cooldown: 40,
 		rarity: RewardRarity.Uncommon,
 		stats: { ROLE: "RECOVERY", REPAIR: 25, CHANNEL: "1.5S" },
 		crateWeight: 82,
@@ -147,7 +165,7 @@ export const ACTIVE_MODULES: readonly ActiveModuleDefinition[] = [
 		shortName: "EMP",
 		description: "Disrupts enemies and mines in a wide radius for 3 seconds.",
 		icon: "active_emp_beacon",
-		cooldown: 13,
+		cooldown: 19.5,
 		rarity: RewardRarity.Rare,
 		stats: { ROLE: "CONTROL", RADIUS: 150, DURATION: "3S" },
 		crateWeight: 70,

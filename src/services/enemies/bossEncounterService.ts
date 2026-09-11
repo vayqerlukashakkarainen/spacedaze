@@ -25,6 +25,7 @@ export interface BossEncounterController {
 	id: BossId
 	getPhase: () => BossPhaseDefinition
 	getPhaseIndex: () => number
+	setHudVisible: (visible: boolean) => void
 	destroy: () => void
 }
 
@@ -47,6 +48,9 @@ export function registerBossEncounter(
 		id,
 		getPhase: () => definition.phases[phaseIndex],
 		getPhaseIndex: () => phaseIndex,
+		setHudVisible: (visible) => {
+			if (hud.root.exists()) hud.root.hidden = !visible
+		},
 		destroy: cancel,
 	}
 	activeEncounter = controller

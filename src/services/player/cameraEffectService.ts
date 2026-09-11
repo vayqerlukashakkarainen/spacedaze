@@ -1,5 +1,6 @@
 import type { Vec2 } from "kaplay"
 import { k } from "../../main"
+import { getScreenShakeIntensity } from "../ui/displaySettingsService"
 
 interface CameraBobOptions {
 	strength: number
@@ -43,7 +44,8 @@ export function getCameraBobScale(baseScale: number) {
 
 	const phase = progress * activeCameraBob.oscillations * Math.PI * 2
 	const falloff = Math.pow(1 - progress, 1.6)
-	const offset = Math.sin(phase) * activeCameraBob.strength * falloff
+	const offset = Math.sin(phase) * activeCameraBob.strength * falloff *
+		getScreenShakeIntensity()
 	return baseScale * (1 + offset)
 }
 
@@ -53,7 +55,7 @@ export function clearCameraBob() {
 
 export function addCameraKick(direction: Vec2, strength: number) {
 	if (direction.len() <= 0.001 || strength <= 0) return
-	const retainedOffset = getCameraKickOffset()
+	const retainedOffset = getRawCameraKickOffset()
 	let nextOffset = retainedOffset.add(
 		direction.unit().scale(Math.min(CAMERA_KICK_MAX_OFFSET, strength))
 	)
@@ -68,6 +70,10 @@ export function addCameraKick(direction: Vec2, strength: number) {
 }
 
 export function getCameraKickOffset() {
+	return getRawCameraKickOffset().scale(getScreenShakeIntensity())
+}
+
+function getRawCameraKickOffset() {
 	if (!activeCameraKick) return k.vec2(0)
 	const elapsed = k.time() - activeCameraKick.startedAt
 	const progress = k.clamp(elapsed / activeCameraKick.duration, 0, 1)

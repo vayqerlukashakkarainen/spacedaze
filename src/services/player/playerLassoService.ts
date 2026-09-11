@@ -29,6 +29,17 @@ import {
 	getTargetHitRadius,
 	getTargetWorldPosition,
 } from "../combat/targetingService"
+import { getPilotProtocolValue } from "../hub/pilotProtocolService"
+import { getLassoRigValue } from "../hub/lassoRigService"
+import {
+	calculatePhysicsImpact,
+	resolvePhysicsImpactDamage,
+} from "../world/physicsImpactService"
+import {
+	queryPullableShipParts,
+	type PullableShipPartTarget,
+} from "../combat/shipPartPullService"
+import type { CombatTargetRuntimeState } from "../combat/combatTarget"
 
 const POINTER_ACQUIRE_RADIUS = 56
 const MAX_QUERY_TARGET_RADIUS = 48
@@ -51,8 +62,6 @@ const MAX_SLAM_SPEED = 500
 const SLAM_QUERY_TARGET_RADIUS = 72
 const SLAM_CONTACT_COOLDOWN = 0.22
 const SLAM_VELOCITY_RETENTION = 0.6
-const SLAM_BASE_DAMAGE = 4
-const SLAM_MAX_DAMAGE = 22
 const THRUSTER_LOAD_BASE_MASS = 1
 const THRUSTER_LOAD_FULL_MASS = 3.5
 const THRUSTER_LOAD_FULL_FORCE = 630
@@ -61,22 +70,39 @@ const REDLINE_CHARGE_TIME = 0.75
 const REDLINE_CHARGE_DECAY = 1.5
 const REDLINE_THROW_MAX_SPEED = 1125
 const REDLINE_COLOR = [255, 58, 48] as const
+const BASE_LASSO_PULL_FORCE = 100
+const MIN_PART_PULL_TENSION = 0.18
+const PART_PULL_PROGRESS_DECAY = 0.8
+const PART_SHAKE_START_PROGRESS = 0.55
 
-type SnareTarget = GameObj<PosComp | SnareableComp>
+type SnareTarget = GameObj<PosComp | SnareableComp> &
+	CombatTargetRuntimeState
+
+type LassoCastTarget =
+	| { kind: "snareable"; target: SnareTarget }
+	| { kind: "shipPart"; target: PullableShipPartTarget }
 
 interface PlayerLassoOptions {
 	player: GameObj<PosComp>
 	inputBlocked: () => boolean
 	isUnlocked: () => boolean
+	canPullShipParts: () => boolean
 	isStrafeModeActive: () => boolean
 	getStrafeAimPosition: () => Vec2
 }
 
 interface CastState {
-	target: SnareTarget
+	target: LassoCastTarget
 	elapsed: number
 	duration: number
 	hookPosition: Vec2
+}
+
+interface PartPullState {
+	target: PullableShipPartTarget
+	tension: number
+	progress: number
+	nextStrainEffectAt: number
 }
 
 interface SlamState {
@@ -229,11 +255,13 @@ export function installPlayerLasso({
 	player,
 	inputBlocked,
 	isUnlocked,
+	canPullShipParts,
 	isStrafeModeActive,
 	getStrafeAimPosition,
 }: PlayerLassoOptions): InputController {
 	let cast: CastState | undefined
 	let tether: TetherState | undefined
+	let partPull: PartPullState | undefined
 	const launched: LaunchedState[] = []
 	let lastPlayerPosition = player.pos.clone()
 	let playerVelocity = k.vec2(0, 0)
@@ -241,7 +269,7 @@ export function installPlayerLasso({
 	const runtime: ActivePlayerLassoRuntime = {
 		player,
 		getTetheredTarget: () => tether?.target,
-		getThrusterLoad: () => calculateThrusterLoad(tether),
+		getThrusterLoad: () => calculateThrusterLoad(tether, partPull),
 	}
 	activePlayerLassoRuntime = runtime
 
@@ -253,18 +281,28 @@ export function installPlayerLasso({
 		{
 			draw() {
 				if (!player.exists()) return
-				const end = cast?.hookPosition ?? tether?.target.pos
+				const end = cast?.hookPosition ??
+					tether?.target.pos ??
+					partPull?.target.getPosition()
 				if (!end) return
-				const tension = tether?.tension ?? 0
+				const tension = tether?.tension ?? partPull?.tension ?? 0
 				const redlineReady = tether?.redlineReady === true
+				const partAboutToBreak =
+					(partPull?.progress ?? 0) >= PART_SHAKE_START_PROGRESS
+				const partUnderpowered = partPull !== undefined &&
+					partPull.tension >= MIN_PART_PULL_TENSION &&
+					getAvailableLassoPullForce(partPull.tension) <
+						partPull.target.pullForce
 				const pulse = 0.72 + Math.sin(k.time() * 14) * 0.12
 				k.drawLine({
 					p1: player.pos,
 					p2: end,
-					width: redlineReady ? 4 : 3,
-					color: redlineReady
+					width: redlineReady || partAboutToBreak ? 4 : 3,
+					color: redlineReady || partAboutToBreak
 						? k.rgb(...REDLINE_COLOR)
-						: k.rgb(...UI_COLORS.accent),
+						: partUnderpowered
+							? k.rgb(...UI_COLORS.warning)
+							: k.rgb(...UI_COLORS.accent),
 					opacity: 0.22 + tension * 0.28,
 				})
 				k.drawLine({
@@ -293,13 +331,13 @@ export function installPlayerLasso({
 			launchTetheredTarget(getStrafeAimPosition())
 			return
 		}
-		if (cast || tether) {
+		if (cast || tether || partPull) {
 			releaseActiveLasso(true)
 			return
 		}
-		const target = findTarget(player)
+		const target = findTarget(player, canPullShipParts())
 		if (!target) return
-		const distance = player.pos.dist(target.pos)
+		const distance = player.pos.dist(getCastTargetPosition(target))
 		cast = {
 			target,
 			elapsed: 0,
@@ -324,16 +362,17 @@ export function installPlayerLasso({
 		lastPlayerPosition = player.pos.clone()
 
 		if (cast) updateCast(frameDelta)
+		if (partPull) updatePartPull(frameDelta)
 		if (tether) updateTether(frameDelta)
 		updateLaunchedTargets(frameDelta)
 	})
 
 	function updateCast(deltaSeconds: number) {
 		if (!cast) return
+		const targetPosition = getCastTargetPosition(cast.target)
 		if (
-			!cast.target.exists() ||
-			!cast.target.canBeSnared() ||
-			player.pos.dist(cast.target.pos) > MAX_CAST_RANGE
+			!isCastTargetAvailable(cast.target) ||
+			player.pos.dist(targetPosition) > MAX_CAST_RANGE
 		) {
 			cast = undefined
 			return
@@ -341,26 +380,124 @@ export function installPlayerLasso({
 		cast.elapsed += deltaSeconds
 		const progress = k.clamp(cast.elapsed / cast.duration, 0, 1)
 		const easedProgress = 1 - Math.pow(1 - progress, 3)
-		cast.hookPosition = player.pos.lerp(cast.target.pos, easedProgress)
+		cast.hookPosition = player.pos.lerp(targetPosition, easedProgress)
 		if (progress < 1) return
 
 		const target = cast.target
 		cast = undefined
-		if (!target.beginSnare()) return
+		if (target.kind === "shipPart") {
+			partPull = {
+				target: target.target,
+				tension: 0,
+				progress: 0,
+				nextStrainEffectAt: 0,
+			}
+			return
+		}
+		if (!target.target.beginSnare()) return
 		const launchedIndex = launched.findIndex(
-			(candidate) => candidate.target.id === target.id
+			(candidate) => candidate.target.id === target.target.id
 		)
 		if (launchedIndex >= 0) launched.splice(launchedIndex, 1)
-		tether = {
-			target,
-			tension: 0,
-			activeContacts: new Set(),
-			lastImpactAt: new Map(),
-			lastRoomImpactAt: -Infinity,
-			nextArcPulseAt: 0,
-			redlineCharge: 0,
-			redlineReady: false,
+		tether = createTetherState(target.target)
+	}
+
+	function updatePartPull(deltaSeconds: number) {
+		const activePull = partPull
+		if (!activePull) return
+		if (!activePull.target.isAvailable()) {
+			partPull = undefined
+			return
 		}
+		const partPosition = activePull.target.getPosition()
+		const toPart = partPosition.sub(player.pos)
+		const distance = toPart.len()
+		if (distance > BREAK_RANGE) {
+			partPull = undefined
+			return
+		}
+		const stretch = Math.max(0, distance - ROPE_LENGTH)
+		activePull.tension = k.clamp(
+			stretch / (BREAK_RANGE - ROPE_LENGTH),
+			0,
+			1
+		)
+		if (activePull.tension > 0 && distance > 0.001) {
+			const resistanceSpeed = k.clamp(
+				activePull.target.pullForce * activePull.tension,
+				0,
+				MAX_PLAYER_PULL_SPEED
+			)
+			player.move(toPart.scale(
+				resistanceSpeed * velocityScale() / distance
+			))
+		}
+
+		const availableForce = getAvailableLassoPullForce(activePull.tension)
+		if (
+			activePull.tension < MIN_PART_PULL_TENSION ||
+			availableForce < activePull.target.pullForce
+		) {
+			activePull.progress = Math.max(
+				0,
+				activePull.progress - PART_PULL_PROGRESS_DECAY * deltaSeconds
+			)
+			return
+		}
+
+		const forceRatio = k.clamp(
+			availableForce / activePull.target.pullForce,
+			1,
+			1.5
+		)
+		activePull.progress = Math.min(
+			1,
+			activePull.progress +
+				deltaSeconds * forceRatio / activePull.target.pullDuration
+		)
+		if (
+			activePull.progress >= PART_SHAKE_START_PROGRESS &&
+			k.time() >= activePull.nextStrainEffectAt
+		) {
+			const breakProgress = k.clamp(
+				(activePull.progress - PART_SHAKE_START_PROGRESS) /
+					(1 - PART_SHAKE_START_PROGRESS),
+				0,
+				1
+			)
+			activePull.nextStrainEffectAt = k.time() + k.lerp(
+				0.15,
+				0.045,
+				breakProgress
+			)
+			if (typeof activePull.target.obj.jitter === "function") {
+				activePull.target.obj.jitter(k.lerp(1.5, 4.5, breakProgress))
+			}
+			const pullDirection = player.pos.sub(partPosition).unit()
+			spawnFlash(
+				partPosition,
+				k.lerp(2.5, 5, breakProgress),
+				breakProgress > 0.72 ? k.rgb(...REDLINE_COLOR) : k.WHITE
+			)
+			emitImpactChips(
+				partPosition,
+				activePull.target.owner.pos,
+				pullDirection,
+				k.lerp(150, 360, breakProgress),
+				breakProgress > 0.8
+			)
+		}
+		if (activePull.progress < 1) return
+
+		const pullDirection = player.pos.sub(partPosition)
+		const detachedTarget = activePull.target.detach(
+			pullDirection.len() > 0.001 ? pullDirection.unit() : k.vec2(1, 0)
+		) as SnareTarget | undefined
+		partPull = undefined
+		if (!detachedTarget?.exists() || !detachedTarget.beginSnare()) return
+		detachedTarget.pos = partPosition
+		detachedTarget.snareVelocity = k.vec2(0, 0)
+		tether = createTetherState(detachedTarget)
 	}
 
 	function updateTether(deltaSeconds: number) {
@@ -375,7 +512,8 @@ export function installPlayerLasso({
 		}
 		if (deltaSeconds <= 0) return
 		const pullAccelerationMultiplier =
-			getToolUpgradeLvlValue("torqueSpool") ?? 1
+			(getToolUpgradeLvlValue("torqueSpool") ?? 1) *
+			getLassoRigValue("forceAmplifier")
 
 		let remaining = deltaSeconds
 		while (remaining > 0) {
@@ -444,6 +582,7 @@ export function installPlayerLasso({
 
 	function releaseActiveLasso(momentumThrow: boolean = false) {
 		cast = undefined
+		partPull = undefined
 		if (!tether) return
 		const target = tether.target
 		tether = undefined
@@ -451,6 +590,9 @@ export function installPlayerLasso({
 		let releaseVelocity = momentumThrow
 			? target.snareVelocity.scale(LASSO_MOMENTUM_RELEASE_MULTIPLIER)
 			: target.snareVelocity.clone()
+		releaseVelocity = releaseVelocity.scale(
+			1 + getPilotProtocolValue("tetherMomentum") / 100
+		)
 		if (releaseVelocity.len() > LASSO_THROW_MAX_SPEED) {
 			releaseVelocity = releaseVelocity.unit().scale(LASSO_THROW_MAX_SPEED)
 		}
@@ -486,18 +628,24 @@ export function installPlayerLasso({
 			LASSO_THROW_SPEED,
 			LASSO_THROW_MAX_SPEED
 		)
-		const launchSpeedMultiplier = redlineReady
+		const rigForceMultiplier = getLassoRigValue("forceAmplifier")
+		const launchSpeedMultiplier = rigForceMultiplier * (redlineReady
 			? getToolUpgradeStatValue(
 				"redlineCable",
 				"lassoRedlineLaunchSpeedMultiplier"
 			) ?? 1.25
-			: 1
+			: 1)
+		const maximumLaunchSpeed = (redlineReady
+			? REDLINE_THROW_MAX_SPEED
+			: LASSO_THROW_MAX_SPEED) * rigForceMultiplier
 		const launchSpeed = k.clamp(
 			baseLaunchSpeed * launchSpeedMultiplier,
 			LASSO_THROW_SPEED,
-			redlineReady ? REDLINE_THROW_MAX_SPEED : LASSO_THROW_MAX_SPEED
+			maximumLaunchSpeed
 		)
-		const launchVelocity = direction.scale(launchSpeed)
+		const launchVelocity = direction.scale(
+			launchSpeed * (1 + getPilotProtocolValue("tetherMomentum") / 100)
+		)
 		const damageMultiplier = redlineReady
 			? getToolUpgradeStatValue(
 				"redlineCable",
@@ -525,6 +673,7 @@ export function installPlayerLasso({
 		damageMultiplier: number = 1
 	) {
 		target.consumeSnareRoomImpact()
+		target.lassoCollisionOwnerId = player.id
 		const launchedIndex = launched.findIndex(
 			(state) => state.target.id === target.id
 		)
@@ -544,6 +693,7 @@ export function installPlayerLasso({
 		for (let index = launched.length - 1; index >= 0; index--) {
 			const state = launched[index]
 			if (!state.target.exists() || state.target.snared) {
+				clearLassoCollisionOwner(state.target, player.id)
 				launched.splice(index, 1)
 				continue
 			}
@@ -570,7 +720,9 @@ export function installPlayerLasso({
 			if (
 				state.elapsed >= LASSO_THROW_TRACK_DURATION ||
 				state.target.snareVelocity.len() < MIN_SLAM_SPEED
-			) launched.splice(index, 1)
+			) {
+				launched.splice(index, 1)
+			}
 		}
 	}
 
@@ -579,6 +731,9 @@ export function installPlayerLasso({
 		cancelled = true
 		pressController.cancel()
 		releaseActiveLasso()
+		for (const state of launched) {
+			clearLassoCollisionOwner(state.target, player.id)
+		}
 		launched.length = 0
 		if (activePlayerLassoRuntime === runtime) {
 			activePlayerLassoRuntime = undefined
@@ -591,7 +746,19 @@ export function installPlayerLasso({
 	return { cancel }
 }
 
-function calculateThrusterLoad(tether: TetherState | undefined) {
+function clearLassoCollisionOwner(target: GameObj, ownerId: number) {
+	if (!target.exists() || target.lassoCollisionOwnerId !== ownerId) return
+	target.lassoCollisionOwnerId = undefined
+}
+
+function calculateThrusterLoad(
+	tether: TetherState | undefined,
+	partPull: PartPullState | undefined
+) {
+	if (partPull?.target.isAvailable() && partPull.tension > 0) {
+		const resistanceLoad = k.clamp(partPull.target.pullForce / 150, 0, 1)
+		return k.clamp(partPull.tension * resistanceLoad, 0, 1)
+	}
 	if (!tether?.target.exists() || tether.tension <= 0) return 0
 	const massLoad = k.clamp(
 		(tether.target.snareMass - THRUSTER_LOAD_BASE_MASS) /
@@ -611,6 +778,29 @@ function calculateThrusterLoad(tether: TetherState | undefined) {
 		0,
 		1
 	)
+}
+
+function createTetherState(target: SnareTarget): TetherState {
+	return {
+		target,
+		tension: 0,
+		activeContacts: new Set(),
+		lastImpactAt: new Map(),
+		lastRoomImpactAt: -Infinity,
+		nextArcPulseAt: 0,
+		redlineCharge: 0,
+		redlineReady: false,
+	}
+}
+
+function getAvailableLassoPullForce(tension: number) {
+	if (tension < MIN_PART_PULL_TENSION) return 0
+	const forceMultiplier = getToolUpgradeStatValue(
+		"torqueSpool",
+		"lassoPullForceMultiplier"
+	) ?? 1
+	return BASE_LASSO_PULL_FORCE * forceMultiplier *
+		getLassoRigValue("forceAmplifier") * k.lerp(0.55, 1, tension)
 }
 
 function updateRedlineCharge(tether: TetherState, deltaSeconds: number) {
@@ -637,14 +827,17 @@ function updateRedlineCharge(tether: TetherState, deltaSeconds: number) {
 	k.shake(0.45)
 }
 
-function findTarget(player: GameObj<PosComp>) {
+function findTarget(player: GameObj<PosComp>, canPullShipParts: boolean) {
 	const pointer = k.toWorld(k.mousePos())
-	let closest = wakeSleepingShipPartTarget(pointer, player)
+	const sleepingPart = wakeSleepingShipPartTarget(pointer, player)
+	let closest: LassoCastTarget | undefined = sleepingPart
+		? { kind: "snareable", target: sleepingPart }
+		: undefined
 	let closestSurfaceDistance = POINTER_ACQUIRE_RADIUS
-	if (closest) {
+	if (sleepingPart) {
 		closestSurfaceDistance = Math.max(
 			0,
-			pointer.dist(closest.pos) - closest.snareRadius
+			pointer.dist(sleepingPart.pos) - sleepingPart.snareRadius
 		)
 	}
 	for (const candidate of querySpatialNearby(
@@ -665,10 +858,37 @@ function findTarget(player: GameObj<PosComp>) {
 			pointer.dist(target.pos) - target.snareRadius
 		)
 		if (surfaceDistance >= closestSurfaceDistance) continue
-		closest = target
+		closest = { kind: "snareable", target }
+		closestSurfaceDistance = surfaceDistance
+	}
+	if (!canPullShipParts) return closest
+	for (const target of queryPullableShipParts(
+		pointer,
+		POINTER_ACQUIRE_RADIUS + MAX_QUERY_TARGET_RADIUS
+	)) {
+		const targetPosition = target.getPosition()
+		if (player.pos.dist(targetPosition) > MAX_CAST_RANGE) continue
+		const surfaceDistance = Math.max(
+			0,
+			pointer.dist(targetPosition) - target.hitRadius
+		)
+		if (surfaceDistance >= closestSurfaceDistance) continue
+		closest = { kind: "shipPart", target }
 		closestSurfaceDistance = surfaceDistance
 	}
 	return closest
+}
+
+function getCastTargetPosition(target: LassoCastTarget) {
+	return target.kind === "shipPart"
+		? target.target.getPosition()
+		: target.target.pos
+}
+
+function isCastTargetAvailable(target: LassoCastTarget) {
+	return target.kind === "shipPart"
+		? target.target.isAvailable()
+		: target.target.exists() && target.target.canBeSnared()
 }
 
 function wakeSleepingShipPartTarget(
@@ -865,7 +1085,9 @@ function applyAttachedObjectDamage(
 		0,
 		0.8
 	)
-	const appliedDamage = damage * (1 - selfDamageReduction)
+	const appliedDamage = target.is(tags.roomVolatile)
+		? resolvePhysicsImpactDamage(target, damage)
+		: damage * (1 - selfDamageReduction)
 	const damageApplied = applyDamage(target, appliedDamage, {
 		position: impactPosition,
 		incomingDirection: reactionDirection,
@@ -904,10 +1126,11 @@ function applyDestructibleRoomImpact(
 	const impactPosition = target.pos.add(
 		direction.scale(target.snareRadius)
 	)
-	const damage = calculateSlamDamage(
+	const damage = calculatePhysicsImpact(
 		impactVelocity.len(),
 		target.snareMass
-	)
+	).damage
+	if (damage <= 0) return false
 	applyAttachedObjectDamage(target, impactPosition, direction, damage)
 	return !target.exists()
 }
@@ -935,19 +1158,32 @@ function applySlamImpact(
 	const damageable = typeof candidate.hp === "number" && candidate.hp > 0
 	if (!damageable && !canPushSnareable) return false
 
+	const candidateVelocity = getPhysicsBodyVelocity(candidate)
+	const candidateMass = getPhysicsBodyMass(candidate)
+	const relativeSpeed = Math.max(
+		0,
+		direction.scale(speed).sub(candidateVelocity).dot(direction)
+	)
+	const impact = calculatePhysicsImpact(
+		relativeSpeed,
+		getEffectiveLassoImpactMass(snaredTarget),
+		candidateMass
+	)
+	if (impact.damage <= 0) return false
 	const speedRatio = k.clamp(
-		(speed - MIN_SLAM_SPEED) / (MAX_SLAM_SPEED - MIN_SLAM_SPEED),
+		(relativeSpeed - MIN_SLAM_SPEED) / (MAX_SLAM_SPEED - MIN_SLAM_SPEED),
 		0,
 		1
 	)
-	const selfDamage = calculateSlamDamage(
-		speed,
-		snaredTarget.snareMass
-	)
+	const selfDamage = calculatePhysicsImpact(
+		relativeSpeed,
+		snaredTarget.snareMass,
+		candidateMass
+	).damage
 	const kineticCouplerMultiplier =
 		getToolUpgradeLvlValue("kineticCoupler") ?? 1
 	const damage = Math.round(
-		selfDamage * kineticCouplerMultiplier * damageMultiplier
+		impact.damage * kineticCouplerMultiplier * damageMultiplier
 	)
 	const resistance = candidate.is(tags.boss)
 		? 0.2
@@ -955,7 +1191,7 @@ function applySlamImpact(
 			? 0.55
 			: 1
 	const knockback = k.clamp(
-		speed * 0.32 * snaredTarget.snareMass * resistance,
+		speed * 0.32 * getEffectiveLassoImpactMass(snaredTarget) * resistance,
 		14,
 		180
 	)
@@ -964,20 +1200,39 @@ function applySlamImpact(
 	if (damageable) {
 		candidate.detachImpactDirection = direction.clone()
 		candidate.detachImpactPosition = impactPosition.clone()
-		damageApplied = applyDamage(candidate, damage, {
-			position: impactPosition,
-			incomingDirection: direction,
-			visualForceOrigin: snaredTarget.pos,
-			combatCredit: { kind: "lasso" },
-		})
+		damageApplied = applyDamage(
+			candidate,
+			resolvePhysicsImpactDamage(candidate, damage),
+			{
+				position: impactPosition,
+				incomingDirection: direction,
+				visualForceOrigin: snaredTarget.pos,
+				combatCredit: { kind: "lasso" },
+			}
+		)
 	}
 
 	if (candidate.exists()) {
 		if (canPushSnareable) {
-			const transferSpeed = speed * 0.68 * snaredTarget.snareMass /
+			const transferSpeed = speed * 0.68 *
+				getEffectiveLassoImpactMass(snaredTarget) /
 				Math.max(0.1, snareableCandidate.snareMass)
 			snareableCandidate.snareVelocity = snareableCandidate.snareVelocity.add(
 				direction.scale(transferSpeed)
+			)
+			if (snareableCandidate.snareVelocity.len() > MAX_TARGET_SPEED) {
+				snareableCandidate.snareVelocity =
+					snareableCandidate.snareVelocity.unit().scale(MAX_TARGET_SPEED)
+			}
+			const impactOffset = impactPosition.sub(candidatePosition)
+			const torqueLever = impactOffset.x * direction.y -
+				impactOffset.y * direction.x
+			snareableCandidate.snareAngularVelocity = k.clamp(
+				snareableCandidate.snareAngularVelocity +
+					torqueLever * transferSpeed /
+					Math.max(4, snareableCandidate.snareRadius) * 3,
+				-540,
+				540
 			)
 		} else {
 			applyKnockbackImpulse(candidate, direction, knockback)
@@ -1023,18 +1278,29 @@ function applySlamImpact(
 	return true
 }
 
-function calculateSlamDamage(
-	speed: number,
-	mass: number
-) {
-	const speedRatio = k.clamp(
-		(speed - MIN_SLAM_SPEED) / (MAX_SLAM_SPEED - MIN_SLAM_SPEED),
-		0,
-		1
-	)
-	return Math.round(
-		SLAM_BASE_DAMAGE + SLAM_MAX_DAMAGE * speedRatio * Math.sqrt(mass)
-	)
+function getPhysicsBodyVelocity(target: GameObj) {
+	if (target.snareVelocity?.len) return target.snareVelocity as Vec2
+	if (target.enemyThrowVelocity?.len) return target.enemyThrowVelocity as Vec2
+	if (target.velocity?.len) return target.velocity as Vec2
+	if (target.vel?.len && typeof target.speed === "number") {
+		const velocity = target.vel as Vec2
+		return velocity.len() > 0.001
+			? velocity.unit().scale(target.speed)
+			: k.vec2()
+	}
+	return k.vec2()
+}
+
+function getPhysicsBodyMass(target: GameObj) {
+	if (typeof target.snareMass === "number") return Math.max(0.1, target.snareMass)
+	if (target.is(tags.boss)) return 8
+	if (target.is(tags.elite)) return 2.4
+	if (target.is(tags.player)) return 1.2
+	return 1
+}
+
+function getEffectiveLassoImpactMass(target: SnareTarget) {
+	return target.snareMass * getLassoRigValue("massCoupler")
 }
 
 function getSlamTargetRadius(target: GameObj) {

@@ -28,11 +28,16 @@ import { spawnBoilerHulk } from "../../spawn/wake/spawnBoilerHulk"
 import { spawnPatchTender } from "../../spawn/wake/spawnPatchTender"
 import { spawnRivetGunner } from "../../spawn/wake/spawnRivetGunner"
 import { spawnScrapNipper } from "../../spawn/wake/spawnScrapNipper"
+import { spawnScrappersHut } from "../../spawn/wake/spawnScrappersHut"
 import { spawnScrapRaiser } from "../../spawn/wake/spawnScrapRaiser"
 import { spawnTowhookRig } from "../../spawn/wake/spawnTowhookRig"
 import { spawnClampback } from "../../spawn/wake/spawnClampback"
 import { spawnFuseRat } from "../../spawn/wake/spawnFuseRat"
 import { spawnShredderSkiff } from "../../spawn/wake/spawnShredderSkiff"
+import { spawnMagnetMaw } from "../../spawn/wake/spawnMagnetMaw"
+import { spawnRailbreakerRig } from "../../spawn/wake/spawnRailbreakerRig"
+import { spawnYardmaster } from "../../spawn/wake/spawnYardmaster"
+import { spawnLastBeacon } from "../../spawn/wake/spawnLastBeacon"
 import { tags } from "../../tags"
 
 export type DebugEnemyType =
@@ -59,6 +64,7 @@ export type DebugEnemyType =
 	| "boss"
 	| "mini-boss"
 	| "scrap-nipper"
+	| "scrappers-hut"
 	| "scrap-raiser"
 	| "rivet-gunner"
 	| "towhook-rig"
@@ -67,6 +73,10 @@ export type DebugEnemyType =
 	| "fuse-rat"
 	| "shredder-skiff"
 	| "boiler-hulk"
+	| "magnet-maw"
+	| "railbreaker-rig"
+	| "yardmaster"
+	| "last-beacon"
 
 const DEBUG_ENEMY_TYPES: readonly DebugEnemyType[] = [
 	"ship",
@@ -92,6 +102,7 @@ const DEBUG_ENEMY_TYPES: readonly DebugEnemyType[] = [
 	"boss",
 	"mini-boss",
 	"scrap-nipper",
+	"scrappers-hut",
 	"scrap-raiser",
 	"rivet-gunner",
 	"towhook-rig",
@@ -100,10 +111,17 @@ const DEBUG_ENEMY_TYPES: readonly DebugEnemyType[] = [
 	"fuse-rat",
 	"shredder-skiff",
 	"boiler-hulk",
+	"magnet-maw",
+	"railbreaker-rig",
+	"yardmaster",
+	"last-beacon",
 ]
 
 const SCALABLE_DEBUG_ENEMY_TYPES = DEBUG_ENEMY_TYPES.filter((type) =>
-	type !== "boss" && type !== "mini-boss"
+	type !== "boss" &&
+	type !== "mini-boss" &&
+	type !== "yardmaster" &&
+	type !== "last-beacon"
 )
 
 export function getDebugEnemyTypes() {
@@ -256,37 +274,53 @@ function spawnDebugEnemy(type: DebugEnemyType, pos: Vec2) {
 			})
 			return
 		case "boss":
-			spawnBoss1(pos, 10, 60, 1)
+			spawnBoss1(pos, 10, 600, 1)
 			return
 		case "mini-boss":
 			spawnImpactAce(pos, 2, { persistOffscreen: true })
 			return
 		case "scrap-nipper":
-			spawnScrapNipper(pos, 2, persistOptions)
+			spawnScrapNipper(pos, 4, persistOptions)
+			return
+		case "scrappers-hut":
+			spawnScrappersHut(pos, 18, persistOptions)
 			return
 		case "scrap-raiser":
-			spawnScrapRaiser(pos, 5, persistOptions)
+			spawnScrapRaiser(pos, 10, persistOptions)
 			return
 		case "rivet-gunner":
-			spawnRivetGunner(pos, 5, persistOptions)
+			spawnRivetGunner(pos, 10, persistOptions)
 			return
 		case "towhook-rig":
-			spawnTowhookRig(pos, 6, persistOptions)
+			spawnTowhookRig(pos, 12, persistOptions)
 			return
 		case "patch-tender":
-			spawnPatchTender(pos, 4, persistOptions)
+			spawnPatchTender(pos, 8, persistOptions)
 			return
 		case "clampback":
-			spawnClampback(pos, 7, persistOptions)
+			spawnClampback(pos, 14, persistOptions)
 			return
 		case "fuse-rat":
-			spawnFuseRat(pos, 4, persistOptions)
+			spawnFuseRat(pos, 8, persistOptions)
 			return
 		case "shredder-skiff":
-			spawnShredderSkiff(pos, 8, persistOptions)
+			spawnShredderSkiff(pos, 16, persistOptions)
 			return
 		case "boiler-hulk":
-			spawnBoilerHulk(pos, 20, persistOptions)
+			spawnBoilerHulk(pos, 40, persistOptions)
+			return
+		case "magnet-maw":
+			spawnMagnetMaw(pos, 48, persistOptions)
+			return
+		case "railbreaker-rig":
+			spawnRailbreakerRig(pos, 48, persistOptions)
+			return
+		case "yardmaster":
+			spawnYardmaster(pos, 750)
+			return
+		case "last-beacon":
+			spawnLastBeacon(pos, 700)
+			return
 	}
 }
 

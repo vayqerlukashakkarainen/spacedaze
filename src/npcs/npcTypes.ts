@@ -4,6 +4,9 @@ export type NpcId =
 	| "lamp-keeper"
 	| "gloom"
 	| "jubilee"
+	| "armorer"
+	| "quartermaster"
+	| "race-marshal"
 
 export type NpcKind = "droid"
 

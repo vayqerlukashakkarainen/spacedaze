@@ -3,13 +3,9 @@ import {
 	blaster,
 	blasterMultiple,
 	blasterSpeed,
-	blasterDmg,
 } from "./blastersNew";
-import { rocket, increaseRockets, rocketShards } from "./rocketsNew";
 import {
 	debreeDist,
-	sprintSpeed,
-	spaceJump,
 	spaceJumpUpgrades,
 	phaseRam,
 	phaseMagazine,
@@ -23,6 +19,7 @@ import {
 	debreeValue,
 	maxHealth,
 	extraLife,
+	turretTraverse,
 	salvageLasso,
 } from "./shipNew";
 import {
@@ -47,6 +44,7 @@ import {
 	stunRounds,
 	kineticPulse,
 	lifesteal,
+	probabilityAmplifier,
 	ricochetRounds,
 	ricochetModifierLink,
 	singularityPayload,
@@ -55,7 +53,6 @@ import {
 } from "./projectilesNew";
 import {
 	afterimageRounds,
-	boomerangPayload,
 	criticalShatter,
 	executionRounds,
 	fragmentationCore,
@@ -77,6 +74,7 @@ import {
 	nearMissCapacitor,
 	packIntelligence,
 	phaseEcho,
+	phaseWake,
 	reactivePlating,
 	sawSatellite,
 	sacrificialProtocol,
@@ -102,16 +100,8 @@ const definitions: Record<string, UpgradeDefinition> = {
 	blaster,
 	blasterParallel: blasterMultiple,
 	blasterSpeed,
-	blasterDmg,
-
-	// Rockets
-	rockets: rocket,
-	nrOfRockets: increaseRockets,
-	rocketShards,
 
 	// Ship - Movement
-	sprintSpeed,
-	spaceJump,
 	spaceJumpUpgrades,
 	phaseRam,
 	phaseMagazine,
@@ -130,6 +120,7 @@ const definitions: Record<string, UpgradeDefinition> = {
 	// Ship - Survival
 	maxHealth,
 	extraLife,
+	turretTraverse,
 	salvageLasso,
 
 	// Follower
@@ -145,6 +136,7 @@ const definitions: Record<string, UpgradeDefinition> = {
 	sacrificialProtocol,
 	enemyHacker,
 	phaseEcho,
+	phaseWake,
 	salvageBattery,
 	reactivePlating,
 	packIntelligence,
@@ -169,6 +161,7 @@ const definitions: Record<string, UpgradeDefinition> = {
 	corrosivePayload,
 	arcCapacitor,
 	lifesteal,
+	probabilityAmplifier,
 	splitChamber,
 	singularityPayload,
 	targetingMatrix,
@@ -180,7 +173,6 @@ const definitions: Record<string, UpgradeDefinition> = {
 	hunterGuidance,
 	proximityFuse,
 	afterimageRounds,
-	boomerangPayload,
 	growingCharge,
 	stasisBurst,
 	volatileCorrosion,
@@ -196,19 +188,13 @@ const definitions: Record<string, UpgradeDefinition> = {
 };
 
 const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
-	blaster: policy(RewardRarity.Rare, ["crate", "boss"], 70, 0, 180),
-	blasterParallel: policy(RewardRarity.Rare, ["crate", "boss"], 80, 0, 140),
+	blaster: policy(RewardRarity.Legendary, ["crate", "boss"], 70, 0, 180),
 	blasterSpeed: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 130, 30, 90),
-	blasterDmg: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 120, 25, 100),
-	rockets: policy(RewardRarity.Rare, ["crate", "boss"], 70, 0, 180),
-	nrOfRockets: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 140, 35, 100),
-	rocketShards: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 120, 30, 100),
-	sprintSpeed: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 25, 80),
 	spaceJumpUpgrades: policy(RewardRarity.Rare, ["crate", "boss"], 70, 0, 130),
 	phaseRam: policy(RewardRarity.Rare, ["crate", "boss"], 55, 0, 120),
 	phaseMagazine: policy(RewardRarity.Epic, ["crate", "boss"], 24, 0, 145, 3),
-	movespeed: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 140, 35, 90),
-	strafeSpeed: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 140, 35, 90),
+	movespeed: policy(RewardRarity.Common, [], 0, 0, 0),
+	strafeSpeed: policy(RewardRarity.Common, [], 0, 0, 0),
 	kineticCoupler: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 28, 88),
 	torqueSpool: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 120, 28, 88),
 	shockCradle: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 88, 16, 96),
@@ -216,12 +202,12 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	redlineCable: policy(RewardRarity.Epic, ["crate", "boss"], 22, 0, 138, 3),
 	debreeDist: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 130, 35, 80),
 	debreeValue: policy(RewardRarity.Uncommon, ["crate", "boss"], 90, 0, 80),
-	maxHealth: policy(RewardRarity.Rare, ["crate", "boss"], 80, 0, 130),
-	extraLife: policy(RewardRarity.Legendary, ["crate"], 18, 0, 0),
+	maxHealth: policy(RewardRarity.Rare, [], 0, 0, 0),
 	salvageLasso: policy(RewardRarity.Legendary, [], 0, 0, 0, 2),
+	turretTraverse: policy(RewardRarity.Legendary, [], 0, 0, 0),
 	followerBlasterDmg: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 110, 25, 100),
 	followerMissiles: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 160, 2),
-	followerProjectileLink: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 150, 2),
+	followerProjectileLink: policy(RewardRarity.Legendary, ["crate", "boss"], 20, 0, 150, 2),
 	followerInterceptorProtocol: policy(RewardRarity.Rare, ["crate", "boss"], 48, 0, 130),
 	followerGunship: policy(RewardRarity.Rare, ["crate", "boss"], 44, 0, 125),
 	followerMedic: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 145, 2),
@@ -231,6 +217,7 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	sacrificialProtocol: policy(RewardRarity.Epic, ["crate", "boss"], 22, 0, 145, 4),
 	enemyHacker: policy(RewardRarity.Epic, ["crate", "boss"], 18, 0, 135, 5),
 	phaseEcho: policy(RewardRarity.Rare, ["crate", "boss"], 42, 0, 118, 3),
+	phaseWake: policy(RewardRarity.Rare, ["crate", "boss"], 44, 0, 120, 2),
 	salvageBattery: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 76, 14, 92, 2),
 	reactivePlating: policy(RewardRarity.Rare, ["crate", "boss"], 48, 0, 112, 2),
 	packIntelligence: policy(RewardRarity.Epic, ["crate", "boss"], 22, 0, 132, 4),
@@ -253,6 +240,7 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	corrosivePayload: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 100, 20, 100),
 	arcCapacitor: policy(RewardRarity.Rare, ["crate", "boss"], 55, 0, 140),
 	lifesteal: policy(RewardRarity.Rare, ["crate", "boss"], 52, 0, 135, 2),
+	probabilityAmplifier: policy(RewardRarity.Legendary, ["crate", "boss"], 8, 0, 55, 4),
 	splitChamber: policy(RewardRarity.Rare, ["crate", "boss"], 45, 0, 130),
 	singularityPayload: policy(RewardRarity.Epic, ["crate", "boss"], 12, 0, 180, 4),
 	targetingMatrix: policy(RewardRarity.Common, ["crate", "enemy", "boss"], 125, 30, 90),
@@ -264,7 +252,6 @@ const upgradeRewardPolicies: Record<string, UpgradeRewardPolicy> = {
 	hunterGuidance: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 90, 18, 95),
 	proximityFuse: policy(RewardRarity.Rare, ["crate", "boss"], 48, 0, 115),
 	afterimageRounds: policy(RewardRarity.Epic, ["crate", "boss"], 22, 0, 135, 3),
-	boomerangPayload: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 82, 14, 90),
 	growingCharge: policy(RewardRarity.Uncommon, ["crate", "enemy", "boss"], 90, 18, 95),
 	stasisBurst: policy(RewardRarity.Rare, ["crate", "boss"], 42, 0, 115),
 	volatileCorrosion: policy(RewardRarity.Epic, ["crate", "boss"], 20, 0, 135, 4),

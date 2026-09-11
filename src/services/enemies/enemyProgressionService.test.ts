@@ -6,11 +6,14 @@ import {
 
 const roster = getEnemyProgressionRoster()
 
-assert.equal(roster.length, 27)
+assert.equal(roster.length, 30)
 for (const enemyId of [
+	"wake-scrappers-hut",
 	"wake-clampback",
 	"wake-fuse-rat",
 	"wake-shredder-skiff",
+	"wake-magnet-maw",
+	"wake-railbreaker-rig",
 ] as const) {
 	assert.equal(
 		roster.some((enemy) => enemy.id === enemyId),

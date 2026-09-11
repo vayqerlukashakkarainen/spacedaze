@@ -2,6 +2,7 @@ import type {
 	AudioPlay,
 	Color,
 	GameObj,
+	HealthComp,
 	PosComp,
 	RotateComp,
 	Vec2,
@@ -39,6 +40,7 @@ import {
 } from "./particles";
 import { getPlayerMaxHealth, hasLvlValue, player, PLAYER_SCALE, session } from "./player";
 import {
+	getPlayerWeaponProjectileSpeed,
 	spawnPlayerBlaster,
 	spawnPlayerRocket,
 	spawnPhaseMagazineSalvo,
@@ -53,6 +55,10 @@ import {
 import { tags } from "./tags";
 import { audioService } from "./services/audio/audioService";
 import { gameSoundService } from "./services/audio/gameSoundService"
+import {
+	getPlayerThrusterSoundMix,
+	PLAYER_THRUSTER_SOUND_UPDATE_INTERVAL,
+} from "./services/audio/playerThrusterSound"
 import { loopService } from "./services/core/loopService";
 import { profileSection } from "./services/debug/frameProfilerService";
 import {
@@ -68,9 +74,13 @@ import { addShipThruster } from "./comp/shipThruster"
 import { registerBatchedEntityUpdate } from "./services/core/entityUpdateService"
 import { recoverPlayerHealth } from "./services/player/playerHealthService"
 import {
+	getDamageFromPrimaryRatio,
+	getPrimaryWeaponDamage,
+} from "./services/player/playerCombatScalingService"
+import {
 	BASE_PLAYER_HEALTH,
 	HULL_UPGRADE_AMOUNT,
-	REPAIR_PULSE_RECOVERY,
+	REPAIR_PULSE_RECOVERY_RATIO,
 } from "./services/player/playerHealthBalance"
 import type { GridCollisionComp } from "./comp/gridCollision";
 import { levelTransitionActive } from "./services/world/levelTransitionService";
@@ -89,6 +99,7 @@ import {
 	narrativePrologueActive,
 } from "./services/narrative/narrativeService";
 import { spawnAfterburnerWake } from "./spawn/spawnAfterburnerWake";
+import { spawnPhaseWake } from "./spawn/spawnPhaseWake"
 import { spawnEnemyDeathEffect } from "./spawn/spawnEnemyDeathEffect";
 import { spawnFlash } from "./spawn/spawnFlash";
 import { spawnRing } from "./spawn/spawnRing";
@@ -136,6 +147,8 @@ import { damageDestructibleWallsInRadius } from "./services/world/destructibleWa
 import { spawnGravityPull } from "./spawn/spawnGravityPull";
 import { addWormholeEffect } from "./spawn/spawnLevel";
 import { getEnemyMovementMultiplier } from "./services/enemies/enemyMovementModifierService";
+import { getPilotProtocolValue } from "./services/hub/pilotProtocolService";
+import { applyHubCameraInterest } from "./services/hub/hubCameraInterestService";
 import {
 	clearPlayerStatusEffects,
 	getPlayerStatusMultiplier,
@@ -143,6 +156,7 @@ import {
 } from "./services/player/playerStatusEffectService";
 import { spawnFollower } from "./spawn/spawnFollower";
 import { spawnActiveModuleCarrier } from "./spawn/spawnActiveModuleCarrier"
+import { installUltimateChargeOrbFeedback } from "./spawn/spawnUltimateChargeOrb"
 import {
 	getEquippedMobilityAbilityId,
 	getEquippedUltimateAbilityId,
@@ -157,6 +171,12 @@ import {
 	getUltimateChargeProgress,
 } from "./services/abilities/ultimateAbilityService";
 import {
+	activateGhostFleet,
+	activateGravitonCollapse,
+	activateScrapColossus,
+	recordGhostFleetShot,
+} from "./services/abilities/playerUltimateRuntime"
+import {
 	getAbilityDefinition,
 	RETRO_BURST_CHARGE_COUNT,
 } from "./services/abilities/abilityRegistry";
@@ -170,6 +190,14 @@ import {
 	updatePassiveUpgradeRuntime,
 } from "./services/abilities/passiveUpgradeRuntimeService";
 import {
+	activateDroneFrenzy,
+	DRONE_FRENZY_DAMAGE_MULTIPLIER,
+	DRONE_FRENZY_DURATION_SECONDS,
+	DRONE_FRENZY_FIRE_RATE_MULTIPLIER,
+	resetDroneFrenzy,
+	updateDroneFrenzy,
+} from "./services/abilities/droneFrenzyService"
+import {
 	createThrusterOverdriveState,
 	updateThrusterOverdrive,
 } from "./services/abilities/thrusterOverdriveService";
@@ -178,7 +206,9 @@ import {
 	DRIFT_HULL_RESPONSE,
 	easeAngle,
 	getMovementModeSpeedMultiplier,
+	getPlayerTurretLimitDegrees,
 	getSignedAngleDelta,
+	resolveStrafeInputActive,
 	setPlayerTargetModeAimPosition,
 	setPlayerTargetModeActive,
 	shouldTurnHullForStationaryAim,
@@ -193,6 +223,7 @@ import {
 } from "./services/player/playerTargetLockService"
 import { consumeExtraLife } from "./services/progression/extraLifeService"
 import {
+	getStrafeInputMode,
 	isInputActionDown,
 	onInputActionPress,
 	onInputActionRelease,
@@ -209,6 +240,7 @@ import {
 	syncPlayerLassoRoomTransfer,
 } from "./services/player/playerLassoService"
 import { getEffectiveUpgradeLevel, getPermanentUpgradeLevel } from "./upg"
+import { getLassoRigRank } from "./services/hub/lassoRigService"
 
 let blasters = 0;
 let bulletIndex = 1;
@@ -228,6 +260,7 @@ const strafeTargetReleaseEaseDuration = 0.18;
 const strafeTargetCritChanceBonus = 25;
 const strafeTargetCritScaleMultiplier = 1.35;
 const multiBlasterMountSpacing = 6;
+const playerForwardLaunchOffset = 16;
 const weaponRecoilReturnSpeed = 20;
 const maxWeaponRecoilDistance = 8;
 const overclockShakeInterval = 0.12;
@@ -243,6 +276,12 @@ const afterburnerWakeInterval = 0.14;
 const phaseJumpAfterimageDuration = 0.18;
 const phaseJumpPostInvulnerability = 0.6;
 const phaseJumpDuration = 0.12;
+const phaseSurgeDuration = 2
+const phaseSurgeSpeedMultiplier = 1.4
+const phaseSurgeCooldown = 8
+const phaseSurgeFadeDuration = 0.16
+const phaseSurgeReturnFadeDuration = 0.18
+const phaseSurgeParticleInterval = 0.035
 const gravitySlingRange = 150;
 const gravitySlingHookSpeed = 760;
 const gravitySlingBaseDamage = 14;
@@ -250,6 +289,8 @@ const gravitySlingReleaseSpeedMultiplier = 1.8;
 const gravitySlingReleaseDrag = 1.35;
 const phaseJumpCooldownBarWidth = 22;
 const phaseJumpCooldownBarOffset = -22;
+const primaryHeatBarWidth = 24;
+const primaryHeatBarOffset = -27;
 const retroBurstKnockbackForce = 48;
 const normalCameraFollowSpeed = 16;
 const phaseCameraFollowSpeed = 6;
@@ -276,6 +317,12 @@ let phaseJumpStart: Vec2 | undefined;
 let phaseJumpEnd: Vec2 | undefined;
 let phaseJumpElapsed = 0;
 const phaseJumpHitTargets = new Set<number>();
+let phaseSurgeStartedAt = 0
+let phaseSurgeActiveUntil = 0
+let phaseSurgeReturnStartedAt = 0
+let phaseSurgeReturnUntil = 0
+let phaseSurgeParticleTimer = 0
+let phaseSurgeWasActive = false
 let retroBurstStart: Vec2 | undefined;
 let retroBurstEnd: Vec2 | undefined;
 let retroBurstElapsed = 0;
@@ -323,6 +370,11 @@ interface SetupPlayerOptions {
 	preserveRunState?: boolean;
 }
 
+type PlayerRuntimeObject = GameObj<PosComp | RotateComp | HealthComp> & {
+	gravityVelocity: Vec2
+	activeModuleInvulnerable?: boolean
+}
+
 interface PlayerRespawnTransitionOptions {
 	startPosition?: Vec2
 }
@@ -338,6 +390,10 @@ export function playPlayerRespawnTransition(
 	if (!activePlayerRespawnTransition) return false
 	activePlayerRespawnTransition(target, options)
 	return true
+}
+
+function phaseSurgeActive() {
+	return k.time() < phaseSurgeActiveUntil
 }
 
 function getPlayerShipDirectionIndex(angle: number) {
@@ -359,6 +415,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	setPlayerTargetModeActive(false)
 	resetPlayerDeathCause();
 	if (!options.preserveRunState) resetPassiveUpgradeRuntime();
+	if (!options.preserveRunState) resetDroneFrenzy()
 	clearGravitySlingState();
 	gravitySlingReleaseVelocity = k.vec2(0);
 	if (!options.preserveRunState) {
@@ -395,10 +452,10 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		k.rotate(respawnTransitionActive ? respawnAngle : 0),
 		k.scale(
 			arrivalTransitionActive
-				? PLAYER_SCALE * 0.2
+				? k.vec2(PLAYER_SCALE * 0.2)
 				: respawnTransitionActive
 				? k.vec2(PLAYER_SCALE * 0.65, PLAYER_SCALE * respawnEntryStretch)
-				: PLAYER_SCALE
+				: k.vec2(PLAYER_SCALE)
 		),
 		k.health(getPlayerMaxHealth()),
 		k.anchor("center"),
@@ -409,6 +466,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			gravitySteerable: true,
 			gravityVelocity: k.vec2(0),
 			gravitySteeringMultiplier: 0.35,
+			playerHullVisual: undefined as GameObj | undefined,
 		},
 		tags.friendly,
 		tags.player,
@@ -485,13 +543,51 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	clearPlayerStatusEffects();
 	player.speedPwrUpMultiplier = 1;
 	const thruster = addShipThruster(playerObj, playerObj.height / 2 - 2)
-	let overclockWasActive = false
 	const thrusterOverdriveState = createThrusterOverdriveState()
-	let overclockSound: AudioPlay | null | undefined
-	const stopOverclockSound = () => {
-		if (!overclockSound) return
-		audioService.stopSound(overclockSound, "overclock-ended")
-		overclockSound = undefined
+	let playerThrusterSound: AudioPlay | null = null
+	let playerThrusterSoundElapsed = PLAYER_THRUSTER_SOUND_UPDATE_INTERVAL
+	let playerThrusterVolume = 0
+	let playerThrusterPlaybackSpeed = 1
+	const updatePlayerThrusterSound = (movementSpeed: number, deltaSeconds: number) => {
+		playerThrusterSoundElapsed += deltaSeconds
+		if (playerThrusterSoundElapsed < PLAYER_THRUSTER_SOUND_UPDATE_INTERVAL) return
+		const updateDelta = playerThrusterSoundElapsed
+		playerThrusterSoundElapsed = 0
+		const target = getPlayerThrusterSoundMix(movementSpeed, player.speed)
+		const response = 1 - Math.exp(-10 * updateDelta)
+		const nextVolume = k.lerp(
+			playerThrusterVolume,
+			mainSoundVolume * target.volume,
+			response
+		)
+		const nextPlaybackSpeed = k.lerp(
+			playerThrusterPlaybackSpeed,
+			target.speed,
+			response
+		)
+		const volumeChanged = Math.abs(nextVolume - playerThrusterVolume) >= 0.002
+		const speedChanged = Math.abs(
+			nextPlaybackSpeed - playerThrusterPlaybackSpeed
+		) >= 0.003
+		playerThrusterVolume = nextVolume
+		playerThrusterPlaybackSpeed = nextPlaybackSpeed
+		if (!playerThrusterSound) {
+			playerThrusterSound = gameSoundService.play("player_thruster_loop", {
+				loop: true,
+				volume: playerThrusterVolume,
+				speed: playerThrusterPlaybackSpeed,
+			})
+			return
+		}
+		if (!volumeChanged && !speedChanged) return
+		gameSoundService.update(playerThrusterSound, {
+			volume: playerThrusterVolume,
+			speed: playerThrusterPlaybackSpeed,
+		})
+	}
+	const stopPlayerThrusterSound = () => {
+		gameSoundService.stop(playerThrusterSound, "player-destroyed")
+		playerThrusterSound = null
 	}
 	let lowHealthWarningSound: AudioPlay | null | undefined
 	let lowHealthWarningActive = false
@@ -576,6 +672,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		})
 	}
 	const inputControllers: InputController[] = [];
+	inputControllers.push(installUltimateChargeOrbFeedback(playerObj));
 	const readinessFlashQueue: ReturnType<typeof k.rgb>[] = [];
 	let readinessFlashActive = false;
 	let readinessStateInitialized = false;
@@ -634,6 +731,41 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	};
 	let primaryChargeStartedAt: number | undefined;
 	let primaryChargeWeaponId = "";
+	let primarySustainStartedAt: number | undefined;
+	let primarySustainWeaponId = "";
+	interface PrimaryHeatState {
+		heat: number
+		overheated: boolean
+		coolingPerSecond: number
+		recoveryThreshold: number
+	}
+	const primaryHeatStates = new Map<string, PrimaryHeatState>();
+	const getPrimaryHeatState = (weapon: WeaponDefinition) => {
+		const overheat = weapon.sustainedFire?.overheat;
+		if (!overheat) return undefined;
+		let state = primaryHeatStates.get(weapon.id);
+		if (!state) {
+			state = {
+				heat: 0,
+				overheated: false,
+				coolingPerSecond: overheat.coolingPerSecond,
+				recoveryThreshold: overheat.recoveryThreshold,
+			};
+			primaryHeatStates.set(weapon.id, state);
+		}
+		return state;
+	};
+	const isPrimaryWeaponOverheated = (weapon: WeaponDefinition) =>
+		getPrimaryHeatState(weapon)?.overheated === true;
+	const getPrimaryHeatColor = (heatState: PrimaryHeatState) => {
+		if (heatState.overheated) {
+			const pulse = (Math.sin(k.time() * 18) + 1) / 2;
+			return k.rgb(255, 45 + 40 * pulse, 45 + 20 * pulse);
+		}
+		return heatState.heat >= 0.7
+			? k.rgb(255, 145, 45)
+			: k.rgb(75, 205, 255);
+	};
 	let nextPrimaryChargeParticleAt = 0;
 	let primaryChargeReadySoundPlayed = false;
 	let primaryChargeSound: AudioPlay | null | undefined;
@@ -664,6 +796,24 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		k.z(11),
 		tags.gameLoop,
 	]);
+	const primaryHeatTrack = k.add([
+		k.pos(playerObj.pos),
+		k.rect(primaryHeatBarWidth, 3),
+		k.anchor("left"),
+		k.color(35, 48, 58),
+		k.opacity(0),
+		k.z(10),
+		tags.gameLoop,
+	]);
+	const primaryHeatFill = k.add([
+		k.pos(playerObj.pos),
+		k.rect(primaryHeatBarWidth, 3),
+		k.anchor("left"),
+		k.color(75, 205, 255),
+		k.opacity(0),
+		k.z(11),
+		tags.gameLoop,
+	]);
 
 	const turretObj = playerObj.add([
 		k.pos(0, 0),
@@ -689,6 +839,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	let strafeTargetMarker: GameObj | undefined
 	let strafeAimPos = playerObj.pos.clone()
 	let strafeAimActive = false
+	let strafeModeToggled = false
 	let strafeTargetReleaseEaseRemaining = 0
 	let strafeModeWasActive = false
 	let strafeTargetCritActive = false
@@ -726,6 +877,12 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		phaseJumpStart = undefined
 		phaseJumpEnd = undefined
 		phaseJumpElapsed = 0
+		phaseSurgeStartedAt = 0
+		phaseSurgeActiveUntil = 0
+		phaseSurgeReturnStartedAt = 0
+		phaseSurgeReturnUntil = 0
+		phaseSurgeParticleTimer = 0
+		phaseSurgeWasActive = false
 		retroBurstStart = undefined
 		retroBurstEnd = undefined
 		retroBurstElapsed = 0
@@ -801,7 +958,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		if (activePlayerRespawnTransition === beginRespawnTransition) {
 			activePlayerRespawnTransition = undefined
 		}
-		stopOverclockSound()
+		stopPlayerThrusterSound()
 		stopLowHealthWarning()
 		stopPrimaryChargeSound();
 		setStrafeTarget()
@@ -815,15 +972,17 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		syncLowHealthWarning()
 		// Clear before transition early returns so jumps never leave a stale flame.
 		if (levelTransitionActive() || arrivalTransitionActive || respawnTransitionActive) {
+			strafeModeToggled = false
+			updatePlayerThrusterSound(0, dt())
 			setStrafeTarget()
 			thruster.update(0, 0)
 			thruster.setColor(k.WHITE)
-			overclockWasActive = false
 			player.speedPwrUpMultiplier = 1
-			stopOverclockSound()
 			stopPrimaryChargeSound();
 			primaryChargeStartedAt = undefined;
 			primaryChargeWeaponId = "";
+			primarySustainStartedAt = undefined;
+			primarySustainWeaponId = "";
 		}
 		updatePlayerStatusEffects(dt());
 		cargoObj = updateShipRewardVisuals(
@@ -832,6 +991,41 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			cargoObj
 		);
 		const currentWeapon = getEquippedWeapon();
+		for (const [weaponId, heatState] of primaryHeatStates) {
+			const activelySustaining =
+				currentWeapon.id === weaponId &&
+				primarySustainStartedAt !== undefined &&
+				primarySustainWeaponId === weaponId &&
+				!heatState.overheated;
+			if (!activelySustaining) {
+				heatState.heat = Math.max(
+					0,
+					heatState.heat - heatState.coolingPerSecond * dt()
+				);
+			}
+			if (
+				heatState.overheated &&
+				heatState.heat <= heatState.recoveryThreshold
+			) heatState.overheated = false;
+		}
+		const currentHeatState = getPrimaryHeatState(currentWeapon);
+		const showPrimaryHeat = currentHeatState !== undefined && (
+			currentHeatState.heat > 0 ||
+			primarySustainWeaponId === currentWeapon.id
+		);
+		const heatBarPos = playerObj.pos.add(
+			-primaryHeatBarWidth / 2,
+			primaryHeatBarOffset
+		);
+		primaryHeatTrack.pos = heatBarPos;
+		primaryHeatFill.pos = heatBarPos;
+		primaryHeatTrack.opacity = showPrimaryHeat ? 0.65 : 0;
+		primaryHeatFill.opacity = showPrimaryHeat ? 1 : 0;
+		primaryHeatFill.width = primaryHeatBarWidth *
+			(currentHeatState?.heat ?? 0);
+		primaryHeatFill.color = currentHeatState
+			? getPrimaryHeatColor(currentHeatState)
+			: k.rgb(75, 205, 255);
 		if (configuredWeaponId !== currentWeapon.id) {
 			weaponVisual.use(k.sprite(currentWeapon.icon));
 			weaponRecoilOffset = 0;
@@ -913,11 +1107,13 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		} else if (!currentWeapon.charge || primaryChargeStartedAt === undefined) {
 			stopPrimaryChargeSound();
 		}
-		weaponVisual.color = k.rgb(
-			145 + 90 * primaryChargeProgress,
-			155 + 75 * primaryChargeProgress,
-			165 + 90 * primaryChargeProgress
-		);
+		weaponVisual.color = currentHeatState && currentHeatState.heat > 0
+			? getPrimaryHeatColor(currentHeatState)
+			: k.rgb(
+				145 + 90 * primaryChargeProgress,
+				155 + 75 * primaryChargeProgress,
+				165 + 90 * primaryChargeProgress
+			);
 		if (configuredBlasterLevel !== (player.blasterLvl ?? -1)) {
 			configureBlasters(muzzleObj);
 		}
@@ -971,6 +1167,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		}
 
 		updateActiveModuleCooldown(dt());
+		updateDroneFrenzy(dt())
 		const activeModule = getEquippedActiveModule();
 		const activeCooldownRemaining = getActiveModuleCooldownRemaining();
 		const activeCooldown = activeModule?.cooldown ?? 1;
@@ -1086,13 +1283,33 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		const isPhaseJumping = updatePhaseJump(playerObj);
 		const isRetroBursting = updateRetroBurst(playerObj);
 		const isGravitySlinging = updateGravitySling(playerObj);
+		const isPhaseSurging = phaseSurgeActive()
+		if (phaseSurgeWasActive && !isPhaseSurging) {
+			phaseSurgeReturnStartedAt = k.time()
+			phaseSurgeReturnUntil = k.time() + phaseSurgeReturnFadeDuration
+			spawnPhaseSurgeReturnEffect(playerObj.pos.clone())
+		}
+		phaseSurgeWasActive = isPhaseSurging
+		if (isPhaseSurging) {
+			phaseSurgeParticleTimer -= dt()
+			if (phaseSurgeParticleTimer <= 0) {
+				emitPhaseSurgeParticles(playerObj)
+				phaseSurgeParticleTimer += phaseSurgeParticleInterval
+			}
+		}
 		const isMobilityMoving =
 			isPhaseJumping || isRetroBursting || isGravitySlinging;
+		const strafeInputMode = getStrafeInputMode()
+		if (strafeInputMode === "hold") strafeModeToggled = false
 		const driftModeActive =
 			!isMobilityMoving &&
 			isStrafeTrainingUnlocked() &&
 			!gameplayInputBlocked() &&
-			isInputActionDown("strafe")
+			resolveStrafeInputActive(
+				strafeInputMode,
+				isInputActionDown("strafe"),
+				strafeModeToggled
+			)
 		updatePlayerSteeringModeUi(driftModeActive)
 		const pointerWorldPos = k.toWorld(k.mousePos())
 		strafeAimActive = driftModeActive
@@ -1115,10 +1332,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 				lockedTarget && pointerIsOverTarget(pointerWorldPos, lockedTarget)
 			)
 			if (lockedTarget) updatePlayerTargetMotion(lockedTarget, dt())
-			const equippedProjectileSpeed =
-				BULLET_SPEED *
-				player.blasterSpeedMultiplier *
-				getEquippedWeapon().projectileSpeedMultiplier
+			const equippedProjectileSpeed = getPlayerWeaponProjectileSpeed()
 			const desiredAimPos = lockedTarget
 				? getPlayerTargetInterceptPoint(
 					playerObj.pos,
@@ -1163,28 +1377,52 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		if (!strafeAimActive) strafeTargetCritActive = false
 		strafeModeWasActive = strafeAimActive
 		const isInvulnerable =
-			isPhaseJumping || isGravitySlinging ||
+			isPhaseJumping || isGravitySlinging || isPhaseSurging ||
 			k.time() < phaseJumpInvulnerableUntil;
 		setPlayerDamageInvulnerable(isInvulnerable);
-		playerObj.opacity = isInvulnerable ? 0.35 : 1;
-		const cameraFollowSpeed = isMobilityMoving
-			? phaseCameraFollowSpeed
-			: normalCameraFollowSpeed;
-		const cameraPointerWeight = driftModeActive
-			? strafeCameraPointerWeight
-			: normalCameraPointerWeight
-		const cameraTarget = playerObj.pos.lerp(
-			pointerWorldPos,
-			cameraPointerWeight
-		)
-		if (!currentCameraPos) currentCameraPos = playerObj.pos.clone();
-		currentCameraPos = currentCameraPos.lerp(
-			cameraTarget,
-			1 - Math.exp(-cameraFollowSpeed * dt())
-		);
-		k.setCamPos(currentCameraPos.add(getCameraKickOffset()));
+		if (isPhaseSurging) {
+			const fadeProgress = k.clamp(
+				(k.time() - phaseSurgeStartedAt) / phaseSurgeFadeDuration,
+				0,
+				1
+			)
+			playerObj.opacity = k.lerp(1, 0.16, fadeProgress)
+		} else if (k.time() < phaseSurgeReturnUntil) {
+			const returnProgress = k.clamp(
+				(k.time() - phaseSurgeReturnStartedAt) / phaseSurgeReturnFadeDuration,
+				0,
+				1
+			)
+			playerObj.opacity = k.lerp(0.16, 1, returnProgress)
+		} else {
+			playerObj.opacity = isInvulnerable ? 0.35 : 1
+		}
+		if (cutsceneActive()) {
+			currentCameraPos = k.getCamPos().clone()
+		} else {
+			const cameraFollowSpeed = isMobilityMoving
+				? phaseCameraFollowSpeed
+				: normalCameraFollowSpeed;
+			const cameraPointerWeight = driftModeActive
+				? strafeCameraPointerWeight
+				: normalCameraPointerWeight
+			const playerCameraTarget = playerObj.pos.lerp(
+				pointerWorldPos,
+				cameraPointerWeight
+			)
+			const cameraTarget = applyHubCameraInterest(
+				playerCameraTarget,
+				playerObj.pos
+			)
+			if (!currentCameraPos) currentCameraPos = playerObj.pos.clone();
+			currentCameraPos = currentCameraPos.lerp(
+				cameraTarget,
+				1 - Math.exp(-cameraFollowSpeed * dt())
+			);
+			k.setCamPos(currentCameraPos.add(getCameraKickOffset()));
+		}
 
-		if (!isPhaseJumping && k.time() >= phaseJumpInvulnerableUntil) {
+		if (!isInvulnerable) {
 			checkProjectileIntersection(playerObj.pos, 12, tags.enemy, (p) => {
 				const shouldDestroy = applyProjectileDamage(playerObj, p);
 				if (shouldDestroy) k.destroy(p);
@@ -1193,6 +1431,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 
 		const wasdDir = getWasdDirection();
 		const overdriveTier = getAbilityTierValues("thrusterOverdrive");
+		const overdriveWasOverused = thrusterOverdriveState.overused;
 		const overdriveUpdate = updateThrusterOverdrive(
 			thrusterOverdriveState,
 			!isMobilityMoving &&
@@ -1202,13 +1441,17 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			dt(),
 			overdriveTier.recovery
 		);
+		if (!overdriveWasOverused && overdriveUpdate.overused) {
+			gameSoundService.play("player_overheated", {
+				volume: mainSoundVolume * 0.55,
+			});
+		}
 		const isBoosting = overdriveUpdate.active;
-		player.speedPwrUpMultiplier = isBoosting
-			? Math.max(
-				1.2 * overdriveTier.speed,
-				player.sprintSpeedMultiplier * overdriveTier.speed
-			)
-			: 1;
+		player.speedPwrUpMultiplier = isPhaseSurging
+			? phaseSurgeSpeedMultiplier
+			: isBoosting
+				? 1.2 * overdriveTier.speed
+				: 1;
 		const maxSpeed =
 			player.speed *
 			getMovementModeSpeedMultiplier(
@@ -1273,11 +1516,8 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			-90
 		).correctedDesiredRot;
 		const steeringDelta = dt() * timeScale * playerObj.getTimescale()
-		const stationaryAim =
-			wasdDir.len() <= 0.001 &&
-			currentMoveSpeed <= 1 &&
-			gravityVelocity.len() <= 1 &&
-			gravitySlingReleaseVelocity.len() <= 1
+		const turretTraverseRank = (getPermanentUpgradeLevel("turretTraverse") ?? -1) + 1
+		const turretLimitDegrees = getPlayerTurretLimitDegrees(turretTraverseRank)
 		if (driftModeActive) {
 			turretWorldAngle = easeAngle(
 				turretWorldAngle,
@@ -1296,10 +1536,11 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			if (shouldTurnHullForStationaryAim(
 				nextPlayerAngle,
 				desiredTurretWorldAngle,
-				stationaryAim
+				wasdDir.len() <= 0.001,
+				turretLimitDegrees
 			)) {
 				nextPlayerAngle = easeAngle(
-					playerObj.angle,
+					nextPlayerAngle,
 					desiredTurretWorldAngle,
 					DRIFT_HULL_RESPONSE,
 					steeringDelta
@@ -1308,7 +1549,8 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			}
 			const constrainedTurretAngle = clampTurretWorldAngle(
 				nextPlayerAngle,
-				desiredTurretWorldAngle
+				desiredTurretWorldAngle,
+				turretLimitDegrees
 			)
 			turretWorldAngle = easeAngle(
 				turretWorldAngle,
@@ -1318,24 +1560,16 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			)
 			turretWorldAngle = clampTurretWorldAngle(
 				nextPlayerAngle,
-				turretWorldAngle
+				turretWorldAngle,
+				turretLimitDegrees
 			)
 		}
 		playerObj.angle = nextPlayerAngle;
 		turretObj.angle = getSignedAngleDelta(playerObj.angle, turretWorldAngle);
 
-		if (isBoosting !== overclockWasActive) {
-			thruster.setColor(isBoosting ? k.rgb(80, 180, 255) : k.WHITE)
-			if (isBoosting) {
-				overclockSound = gameSoundService.play("going_fast", {
-					volume: mainSoundVolume * 0.5,
-					loop: true,
-				})
-			} else {
-				stopOverclockSound()
-			}
-			overclockWasActive = isBoosting
-		}
+		thruster.setColor(
+			isBoosting || isPhaseSurging ? k.rgb(80, 210, 255) : k.WHITE
+		)
 		updatePassiveUpgradeRuntime(playerObj, isBoosting);
 		if (isBoosting) {
 			overclockShakeTimer += dt();
@@ -1388,12 +1622,13 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		const speed = currentMoveSpeed * playerObj.getTimescale();
 		const slingReleaseSpeed = gravitySlingReleaseVelocity.len() *
 			playerObj.getTimescale();
+		updatePlayerThrusterSound(speed + slingReleaseSpeed, dt())
 		// Hull reinforcement and attached armor stand in for visual weight;
 		// this affects exhaust only, leaving movement balance unchanged.
 		const thrustWeight = 1 + Math.min(0.75,
 			Math.max(
 				0,
-				(player.maxHealth + session.extraHealth - BASE_PLAYER_HEALTH) /
+					(getPlayerMaxHealth() - BASE_PLAYER_HEALTH) /
 					HULL_UPGRADE_AMOUNT
 			) * 0.08 +
 			session.scrapArmorCharges * 0.1
@@ -1444,7 +1679,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			}
 		}
 		if (emitThrusterParticle && !isMobilityMoving) {
-			const activeTrailEmitter = isBoosting
+			const activeTrailEmitter = isBoosting || isPhaseSurging
 				? boostTrailEmitter
 				: trailEmitter
 			// Follow the flame tip even during its off flash and at boost length.
@@ -1501,7 +1736,12 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		levelTransitionActive() ||
 		respawnTransitionActive;
 	const combatInputBlocked = () =>
-		gameplayInputBlocked() || weaponWheelOpen()
+		gameplayInputBlocked() || weaponWheelOpen() || phaseSurgeActive()
+	inputControllers.push(onInputActionPress("strafe", () => {
+		if (gameplayInputBlocked() || !isStrafeTrainingUnlocked()) return
+		if (getStrafeInputMode() !== "toggle") return
+		strafeModeToggled = !strafeModeToggled
+	}))
 	const canFirePrimaryWeapon = () => !combatInputBlocked();
 	const kickWeaponVisual = (weapon: WeaponDefinition, chargeRatio: number) => {
 		const projectileCount = Math.max(
@@ -1560,7 +1800,8 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		weapon: WeaponDefinition,
 		chargeRatio: number,
 		playFireSound: boolean,
-		burstDamageMultiplier: number = 1
+		burstDamageMultiplier: number = 1,
+		sustainedFireRatio: number = 0
 	) => {
 		if (!playerObj.exists() || getEquippedWeapon().id !== weapon.id) return;
 		if (combatInputBlocked()) return;
@@ -1610,8 +1851,13 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			session.primaryRocketChance > 0 &&
 			k.chance(k.clamp(session.primaryRocketChance, 0, 1))
 		) {
+			const rocketMuzzlePos = getPlayerMuzzlePos(
+				playerObj.pos,
+				k.vec2(0, weapon.muzzleOffsetY),
+				turretWorldAngle
+			)
 			spawnPrimaryLinkedRocket(
-				playerObj.pos.clone(),
+				rocketMuzzlePos,
 				k.Vec2.fromAngle(turretWorldAngle - 90),
 				turretWorldAngle,
 				strafeTarget?.exists() ? strafeTarget : undefined
@@ -1651,7 +1897,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 						isFullyCharged: chargeRatio >= 1,
 						chargeRatio,
 						critChanceBonus: strafeTargetCritActive
-							? strafeTargetCritChanceBonus + (alteredTargeting ? 20 : 0)
+							? strafeTargetCritChanceBonus + getPilotProtocolValue("strafeDoctrine") + (alteredTargeting ? 20 : 0)
 							: 0,
 						alteredTargeting,
 						preferredTarget: impalerTarget ?? (
@@ -1664,8 +1910,20 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 						wigglePhase: hasPatternWiggle
 							? index * Math.PI
 							: undefined,
+						spreadMultiplier: weapon.sustainedFire
+							? k.lerp(
+								1,
+								weapon.sustainedFire.maximumSpreadMultiplier,
+								sustainedFireRatio
+							)
+							: 1,
 					}
 				);
+				recordGhostFleetShot(
+					k.Vec2.fromAngle(turretWorldAngle - 90 + angleOffset),
+					turretWorldAngle + angleOffset,
+					chargeRatio
+				)
 				shouldPlayFireSound = false;
 			}
 		};
@@ -1693,14 +1951,47 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	) => {
 		if (!canFirePrimaryWeapon()) return;
 		const weapon = getEquippedWeapon();
+		const heatState = getPrimaryHeatState(weapon);
+		if (heatState?.overheated) return;
 		const triggerModifier = getWeaponTriggerModifier(weapon);
+		const sustainedFireRatio = weapon.sustainedFire &&
+			primarySustainStartedAt !== undefined &&
+			primarySustainWeaponId === weapon.id
+			? k.clamp(
+				(k.time() - primarySustainStartedAt) /
+					weapon.sustainedFire.spoolDuration,
+				0,
+				1
+			)
+			: 0;
+		const sustainedCooldownMultiplier = weapon.sustainedFire
+			? k.lerp(
+				1,
+				weapon.sustainedFire.minimumCooldownMultiplier,
+				sustainedFireRatio
+			)
+			: 1;
 		const cooldown = cooldownOverride ?? (
-			triggerModifier.usesCooldown ? weapon.fireCooldown : undefined
+			triggerModifier.usesCooldown
+				? weapon.fireCooldown * sustainedCooldownMultiplier
+				: undefined
 		);
 		if (cooldown !== undefined) {
 			if (k.time() < nextPrimaryFireTime) return;
 			nextPrimaryFireTime = k.time() +
 				cooldown * getPlayerStatusMultiplier("weaponRecovery");
+		}
+		const overheat = weapon.sustainedFire?.overheat;
+		if (heatState && overheat) {
+			heatState.heat = Math.min(1, heatState.heat + overheat.heatPerShot);
+			if (heatState.heat >= 1) {
+				heatState.overheated = true;
+				primarySustainStartedAt = undefined;
+				primarySustainWeaponId = "";
+				gameSoundService.play("player_overheated", {
+					volume: mainSoundVolume * 0.55,
+				});
+			}
 		}
 		recordTelemetryAbilityUse("primary", weapon.id);
 		const burstCount = Math.max(1, Math.floor(weapon.pattern?.burstCount ?? 1));
@@ -1712,7 +2003,8 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 				weapon,
 				k.clamp(chargeRatio, 0, 1),
 				true,
-				burstDamageMultiplier
+				burstDamageMultiplier,
+				sustainedFireRatio
 			);
 			if (index === 0) fireRound();
 			else k.wait(index * burstInterval, fireRound);
@@ -1736,8 +2028,16 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 
 	playerObj.onUpdate(() => profileSection("external:playerWeaponHold", () => {
 		if (!isInputActionDown("primary")) return;
-		const triggerModifier = getWeaponTriggerModifier(getEquippedWeapon());
+		const weapon = getEquippedWeapon();
+		const triggerModifier = getWeaponTriggerModifier(weapon);
 		if (triggerModifier.mode === "hold") {
+			if (
+				primarySustainStartedAt === undefined &&
+				!isPrimaryWeaponOverheated(weapon)
+			) {
+				primarySustainStartedAt = k.time();
+				primarySustainWeaponId = weapon.id;
+			}
 			firePrimaryWeapon();
 			return;
 		}
@@ -1747,9 +2047,16 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	}));
 
 	inputControllers.push(onInputActionPress("primary", () => {
-		if (weaponWheelOpen()) return
+		if (combatInputBlocked()) return
 		const weapon = getEquippedWeapon();
 		const mode = getWeaponTriggerModifier(weapon).mode;
+		if (mode === "hold") {
+			if (!isPrimaryWeaponOverheated(weapon)) {
+				primarySustainStartedAt = k.time();
+				primarySustainWeaponId = weapon.id;
+			}
+			return;
+		}
 		if (mode === "press") {
 			firePrimaryWeapon();
 			const holdCooldown = getWeaponTriggerModifier(weapon).holdCooldown;
@@ -1773,6 +2080,8 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 	}));
 
 	inputControllers.push(onInputActionRelease("primary", () => {
+		primarySustainStartedAt = undefined;
+		primarySustainWeaponId = "";
 		if (primaryChargeStartedAt === undefined) return;
 		const weapon = getEquippedWeapon();
 		const chargeStartedAt = primaryChargeStartedAt;
@@ -1793,10 +2102,12 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 
 	inputControllers.push(installWeaponWheel({
 		player: playerObj,
-		inputBlocked: gameplayInputBlocked,
-		onOpen: () => {
-			primaryChargeStartedAt = undefined
-			primaryChargeWeaponId = ""
+		inputBlocked: () => gameplayInputBlocked() || phaseSurgeActive(),
+			onOpen: () => {
+				primaryChargeStartedAt = undefined
+				primaryChargeWeaponId = ""
+				primarySustainStartedAt = undefined
+				primarySustainWeaponId = ""
 			stopPrimaryChargeSound()
 		},
 		onQuickSwap: () => {
@@ -1829,6 +2140,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 		player: playerObj,
 		inputBlocked: combatInputBlocked,
 		isUnlocked: () => getPermanentUpgradeLevel("salvageLasso") !== undefined,
+		canPullShipParts: () => getLassoRigRank("partExtractor") > 0,
 		isStrafeModeActive: () => strafeAimActive,
 		getStrafeAimPosition: () => strafeAimPos.clone(),
 	}))
@@ -1898,6 +2210,24 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			recordTelemetryAbilityUse("mobility", mobilityId);
 			return;
 		}
+		if (mobilityId === "phaseSurge") {
+			recordTelemetryAbilityUse("mobility", mobilityId)
+			consumeMobilityCharge()
+			primaryChargeStartedAt = undefined
+			primaryChargeWeaponId = ""
+			primarySustainStartedAt = undefined
+			primarySustainWeaponId = ""
+			stopPrimaryChargeSound()
+			phaseSurgeStartedAt = k.time()
+			phaseSurgeActiveUntil = phaseSurgeStartedAt + phaseSurgeDuration
+			phaseSurgeReturnStartedAt = 0
+			phaseSurgeReturnUntil = 0
+			phaseSurgeParticleTimer = 0
+			phaseSurgeWasActive = true
+			setPlayerDamageInvulnerable(true)
+			spawnPhaseSurgeStartEffect(playerObj.pos.clone())
+			return
+		}
 
 		const wasdDirection = getWasdDirection();
 		const phaseJumpDirection = wasdDirection.len() > 0
@@ -1958,13 +2288,19 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 			playRequirementErrorSound();
 			return;
 		}
-		if (ultimateId !== "phaseNova") return;
 		if (!consumeUltimateCharge()) {
 			recordTelemetryAbilityFailure("ultimate", ultimateId);
 			return;
 		}
 		recordTelemetryAbilityUse("ultimate", ultimateId);
-		activatePhaseNova(playerObj);
+		if (ultimateId === "phaseNova") activatePhaseNova(playerObj);
+		else if (ultimateId === "gravitonCollapse") {
+			activateGravitonCollapse(playerObj)
+		} else if (ultimateId === "ghostFleet") {
+			activateGhostFleet(playerObj)
+		} else if (ultimateId === "scrapColossus") {
+			activateScrapColossus(playerObj)
+		}
 	}));
 
 	inputControllers.push(onInputActionPress("interact", () => {
@@ -1977,7 +2313,7 @@ export function setupPlayer(options: SetupPlayerOptions = {}) {
 }
 
 function spawnPlayerArrivalImpact(
-	playerObj: GameObj<PosComp>,
+	playerObj: PlayerRuntimeObject,
 	playWarpLandingBass: boolean
 ) {
 	gameSoundService.play("player_arrival_impact", {
@@ -2119,6 +2455,12 @@ export function clearPlayer() {
 	phaseJumpEnd = undefined;
 	phaseJumpElapsed = 0;
 	phaseJumpHitTargets.clear();
+	phaseSurgeStartedAt = 0
+	phaseSurgeActiveUntil = 0
+	phaseSurgeReturnStartedAt = 0
+	phaseSurgeReturnUntil = 0
+	phaseSurgeParticleTimer = 0
+	phaseSurgeWasActive = false
 	retroBurstStart = undefined;
 	retroBurstEnd = undefined;
 	retroBurstElapsed = 0;
@@ -2131,7 +2473,7 @@ export function clearPlayer() {
 }
 
 function updateShipRewardVisuals(
-	playerObj: GameObj<PosComp>,
+	playerObj: PlayerRuntimeObject,
 	plates: GameObj[],
 	cargo: GameObj | undefined
 ) {
@@ -2209,34 +2551,41 @@ function getMobilityChargeConfig(): PhaseJumpConfig | undefined {
 	const mobilityId = getEquippedMobilityAbilityId();
 	if (!mobilityId || mobilityId === "thrusterOverdrive") return undefined;
 	const tier = getAbilityTierValues(mobilityId);
+	const cooldownMultiplier = 1 - getPilotProtocolValue("phaseCycler") / 100;
 	if (mobilityId === "retroBurst") {
 		return {
 			distance: 68 * tier.speed,
-			cooldown: 3.2 / tier.recovery,
+			cooldown: 3.2 / tier.recovery * cooldownMultiplier,
 			charges: RETRO_BURST_CHARGE_COUNT,
 		};
 	}
 	if (mobilityId === "gravitySling") {
-		return { cooldown: 5 / tier.recovery, charges: 1 };
+		return { cooldown: 5 / tier.recovery * cooldownMultiplier, charges: 1 };
+	}
+	if (mobilityId === "phaseSurge") {
+		return {
+			cooldown: phaseSurgeCooldown / tier.recovery * cooldownMultiplier,
+			charges: 1,
+		}
 	}
 
 	switch (player.spaceJumpUpgradeLvl) {
 		case undefined:
 			return {
 				distance: 75 * tier.speed,
-				cooldown: 2.5 / tier.recovery,
+				cooldown: 2.5 / tier.recovery * cooldownMultiplier,
 				charges: 1,
 			};
 		case 1:
 			return {
 				distance: 90 * tier.speed,
-				cooldown: 2.1 / tier.recovery,
+				cooldown: 2.1 / tier.recovery * cooldownMultiplier,
 				charges: 1,
 			};
 		case 2:
 			return {
 				distance: 90 * tier.speed,
-				cooldown: 3 / tier.recovery,
+				cooldown: 3 / tier.recovery * cooldownMultiplier,
 				charges: 2,
 			};
 		default:
@@ -2323,7 +2672,7 @@ function spawnStrafeTargetMarker(pos: Vec2) {
 
 function activateModule(
 	moduleId: string,
-	playerObj: GameObj<PosComp>,
+		playerObj: PlayerRuntimeObject,
 	turretWorldAngle: number,
 	preferredTarget?: GameObj<PosComp>
 ) {
@@ -2352,8 +2701,11 @@ function activateModule(
 				0.1 / tier.recovery,
 				() => {
 					if (!playerObj.exists()) return;
+					const rocketMuzzlePos = playerObj.pos.add(
+						direction.scale(playerForwardLaunchOffset)
+					)
 					spawnPlayerRocket(
-						playerObj.pos,
+						rocketMuzzlePos,
 						direction,
 						turretWorldAngle,
 						lockedTarget
@@ -2509,6 +2861,7 @@ function activateModule(
 				k.anchor("center"),
 				k.outline(2, k.rgb(90, 200, 255)),
 				k.opacity(0.85),
+				k.scale(1),
 				k.layer(layers.gameEffects),
 				k.lifespan(1.6 * tier.power, { fade: 0.35 }),
 			]);
@@ -2670,7 +3023,8 @@ function activateModule(
 						damageDestructibleWallsInRadius(
 							deploymentPos,
 							72 * tier.speed,
-							28 * tier.power
+							28 * tier.power,
+							{ explosive: true }
 						)
 						gameSoundService.playPositional("explosion1", deploymentPos, {
 							volume: mainSoundVolume,
@@ -2693,7 +3047,9 @@ function activateModule(
 							hp: 1,
 							blasterDmg: Math.max(
 								1,
-								player.followerBlasterDmg * tier.power
+								getPrimaryWeaponDamage() *
+								player.followerBlasterDmg *
+								tier.power
 							),
 							speed: player.speed * 1.15 * tier.speed,
 							follow: playerObj,
@@ -2722,6 +3078,34 @@ function activateModule(
 					})
 				}
 			)
+			return
+		}
+
+		case "droidFrenzy": {
+			const frenzyColor = k.rgb(255, 70, 70)
+			activateDroneFrenzy({
+				duration: DRONE_FRENZY_DURATION_SECONDS,
+				damageMultiplier: 1 +
+					(DRONE_FRENZY_DAMAGE_MULTIPLIER - 1) * tier.power,
+				fireRateMultiplier: 1 +
+					(DRONE_FRENZY_FIRE_RATE_MULTIPLIER - 1) * tier.speed,
+			})
+			for (const drone of k.get(tags.follower) as GameObj[]) {
+				if (!drone.exists()) continue
+				spawnFlash(drone.pos.clone(), drone.fusionCore ? 12 : 7, frenzyColor)
+			}
+			spawnRing({
+				pos: playerObj.pos.clone(),
+				speed: 210,
+				intensity: 0.32,
+				maxRadius: 72,
+				color: frenzyColor,
+			})
+			spawnFlash(playerObj.pos.clone(), 9, frenzyColor)
+			gameSoundService.play("swap_level", {
+				volume: mainSoundVolume * 0.72,
+				detune: -360,
+			})
 			return
 		}
 
@@ -2764,7 +3148,9 @@ function activateModule(
 				if (chargePulse.exists()) k.destroy(chargePulse);
 				recoverPlayerHealth(
 					playerObj,
-					Math.round(REPAIR_PULSE_RECOVERY * tier.power)
+						Math.round(
+							playerObj.maxHP * REPAIR_PULSE_RECOVERY_RATIO * tier.power
+						)
 				);
 				spawnFlash(playerObj.pos, 10, k.rgb(80, 255, 175));
 				gameSoundService.play("collect1", {
@@ -2806,7 +3192,9 @@ function triggerReactivePlating(playerObj: GameObj) {
 	createExplosion({
 		pos: playerObj.pos.clone(),
 		radius: 72,
-		damage: 6,
+			damage: getDamageFromPrimaryRatio(3, {
+				includeGlassReactor: false,
+			}),
 		visualScale: 0.55,
 		visualIntensity: 0.22,
 		visualParticleCount: 14,
@@ -2854,7 +3242,9 @@ function spawnPhaseEcho(pos: Vec2, angle: number) {
 		createExplosion({
 			pos,
 			radius: 70,
-			damage: 8,
+				damage: getDamageFromPrimaryRatio(4, {
+					includeGlassReactor: false,
+				}),
 			combatCredit: {
 				kind: "mobility",
 				id: "phaseJump",
@@ -2869,7 +3259,7 @@ function spawnPhaseEcho(pos: Vec2, angle: number) {
 	});
 }
 
-function activatePhaseNova(playerObj: GameObj<PosComp>) {
+function activatePhaseNova(playerObj: PlayerRuntimeObject) {
 	const origin = playerObj.pos.clone();
 	const tier = getAbilityTierValues("phaseNova");
 	const radius = 260 * tier.speed;
@@ -2913,6 +3303,60 @@ function getSpaceJumpConfigLevel() {
 	if (mobilityId !== "phaseJump") return mobilityId;
 	if (player.spaceJumpLvl === undefined) return "phaseJump:0";
 	return `phaseJump:${(player.spaceJumpUpgradeLvl ?? 0) + 1}`;
+}
+
+function emitPhaseSurgeParticles(playerObj: PlayerRuntimeObject) {
+	const trailDirection = k.Vec2.fromAngle(playerObj.angle + 90)
+	const side = trailDirection.normal().scale(k.rand(-10, 10))
+	boostTrailEmitter.emitter.position = playerObj.pos
+		.add(side)
+		.add(trailDirection.scale(k.rand(-8, 5)))
+	boostTrailEmitter.emitter.direction = k.rand(0, 360)
+	boostTrailEmitter.emit(3)
+}
+
+function spawnPhaseSurgeStartEffect(pos: Vec2) {
+	boostTrailEmitter.emitter.position = pos
+	for (let direction = 0; direction < 360; direction += 60) {
+		boostTrailEmitter.emitter.direction = direction
+		boostTrailEmitter.emit(2)
+	}
+	spawnFlash(pos, 8, k.rgb(80, 210, 255))
+	spawnRing({
+		pos,
+		speed: 230,
+		intensity: 0.3,
+		maxRadius: 36,
+		color: k.rgb(80, 210, 255),
+	})
+	gameSoundService.play("mobility_phase_jump", {
+		volume: mainSoundVolume * 0.6,
+		detune: 260,
+	})
+}
+
+function spawnPhaseSurgeReturnEffect(pos: Vec2) {
+	boostTrailEmitter.emitter.position = pos
+	for (let direction = 0; direction < 360; direction += 45) {
+		boostTrailEmitter.emitter.direction = direction
+		boostTrailEmitter.emit(4)
+	}
+	spawnFlash(pos, 14, k.rgb(80, 225, 255))
+	spawnRing({
+		pos,
+		speed: 380,
+		intensity: 0.62,
+		maxRadius: 68,
+		color: k.rgb(80, 225, 255),
+		outlineWidth: 2,
+		visualOpacity: 0.9,
+	})
+	spawnEmpDischarge({ pos, radius: 58, targets: [] })
+	gameSoundService.play("mobility_phase_jump", {
+		volume: mainSoundVolume * 0.75,
+		detune: -80,
+	})
+	k.shake(4)
 }
 
 function spawnPhaseJumpEffect(start: Vec2, end: Vec2, angle: number) {
@@ -3044,7 +3488,7 @@ function spawnRespawnJumpEffect(start: Vec2, end: Vec2, angle: number) {
 }
 
 function beginGravitySling(
-	playerObj: GameObj<PosComp>,
+	playerObj: PlayerRuntimeObject,
 	aimDirection: Vec2,
 	tier: AbilityTierValues
 ) {
@@ -3094,7 +3538,7 @@ function beginGravitySling(
 			},
 		},
 		tags.gameLoop,
-	]) as GameObj<PosComp> & { endPos: Vec2 };
+	]);
 	const currentDirection = k.Vec2.fromAngle(playerObj.angle - 90);
 	const cross = direction.x * currentDirection.y - direction.y * currentDirection.x;
 
@@ -3119,7 +3563,7 @@ function beginGravitySling(
 }
 
 function findGravitySlingTarget(
-	playerObj: GameObj<PosComp>,
+	playerObj: PlayerRuntimeObject,
 	direction: Vec2,
 	range: number
 ) {
@@ -3155,7 +3599,7 @@ function findGravitySlingTarget(
 	return target;
 }
 
-function updateGravitySling(playerObj: GameObj<PosComp>) {
+function updateGravitySling(playerObj: PlayerRuntimeObject) {
 	const state = gravitySlingState;
 	if (!state) return false;
 	if (!state.hookVisual.exists() || !state.tetherVisual.exists()) {
@@ -3280,7 +3724,7 @@ function updateGravitySling(playerObj: GameObj<PosComp>) {
 }
 
 function resolveGravitySlingEnd(
-	playerObj: GameObj<PosComp>,
+	playerObj: PlayerRuntimeObject,
 	anchorPos: Vec2,
 	direction: Vec2,
 	desiredDistance: number
@@ -3344,7 +3788,7 @@ function clearGravitySlingState() {
 	if (state.tetherVisual.exists()) k.destroy(state.tetherVisual);
 }
 
-function updatePhaseJump(playerObj: GameObj<PosComp>): boolean {
+function updatePhaseJump(playerObj: PlayerRuntimeObject): boolean {
 	if (!phaseJumpStart || !phaseJumpEnd) return false;
 
 	phaseJumpElapsed += dt();
@@ -3360,6 +3804,30 @@ function updatePhaseJump(playerObj: GameObj<PosComp>): boolean {
 	boostTrailEmitter.emit(2);
 
 	if (progress >= 1) {
+		if (getEffectiveUpgradeLevel("phaseWake") !== undefined) {
+			spawnPhaseWake({
+				start: phaseJumpStart.clone(),
+				end: phaseJumpEnd.clone(),
+				player: playerObj,
+				onPlayerCross: (wakeDirection) => {
+					const inputDirection = getWasdDirection()
+					const boostDirection = inputDirection.len() > 0.001
+						? inputDirection.unit()
+						: wakeDirection
+					const baseSpeed = player.speed * player.speedMultiplier
+					currentMoveSpeed = Math.max(currentMoveSpeed, baseSpeed * 1.35)
+					gravitySlingReleaseVelocity = gravitySlingReleaseVelocity.add(
+						boostDirection.scale(baseSpeed * 0.75)
+					)
+					boostTrailEmitter.emitter.position = playerObj.pos.clone()
+					boostTrailEmitter.emitter.direction = k.Vec2.toAngle(
+						boostDirection.scale(-1)
+					)
+					boostTrailEmitter.emit(12)
+					spawnFlash(playerObj.pos.clone(), 8, k.rgb(80, 210, 255))
+				},
+			})
+		}
 		if (player.phaseEcho !== undefined || player.mobilitySetBonus) {
 			spawnPhaseEcho(phaseJumpStart.clone(), playerObj.angle);
 		}
@@ -3377,7 +3845,7 @@ function updatePhaseJump(playerObj: GameObj<PosComp>): boolean {
 	return true;
 }
 
-function updateRetroBurst(playerObj: GameObj<PosComp>): boolean {
+function updateRetroBurst(playerObj: PlayerRuntimeObject): boolean {
 	if (!retroBurstStart || !retroBurstEnd) return false;
 
 	retroBurstElapsed += dt();
@@ -3399,12 +3867,15 @@ function updateRetroBurst(playerObj: GameObj<PosComp>): boolean {
 }
 
 function applyPhaseRamDamage(start: Vec2, end: Vec2) {
-	const damage = Math.max(
-		player.spaceJumpDamage,
-		player.kineticRam === undefined ? 0 : 6,
-		player.mobilitySetBonus ? 4 : 0
+	const damageRatio = Math.max(
+		player.spaceJumpDamageRatio,
+		player.kineticRam === undefined ? 0 : 3,
+		player.mobilitySetBonus ? 2 : 0
 	);
-	if (damage <= 0) return;
+	if (damageRatio <= 0) return;
+	const damage = getDamageFromPrimaryRatio(damageRatio, {
+		movementMultiplier: player.speedMultiplier,
+	});
 	const midpoint = start.lerp(end, 0.5);
 	const candidateRadius = start.dist(end) * 0.5 + 72;
 	forEachSpatialNearby(midpoint, candidateRadius, {

@@ -1,6 +1,7 @@
-import type { Vec2 } from "kaplay"
+import type { AudioPlay, Vec2 } from "kaplay"
 import { isSnareMotionActive, snareable } from "../../comp/snareable"
-import { k, layers } from "../../main"
+import { k, layers, mainSoundVolume } from "../../main"
+import { gameSoundService } from "../../services/audio/gameSoundService"
 import { tags } from "../../tags"
 
 const REPAIR_DRONE_COUNT = 6
@@ -13,6 +14,53 @@ export interface HubRepairCrew {
 
 export function spawnHubRepairCrew(phaseStationPos: Vec2): HubRepairCrew {
 	let repairTarget: Vec2 | undefined
+	let repairLoop: AudioPlay | null = null
+	let toolSoundTimer = 0
+
+	const repairSoundController = k.add([
+		{
+			update() {
+				if (!repairTarget) return
+				toolSoundTimer -= k.dt()
+				if (toolSoundTimer > 0) return
+				gameSoundService.playPositional(
+					"burt_repair_tool",
+					() => repairTarget,
+					{
+						volume: mainSoundVolume * 0.34,
+						maxDistance: 620,
+						voiceLimit: 1,
+					}
+				)
+				toolSoundTimer = k.rand(2.6, 4.1)
+			},
+		},
+		tags.gameLoop,
+	])
+	repairSoundController.onDestroy(() => {
+		gameSoundService.stop(repairLoop, "repair-crew-destroyed")
+		repairLoop = null
+	})
+
+	const syncRepairSounds = () => {
+		if (!repairTarget) {
+			gameSoundService.stop(repairLoop, "facility-repair-complete")
+			repairLoop = null
+			return
+		}
+		if (repairLoop) return
+		repairLoop = gameSoundService.playPositional(
+			"burt_repair_hammer",
+			() => repairTarget,
+			{
+				volume: mainSoundVolume * 0.26,
+				loop: true,
+				maxDistance: 680,
+				voiceLimit: 1,
+			}
+		)
+		toolSoundTimer = k.rand(1.2, 2.1)
+	}
 
 	for (let index = 0; index < REPAIR_DRONE_COUNT; index++) {
 		const phase = index / REPAIR_DRONE_COUNT
@@ -43,8 +91,8 @@ export function spawnHubRepairCrew(phaseStationPos: Vec2): HubRepairCrew {
 			k.rotate(0),
 			k.color(255, 255, 255),
 			k.opacity(0.92),
-			k.layer(layers.game2),
-			k.z(-1),
+			k.layer(layers.gameEffects),
+			k.z(1),
 			snareable({
 				mass: 0.65,
 				radius: 9,
@@ -122,6 +170,7 @@ export function spawnHubRepairCrew(phaseStationPos: Vec2): HubRepairCrew {
 	return {
 		setRepairTarget(target) {
 			repairTarget = target?.clone()
+			syncRepairSounds()
 		},
 	}
 }

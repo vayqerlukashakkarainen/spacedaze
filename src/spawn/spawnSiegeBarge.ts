@@ -3,6 +3,7 @@ import { playerObj } from "../game"
 import { k, mainSoundVolume, velocityScale } from "../main"
 import { spawnArtilleryBoulder } from "../services/combat/artilleryBoulderService"
 import { applyDamage } from "../services/combat/damageService"
+import { applyDefaultExplosionForce } from "../services/combat/explosionPulseService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import { getEnemyNavigationDirection } from "../services/enemies/enemyNavigationService"
 import { spawnTargetTelegraph } from "../services/enemies/enemyTelegraphService"
@@ -44,6 +45,7 @@ export function spawnSiegeBarge(
 		{
 			hb: 18 * profile.scale,
 			damage: profile.damage,
+			shieldFireRateMultiplier: 1,
 			moveDirection: k.vec2(0, 1),
 			facingDirection: k.vec2(0, 1),
 			attackTimer: k.rand(1, 2),
@@ -123,6 +125,7 @@ export function spawnSiegeBarge(
 								source: { name: "SIEGE BARGE", sprite: "enemy_siege_barge" },
 							})
 						}
+						applyDefaultExplosionForce(targetPos, IMPACT_RADIUS)
 						barge.attacking = false
 						barge.attackTimer = profile.elite ? 1.35 : 1.8
 					},

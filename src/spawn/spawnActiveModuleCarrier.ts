@@ -38,6 +38,9 @@ const CARRIER_ARRIVAL_RADIUS = 7
 const CARRIER_MAX_LIFETIME = 4
 const CARRIER_TRAIL_INTERVAL = 0.025
 const TARGET_FLASH_INTERVAL = 0.075
+const ACTIVE_MODULE_CARRIER_SCALE = 0.5
+const ACTIVE_MODULE_CARRIER_PULSE_AMPLITUDE = 0.2
+const ACTIVE_MODULE_CARRIER_PULSE_FREQUENCY = 12
 const ACTIVE_MODULE_CARRIER_VISUAL = getCompanionVisual("active-module-carrier")
 
 export function spawnActiveModuleCarrier(props: ActiveModuleCarrierProps) {
@@ -56,7 +59,9 @@ export function spawnActiveModuleCarrier(props: ActiveModuleCarrierProps) {
 		k.sprite(requirePrimaryVisualSprite(ACTIVE_MODULE_CARRIER_VISUAL)),
 		k.anchor("center"),
 		k.rotate(launchAngle),
-		k.scale(ACTIVE_MODULE_CARRIER_VISUAL.worldScale),
+		k.scale(
+			ACTIVE_MODULE_CARRIER_VISUAL.worldScale * ACTIVE_MODULE_CARRIER_SCALE
+		),
 		k.color(props.color),
 		k.layer(layers.gameEffects),
 		k.z(6),
@@ -90,6 +95,14 @@ export function spawnActiveModuleCarrier(props: ActiveModuleCarrierProps) {
 		const deltaTime = dt()
 		carrier.elapsed += deltaTime
 		carrier.trailElapsed += deltaTime
+		const pulseScale = ACTIVE_MODULE_CARRIER_SCALE * (
+			1 + Math.cos(
+				carrier.elapsed * ACTIVE_MODULE_CARRIER_PULSE_FREQUENCY
+			) * ACTIVE_MODULE_CARRIER_PULSE_AMPLITUDE
+		)
+		carrier.scale = k.vec2(
+			ACTIVE_MODULE_CARRIER_VISUAL.worldScale * pulseScale
+		)
 		if (props.target?.exists()) targetPos = props.target.pos.clone()
 		if (targetMarker?.exists()) targetMarker.pos = targetPos.clone()
 

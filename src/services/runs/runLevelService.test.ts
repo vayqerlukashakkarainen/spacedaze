@@ -8,6 +8,7 @@ import {
 	endRunLevelProgression,
 	getRunLevelSnapshot,
 	grantRunLevelBonus,
+	RUN_LEVEL_BONUSES,
 	rollRunLevelBonusRarity,
 } from "./runLevelService"
 import { RewardRarity } from "../../types/rewardTypes"
@@ -24,14 +25,12 @@ assert.deepEqual(
 		pendingSelections: 0,
 		bonuses: {
 			weaponDamage: 0,
-			moveSpeed: 0,
 			criticalChance: 0,
 			collectionRange: 0,
 			blastRadius: 0,
 		},
 		bonusPower: {
 			weaponDamage: 0,
-			moveSpeed: 0,
 			criticalChance: 0,
 			collectionRange: 0,
 			blastRadius: 0,
@@ -47,7 +46,10 @@ assert.equal(consumeRunLevelSelection(), true)
 assert.equal(getRunLevelSnapshot().pendingSelections, 1)
 
 assert.equal(grantRunLevelBonus("weaponDamage", RewardRarity.Rare), true)
-assert.equal(grantRunLevelBonus("moveSpeed"), true)
+assert.equal(
+	RUN_LEVEL_BONUSES.some((bonus) => bonus.stat === "MOVE SPEED"),
+	false
+)
 const stats = {
 	blasterDmgMultiplier: 2,
 	rocketDmgMultiplier: 1,
@@ -61,7 +63,7 @@ const stats = {
 applyRunLevelBonuses(stats)
 assert.equal(stats.blasterDmgMultiplier, 2.24)
 assert.equal(stats.rocketDmgMultiplier, 1.12)
-assert.equal(stats.speedMultiplier, 1.07)
+assert.equal(stats.speedMultiplier, 1)
 assert.equal(rollRunLevelBonusRarity(() => 0), RewardRarity.Legendary)
 assert.equal(rollRunLevelBonusRarity(() => 0.02), RewardRarity.Epic)
 assert.equal(rollRunLevelBonusRarity(() => 0.1), RewardRarity.Rare)

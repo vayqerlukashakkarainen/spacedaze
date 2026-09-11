@@ -61,7 +61,10 @@ import {
 	RUN_ROCK_TILE_SOURCE_RADIUS,
 	RUN_ROCK_TILE_SPRITE,
 } from "./runRockTiles";
-import { getFloorPositionForDepth } from "./floorThemes/floorThemeDirectory";
+import {
+	getFloorPositionForDepth,
+	isFinalSubfloorForDepth,
+} from "./floorThemes/floorThemeDirectory";
 import {
 	advanceRunSession,
 	getCurrentRunFloor,
@@ -92,6 +95,7 @@ import {
 } from "../particles";
 import { audioService } from "../services/audio/audioService";
 import { gameSoundService } from "../services/audio/gameSoundService"
+import { grantUltimateChargeForDestruction } from "../services/abilities/ultimateAbilityService"
 import { randomExplosion, saveGame } from "../util";
 import { spawnThreatEncounter } from "../services/enemies/enemyEncounterService";
 import { spawnGravityPull } from "../spawn/spawnGravityPull";
@@ -121,6 +125,7 @@ import {
 	checkpointRun,
 } from "../services/runs/runCompletionService";
 import { showRunClearScreen } from "../ui/deathScreen";
+import { isDemoBuild } from "../config/buildProfile";
 import {
 	addThreatTime,
 	getThreatRomanNumeral,
@@ -299,7 +304,7 @@ export function clearGeneratedRunMap() {
 }
 
 function destroyRunMapObjects() {
-	const objects = k.get<GameObj>(tags.runMap).sort(
+	const objects = k.get(tags.runMap).sort(
 		(a, b) => objectDepth(b) - objectDepth(a)
 	);
 	for (const obj of objects) {
@@ -618,11 +623,16 @@ function setupDestructibleWalls(
 			coord: cavern.entrance,
 			worldPos: grid.hexToScreen(cavern.entrance),
 			maxHp,
+			requiresExplosive: true,
 			onDamaged: (state, impactPos) => {
 				if (state.hp <= 0 || !impactPos) return;
 				spawnDestructibleWallHitEffect(grid, cavern.entrance, impactPos);
 			},
 			onDestroyed: () => {
+				grantUltimateChargeForDestruction(
+					"environment",
+					grid.hexToScreen(cavern.entrance)
+				);
 				cavern.opened = true;
 				const entranceCell = map.getCell(cavern.entrance);
 				if (entranceCell) entranceCell.solid = false;
@@ -649,11 +659,16 @@ function setupDestructibleWalls(
 			coord: rewardWall.coord,
 			worldPos: grid.hexToScreen(rewardWall.coord),
 			maxHp: 5 + depth,
+			requiresExplosive: true,
 			onDamaged: (state, impactPos) => {
 				if (state.hp <= 0 || !impactPos) return;
 				spawnDestructibleWallHitEffect(grid, rewardWall.coord, impactPos);
 			},
 			onDestroyed: () => {
+				grantUltimateChargeForDestruction(
+					"environment",
+					grid.hexToScreen(rewardWall.coord)
+				);
 				const cell = map.getCell(rewardWall.coord);
 				if (cell) cell.solid = false;
 				grid.setCell(rewardWall.coord, CellType.Empty);
@@ -1057,7 +1072,7 @@ function renderRunMap(grid: HexGrid, map: GenerationMap) {
 			update() {
 				const ships = [
 					playerObj,
-					...k.get<GameObj>(tags.unit).filter(
+					...k.get(tags.unit).filter(
 						(unit) => !unit.is(tags.enemyRoleTerrain)
 					),
 				];
@@ -1484,7 +1499,6 @@ function spawnGeneratedContent(
 				pos,
 				radius: shrineConfig.radius,
 				captureTime: shrineConfig.captureTime,
-				level: shrineConfig.level,
 				enemySpawnDelay: shrineConfig.enemySpawnDelay,
 				enemySpawnInterval: shrineConfig.enemySpawnInterval,
 				enemySpawnDistance: shrineConfig.enemySpawnDistance,
@@ -1791,7 +1805,11 @@ export function spawnFloorExit(
 			showRunClearScreen(summary, () => {
 				setTimescale(1, 0.25, false);
 				selectLevel("hub");
-			});
+			}, isDemoBuild() ? {
+				title: "DEMO COMPLETE",
+				subtitle: "THE FIRST FLOOR IS SECURED  //  THANK YOU FOR PLAYING",
+				continueText: "RETURN TO THE WAKE",
+			} : undefined);
 		},
 	});
 	if (!finaleRequired) {
@@ -1932,7 +1950,7 @@ function spawnBossRoomTrigger(pos: Vec2, hexSize: number, depth: number) {
 }
 
 function isMilestoneBossFloor(depth: number) {
-	return depth > 0 && depth % 3 === 0;
+	return isFinalSubfloorForDepth(depth);
 }
 
 function promoteExitToBossRoom(map: GenerationMap) {
@@ -2066,6 +2084,7 @@ function spawnThreatDirector(
 		k.pos(20, 18),
 		k.text("", { size: UI_FONT_SIZES.heading }),
 		k.color(255, 115, 115),
+		k.opacity(1),
 		k.fixed(),
 		k.layer(layers.ui),
 		tags.runMap,

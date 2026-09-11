@@ -5,17 +5,17 @@ export const followerBlasterDmg: Tool = {
 	upgrades: [
 		{
 			name: "Level 1",
-			desc: "Increase your followers blaster damage",
+			desc: "Followers deal 50% of your primary weapon damage",
 			sprite: "follower_blaster_dmg_upg1",
 			price: 22,
-			value: 1,
+			value: 0.5,
 		},
 		{
 			name: "Level 2",
-			desc: "Too... Many... Damage... Numbers...",
+			desc: "Followers deal 100% of your primary weapon damage",
 			sprite: "follower_blaster_dmg_upg1",
 			price: 22,
-			value: 2,
+			value: 1,
 		},
 	],
 };
@@ -82,7 +82,7 @@ export const followerMedic: Tool = {
 	requirements: { anyOf: [{ toolKey: "followerBlasterDmg" }] },
 	upgrades: [{
 		name: "Medic Drone",
-		desc: "Convert one combat drone into a rear-guard medic that repairs hull after eight kills",
+		desc: "Convert one combat drone into a rear-guard medic that repairs 10% maximum hull after eight kills",
 		sprite: "drone_medic",
 		price: 38,
 		value: 1,

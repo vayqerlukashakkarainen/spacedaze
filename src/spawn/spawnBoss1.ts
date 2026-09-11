@@ -1,4 +1,4 @@
-import type { GameObj, Vec2 } from "kaplay"
+import type { GameObj, PosComp, Vec2 } from "kaplay"
 import { detach } from "../compose"
 import { jitter } from "../comp/jitter"
 import { timescale } from "../comp/timescale"
@@ -33,6 +33,7 @@ import {
 	startShipPartDamageSmoke,
 	triggerShipPartExplosion,
 } from "../services/combat/shipPartDamageService"
+import { registerPullableShipPart } from "../services/combat/shipPartPullService"
 import { ENEMY_THREAT_RANK } from "../services/enemies/threatService"
 import { registerHitAnimation } from "../shared"
 import { tags } from "../tags"
@@ -72,7 +73,7 @@ interface BossOptions {
 }
 
 interface TargetableBossPart {
-	obj: GameObj
+	obj: GameObj<PosComp>
 	hitbox: number
 	isAlive: () => boolean
 }
@@ -149,13 +150,13 @@ export function spawnBoss1(
 		k.pos(leftBatteryOffset),
 		k.sprite(CLAIMKEEPER_LEFT_BATTERY.sprite),
 		k.anchor("center"),
-		k.health(Math.max(8, Math.round(hp * 0.18))),
+		k.health(5 * Math.max(8, Math.round(hp / 5 * 0.18))),
 		k.animate(),
 		k.opacity(options.skipEntry ? 1 : 0),
 		k.rotate(0),
 		jitter(),
 		k.layer(layers.game2),
-		{ recoilAmount: 0 },
+		{ recoilAmount: 0, detachImpactDirection: undefined as Vec2 | undefined },
 		tags.part,
 		tags.gameLoop,
 	])
@@ -167,13 +168,13 @@ export function spawnBoss1(
 		k.pos(rightBatteryOffset),
 		k.sprite(CLAIMKEEPER_RIGHT_BATTERY.sprite),
 		k.anchor("center"),
-		k.health(Math.max(8, Math.round(hp * 0.18))),
+		k.health(5 * Math.max(8, Math.round(hp / 5 * 0.18))),
 		k.animate(),
 		k.opacity(options.skipEntry ? 1 : 0),
 		k.rotate(0),
 		jitter(),
 		k.layer(layers.game2),
-		{ recoilAmount: 0 },
+		{ recoilAmount: 0, detachImpactDirection: undefined as Vec2 | undefined },
 		tags.part,
 		tags.gameLoop,
 	])
@@ -185,12 +186,13 @@ export function spawnBoss1(
 		k.pos(crownOffset),
 		k.sprite(CLAIMKEEPER_CROWN.sprite),
 		k.anchor("center"),
-		k.health(Math.max(7, Math.round(hp * 0.15))),
+		k.health(5 * Math.max(7, Math.round(hp / 5 * 0.15))),
 		k.animate(),
 		k.opacity(options.skipEntry ? 1 : 0),
 		k.rotate(0),
 		jitter(),
 		k.layer(layers.game2),
+		{ detachImpactDirection: undefined as Vec2 | undefined },
 		tags.part,
 		tags.gameLoop,
 	])
@@ -414,6 +416,9 @@ export function spawnBoss1(
 			startShipPartDamageSmoke(part, boss)
 		})
 	}
+	let detachedLeftBattery: GameObj | undefined
+	let detachedRightBattery: GameObj | undefined
+	let detachedCrown: GameObj | undefined
 	registerBossEncounter(boss, definition.id, {
 		maxHealth: hp,
 		onPhaseChanged: (_phase, phaseIndex) => {
@@ -432,7 +437,7 @@ export function spawnBoss1(
 		if (!leftBatteryAlive) return
 		const breakPosition = leftBattery.worldPos.clone()
 		leftBatteryAlive = false
-		destroyBossPart(
+		detachedLeftBattery = destroyBossPart(
 			leftBattery,
 			CLAIMKEEPER_LEFT_BATTERY.sprite,
 			boss,
@@ -445,7 +450,7 @@ export function spawnBoss1(
 		if (!rightBatteryAlive) return
 		const breakPosition = rightBattery.worldPos.clone()
 		rightBatteryAlive = false
-		destroyBossPart(
+		detachedRightBattery = destroyBossPart(
 			rightBattery,
 			CLAIMKEEPER_RIGHT_BATTERY.sprite,
 			boss,
@@ -458,8 +463,56 @@ export function spawnBoss1(
 		if (!crownAlive) return
 		const breakPosition = crown.worldPos.clone()
 		crownAlive = false
-		destroyBossPart(crown, CLAIMKEEPER_CROWN.sprite, boss, hp, worldScale)
+		detachedCrown = destroyBossPart(
+			crown,
+			CLAIMKEEPER_CROWN.sprite,
+			boss,
+			hp,
+			worldScale
+		)
 		staggerBoss(breakPosition, 0.58)
+	})
+	registerPullableShipPart(leftBattery, boss, BATTERY_HITBOX * worldScale, {
+		pullForce: 125,
+		pullDuration: 1.15,
+		detach: (direction) => {
+			if (!leftBatteryAlive) return undefined
+			detachedLeftBattery = undefined
+			leftBattery.detachImpactDirection = direction.clone()
+			applyDamage(leftBattery, leftBattery.hp, {
+				position: leftBattery.worldPos.clone(),
+				showNumber: false,
+			})
+			return detachedLeftBattery
+		},
+	})
+	registerPullableShipPart(rightBattery, boss, BATTERY_HITBOX * worldScale, {
+		pullForce: 125,
+		pullDuration: 1.15,
+		detach: (direction) => {
+			if (!rightBatteryAlive) return undefined
+			detachedRightBattery = undefined
+			rightBattery.detachImpactDirection = direction.clone()
+			applyDamage(rightBattery, rightBattery.hp, {
+				position: rightBattery.worldPos.clone(),
+				showNumber: false,
+			})
+			return detachedRightBattery
+		},
+	})
+	registerPullableShipPart(crown, boss, CROWN_HITBOX * worldScale, {
+		pullForce: 145,
+		pullDuration: 1.35,
+		detach: (direction) => {
+			if (!crownAlive) return undefined
+			detachedCrown = undefined
+			crown.detachImpactDirection = direction.clone()
+			applyDamage(crown, crown.hp, {
+				position: crown.worldPos.clone(),
+				showNumber: false,
+			})
+			return detachedCrown
+		},
 	})
 
 	registerBatchedEntityUpdate("enemies", boss, () => {
@@ -1039,7 +1092,7 @@ function destroyBossPart(
 	const detachDirection = impactDirection
 		? outward.unit().scale(0.72).add(impactDirection.scale(0.58)).unit()
 		: outward.len() > 0.001 ? outward.unit() : undefined
-	detach(worldPos, sprite, {
+	const detachedPart = detach(worldPos, sprite, {
 		force: 75 * scale,
 		direction: detachDirection,
 		angle: boss.angle + (part.angle ?? 0),
@@ -1059,6 +1112,7 @@ function destroyBossPart(
 			showNumber: false,
 		})
 	}
+	return detachedPart
 }
 
 function spawnBossPhasePulse(pos: Vec2, scale: number, phaseIndex: number) {

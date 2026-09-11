@@ -1,3 +1,4 @@
+import type { PosComp } from "kaplay"
 import { interactable, INTERACTION_PRIORITY } from "../../comp/interactable"
 import { dialogue } from "../../content/dialogue/dialogueCatalog"
 import { snareable } from "../../comp/snareable"
@@ -70,6 +71,7 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 		getDialogueId: () => getLampDialogue().id,
 		isVisible: () => !talking && !keeper.isInRange,
 		offset: k.vec2(0, -48),
+		cameraInterest: true,
 	})
 
 	registerBatchedEntityUpdate("world", keeper, () => {
@@ -93,7 +95,7 @@ export function spawnHubLampKeeper(ringCenter: ReturnType<typeof k.vec2>) {
 		), {
 			resolveActor: (id) => {
 				if (id === "lampKeeper") return keeper
-				if (id === "player") return k.get(tags.player)[0]
+				if (id === "player") return k.get<PosComp>(tags.player)[0]
 				return undefined
 			},
 		}).then((result) => {

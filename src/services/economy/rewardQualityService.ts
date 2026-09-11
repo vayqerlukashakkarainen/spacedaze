@@ -70,11 +70,60 @@ export function scaleUpgradeEffects(
 	}
 }
 
+export function formatScaledUpgradeDescription(
+	description: string,
+	baseEffects: UpgradeEffect,
+	scaledEffects: UpgradeEffect
+) {
+	let result = description
+	for (let index = 0; index < (baseEffects.modifiers?.length ?? 0); index++) {
+		const base = baseEffects.modifiers?.[index]?.value
+		const scaled = scaledEffects.modifiers?.[index]?.value
+		if (base === undefined || scaled === undefined || base === scaled) continue
+		const basePercent = `${Math.round(base * 100)}%`
+		const scaledPercent = `${Math.round(scaled * 100)}%`
+		const percentResult = replaceExactNumberToken(
+			result,
+			basePercent,
+			scaledPercent
+		)
+		if (percentResult !== result) {
+			result = percentResult
+			continue
+		}
+		result = replaceExactNumberToken(result, String(base), String(scaled))
+	}
+	return result
+}
+
+function replaceExactNumberToken(
+	value: string,
+	token: string,
+	replacement: string
+) {
+	const pattern = new RegExp(
+		`(^|[^\\d.])${escapeRegExp(token)}(?![\\d.])`
+	)
+	return value.replace(pattern, (_match, prefix: string) =>
+		`${prefix}${replacement}`
+	)
+}
+
+function escapeRegExp(value: string) {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
 function scaleModifierValue(modifier: StatModifier, qualitySteps: number) {
 	if (DISCRETE_STATS.has(modifier.stat)) {
 		return modifier.value + qualitySteps
 	}
 	const qualityMultiplier = 1 + qualitySteps * 0.25
+	if (
+		modifier.stat === "projectileModifierChance" ||
+		modifier.stat === "projectileModifierChanceBonus"
+	) {
+		return Math.min(1, roundQualityValue(modifier.value * qualityMultiplier))
+	}
 	if (modifier.type === "multiply" && modifier.value >= 1) {
 		return roundQualityValue(
 			1 + (modifier.value - 1) * qualityMultiplier

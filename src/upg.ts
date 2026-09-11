@@ -26,9 +26,9 @@ import {
 	shockCradle,
 	momentumRelay,
 	redlineCable,
-	sprintSpeed,
 	spaceJump,
 	spaceJumpUpgrades,
+	turretTraverse,
 	phaseRam,
 	phaseMagazine,
 	salvageLasso,
@@ -61,6 +61,7 @@ import {
 	stunRounds,
 	kineticPulse,
 	lifesteal,
+	probabilityAmplifier,
 	ricochetRounds,
 	ricochetModifierLink,
 	singularityPayload,
@@ -69,7 +70,6 @@ import {
 } from "./upgrades/projectilesNew";
 import {
 	afterimageRounds,
-	boomerangPayload,
 	criticalShatter,
 	executionRounds,
 	fragmentationCore,
@@ -91,6 +91,7 @@ import {
 	nearMissCapacitor,
 	packIntelligence,
 	phaseEcho,
+	phaseWake,
 	reactivePlating,
 	sawSatellite,
 	sacrificialProtocol,
@@ -132,12 +133,13 @@ export const ALTERATION_UPGRADE_KEYS = [
 const MAX_RUN_ALTERATIONS = 2
 
 export const PERMANENT_UPGRADE_KEYS = [
-	"blaster",
-	"blasterParallel",
 	"debreeDist",
 	"extraLife",
 	"maxHealth",
+	"movespeed",
 	"salvageLasso",
+	"strafeSpeed",
+	"turretTraverse",
 ] as const;
 export type PermanentUpgradeKey = typeof PERMANENT_UPGRADE_KEYS[number];
 
@@ -160,7 +162,6 @@ export const upgrades = {
 	debreeDist: debreeDist,
 	debreeValue: debreeValue,
 
-	sprintSpeed: sprintSpeed,
 	spaceJump: spaceJump,
 	spaceJumpUpgrades: spaceJumpUpgrades,
 	phaseRam,
@@ -175,6 +176,7 @@ export const upgrades = {
 	redlineCable,
 	maxHealth: maxHealth,
 	extraLife,
+	turretTraverse,
 
 	followerBlasterDmg: followerBlasterDmg,
 	followerMissiles: followerMissiles,
@@ -188,6 +190,7 @@ export const upgrades = {
 	sacrificialProtocol,
 	enemyHacker,
 	phaseEcho,
+	phaseWake,
 	salvageBattery,
 	reactivePlating,
 	packIntelligence,
@@ -211,6 +214,7 @@ export const upgrades = {
 	corrosivePayload,
 	arcCapacitor,
 	lifesteal,
+	probabilityAmplifier,
 	splitChamber,
 	singularityPayload,
 	targetingMatrix,
@@ -222,7 +226,6 @@ export const upgrades = {
 	hunterGuidance,
 	proximityFuse,
 	afterimageRounds,
-	boomerangPayload,
 	growingCharge,
 	stasisBurst,
 	volatileCorrosion,
@@ -255,6 +258,7 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	debreeValue: undefined,
 	maxHealth: undefined,
 	extraLife: undefined,
+	turretTraverse: undefined,
 	salvageLasso: undefined,
 	followerBlasterDmg: undefined,
 	followerMissiles: undefined,
@@ -268,6 +272,7 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	sacrificialProtocol: undefined,
 	enemyHacker: undefined,
 	phaseEcho: undefined,
+	phaseWake: undefined,
 	salvageBattery: undefined,
 	reactivePlating: undefined,
 	packIntelligence: undefined,
@@ -282,7 +287,6 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	resonanceCoil: undefined,
 	wreckHarvester: undefined,
 	rocketShards: undefined,
-	sprintSpeed: undefined,
 	spaceJump: undefined,
 	spaceJumpUpgrades: undefined,
 	phaseRam: undefined,
@@ -297,6 +301,7 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	corrosivePayload: undefined,
 	arcCapacitor: undefined,
 	lifesteal: undefined,
+	probabilityAmplifier: undefined,
 	splitChamber: undefined,
 	singularityPayload: undefined,
 	targetingMatrix: undefined,
@@ -308,7 +313,6 @@ export let loadout: Record<ToolKey, number | undefined> = {
 	hunterGuidance: undefined,
 	proximityFuse: undefined,
 	afterimageRounds: undefined,
-	boomerangPayload: undefined,
 	growingCharge: undefined,
 	stasisBurst: undefined,
 	volatileCorrosion: undefined,
@@ -340,6 +344,7 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	debreeValue: undefined,
 	maxHealth: undefined,
 	extraLife: undefined,
+	turretTraverse: undefined,
 	salvageLasso: undefined,
 	followerBlasterDmg: undefined,
 	followerMissiles: undefined,
@@ -353,6 +358,7 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	sacrificialProtocol: undefined,
 	enemyHacker: undefined,
 	phaseEcho: undefined,
+	phaseWake: undefined,
 	salvageBattery: undefined,
 	reactivePlating: undefined,
 	packIntelligence: undefined,
@@ -367,12 +373,11 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	resonanceCoil: undefined,
 	wreckHarvester: undefined,
 	rocketShards: undefined,
-	sprintSpeed: undefined,
 	spaceJump: undefined,
 	spaceJumpUpgrades: undefined,
 	phaseRam: undefined,
 	phaseMagazine: undefined,
-	blasterParallel: undefined,
+	blasterParallel: 0,
 	armorPiercing: undefined,
 	componentShear: undefined,
 	coreBreach: undefined,
@@ -382,6 +387,7 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	corrosivePayload: undefined,
 	arcCapacitor: undefined,
 	lifesteal: undefined,
+	probabilityAmplifier: undefined,
 	splitChamber: undefined,
 	singularityPayload: undefined,
 	targetingMatrix: undefined,
@@ -393,7 +399,6 @@ export let levelLoadout: Record<ToolKey, number | undefined> = {
 	hunterGuidance: undefined,
 	proximityFuse: undefined,
 	afterimageRounds: undefined,
-	boomerangPayload: undefined,
 	growingCharge: undefined,
 	stasisBurst: undefined,
 	volatileCorrosion: undefined,
@@ -477,26 +482,27 @@ const playerStatByTool: Partial<Record<ToolKey, string>> = {
 	rocketShards: "rocketShards",
 	debreeDist: "debreeSeekDistanceMultiplier",
 	debreeValue: "debreeValueMultiplier",
-	sprintSpeed: "sprintSpeedMultiplier",
 	movespeed: "speedMultiplier",
 	strafeSpeed: "strafeSpeedMultiplier",
 	kineticCoupler: "lassoSlamDamageMultiplier",
 	torqueSpool: "lassoPullAccelerationMultiplier",
 	shockCradle: "lassoSelfDamageReduction",
 	momentumRelay: "lassoImpactVelocityRetentionBonus",
-	phaseRam: "spaceJumpDamage",
-	maxHealth: "maxHealth",
+	phaseRam: "spaceJumpDamageRatio",
+	maxHealth: "maxHealthMultiplier",
 	extraLife: "extraLives",
+	turretTraverse: "turretConeDegrees",
 	followerBlasterDmg: "followerBlasterDmg",
 	armorPiercing: "projectilePierces",
 	componentShear: "projectilePartDamageMultiplier",
 	coreBreach: "projectileCoreDamageMultiplier",
 	cryoRounds: "projectileSlowPercentage",
-	empRounds: "projectileEmpChance",
-	stunRounds: "projectileStunChance",
+	empRounds: "projectileModifierChance",
+	stunRounds: "projectileModifierChance",
 	corrosivePayload: "projectileDotDamage",
 	arcCapacitor: "projectileChainCount",
 	lifesteal: "projectileLifesteal",
+	probabilityAmplifier: "projectileModifierChanceBonus",
 	splitChamber: "projectileSplitCount",
 	singularityPayload: "projectileGravityStrength",
 	targetingMatrix: "critChance",
@@ -507,7 +513,6 @@ const playerStatByTool: Partial<Record<ToolKey, string>> = {
 	hunterGuidance: "projectileGuidance",
 	proximityFuse: "projectileProximityRadius",
 	afterimageRounds: "projectileEchoCount",
-	boomerangPayload: "projectileReturnSpeed",
 	growingCharge: "projectileGrowthDamage",
 	stasisBurst: "projectileStasisRadius",
 	volatileCorrosion: "projectileVolatileRadius",
@@ -520,7 +525,7 @@ const playerStatByTool: Partial<Record<ToolKey, string>> = {
 	phaseCounter: "phaseCounterCapacity",
 	threatReactor: "threatReactorStacks",
 	resonanceCoil: "resonanceCoilStacks",
-	wreckHarvester: "wreckHarvesterDamage",
+	wreckHarvester: "wreckHarvesterDamageRatio",
 };
 
 export function isToolKey(key: string): key is ToolKey {
@@ -530,8 +535,7 @@ export function isToolKey(key: string): key is ToolKey {
 export function getEffectiveUpgradeLevel(
 	key: ToolKey
 ): number | undefined {
-	const permanentLevel = isPermanentUpgradeKey(key) ? loadout[key] : undefined;
-	return levelLoadout[key] ?? permanentLevel;
+	return isPermanentUpgradeKey(key) ? loadout[key] : levelLoadout[key];
 }
 
 export function getPermanentUpgradeLevel(key: ToolKey): number | undefined {
@@ -567,7 +571,7 @@ function resolveUpgradeOrAbilityLevel(toolKey: string) {
 		toolKey === "thrusterOverdrive" &&
 		mobilityAbilityId === "thrusterOverdrive"
 	) return 0
-	if (toolKey === "spaceJump" && mobilityAbilityId === "phaseJump") return 0;
+	if (toolKey === "phaseJump" && mobilityAbilityId === "phaseJump") return 0;
 	if (toolKey === "gravitySling" && mobilityAbilityId === "gravitySling") return 0
 	if (toolKey === "railLance" && getEquippedWeapon().id === "railLance") return 0
 	return isToolKey(toolKey) ? getEffectiveUpgradeLevel(toolKey) : undefined;
@@ -588,6 +592,7 @@ export function describeUpgradeRequirements(
 
 function getUpgradeName(toolKey: string) {
 	if (toolKey === "thrusterOverdrive") return "THRUSTER OVERDRIVE"
+	if (toolKey === "phaseJump") return "PHASE JUMP"
 	if (toolKey === "gravitySling") return "GRAVITY SLING"
 	if (toolKey === "railLance") return "RAIL LANCE"
 	return getUpgradeDefinition(toolKey)?.toolName ?? toolKey;
@@ -729,6 +734,7 @@ export function resetLevelLoadout() {
 		debreeValue: undefined,
 		maxHealth: undefined,
 		extraLife: undefined,
+		turretTraverse: undefined,
 		salvageLasso: undefined,
 		followerBlasterDmg: undefined,
 		followerMissiles: undefined,
@@ -742,6 +748,7 @@ export function resetLevelLoadout() {
 		sacrificialProtocol: undefined,
 		enemyHacker: undefined,
 		phaseEcho: undefined,
+		phaseWake: undefined,
 		salvageBattery: undefined,
 		reactivePlating: undefined,
 		packIntelligence: undefined,
@@ -756,12 +763,11 @@ export function resetLevelLoadout() {
 		resonanceCoil: undefined,
 		wreckHarvester: undefined,
 		rocketShards: undefined,
-		sprintSpeed: undefined,
 		spaceJump: undefined,
 		spaceJumpUpgrades: undefined,
 		phaseRam: undefined,
 		phaseMagazine: undefined,
-		blasterParallel: undefined,
+		blasterParallel: 0,
 		armorPiercing: undefined,
 		componentShear: undefined,
 		coreBreach: undefined,
@@ -771,6 +777,7 @@ export function resetLevelLoadout() {
 		corrosivePayload: undefined,
 		arcCapacitor: undefined,
 		lifesteal: undefined,
+		probabilityAmplifier: undefined,
 		splitChamber: undefined,
 		singularityPayload: undefined,
 		targetingMatrix: undefined,
@@ -782,7 +789,6 @@ export function resetLevelLoadout() {
 		hunterGuidance: undefined,
 		proximityFuse: undefined,
 		afterimageRounds: undefined,
-		boomerangPayload: undefined,
 		growingCharge: undefined,
 		stasisBurst: undefined,
 		volatileCorrosion: undefined,

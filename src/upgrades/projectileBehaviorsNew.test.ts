@@ -1,13 +1,21 @@
 import assert from "node:assert/strict"
 import { RewardRarity } from "../types/rewardTypes"
 import { getUpgradeDefinition } from "./upgradeRegistry"
+import {
+	getPlayerProjectileModifierChance,
+	getPlayerProjectileModifierChanceBonus,
+	getEffectivePlayerProjectileModifierChance,
+	PLAYER_PROJECTILE_MODIFIER_UPGRADE_KEYS,
+	rollPlayerProjectileModifier,
+	setPlayerProjectileModifierChance,
+	setPlayerProjectileModifierChanceBonus,
+} from "../services/combat/playerProjectileModifierChance"
 
 const behaviorKeys = [
 	"fragmentationCore",
 	"hunterGuidance",
 	"proximityFuse",
 	"afterimageRounds",
-	"boomerangPayload",
 	"growingCharge",
 	"stasisBurst",
 	"volatileCorrosion",
@@ -30,6 +38,21 @@ for (const key of behaviorKeys) {
 	for (const level of definition.levels) {
 		assert.match(level.sprite, /_upg1$/)
 		assert.ok(level.effects.modifiers?.length)
+	}
+}
+
+for (const key of PLAYER_PROJECTILE_MODIFIER_UPGRADE_KEYS) {
+	const definition = getUpgradeDefinition(key)
+	assert.ok(definition, `${key} should be registered`)
+	const chances = definition.levels.map((level) => level.effects.modifiers?.find(
+		(modifier) => modifier.stat === "projectileModifierChance"
+	)?.value ?? 0)
+	assert.ok(chances.every((chance) => chance > 0 && chance <= 1))
+	for (let index = 1; index < chances.length; index++) {
+		assert.ok(
+			chances[index] > chances[index - 1],
+			`${key} load chance should increase at level ${index + 1}`
+		)
 	}
 }
 
@@ -95,17 +118,39 @@ for (const specialization of projectileSpecializations) {
 
 const empRounds = getUpgradeDefinition("empRounds")
 const stunRounds = getUpgradeDefinition("stunRounds")
+const probabilityAmplifier = getUpgradeDefinition("probabilityAmplifier")
 assert.ok(empRounds, "EMP rounds should be registered")
 assert.ok(stunRounds, "stun rounds should be registered")
+assert.ok(probabilityAmplifier, "probability amplifier should be registered")
+assert.equal(probabilityAmplifier.reward?.rarity, RewardRarity.Legendary)
+assert.deepEqual(probabilityAmplifier.reward?.allowedSources, ["crate", "boss"])
+assert.equal(probabilityAmplifier.reward?.minimumHubLevel, 4)
+assert.equal(
+	probabilityAmplifier.levels[0].effects.modifiers?.find(
+		(modifier) => modifier.stat === "projectileModifierChanceBonus"
+	)?.value,
+	0.15
+)
 assert.equal(empRounds.levels.length, stunRounds.levels.length)
 for (let index = 0; index < empRounds.levels.length; index++) {
 	const empChance = empRounds.levels[index].effects.modifiers?.find(
-		(modifier) => modifier.stat === "projectileEmpChance"
+		(modifier) => modifier.stat === "projectileModifierChance"
 	)?.value ?? 0
 	const stunChance = stunRounds.levels[index].effects.modifiers?.find(
-		(modifier) => modifier.stat === "projectileStunChance"
+		(modifier) => modifier.stat === "projectileModifierChance"
 	)?.value ?? 0
 	assert.ok(empChance > stunChance, `EMP chance should exceed stun at level ${index + 1}`)
 }
+
+setPlayerProjectileModifierChance("cryoRounds", 0.25)
+setPlayerProjectileModifierChanceBonus(0.15)
+assert.equal(getPlayerProjectileModifierChance("cryoRounds"), 0.25)
+assert.equal(getPlayerProjectileModifierChanceBonus(), 0.15)
+assert.equal(getEffectivePlayerProjectileModifierChance("cryoRounds"), 0.4)
+assert.equal(rollPlayerProjectileModifier("cryoRounds", () => 0.399), true)
+assert.equal(rollPlayerProjectileModifier("cryoRounds", () => 0.4), false)
+setPlayerProjectileModifierChance("cryoRounds", 2)
+assert.equal(getPlayerProjectileModifierChance("cryoRounds"), 1)
+assert.equal(getEffectivePlayerProjectileModifierChance("cryoRounds"), 1)
 
 console.log("Projectile behavior reward tests passed")

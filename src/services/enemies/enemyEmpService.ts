@@ -9,6 +9,7 @@ import {
 	getTargetWorldPosition,
 } from "../combat/targetingService"
 import { registerBatchedEntityUpdate } from "../core/entityUpdateService"
+import type { PositionedCombatTarget } from "../combat/combatTarget"
 
 interface EnemyEmpState {
 	expiresAt: number
@@ -23,7 +24,7 @@ const EMP_COLOR = { red: 75, green: 205, blue: 255 }
 const activeEmpStates = new Map<number, EnemyEmpState>()
 
 export function applyEnemyEmpDisruption(
-	enemy: GameObj<PosComp>,
+	enemy: PositionedCombatTarget,
 	duration: number,
 	timescale = DEFAULT_EMP_TIMESCALE
 ) {
@@ -64,7 +65,7 @@ export function isEnemyEmpDisrupted(enemy: GameObj | undefined) {
 	return false
 }
 
-function spawnEnemyEmpEffect(enemy: GameObj<PosComp>) {
+function spawnEnemyEmpEffect(enemy: PositionedCombatTarget) {
 	const seed = k.rand(0, 1000)
 	const effect = k.add([
 		k.pos(getTargetWorldPosition(enemy)),
@@ -146,7 +147,7 @@ function drawEmpArc(start: Vec2, end: Vec2, seed: number, opacity: number) {
 }
 
 function clearEnemyEmpDisruption(
-	enemy: GameObj,
+	enemy: PositionedCombatTarget,
 	state: EnemyEmpState
 ) {
 	if (activeEmpStates.get(enemy.id) !== state) return

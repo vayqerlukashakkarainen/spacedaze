@@ -2,9 +2,8 @@ import { k, layers, mainSoundVolume } from "../main"
 import { gameSoundService } from "../services/audio/gameSoundService"
 import {
 	getHubLevelDefinition,
+	getNextHubLevelDefinition,
 	HUB_FACILITIES,
-	HUB_LEVELS,
-	type HubFacilityId,
 } from "../services/hub/hubProgressService"
 import {
 	getAllRewardDefinitions,
@@ -29,6 +28,10 @@ import {
 	UI_FONT_SIZES,
 } from "./common"
 import { uiHitRegion } from "./common/hitRegion"
+import {
+	getHubUnlockIcon,
+	HUB_FACILITY_ICONS,
+} from "./hubUnlockIcons"
 
 const SUMMARY_TAG = "runEndSummary"
 const UNLOCK_ROW_HEIGHT = 34
@@ -43,30 +46,6 @@ interface UnlockListEntry {
 interface UnlockSection {
 	label: string
 	entries: UnlockListEntry[]
-}
-
-const HUB_UNLOCK_ICONS: Readonly<Record<string, string>> = {
-	"SALVAGE GHOST CHEST": "chest_salvage_ui",
-	"EMERGENCY SERVICE DRONE": "drone_combat",
-	"SECOND SALVAGE GHOST CHEST": "chest_salvage_ui",
-	"COURIER TRAFFIC": "hub_ship_ring_runner",
-	"GHOST WEAPON CACHE": "chest_weapon_ui",
-	"SALVAGE HAULERS": "hub_salvage_hauler",
-	"SIGNAL ARRAY": "room_signal_relay",
-	"TRAINING RANGE EXPANSION": "facility_training_range",
-	"THIRD SALVAGE GHOST CHEST": "chest_salvage_ui",
-	"MAINTENANCE WING": "hub_droid_repair",
-	"DOCKING GANTRIES": "hub_ship_ring_runner",
-	"OUTPOST TRAFFIC GRID": "hub_ship_jubilee",
-	"HUB RESTORATION COMPLETE": "hub_progression_lamp",
-	"PHASE CROWN": "hub_progression_lamp",
-}
-
-const HUB_FACILITY_ICONS: Readonly<Record<HubFacilityId, string>> = {
-	contractTerminal: "facility_contract_terminal_1bit",
-	trainingRange: "facility_training_range",
-	salvageForge: "facility_salvage_forge_1bit",
-	debriefTerminal: "facility_debrief_terminal_1bit",
 }
 
 export function showPendingRunEndSummary() {
@@ -114,7 +93,12 @@ function showRunEndSummary(summary: RunEndSummary) {
 		height: 58,
 		eyebrow: `${summary.outcome} EXPEDITION`,
 		title: "SALVAGE DEPOSIT",
-		action: `HUB LEVEL ${summary.hub.currentLevel}`,
+		action: summary.phaseCores > 0
+			? `+${summary.phaseCores} PHASE CORE${summary.phaseCores === 1 ? "" : "S"}`
+			: `HUB LEVEL ${summary.hub.currentLevel}`,
+		actionColor: summary.phaseCores > 0
+			? k.rgb(...UI_COLORS.phaseCore)
+			: undefined,
 	})
 	addThemedText(panel, {
 		text: `+${summary.debree.deposited}`,
@@ -134,9 +118,7 @@ function showRunEndSummary(summary: RunEndSummary) {
 	})
 
 	const levelDefinition = getHubLevelDefinition(summary.hub.currentLevel)
-	const nextDefinition = HUB_LEVELS.find(
-		(definition) => definition.level === summary.hub.currentLevel + 1
-	)
+	const nextDefinition = getNextHubLevelDefinition(summary.hub.currentLevel)
 	const levelSpan = nextDefinition
 		? nextDefinition.requiredDeposited - levelDefinition.requiredDeposited
 		: 1
@@ -185,7 +167,11 @@ function showRunEndSummary(summary: RunEndSummary) {
 			},
 			{ label: "SALVAGE RECOVERED", value: `${summary.run?.salvageEarned ?? 0}` },
 			{ label: "SALVAGE LOST", value: `${summary.debree.lost}` },
-			{ label: "CHEST LUCK", value: `+${Math.round(levelDefinition.chestLuck * 100)}%` },
+			{
+				label: "PHASE CORES",
+				value: `+${summary.phaseCores}`,
+				valueColor: k.rgb(...UI_COLORS.phaseCore),
+			},
 		],
 	})
 
@@ -249,7 +235,13 @@ function showHubLevelUpSummary(summary: RunEndSummary) {
 		pos: k.vec2(left + 1, top + 1),
 		width: panelSize.x - 2,
 		height: 62,
-		eyebrow: `${summary.outcome} EXPEDITION  //  +${summary.debree.deposited} SALVAGE DEPOSITED`,
+		eyebrow: `${summary.outcome} EXPEDITION  //  +${summary.debree.deposited} SALVAGE  //  [phaseCore]+${summary.phaseCores} PHASE CORES[/phaseCore]`,
+		eyebrowStyles: {
+			phaseCore: {
+				color: k.rgb(...UI_COLORS.phaseCore),
+				override: true,
+			},
+		},
 		title: `HUB LEVEL ${summary.hub.currentLevel} REACHED`,
 		action: `${summary.hub.previousLevel}  >  ${summary.hub.currentLevel}`,
 	})
@@ -329,7 +321,7 @@ function showHubLevelUpSummary(summary: RunEndSummary) {
 				label: "HUB SYSTEMS",
 				entries: hubSystems.map((unlock) => ({
 					name: unlock,
-					sprite: HUB_UNLOCK_ICONS[unlock] ?? "hub_progression_lamp",
+					sprite: getHubUnlockIcon(unlock),
 				})),
 			}
 		)

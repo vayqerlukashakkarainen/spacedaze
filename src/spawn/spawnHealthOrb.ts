@@ -30,6 +30,7 @@ interface HealthOrbCollectionState {
 interface HealthOrbOptions {
 	stationary?: boolean
 	persistOffscreen?: boolean
+	recovery?: number
 	onCollected?: () => void
 	tags?: string[]
 }
@@ -79,6 +80,7 @@ export function spawnHealthOrb(pos: Vec2, options: HealthOrbOptions = {}) {
 		k.circle(15, { fill: false }),
 		k.anchor("center"),
 		k.opacity(0.65),
+		k.scale(1),
 		k.outline(1, k.rgb(...ORB_COLOR)),
 		k.layer(layers.gameEffects),
 	])
@@ -144,7 +146,10 @@ export function spawnHealthOrb(pos: Vec2, options: HealthOrbOptions = {}) {
 			orb.collection = undefined
 			return
 		}
-		const recovered = recoverPlayerHealth(playerObj, HEALTH_ORB_RECOVERY)
+		const recovered = recoverPlayerHealth(
+			playerObj,
+			options.recovery ?? HEALTH_ORB_RECOVERY
+		)
 		if (recovered <= 0) {
 			orb.collection = undefined
 			return

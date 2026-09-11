@@ -542,6 +542,7 @@ export function spawnHiveMind(
 		k.anchor("center"),
 		k.outline(1, k.WHITE),
 		k.opacity(0.35),
+		k.scale(1),
 		k.z(-1),
 	])
 

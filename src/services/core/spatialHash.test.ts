@@ -17,7 +17,9 @@ assert.equal(hash.size, 3)
 assert.equal(hash.activeCellCount, 3)
 
 const nearby: number[] = []
-hash.forEachNearby({ x: 0, y: 0 }, 10, (item) => nearby.push(item.id))
+hash.forEachNearby({ x: 0, y: 0 }, 10, (item) => {
+	nearby.push(item.id)
+})
 assert.deepEqual(nearby.sort(), [1, 2])
 
 const stopped: number[] = []
@@ -31,8 +33,9 @@ assert.equal(stopped.length, 1)
 items[0].pos = { x: 50, y: 50 }
 hash.rebuild(items)
 const oldCell: number[] = []
-hash.forEachNearby({ x: 0, y: 0 }, 5, (item) => oldCell.push(item.id))
+hash.forEachNearby({ x: 0, y: 0 }, 5, (item) => {
+	oldCell.push(item.id)
+})
 assert.equal(oldCell.includes(1), false)
 
 console.log("spatialHash tests passed")
-

@@ -22,6 +22,7 @@ export type InputActionId =
 	| "pause"
 
 export type InputActionGroup = "FLIGHT" | "COMBAT" | "SYSTEMS"
+export type StrafeInputMode = "hold" | "toggle"
 
 export type InputBinding =
 	| { device: "key"; input: Key }
@@ -50,7 +51,9 @@ interface InputCaptureOptions {
 	onCancel?: () => void
 }
 
-const INPUT_BINDINGS_KEY = "spacedaze_input_bindings_v1"
+const INPUT_BINDINGS_KEY = "spacedaze_input_bindings_v2"
+const INPUT_PREFERENCES_KEY = "spacedaze_input_preferences_v1"
+const DEFAULT_STRAFE_INPUT_MODE: StrafeInputMode = "toggle"
 const MOUSE_BUTTONS: readonly MouseButton[] = [
 	"left",
 	"right",
@@ -88,7 +91,7 @@ export const INPUT_ACTIONS: readonly InputActionDefinition[] = [
 		id: "strafe",
 		label: "STRAFE MODE",
 		group: "FLIGHT",
-		defaultBinding: { device: "key", input: "space" },
+		defaultBinding: { device: "key", input: "shift" },
 	},
 	{
 		id: "primary",
@@ -100,13 +103,13 @@ export const INPUT_ACTIONS: readonly InputActionDefinition[] = [
 		id: "primaryWheel",
 		label: "PRIMARY WHEEL",
 		group: "COMBAT",
-		defaultBinding: { device: "key", input: "shift" },
+		defaultBinding: { device: "key", input: "q" },
 	},
 	{
 		id: "lasso",
 		label: "LASSO LINK",
 		group: "COMBAT",
-		defaultBinding: { device: "key", input: "q" },
+		defaultBinding: { device: "mouse", input: "right" },
 	},
 	{
 		id: "secondary",
@@ -118,7 +121,7 @@ export const INPUT_ACTIONS: readonly InputActionDefinition[] = [
 		id: "mobility",
 		label: "MOBILITY",
 		group: "COMBAT",
-		defaultBinding: { device: "mouse", input: "right" },
+		defaultBinding: { device: "key", input: "space" },
 	},
 	{
 		id: "ultimate",
@@ -151,6 +154,7 @@ const actionDefinitions = new Map(
 )
 let kaplayContext: KAPLAYCtx | undefined
 let bindings = loadInputBindings()
+let strafeInputMode = loadStrafeInputMode()
 let runtimeControllers: KEventController[] = []
 let activeCapture: {
 	controllers: KEventController[]
@@ -187,6 +191,16 @@ export function isInputActionDown(action: InputActionId) {
 	return binding.device === "key"
 		? kaplayContext.isKeyDown(binding.input)
 		: kaplayContext.isMouseDown(binding.input)
+}
+
+export function getStrafeInputMode() {
+	return strafeInputMode
+}
+
+export function setStrafeInputMode(mode: StrafeInputMode) {
+	if (strafeInputMode === mode) return
+	strafeInputMode = mode
+	saveInputPreferences()
 }
 
 export function onInputActionPress(
@@ -232,7 +246,9 @@ export function rebindInputAction(
 
 export function resetInputBindings() {
 	bindings = createDefaultBindings()
+	strafeInputMode = DEFAULT_STRAFE_INPUT_MODE
 	saveInputBindings()
+	saveInputPreferences()
 	notifyBindingListeners()
 }
 
@@ -367,6 +383,23 @@ function createDefaultBindings(): Record<InputActionId, InputBinding> {
 function saveInputBindings() {
 	if (typeof localStorage === "undefined") return
 	localStorage.setItem(INPUT_BINDINGS_KEY, JSON.stringify(bindings))
+}
+
+function loadStrafeInputMode(): StrafeInputMode {
+	if (typeof localStorage === "undefined") return DEFAULT_STRAFE_INPUT_MODE
+	try {
+		const saved = JSON.parse(
+			localStorage.getItem(INPUT_PREFERENCES_KEY) ?? "{}"
+		) as { strafeInputMode?: unknown }
+		return saved.strafeInputMode === "toggle" ? "toggle" : "hold"
+	} catch {
+		return DEFAULT_STRAFE_INPUT_MODE
+	}
+}
+
+function saveInputPreferences() {
+	if (typeof localStorage === "undefined") return
+	localStorage.setItem(INPUT_PREFERENCES_KEY, JSON.stringify({ strafeInputMode }))
 }
 
 function notifyBindingListeners() {

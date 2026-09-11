@@ -10,6 +10,13 @@ import {
 } from "./services/player/weaponService";
 import { PLANET_CHUNK_SPRITES } from "./planetChunkSprites";
 import { getDepositedDebree } from "./services/economy/debreeEconomyService";
+import { getPhaseCores } from "./services/economy/phaseCoreService"
+import { getPsionicPlateProgress } from "./services/economy/psionicPlateService"
+import { getThrusterParts } from "./services/economy/thrusterPartService"
+import {
+	getLassoRigProgress,
+	type LassoRigProgress,
+} from "./services/hub/lassoRigService"
 import { isBlueprintDiscovered } from "./services/hub/hubProgressService";
 import {
 	getAbilityLoadout,
@@ -48,6 +55,11 @@ interface SaveSlot {
 	version: number;
 	time: number;
 	score: number;
+	phaseCores?: number
+	psionicPlates?: number
+	psionicPlateMiniBossIds?: string[]
+	thrusterParts?: number
+	lassoRig?: LassoRigProgress
 	loadout: Record<string, number | undefined>;
 	loadoutRarity?: Partial<Record<string, RewardRarity>>;
 	weaponInventoryVersion?: number;
@@ -289,6 +301,25 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("room_convoy_drone", "sprites/rooms/convoy-drone.png");
 	await k.loadSprite("room_signal_relay", "sprites/rooms/signal-relay.png");
 	await k.loadSprite("room_phase_key", "sprites/pickups/phase-key.png")
+	await k.loadSprite("phase_core", "sprites/pickups/phase-core.png")
+	await k.loadSprite("psionic_plate", "sprites/pickups/psionic-plate.png")
+	await k.loadSprite(
+		"ultimate_graviton_collapse",
+		"sprites/ultimates/graviton-collapse.png"
+	)
+	await k.loadSprite(
+		"ultimate_ghost_fleet",
+		"sprites/ultimates/ghost-fleet.png"
+	)
+	await k.loadSprite(
+		"ultimate_scrap_colossus",
+		"sprites/ultimates/scrap-colossus.png"
+	)
+	await k.loadSprite(
+		"route_signals",
+		"sprites/ui/route-signals/route-signals-atlas.png",
+		{ sliceX: 15 }
+	)
 
 	await k.loadSprite(
 		"weapon_standard_blaster",
@@ -308,8 +339,12 @@ export async function init(k: KAPLAYCtx) {
 	await k.loadSprite("weapon_rail_lance", "sprites/weapons/rail-lance.png")
 	await k.loadSprite("weapon_pulse_repeater", "sprites/weapons/pulse-repeater.png")
 	await k.loadSprite("weapon_twin_needle", "sprites/weapons/twin-needle.png")
-	await k.loadSprite("weapon_impact_driver", "sprites/weapons/impact-driver.png")
 	await k.loadSprite("weapon_railgun", "sprites/weapons/railgun.png")
+	await k.loadSprite(
+		"weapon_phase_boomerang",
+		"sprites/weapons/phase-boomerang.png"
+	)
+	await k.loadSprite("weapon_minecaster", "sprites/weapons/minecaster.png")
 	await k.loadSprite("rocket_upg1", "sprites/upgrades/rocket_upg1.png");
 	await k.loadSprite(
 		"active_repulsor_pulse",
@@ -386,6 +421,7 @@ export async function init(k: KAPLAYCtx) {
 	);
 	await k.loadSprite("mobility_retro_burst", "sprites/upgrades/retro_burst.png")
 	await k.loadSprite("mobility_gravity_sling", "sprites/upgrades/gravity_sling.png")
+	await k.loadSprite("mobility_phase_surge", "sprites/upgrades/phase-surge.png")
 	await k.loadSprite(
 		"reroll_token",
 		"sprites/upgrades/reroll_token.svg"
@@ -445,6 +481,10 @@ export async function init(k: KAPLAYCtx) {
 		"phase_recall_upg1",
 		"sprites/upgrades/phase_recall_upg1.png"
 	);
+	await k.loadSprite(
+		"turret_traverse_upg1",
+		"sprites/upgrades/turret_traverse_upg1.png"
+	);
 	const systemUpgradeSprites = [
 		"kinetic_coupler_upg1",
 		"torque_spool_upg1",
@@ -452,6 +492,7 @@ export async function init(k: KAPLAYCtx) {
 		"momentum_relay_upg1",
 		"redline_cable_upg1",
 		"phase_echo_upg1",
+		"phase_wake_upg1",
 		"salvage_battery_upg1",
 		"reactive_plating_upg1",
 		"pack_intelligence_upg1",
@@ -511,6 +552,21 @@ export async function init(k: KAPLAYCtx) {
 			`sprites/hub/progression-lamp-platform-${number}.png`
 		)
 	}
+	await k.loadSpriteAtlas("sprites/hub/race-lamps-atlas.png", {
+		hub_race_lamp_1: { x: 0, y: 0, width: 32, height: 48 },
+		hub_race_lamp_2: { x: 32, y: 0, width: 32, height: 48 },
+		hub_race_lamp_3: { x: 64, y: 0, width: 32, height: 48 },
+	})
+	await k.loadSpriteAtlas("sprites/hub/npcs/hub-npc-atlas.png", {
+		hub_droid_armorer: { x: 0, y: 0, width: 32, height: 32 },
+		hub_droid_quartermaster: { x: 32, y: 0, width: 32, height: 32 },
+		hub_droid_race_marshal: { x: 64, y: 0, width: 32, height: 32 },
+		hub_droid_navigator: { x: 96, y: 0, width: 32, height: 32 },
+		hub_droid_salvage_appraiser: { x: 128, y: 0, width: 32, height: 32 },
+		hub_droid_archivist: { x: 160, y: 0, width: 32, height: 32 },
+		hub_droid_signal_tender: { x: 192, y: 0, width: 32, height: 32 },
+		hub_droid_dockmaster: { x: 224, y: 0, width: 32, height: 32 },
+	})
 	await k.loadSprite(
 		"chest_salvage_world",
 		"sprites/chests/salvage-chest-world.png"
@@ -544,6 +600,10 @@ export async function init(k: KAPLAYCtx) {
 		"sprites/enemies/stationary-cannon-platform-destroyed.png"
 	)
 	await k.loadSprite(
+		"enemy_wake_scrappers_hut",
+		"sprites/enemies/wake/scrappers-hut.png"
+	)
+	await k.loadSprite(
 		"crosshair_precision",
 		"sprites/crosshairs/crosshair-precision-16.png"
 	)
@@ -573,6 +633,19 @@ export async function init(k: KAPLAYCtx) {
 		"wake_pipe_manifold",
 		"sprites/rooms/environment/wake-pipe-manifold.png"
 	)
+	await k.loadSpriteAtlas(
+		"sprites/rooms/environment/wake-subfloor-props-atlas.png",
+		{
+			wake_sorting_gantry: { x: 0, y: 0, width: 96, height: 48 },
+			wake_breaker_crusher: { x: 96, y: 0, width: 96, height: 64 },
+			wake_pressure_tank: { x: 192, y: 0, width: 64, height: 32 },
+			wake_battery_bank: { x: 256, y: 0, width: 48, height: 48 },
+			wake_patchwork_stall: { x: 0, y: 64, width: 80, height: 64 },
+			wake_reactor_pod: { x: 80, y: 64, width: 80, height: 64 },
+			wake_signal_nest: { x: 160, y: 64, width: 64, height: 64 },
+			wake_coolant_canister: { x: 224, y: 64, width: 32, height: 32 },
+		}
+	)
 	await k.loadSprite(
 		"wake_concussion_plate",
 		"sprites/rooms/traps/wake-concussion-plate.png",
@@ -599,8 +672,6 @@ export async function init(k: KAPLAYCtx) {
 		"room_tesla_coil",
 		"sprites/rooms/tesla-coil.png"
 	)
-	await k.loadBitmapFont("unscii", "/fonts/unscii_8x8.png", 8, 8);
-
 	k.loadShader(
 		"visualHitKnockback",
 		`
@@ -808,23 +879,56 @@ export async function init(k: KAPLAYCtx) {
 		["enemy_wake_boiler_hulk_scoop", "sprites/enemies/wake/boiler-hulk-scoop.png"],
 		["enemy_wake_boiler_hulk_vent", "sprites/enemies/wake/boiler-hulk-vent.png"],
 		["enemy_wake_boiler_hulk_mortar", "sprites/enemies/wake/boiler-hulk-mortar.png"],
+		["enemy_wake_magnet_maw_platform_core", "sprites/enemies/wake/magnet-maw-platform-core.png"],
+		["enemy_wake_magnet_maw_left_coil", "sprites/enemies/wake/magnet-maw-left-coil.png"],
+		["enemy_wake_magnet_maw_right_coil", "sprites/enemies/wake/magnet-maw-right-coil.png"],
+		["enemy_wake_railbreaker_rig_core", "sprites/enemies/wake/railbreaker-rig-core.png"],
+		["enemy_wake_railbreaker_rig_ram", "sprites/enemies/wake/railbreaker-rig-ram.png"],
+		["enemy_wake_railbreaker_rig_left_thruster", "sprites/enemies/wake/railbreaker-rig-left-thruster.png"],
+		["enemy_wake_railbreaker_rig_right_thruster", "sprites/enemies/wake/railbreaker-rig-right-thruster.png"],
+		["boss_wake_yardmaster_arm", "sprites/boss/wake/yardmaster-arm.png"],
+		["boss_wake_last_beacon_relay", "sprites/boss/wake/last-beacon-relay.png"],
 	] as const
 	for (const [name, path] of heavyWakeEnemySprites) {
 		await k.loadSprite(name, path)
 	}
+	await k.loadSprite(
+		"enemy_wake_magnet_maw_crane",
+		"sprites/enemies/wake/magnet-maw-crane.png",
+		{
+			sliceX: 3,
+			sliceY: 3,
+			anims: {
+				sweep: {
+					from: 0,
+					to: 8,
+					speed: 6,
+					loop: true,
+					pingpong: true,
+				},
+			},
+		}
+	)
 	await k.loadSprite(
 		"run_rock_high",
 		"sprites/terrain/run-rock-high-atlas.png",
 		{ sliceX: 8, sliceY: 4 }
 	)
 	await k.loadSprite(
+		"run_rock_ground",
+		"sprites/terrain/run-rock-ground-atlas.png",
+		{ sliceX: 16, sliceY: 16 }
+	)
+	await k.loadSprite(
 		"plasma_mortar_projectile",
 		"sprites/projectiles/plasma-mortar.png"
 	)
+	await k.loadSprite("missile_player", "sprites/projectiles/missile.png")
 	await k.loadSprite(
-		"impact_driver_arc_projectile",
-		"sprites/projectiles/impact-driver-arc.png"
+		"missile_capsule",
+		"sprites/projectiles/missile-capsule.png"
 	)
+	await k.loadSprite("missile_passive", "sprites/projectiles/passive-missile.png")
 	await k.loadSprite(
 		"shrine_capture",
 		"sprites/shrines/capture-shrine.png"
@@ -865,13 +969,18 @@ export async function init(k: KAPLAYCtx) {
 		"salvage_lasso",
 		"sprites/upgrades/salvage_lasso.png"
 	)
-	const alterationUpgradeSprites = [
+	const specialUpgradeSprites = [
 		"arc_harpoon_upg1",
 		"shrapnel_garden_upg1",
 		"hunters_geometry_upg1",
 		"gravitic_impaler_upg1",
+		"kinetic_coupler_upg1",
+		"torque_spool_upg1",
+		"shock_cradle_upg1",
+		"momentum_relay_upg1",
+		"redline_cable_upg1",
 	]
-	for (const sprite of alterationUpgradeSprites) {
+	for (const sprite of specialUpgradeSprites) {
 		await k.loadSprite(sprite, `sprites/upgrades/${sprite}.png`)
 	}
 
@@ -891,13 +1000,57 @@ export async function init(k: KAPLAYCtx) {
 		"sprites/boss/boss1/boss1_blaster_right.png"
 	)
 	await k.loadSprite("boss1_head", "sprites/boss/boss1/boss1_head.png");
+	// Main Wake bosses use a dedicated 192px tier. Keep them after the common
+	// gameplay sprite runs so their large canvases cannot disturb atlas packing.
+	await k.loadSprite(
+		"boss_wake_yardmaster",
+		"sprites/boss/wake/yardmaster.png"
+	)
+	await k.loadSprite(
+		"boss_wake_last_beacon",
+		"sprites/boss/wake/last-beacon.png"
+	)
 	// This 64x48 facility prop sits after the gameplay sprite groups so its
 	// dimensions cannot disturb their automatic atlas packing.
 	await k.loadSprite(
 		"cargo_receiver_station",
 		"sprites/bg/building1.png"
 	)
-
+	// Puzzle-specific Pixel Lab assets use mixed native sizes, so keep them
+	// after the common gameplay sprite runs to preserve existing batching.
+	await k.loadSprite(
+		"thruster_part",
+		"sprites/pickups/thruster-part.png"
+	)
+	await k.loadSprite(
+		"thruster_calibration_vane",
+		"sprites/puzzles/thruster-vane.png"
+	)
+	await k.loadSprite(
+		"thruster_calibration_rig",
+		"sprites/puzzles/thruster-calibration-rig.png"
+	)
+	// Keep this 32px room marker after the main gameplay sprite runs so it
+	// cannot disturb their automatic atlas packing.
+	await k.loadSprite(
+		"boss_room_skull",
+		"sprites/rooms/boss-room-skull.png"
+	)
+	await k.loadSprite(
+		"active_droid_frenzy",
+		"sprites/active-modules/droid-frenzy.png"
+	)
+	// Keep the bitmap font on the gameplay sprite atlas so adjacent HUD icons
+	// and text can share one render batch. The leading control character maps
+	// the atlas' blank space frame; KAPLAY handles actual spaces itself.
+	const unsciiSprite = await k.loadSprite("unscii", "/fonts/unscii_8x8.png", {
+		sliceX: k.ASCII_CHARS.length,
+	})
+	const unsciiFont = await k.loadBitmapFontFromSprite(
+		"unscii",
+		`\u0001${k.ASCII_CHARS.slice(1)}`
+	)
+	unsciiFont.map[" "] = unsciiSprite.frames[0]
 	// Load timescale zone shader
 	k.loadShader(
 		"timescaleJitter",
@@ -926,6 +1079,43 @@ export async function init(k: KAPLAYCtx) {
 			vec3 finalColor = mix(baseColor.rgb, tintedColor, u_intensity * 0.8);
 			
 			return vec4(finalColor, baseColor.a) * color;
+		}
+	`
+	);
+
+	// Blend stacked projectile modifier families without adding draw objects.
+	k.loadShader(
+		"projectileModifierBlend",
+		null,
+		`
+		uniform float u_time;
+		uniform float u_phase;
+		uniform float u_colorCount;
+		uniform vec3 u_colorA;
+		uniform vec3 u_colorB;
+		uniform vec3 u_colorC;
+		uniform vec3 u_colorD;
+
+		vec3 projectileModifierColor() {
+			float count = clamp(u_colorCount, 1.0, 4.0);
+			if (count < 1.5) return u_colorA;
+			float cycle = mod(u_time * 1.35 + u_phase, count);
+			float blend = smoothstep(0.12, 0.88, fract(cycle));
+			if (cycle < 1.0) return mix(u_colorA, u_colorB, blend);
+			if (cycle < 2.0) {
+				vec3 nextColor = count > 2.5 ? u_colorC : u_colorA;
+				return mix(u_colorB, nextColor, blend);
+			}
+			if (cycle < 3.0) {
+				vec3 nextColor = count > 3.5 ? u_colorD : u_colorA;
+				return mix(u_colorC, nextColor, blend);
+			}
+			return mix(u_colorD, u_colorA, blend);
+		}
+
+		vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
+			vec4 source = def_frag();
+			return vec4(source.rgb * projectileModifierColor(), source.a);
 		}
 	`
 	);
@@ -1081,11 +1271,17 @@ export function shortestAngleDelta(from: number, to: number) {
 }
 
 export function saveGame(slot: string) {
+	const psionicPlateProgress = getPsionicPlateProgress()
 	const save: SaveSlot = {
 		version: SAVE_VERSION,
 		loadout,
 		loadoutRarity,
 		score: getDepositedDebree(),
+		phaseCores: getPhaseCores(),
+		psionicPlates: psionicPlateProgress.plates,
+		psionicPlateMiniBossIds: psionicPlateProgress.firstClearMiniBossIds,
+		thrusterParts: getThrusterParts(),
+		lassoRig: getLassoRigProgress(),
 		time: timeSeconds,
 		weaponInventoryVersion: 1,
 		ownedWeaponIds: getOwnedWeaponIds(),

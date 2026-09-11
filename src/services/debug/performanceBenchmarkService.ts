@@ -112,11 +112,15 @@ export function formatPerformanceBenchmarkReport() {
 		.map(([name, stats]) =>
 			`${name}: avg ${formatMs(stats.average)}, p95 ${formatMs(stats.p95)}, max ${formatMs(stats.max)}`
 		)
+	const counters = Object.entries(result.profiler.counters)
+		.sort(([first], [second]) => first.localeCompare(second))
+		.map(([name, value]) => `${name}: ${value.toFixed(0)}`)
 	return [
 		`Benchmark ${result.name}`,
 		`Duration ${result.duration.toFixed(2)}s | Frames ${result.frames}`,
 		`Frame avg ${formatMs(result.frameAverage)} | p95 ${formatMs(result.frameP95)} | max ${formatMs(result.frameMax)}`,
 		`Draws avg ${result.drawAverage.toFixed(1)} | max ${result.drawMax.toFixed(0)}`,
+		...(counters.length > 0 ? [`Counters | ${counters.join(" | ")}`] : []),
 		...sections,
 	].join("\n")
 }

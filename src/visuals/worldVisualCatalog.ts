@@ -17,6 +17,14 @@ export type WorldVisualId =
 	| "wake-memory-console"
 	| "wake-cable-reel"
 	| "wake-pipe-manifold"
+	| "wake-pressure-tank"
+	| "wake-battery-bank"
+	| "wake-sorting-gantry"
+	| "wake-coolant-canister"
+	| "wake-patchwork-stall"
+	| "wake-signal-nest"
+	| "wake-reactor-pod"
+	| "wake-breaker-crusher"
 
 export const WORLD_VISUALS: Record<WorldVisualId, VisualRepresentation> = {
 	"capture-shrine": { parts: [{ sprite: "shrine_capture" }], worldScale: 1.5 },
@@ -62,6 +70,38 @@ export const WORLD_VISUALS: Record<WorldVisualId, VisualRepresentation> = {
 		parts: [{ sprite: "wake_pipe_manifold" }],
 		worldScale: 1,
 	},
+	"wake-pressure-tank": {
+		parts: [{ sprite: "wake_pressure_tank" }],
+		worldScale: 1,
+	},
+	"wake-battery-bank": {
+		parts: [{ sprite: "wake_battery_bank" }],
+		worldScale: 1,
+	},
+	"wake-sorting-gantry": {
+		parts: [{ sprite: "wake_sorting_gantry" }],
+		worldScale: 1,
+	},
+	"wake-coolant-canister": {
+		parts: [{ sprite: "wake_coolant_canister" }],
+		worldScale: 1,
+	},
+	"wake-patchwork-stall": {
+		parts: [{ sprite: "wake_patchwork_stall" }],
+		worldScale: 1,
+	},
+	"wake-signal-nest": {
+		parts: [{ sprite: "wake_signal_nest" }],
+		worldScale: 1,
+	},
+	"wake-reactor-pod": {
+		parts: [{ sprite: "wake_reactor_pod" }],
+		worldScale: 1,
+	},
+	"wake-breaker-crusher": {
+		parts: [{ sprite: "wake_breaker_crusher" }],
+		worldScale: 1,
+	},
 }
 
 export interface RunVillageVisual extends VisualRepresentation {
@@ -78,6 +118,21 @@ export const RUN_VILLAGE_VISUALS: readonly RunVillageVisual[] = [
 	{ parts: [{ sprite: "hub_building_repair_drydock" }], destroyedSprite: "hub_building_repair_drydock_destroyed", buildingOffsetY: -16, worldScale: 0.48 },
 	{ parts: [{ sprite: "hub_building_fuel_farm" }], destroyedSprite: "hub_building_fuel_farm_destroyed", buildingOffsetY: -22, worldScale: 0.48 },
 	{ parts: [{ sprite: "hub_building_freight_terminal" }], destroyedSprite: "hub_building_freight_terminal_destroyed", buildingOffsetY: -20, worldScale: 0.42 },
+]
+
+export const HUB_RACE_LAMP_VISUALS: readonly VisualRepresentation[] = [
+	{ parts: [{ sprite: "hub_race_lamp_1" }], worldScale: 1 },
+	{ parts: [{ sprite: "hub_race_lamp_2" }], worldScale: 1 },
+	{ parts: [{ sprite: "hub_race_lamp_3" }], worldScale: 1 },
+]
+
+export const HUB_RACE_LAMP_PLATFORM_VISUALS: readonly VisualRepresentation[] = [
+	{ parts: [{ sprite: "hub_progression_lamp_platform_01" }], worldScale: 0.72 },
+	{ parts: [{ sprite: "hub_progression_lamp_platform_02" }], worldScale: 0.72 },
+	{ parts: [{ sprite: "hub_progression_lamp_platform_03" }], worldScale: 0.72 },
+	{ parts: [{ sprite: "hub_progression_lamp_platform_04" }], worldScale: 0.72 },
+	{ parts: [{ sprite: "hub_progression_lamp_platform_05" }], worldScale: 0.72 },
+	{ parts: [{ sprite: "hub_progression_lamp_platform_06" }], worldScale: 0.72 },
 ]
 
 export function getWorldVisual(id: WorldVisualId) {

@@ -95,10 +95,18 @@ import {
 	type RewardKind,
 } from "./services/economy/rewardService";
 import {
+	unlockRewardRequirementsForDebug,
+} from "./services/progression/rewardUnlockProgressService";
+import {
 	hideRecoveryShop,
 	recoveryShopOpen,
 	showRecoveryShop,
 } from "./ui/recoveryShop";
+import {
+	hideQuartermasterShop,
+	quartermasterShopOpen,
+	showQuartermasterShop,
+} from "./ui/quartermasterShop";
 import {
 	hideHubFacilityPanel,
 	hubFacilityPanelOpen,
@@ -131,6 +139,8 @@ import type { PlaytestBuild } from "./services/player/buildPresets";
 import {
 	addCollectedPowerup,
 	clearGameLoopUi,
+	gameLoopUiTextVisible,
+	setGameLoopUiTextVisible,
 	setupGameLoopUi,
 	updatePlayerHealthBar,
 } from "./ui/gameUi";
@@ -156,14 +166,17 @@ import {
 	clearDebreeStressTest,
 	clearEnemyStressTest,
 	clearProjectileStressTest,
+	clearPhysicsStressTest,
 	clearRocketStressTest,
 	countStressDebree,
 	countStressEnemies,
 	countStressProjectiles,
+	countStressPhysicsObjects,
 	countStressRockets,
 	spawnDebreeStressTest,
 	spawnEnemyStressTest,
 	spawnProjectileStressTest,
+	spawnPhysicsStressTest,
 	spawnRocketStressTest,
 } from "./services/debug/performanceStressService";
 import {
@@ -231,6 +244,8 @@ import {
 	unlockWarpZone,
 	WARP_ZONES,
 } from "./services/world/warpZoneService";
+import { resetPilotProtocols } from "./services/hub/pilotProtocolService";
+import { resetExpeditionSupport } from "./services/hub/expeditionSupportService";
 import {
 	resetWeaponInventory,
 	unlockWeapon,
@@ -250,6 +265,8 @@ import {
 import { getAllUpgradeDefinitions } from "./upgrades/upgradeRegistry";
 import { spawnRewardPickup } from "./spawn/spawnPowerup";
 import { spawnDebreeValues } from "./spawn/spawnDebree";
+import { spawnPhaseCorePickup } from "./spawn/spawnPhaseCore"
+import { spawnThrusterPartPickup } from "./spawn/spawnThrusterPart"
 import { splitSalvageValue } from "./services/economy/salvagePickupService";
 import {
 	addAvailableDebree,
@@ -260,6 +277,33 @@ import {
 	resetDebreeEconomy,
 	spendAvailableDebree,
 } from "./services/economy/debreeEconomyService";
+import {
+	addPhaseCores,
+	getPhaseCores,
+	loadPhaseCores,
+	resetPhaseCores,
+} from "./services/economy/phaseCoreService"
+import {
+	addPsionicPlates,
+	getPsionicPlates,
+	loadPsionicPlateProgress,
+	resetPsionicPlateProgress,
+} from "./services/economy/psionicPlateService"
+import {
+	addThrusterParts,
+	getThrusterParts,
+	loadThrusterParts,
+	resetThrusterParts,
+} from "./services/economy/thrusterPartService"
+import {
+	addLassoTokens,
+	getLassoRigRank,
+	getLassoTokens,
+	LASSO_RIG_UPGRADES,
+	loadLassoRigProgress,
+	resetLassoRigProgress,
+	upgradeLassoRig,
+} from "./services/hub/lassoRigService"
 import {
 	clearPendingHubLevelReveal,
 	clearPendingRunEndSummary,
@@ -302,6 +346,9 @@ export const layers = {
 	gameEffects: "gameEffects",
 	gameText: "gameText",
 	ui: "ui",
+	hudShapes: "hudShapes",
+	hudSprites: "hudSprites",
+	hudText: "hudText",
 	uiEffects: "uiEffects",
 	debug: "debug",
 };
@@ -430,6 +477,9 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 			layers.gameEffects,
 			layers.gameText,
 			layers.ui,
+			layers.hudShapes,
+			layers.hudSprites,
+			layers.hudText,
 			layers.uiEffects,
 			layers.debug,
 		],
@@ -498,6 +548,10 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 			hideRecoveryShop();
 			return;
 		}
+		if (quartermasterShopOpen()) {
+			hideQuartermasterShop();
+			return;
+		}
 		if (commandConsoleOpen()) {
 			hideCommandConsole();
 			return;
@@ -516,6 +570,7 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 		if (
 			isPaused ||
 			recoveryShopOpen() ||
+			quartermasterShopOpen() ||
 			hubFacilityPanelOpen()
 		) return;
 		toggleTacticalMap();
@@ -529,6 +584,7 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 			if (tacticalMapOpen()) return;
 			if (hubFacilityPanelOpen()) return;
 			if (recoveryShopOpen()) return;
+			if (quartermasterShopOpen()) return;
 			if (playerDeathSequenceActive()) return;
 			if (gameState !== GameState.Playing && !commandConsoleOpen()) return;
 			toggleCommandConsole();
@@ -546,6 +602,7 @@ init(trackInitialAssets(k, loadingScreen)).then(() => {
 			return;
 		}
 		if (recoveryShopOpen()) hideRecoveryShop();
+		if (quartermasterShopOpen()) hideQuartermasterShop();
 	});
 
 	k.onKeyPress("up", () => {
@@ -677,6 +734,7 @@ function canUpdateGameplay() {
 		!dialogBlocksGameplay() &&
 		!commandConsoleOpen() &&
 		!recoveryShopOpen() &&
+		!quartermasterShopOpen() &&
 		!hubFacilityPanelOpen() &&
 		!tacticalMapOpen();
 }
@@ -736,6 +794,10 @@ function gameStateName(state: number) {
 export function resetGameProfile() {
 	deleteGameSave("slot1")
 	resetDebreeEconomy()
+	resetPhaseCores()
+	resetPsionicPlateProgress()
+	resetThrusterParts()
+	resetLassoRigProgress()
 	timeSeconds = 0
 	clearAllUpgrades()
 	resetSession()
@@ -747,6 +809,8 @@ export function resetGameProfile() {
 	resetActiveModule()
 	resetAbilityLoadout()
 	resetHubProgress()
+	resetPilotProtocols()
+	resetExpeditionSupport()
 	clearPendingRunEndSummary()
 	clearPendingHubLevelReveal()
 	clearRunTelemetry()
@@ -757,7 +821,7 @@ export function resetGameProfile() {
 }
 
 function setGameLoopPaused(paused: boolean) {
-	for (const obj of k.get<GameObj>(tags.gameLoop)) {
+	for (const obj of k.get(tags.gameLoop)) {
 		obj.paused = paused;
 	}
 }
@@ -786,7 +850,7 @@ function registerDebugCommands() {
 
 	commandService.register(
 		"cinematic",
-		"cinematic [on|off|toggle|status] - Hide HUD and pointer for recording",
+		"cinematic [on|off|toggle|status] - Hide gameplay HUD and pointer for recording",
 		(args) => {
 			const mode = args[0]?.toLowerCase() ?? "toggle";
 			if (!["on", "off", "toggle", "status"].includes(mode)) {
@@ -1023,6 +1087,22 @@ function registerDebugCommands() {
 	);
 
 	commandService.register(
+		"hudtext",
+		"hudtext [on|off|status] - Isolate gameplay HUD text rendering cost",
+		(args) => {
+			const mode = args[0]?.toLowerCase() ?? "status";
+			if (mode === "status") {
+				return `Gameplay HUD text ${gameLoopUiTextVisible() ? "shown" : "hidden"}`;
+			}
+			if (mode !== "on" && mode !== "off") {
+				return "Usage: hudtext [on|off|status]";
+			}
+			const affected = setGameLoopUiTextVisible(mode === "on");
+			return `Gameplay HUD text ${mode === "on" ? "shown" : "hidden"} (${affected} objects)`;
+		}
+	);
+
+	commandService.register(
 		"profiler",
 		"profiler [show|hide|on|off|status|reset|report] - Control performance diagnostics",
 		(args) => {
@@ -1083,7 +1163,12 @@ function registerDebugCommands() {
 		"benchmark start <name> [1-30s] | status | report | cancel",
 		(args) => {
 			const mode = args[0]?.toLowerCase() ?? "status";
-			if (mode === "report") return formatPerformanceBenchmarkReport();
+			if (mode === "report") {
+				const report = formatPerformanceBenchmarkReport();
+				k.canvas.dataset.benchmarkReport = report;
+				console.log(report);
+				return report;
+			}
 			if (mode === "cancel") {
 				return cancelPerformanceBenchmark()
 					? "Benchmark cancelled"
@@ -1111,7 +1196,7 @@ function registerDebugCommands() {
 
 	commandService.register(
 		"stress",
-		"stress combat [enemies] [projectiles] [rockets] [debris] - Run deterministic load tests",
+		"stress physics [objects] | stress combat [enemies] [projectiles] [rockets] [debris]",
 		(args) => {
 			const mode = args[0]?.toLowerCase() ?? "projectiles";
 			if (mode === "clear") {
@@ -1119,26 +1204,30 @@ function registerDebugCommands() {
 				const projectiles = clearProjectileStressTest();
 				const enemies = clearEnemyStressTest();
 				const debris = clearDebreeStressTest();
-				return `Removed ${projectiles} projectiles, ${rockets} rockets, ${enemies} enemies, and ${debris} debris`;
+				const physics = clearPhysicsStressTest();
+				return `Removed ${projectiles} projectiles, ${rockets} rockets, ${enemies} enemies, ${debris} debris, and ${physics} physics objects`;
 			}
 			if (mode === "status") {
 				const rockets = countStressRockets();
 				const projectiles = countStressProjectiles() - rockets;
-				return `${projectiles} projectiles, ${rockets} rockets, ${countStressEnemies()} enemies, and ${countStressDebree()} debris active`;
+				return `${projectiles} projectiles, ${rockets} rockets, ${countStressEnemies()} enemies, ${countStressDebree()} debris, and ${countStressPhysicsObjects()} physics objects active`;
 			}
 			if (![
 				"projectiles",
 				"rockets",
 				"enemies",
 				"debris",
+				"physics",
 				"combined",
 				"combat",
 			].includes(mode)) {
-				return "Usage: stress combat [enemies] [projectiles] [rockets] [debris] | stress clear";
+				return "Usage: stress physics [objects] | stress combat [enemies] [projectiles] [rockets] [debris] | stress clear";
 			}
 			if (!playerObj || !playerObj.exists()) return "No active player";
 
-			const firstCount = Number(args[1] ?? (mode === "projectiles" ? 1000 : 500));
+			const firstCount = Number(args[1] ?? (
+				mode === "projectiles" ? 1000 : mode === "physics" ? 300 : 500
+			));
 			const projectileCount = Number(args[2] ?? firstCount);
 			const rocketCount = Number(args[3] ?? Math.max(1, Math.round(firstCount / 5)));
 			const debrisCount = Number(args[4] ?? firstCount);
@@ -1181,8 +1270,11 @@ function registerDebugCommands() {
 					paused
 				)
 				: undefined;
+			const physicsResult = mode === "physics"
+				? spawnPhysicsStressTest(firstCount, origin, paused)
+				: undefined;
 			if (commandConsoleOpen()) {
-				for (const obj of k.get<GameObj>(tags.gameLoop)) {
+				for (const obj of k.get(tags.gameLoop)) {
 					obj.paused = true;
 				}
 			}
@@ -1195,13 +1287,17 @@ function registerDebugCommands() {
 					? `${rocketResult.spawned} rockets for ${rocketResult.lifetime}s`
 					: undefined,
 				debrisResult ? `${debrisResult.spawned} debris` : undefined,
+				physicsResult
+					? `${physicsResult.spawned} interacting physics objects`
+					: undefined,
 			].filter(Boolean);
 			const replaced = (enemyResult?.removed ?? 0) +
 				(projectileResult?.removed ?? 0) +
 				(rocketResult?.removed ?? 0) +
 				(debrisResult?.removed ?? 0);
-			const replacement = replaced > 0
-				? ` Replaced ${replaced} prior stress objects.`
+			const physicsReplacement = physicsResult?.removed ?? 0;
+			const replacement = replaced + physicsReplacement > 0
+				? ` Replaced ${replaced + physicsReplacement} prior stress objects.`
 				: "";
 			return `Spawned ${descriptions.join(" and ")}.${replacement}\nClose the console to begin; use stress clear to stop early.`;
 		}
@@ -1307,6 +1403,11 @@ function registerDebugCommands() {
 	commandService.register("recovery", "Open the recovery shop", () => {
 		hideCommandConsole();
 		showRecoveryShop();
+	});
+
+	commandService.register("quartermaster", "Open the Quartermaster shop", () => {
+		hideCommandConsole();
+		showQuartermasterShop();
 	});
 
 	commandService.register("training", "Open the Compendium", () => {
@@ -1472,6 +1573,50 @@ function registerDebugCommands() {
 		addScore(amount);
 		return `Added ${amount} score`;
 	});
+	commandService.register("phasecores", "phasecores [amount|drop] - Add or drop persistent Phase Cores", (args) => {
+		if (args.length === 0) return `${getPhaseCores()} Phase Cores`
+		if (args[0]?.toLowerCase() === "drop") {
+			if (!playerObj?.exists()) return "No active player"
+			hideCommandConsole()
+			spawnPhaseCorePickup(playerObj.pos.add(0, -140), { objectTags: [] })
+			return "Dropped a Phase Core"
+		}
+		const amount = Number(args[0])
+		if (!Number.isFinite(amount) || amount <= 0) return "Invalid Phase Core amount"
+		const added = addPhaseCores(amount)
+		saveGame("slot1")
+		return `Added ${added} Phase Core${added === 1 ? "" : "s"}`
+	})
+	commandService.register("psionicplates", "psionicplates [amount] - Add persistent Psionic Plates", (args) => {
+		if (args.length === 0) return `${getPsionicPlates()} Psionic Plates`
+		const amount = Number(args[0])
+		if (!Number.isFinite(amount) || amount <= 0) return "Invalid Psionic Plate amount"
+		const added = addPsionicPlates(amount)
+		saveGame("slot1")
+		return `Added ${added} Psionic Plate${added === 1 ? "" : "s"}`
+	})
+	commandService.register("thrusterparts", "thrusterparts [amount|drop] - Add or drop persistent Thruster Parts", (args) => {
+		if (args.length === 0) return `${getThrusterParts()} Thruster Parts`
+		if (args[0]?.toLowerCase() === "drop") {
+			if (!playerObj?.exists()) return "No active player"
+			hideCommandConsole()
+			spawnThrusterPartPickup(playerObj.pos.add(0, -140), { objectTags: [] })
+			return "Dropped a Thruster Part"
+		}
+		const amount = Number(args[0])
+		if (!Number.isFinite(amount) || amount <= 0) return "Invalid Thruster Part amount"
+		const added = addThrusterParts(amount)
+		saveGame("slot1")
+		return `Added ${added} Thruster Part${added === 1 ? "" : "s"}`
+	})
+	commandService.register("lassotokens", "lassotokens [amount] - Add persistent Lasso Tokens", (args) => {
+		if (args.length === 0) return `${getLassoTokens()} Lasso Tokens`
+		const amount = Number(args[0])
+		if (!Number.isFinite(amount) || amount <= 0) return "Invalid Lasso Token amount"
+		const added = addLassoTokens(amount)
+		saveGame("slot1")
+		return `Added ${added} Lasso Token${added === 1 ? "" : "s"}`
+	})
 
 	commandService.register(
 		"salvage",
@@ -1505,10 +1650,22 @@ function registerDebugCommands() {
 		"Unlock all progression, facilities, equipment, and discoveries",
 		() => {
 			enableTrainingUpgradeGrantForDebug();
+			if (getPhaseCores() < 99) addPhaseCores(99 - getPhaseCores())
+			if (getPsionicPlates() < 99) {
+				addPsionicPlates(99 - getPsionicPlates())
+			}
+			if (getThrusterParts() < 99) addThrusterParts(99 - getThrusterParts())
+			if (getLassoTokens() < 99) addLassoTokens(99 - getLassoTokens())
 			if (getPermanentUpgradeLevel("salvageLasso") === undefined) {
 				addLvl("salvageLasso");
 			}
-			const rewardBlueprintKeys = getAllRewardDefinitions()
+			for (const definition of LASSO_RIG_UPGRADES) {
+				while (getLassoRigRank(definition.id) < definition.values.length) {
+					upgradeLassoRig(definition.id)
+				}
+			}
+			const rewardDefinitions = getAllRewardDefinitions();
+			const rewardBlueprintKeys = rewardDefinitions
 				.filter((reward) =>
 					reward.kind === "powerup" || reward.kind === "item"
 				)
@@ -1518,11 +1675,14 @@ function registerDebugCommands() {
 				...getAllUpgradeDefinitions().map((upgrade) => upgrade.toolKey),
 				...rewardBlueprintKeys,
 			];
+			const masteryRequirements = unlockRewardRequirementsForDebug(
+				rewardDefinitions.map((reward) => reward.unlockRequirements)
+			);
 			const hub = unlockAllHubContentForDebug(blueprintKeys);
 			for (const weapon of WEAPONS) unlockWeapon(weapon.id, false);
 			for (const zone of WARP_ZONES) unlockWarpZone(zone.id);
 			saveGame("slot1");
-			return `Unlocked all content | Hub ${hub.hubLevel} | ${hub.facilities} facilities | ${WEAPONS.length} weapons | ${ABILITIES.length} abilities | ${blueprintKeys.length} discoveries | ${WARP_ZONES.length} zones`;
+			return `Unlocked all content | Hub ${hub.hubLevel} | 99 Phase Cores | ${hub.facilities} facilities | ${WEAPONS.length} weapons | ${ABILITIES.length} abilities | ${blueprintKeys.length} discoveries | ${masteryRequirements} requirements | ${WARP_ZONES.length} zones`;
 		}
 	);
 
@@ -1889,6 +2049,13 @@ function loadGameSlot() {
 	setLoadout(slot.loadout);
 	setLoadoutRarity(slot.loadoutRarity ?? {});
 	loadDepositedDebree(slot.score ?? DEFAULT_DEPOSITED_DEBREE);
+	loadPhaseCores(slot.phaseCores ?? 0)
+	loadPsionicPlateProgress(
+		slot.psionicPlates ?? 0,
+		slot.psionicPlateMiniBossIds ?? []
+	)
+	loadThrusterParts(slot.thrusterParts ?? 0)
+	loadLassoRigProgress(slot.lassoRig)
 	timeSeconds = slot.time;
 	loadPlayer();
 }
@@ -1926,7 +2093,7 @@ function togglePause() {
 
 	if (isPaused) {
 		// Show pause text
-		const objs = k.get<GameObj>(tags.gameLoop);
+		const objs = k.get(tags.gameLoop);
 
 		objs.forEach((o) => {
 			if (!o.paused) {
@@ -1946,7 +2113,7 @@ function togglePause() {
 		});
 	} else {
 		hidePauseMenu();
-		const objs = k.get<GameObj>(tags.gameLoop);
+		const objs = k.get(tags.gameLoop);
 
 		objs.forEach((o) => {
 			if (o.paused) {
@@ -1973,7 +2140,7 @@ function quitPausedGame() {
 }
 
 function destroyGameLoopObjects() {
-	const objects = k.get<GameObj>(tags.gameLoop).sort(
+	const objects = k.get(tags.gameLoop).sort(
 		(a, b) => gameObjectDepth(b) - gameObjectDepth(a)
 	);
 	for (const object of objects) {

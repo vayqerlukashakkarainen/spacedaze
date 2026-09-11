@@ -10,7 +10,12 @@ import { createEnemySpawnProfile, type EnemySpawnOptions } from "../../services/
 import { easeDirection } from "../../shared"
 import { tags } from "../../tags"
 import { getEnemyVisual } from "../../visuals/enemyVisualCatalog"
-import { addWakeEnemyPart, composeWakeEnemy, handleWakeCompositeCombat } from "./wakeEnemyShared"
+import {
+	addWakeEnemyPart,
+	composeWakeEnemy,
+	handleWakeCompositeCombat,
+	updateWakeEnemyMalfunction,
+} from "./wakeEnemyShared"
 
 const GUNNER_VISUAL = getEnemyVisual("wake-rivet-gunner")
 
@@ -36,6 +41,7 @@ export function spawnRivetGunner(
 		{
 			hb: 10 * profile.scale,
 			damage: profile.damage,
+			shieldFireRateMultiplier: 1,
 			moveDirection: k.vec2(0, 1),
 			attackTimer: k.rand(0.5, 1.1),
 			shotTimer: 0,
@@ -51,16 +57,19 @@ export function spawnRivetGunner(
 	const weapon = addWakeEnemyPart(
 		gunner,
 		weaponVisual.sprite,
-		Math.max(1, Math.round(profile.hp * 0.4))
+		2 * Math.max(1, Math.round(profile.hp / 2 * 0.4))
 	)
 	composeWakeEnemy(gunner, profile, [{
 		obj: weapon,
 		hitbox: 5 * profile.scale,
 		hitboxOffset: k.vec2(4, -8).scale(profile.scale),
+		pullForce: 65,
+		pullDuration: 0.55,
 	}], 5, 1.1)
 
 	registerBatchedEntityUpdate("enemies", gunner, () => {
 		const delta = k.dt() * gunner.getTimescale()
+		if (updateWakeEnemyMalfunction(gunner, delta)) return
 		const toPlayer = playerObj.pos.sub(gunner.pos)
 		const distance = toPlayer.len()
 		const direction = distance > 0 ? toPlayer.unit() : k.vec2(0, 1)

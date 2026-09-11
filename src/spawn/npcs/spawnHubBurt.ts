@@ -71,7 +71,7 @@ export function spawnHubBurt(
 	})
 
 	registerBatchedEntityUpdate("world", burt, () => {
-		const player = k.get<GameObj>(tags.player)[0]
+		const player = k.get(tags.player)[0]
 		if (!player?.exists()) return
 		const toPlayer = player.pos.sub(burt.pos)
 		if (toPlayer.len() > PLAYER_ACKNOWLEDGE_DISTANCE) return

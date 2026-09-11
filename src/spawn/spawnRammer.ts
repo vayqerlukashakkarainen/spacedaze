@@ -83,6 +83,7 @@ export function spawnRammer(
 		k.pos(pos),
 		k.sprite(requirePrimaryVisualSprite(RAMMER_VISUAL)),
 		k.color(k.WHITE),
+		k.opacity(1),
 		k.rotate(0),
 		k.anchor("center"),
 		k.health(profile.hp),

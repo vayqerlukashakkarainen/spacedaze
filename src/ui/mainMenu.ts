@@ -22,6 +22,7 @@ import {
 	createUiSurface,
 	createUiTelemetryStrip,
 	createUiVerticalFlow,
+	playUiElementOpen,
 	UI_COLORS,
 	UI_FONT_SIZES,
 } from "./common"
@@ -31,20 +32,30 @@ import { registerBatchedUiUpdate } from "../services/ui/uiUpdateService"
 import { PLANET_CHUNK_SPRITES } from "../planetChunkSprites"
 import { audioService } from "../services/audio/audioService"
 import { hasGameSave } from "../util"
+import { isDemoBuild } from "../config/buildProfile"
 
 const MENU_WIDTH = 820
 const MENU_HEIGHT = 500
 const COMMAND_X = 52
 const COMMAND_WIDTH = 360
 const CREDITS_PANEL_X = 440
+const MENU_INTRO_REVEAL_DURATION = 0.18
+const MENU_INTRO_TITLE_DELAY = 0.2
+const MENU_INTRO_TITLE_DURATION = 0.32
+const MENU_INTRO_COMMAND_DELAY = MENU_INTRO_TITLE_DELAY
+	+ MENU_INTRO_TITLE_DURATION
+const MENU_INTRO_ROW_DELAY = MENU_INTRO_COMMAND_DELAY + 0.1
+const MENU_INTRO_ROW_STAGGER = 0.06
 const MUSIC_CREDITS = [
 	"SCI-FI SURVIVAL DREAMSCAPE  //  ONDERWISH",
 	"KATANA BLASTER  //  BIG GIANT CIRCLES",
 	"ARCADIA  //  DUNDERPATRULLEN",
 	"FLIRT FLIRT OH IT HURTS  //  BOSSFIGHT",
 	"AMBIENT SPACE NOISE 1  //  THE TOOTHPASTE VAMPIRES",
-	"FOX  //  SHIROBON",
-	"ON THE RUN  //  SHIROBON",
+	"PRESS X TWICE  //  LEXICA",
+	"HYSTERICAL  //  LEXICA",
+	"WAYNE'S DEMISE  //  TRUVIO",
+	"K.O.  //  LUPUS NOCTE",
 ] as const
 const SOUND_CREDITS = [
 	"CADERE SOUNDS  //  FREESOUND",
@@ -60,6 +71,7 @@ const SOUND_CREDITS = [
 ] as const
 
 export function enterMainMenu() {
+	if (isDemoBuild()) document.title = "SpaceDaze // Demo"
 	audioService.playMusic("hub", {
 		volume: 1,
 		loop: true,
@@ -100,16 +112,29 @@ export function enterMainMenu() {
 		),
 		k.scale(scale),
 	])
-	const planet = addMenuPlanet(menu)
+	const introGroups: GameObj[] = []
+	const planetGroup = createMenuIntroGroup(menu)
+	const planet = addMenuPlanet(planetGroup)
 	const interfaceRoot = menu.add([k.pos(0, 0), k.opacity(1)])
-	addThemedText(interfaceRoot, {
+	const titleGroup = createMenuIntroGroup(interfaceRoot)
+	addThemedText(titleGroup, {
 		pos: k.vec2(COMMAND_X, 198),
 		text: "SPACEDAZE",
 		variant: "display",
 		size: UI_FONT_SIZES.logo,
 		color: k.rgb(...UI_COLORS.text),
 	})
-	addThemedText(interfaceRoot, {
+	if (isDemoBuild()) {
+		addThemedText(titleGroup, {
+			pos: k.vec2(COMMAND_X + 224, 222),
+			text: "DEMO",
+			variant: "caption",
+			size: UI_FONT_SIZES.body,
+			color: k.rgb(...UI_COLORS.accent),
+		})
+	}
+	const commandHeaderGroup = createMenuIntroGroup(interfaceRoot)
+	addThemedText(commandHeaderGroup, {
 		pos: k.vec2(COMMAND_X, 258),
 		text: "SELECT COMMAND",
 		variant: "eyebrow",
@@ -117,10 +142,11 @@ export function enterMainMenu() {
 	})
 
 	let transitioning = false
+	let menuReady = false
 	let confirmationDialog: UiConfirmationDialogController | undefined
 	const hasSavedProfile = hasGameSave("slot1")
 	const startRun = () => {
-		if (transitioning || confirmationDialog?.isOpen()) return
+		if (!menuReady || transitioning || confirmationDialog?.isOpen()) return
 		transitioning = true
 		soundSettings.collapse()
 		creditsPanel.collapse()
@@ -134,19 +160,24 @@ export function enterMainMenu() {
 			},
 		})
 	}
-	createUiCommandButton(interfaceRoot, {
+	const continueGroup = createMenuIntroGroup(interfaceRoot)
+	createUiCommandButton(continueGroup, {
 		pos: k.vec2(COMMAND_X, 278),
 		size: k.vec2(COMMAND_WIDTH, 44),
 		index: "01",
 		text: hasSavedProfile ? "CONTINUE" : "START GAME",
 		trailingText: ">",
 		selected: true,
+		canInteract: () => menuReady,
 		onClick: startRun,
 	})
+	introGroups.push(continueGroup)
 
 	let nextCommandY = 330
 	if (hasSavedProfile) {
-		addSavedProfileTelemetry(interfaceRoot)
+		const telemetryGroup = createMenuIntroGroup(interfaceRoot)
+		addSavedProfileTelemetry(telemetryGroup)
+		introGroups.push(telemetryGroup)
 		nextCommandY = 372
 	}
 	const soundSettings = createUiCollapsible(interfaceRoot, {
@@ -158,14 +189,16 @@ export function enterMainMenu() {
 		createContent: addCreditsPanel,
 	})
 	if (hasSavedProfile) {
-		createUiCommandButton(interfaceRoot, {
+		const newGameGroup = createMenuIntroGroup(interfaceRoot)
+		createUiCommandButton(newGameGroup, {
 			pos: k.vec2(COMMAND_X, nextCommandY),
 			size: k.vec2(COMMAND_WIDTH, 34),
 			index: "02",
 			text: "START NEW GAME",
 			trailingText: "RESET SAVE",
+			canInteract: () => menuReady,
 			onClick: () => {
-				if (transitioning || confirmationDialog?.isOpen()) return
+				if (!menuReady || transitioning || confirmationDialog?.isOpen()) return
 				soundSettings.collapse()
 				creditsPanel.collapse()
 				confirmationDialog = showUiConfirmationDialog({
@@ -184,31 +217,49 @@ export function enterMainMenu() {
 				})
 			},
 		})
+		introGroups.push(newGameGroup)
 		nextCommandY += 42
 	}
-	createUiCommandButton(interfaceRoot, {
+	const optionsGroup = createMenuIntroGroup(interfaceRoot)
+	createUiCommandButton(optionsGroup, {
 		pos: k.vec2(COMMAND_X, nextCommandY),
 		size: k.vec2(COMMAND_WIDTH, 36),
 		index: hasSavedProfile ? "03" : "02",
 		text: "OPTIONS",
 		trailingText: "AUDIO / VIDEO / INPUT",
+		canInteract: () => menuReady,
 		onClick: () => {
-			if (transitioning) return
+			if (!menuReady || transitioning) return
 			creditsPanel.collapse()
 			soundSettings.toggle()
 		},
 	})
+	introGroups.push(optionsGroup)
 	nextCommandY += 42
-	createUiCommandButton(interfaceRoot, {
+	const creditsGroup = createMenuIntroGroup(interfaceRoot)
+	createUiCommandButton(creditsGroup, {
 		pos: k.vec2(COMMAND_X, nextCommandY),
 		size: k.vec2(COMMAND_WIDTH, 36),
 		index: hasSavedProfile ? "04" : "03",
 		text: "CREDITS",
 		trailingText: "TEAM / AUDIO",
+		canInteract: () => menuReady,
 		onClick: () => {
-			if (transitioning) return
+			if (!menuReady || transitioning) return
 			soundSettings.collapse()
 			creditsPanel.toggle()
+		},
+	})
+	introGroups.push(creditsGroup)
+
+	playMenuIntro({
+		root,
+		planetGroup,
+		titleGroup,
+		commandHeaderGroup,
+		introGroups,
+		onReady: () => {
+			menuReady = true
 		},
 	})
 
@@ -224,6 +275,106 @@ export function enterMainMenu() {
 		enterController.cancel()
 		spaceController.cancel()
 		escapeController.cancel()
+	})
+}
+
+interface MenuIntroOptions {
+	root: GameObj
+	planetGroup: GameObj
+	titleGroup: GameObj
+	commandHeaderGroup: GameObj
+	introGroups: GameObj[]
+	onReady: () => void
+}
+
+function createMenuIntroGroup(parent: GameObj) {
+	const group = parent.add([
+		k.pos(0, 0),
+		k.scale(1),
+		k.opacity(1),
+		k.animate(),
+	])
+	group.hidden = true
+	return group
+}
+
+function playMenuIntro({
+	root,
+	planetGroup,
+	titleGroup,
+	commandHeaderGroup,
+	introGroups,
+	onReady,
+}: MenuIntroOptions) {
+	revealMenuIntroGroup(planetGroup, 0, 28)
+	revealMenuIntroTitle(titleGroup, MENU_INTRO_TITLE_DELAY)
+	revealMenuIntroGroup(commandHeaderGroup, MENU_INTRO_COMMAND_DELAY, 12)
+
+	introGroups.forEach((group, index) => {
+		revealMenuIntroGroup(
+			group,
+			MENU_INTRO_ROW_DELAY + index * MENU_INTRO_ROW_STAGGER,
+			10
+		)
+	})
+
+	const finalDelay = MENU_INTRO_ROW_DELAY
+		+ Math.max(0, introGroups.length - 1) * MENU_INTRO_ROW_STAGGER
+		+ MENU_INTRO_REVEAL_DURATION
+	void k.wait(finalDelay).then(() => {
+		if (!root.exists()) return
+		onReady()
+	})
+}
+
+function revealMenuIntroTitle(group: GameObj, delay: number) {
+	void k.wait(delay).then(() => {
+		if (!group.exists()) return
+		const nodes = collectMenuIntroTree(group)
+		const opacities = nodes.map((node) => {
+			if (typeof node.opacity !== "number") node.use(k.opacity(1))
+			const opacity = node.opacity as number
+			node.opacity = 0
+			return opacity
+		})
+		const startPos = k.vec2(-96, 0)
+		group.pos = startPos
+		group.hidden = false
+		group.animation.seek(0)
+		group.animate("pos", [startPos, k.vec2(0, 0)], {
+			duration: MENU_INTRO_TITLE_DURATION,
+			loops: 1,
+			easing: k.easings.easeOutCubic,
+		})
+		void k.tween(
+			0,
+			1,
+			MENU_INTRO_TITLE_DURATION,
+			(progress) => {
+				nodes.forEach((node, index) => {
+					if (node.exists()) node.opacity = opacities[index] * progress
+				})
+			},
+			k.easings.easeOutCubic
+		)
+	})
+}
+
+function collectMenuIntroTree(group: GameObj): GameObj[] {
+	return [
+		group,
+		...group.children.flatMap((child) => collectMenuIntroTree(child)),
+	]
+}
+
+function revealMenuIntroGroup(group: GameObj, delay: number, travel: number) {
+	void k.wait(delay).then(() => {
+		if (!group.exists()) return
+		group.hidden = false
+		playUiElementOpen(group, {
+			pos: k.vec2(0, 0),
+			travel,
+		})
 	})
 }
 

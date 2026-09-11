@@ -7,6 +7,11 @@ import { rangeKeeperDialogue } from "./rangeKeeper"
 import { shopkeeperDialogue } from "./shopkeeper"
 import { strafeTrainingDialogue } from "./strafeTraining"
 import { lassoConstructionDialogue } from "./lassoConstruction"
+import { armorerDialogue } from "./armorer"
+import { depositAttendantDialogue } from "./depositAttendant"
+import { bossIntroductionDialogue } from "./bossIntroductions"
+import { quartermasterDialogue } from "./quartermaster"
+import { hubRaceDialogue } from "./hubRace"
 import type { DialogueLine } from "./types"
 
 export const dialogue = {
@@ -19,6 +24,11 @@ export const dialogue = {
 	shopkeeper: shopkeeperDialogue,
 	strafeTraining: strafeTrainingDialogue,
 	lassoConstruction: lassoConstructionDialogue,
+	armorer: armorerDialogue,
+	depositAttendant: depositAttendantDialogue,
+	quartermaster: quartermasterDialogue,
+	hubRace: hubRaceDialogue,
+	bossIntroductions: bossIntroductionDialogue,
 } as const
 
 export function validateDialogueCatalog(root: unknown = dialogue) {

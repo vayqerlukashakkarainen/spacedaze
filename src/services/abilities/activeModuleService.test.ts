@@ -12,7 +12,11 @@ import {
 	updateActiveModuleCooldown,
 } from "./activeModuleService"
 
-assert.equal(ACTIVE_MODULES.length, 7)
+assert.equal(ACTIVE_MODULES.length, 11)
+assert.deepEqual(
+	ACTIVE_MODULES.map((module) => module.cooldown),
+	[30, 10.5, 13.5, 9, 15, 16.5, 12, 21, 18, 40, 19.5]
+)
 
 resetActiveModule()
 ensureDefaultActiveModule(false)
@@ -24,8 +28,10 @@ assert.equal(beginActiveModuleActivation()?.id, "rocketPod")
 assert.equal(beginActiveModuleActivation(), undefined)
 
 updateActiveModuleCooldown(5.5)
-assert.equal(getActiveModuleCooldownRemaining(), 0.5)
+assert.equal(getActiveModuleCooldownRemaining(), 24.5)
 updateActiveModuleCooldown(1)
+assert.equal(getActiveModuleCooldownRemaining(), 23.5)
+updateActiveModuleCooldown(24)
 assert.equal(getActiveModuleCooldownRemaining(), 0)
 
 equipActiveModule("gravityCharge")
@@ -33,14 +39,14 @@ assert.equal(getEquippedActiveModuleId(), "gravityCharge")
 assert.equal(getActiveModuleCooldownRemaining(), 0)
 assert.equal(beginActiveModuleActivation()?.id, "gravityCharge")
 assert.equal(reduceActiveModuleCooldown(4), 0)
-assert.equal(getActiveModuleCooldownRemaining(), 7)
+assert.equal(getActiveModuleCooldownRemaining(), 12.5)
 resetActiveModuleCooldown()
 assert.equal(getEquippedActiveModuleId(), "gravityCharge")
 assert.equal(getActiveModuleCooldownRemaining(), 0)
 assert.equal(beginActiveModuleActivation()?.id, "gravityCharge")
 assert.equal(reduceActiveModuleCooldown(9), 0)
-assert.equal(getActiveModuleCooldownRemaining(), 2)
-assert.equal(reduceActiveModuleCooldown(4), 2)
+assert.equal(getActiveModuleCooldownRemaining(), 7.5)
+assert.equal(reduceActiveModuleCooldown(10), 2.5)
 assert.equal(getActiveModuleCooldownRemaining(), 0)
 
 resetActiveModule()

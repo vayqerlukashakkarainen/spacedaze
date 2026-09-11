@@ -3,7 +3,11 @@ import { snareable } from "../../comp/snareable"
 import { gridRegistry } from "../../grid/gridRegistry"
 import { ACTIVE_RUN_GRID_KEY } from "../../grid/gridKeys"
 import { k, layers } from "../../main"
-import { emitEnemyTrail, sparkEmitter } from "../../particles"
+import {
+	emitDirectionalParticles,
+	emitEnemyTrail,
+	sparkEmitter,
+} from "../../particles"
 import { spawnFlash } from "../../spawn/spawnFlash"
 import { tags } from "../../tags"
 import { registerBatchedEntityUpdate } from "../core/entityUpdateService"
@@ -145,7 +149,7 @@ export function spawnEnemyDeathWreckage(
 		const direction = k.Vec2.fromAngle(k.rand(0, 360))
 		const part = spawnPersistentShipPart(
 			position.add(direction.scale(k.rand(2, 8))),
-			k.choose(sprites),
+			sprites[k.randi(0, sprites.length)],
 			{
 				force: baseForce * k.rand(0.72, 1.28),
 				direction,
@@ -544,14 +548,7 @@ function emitPartSparks(
 	spread: number,
 	count: number
 ) {
-	const previousDirection = sparkEmitter.emitter.direction
-	const previousSpread = sparkEmitter.emitter.spread
-	sparkEmitter.emitter.position = position
-	sparkEmitter.emitter.direction = direction
-	sparkEmitter.emitter.spread = spread
-	sparkEmitter.emit(count)
-	sparkEmitter.emitter.direction = previousDirection
-	sparkEmitter.emitter.spread = previousSpread
+	emitDirectionalParticles(sparkEmitter, position, direction, spread, count)
 }
 
 function updateCounters(drawn?: number) {

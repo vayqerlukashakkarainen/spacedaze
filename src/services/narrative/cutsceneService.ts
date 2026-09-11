@@ -380,7 +380,7 @@ function smoothlyRestoreCamera(runtime: CutsceneRuntime) {
 }
 
 function getGameplayObjects(pauseVisualEffects: boolean) {
-	return k.get<GameObj>(tags.gameLoop).filter(
+	return k.get(tags.gameLoop).filter(
 		(object) => pauseVisualEffects || !isVisualEffect(object)
 	)
 }

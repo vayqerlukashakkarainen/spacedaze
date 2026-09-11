@@ -6,6 +6,7 @@ import {
 	beginAbilityTierRun,
 	endAbilityTierRun,
 } from "../abilities/abilityTierService"
+import { getPilotProtocolValue } from "../hub/pilotProtocolService"
 
 export interface DebreeRunOutcome {
 	deposited: number
@@ -91,9 +92,14 @@ export function extractDebreeRun(): DebreeRunOutcome {
 }
 
 export function loseCarriedDebree(): DebreeRunOutcome {
+	const retained = Math.round(
+		carriedDebree * getPilotProtocolValue("securedHold") / 100
+	)
+	depositedDebree += retained
+	depositedThisRun += retained
 	const outcome = {
 		deposited: depositedThisRun,
-		lost: carriedDebree,
+		lost: carriedDebree - retained,
 	}
 	finishRun()
 	return outcome

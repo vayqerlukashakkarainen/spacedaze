@@ -4,6 +4,7 @@ import { applyDamage } from "../services/combat/damageService"
 import { tags } from "../tags"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import { forEachSpatialNearby } from "../services/core/runtimeSpatialIndexService"
+import { scaleIndependentPlayerDamage } from "../services/player/playerCombatScalingService"
 
 interface Props {
 	pos: Vec2
@@ -13,7 +14,7 @@ interface Props {
 export function spawnAfterburnerWake(props: Props) {
 	const duration = props.enhanced ? 1.15 : 0.85
 	const radius = props.enhanced ? 24 : 18
-	const damage = props.enhanced ? 3 : 2
+	const damage = scaleIndependentPlayerDamage(props.enhanced ? 3 : 2)
 	const hitTargets = new Set<number>()
 	const wake = k.add([
 		k.pos(props.pos),

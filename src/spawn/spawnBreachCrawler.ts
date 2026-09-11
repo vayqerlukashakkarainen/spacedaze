@@ -60,7 +60,8 @@ export function spawnBreachCrawler(pos: Vec2, hp = 8, options: EnemySpawnOptions
 			damageDestructibleWallsInRadius(
 				crawler.pos,
 				profile.elite ? 82 : 38,
-				profile.elite ? 999 : 5
+				profile.elite ? 999 : 5,
+				{ explosive: true }
 			)
 			crawler.breachTimer = profile.elite ? 0.65 : 1
 			crawler.targetTimer = 0

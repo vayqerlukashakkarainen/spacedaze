@@ -1,7 +1,19 @@
-export const PLAYER_TURRET_LIMIT_DEGREES = 45
+export const PLAYER_BASE_TURRET_CONE_DEGREES = 90
+export const PLAYER_TURRET_CONE_STEP_DEGREES = 30
+export const PLAYER_MAX_TURRET_CONE_DEGREES = 270
+export const PLAYER_TURRET_CONE_LEVEL_DEGREES = [120, 150, 180, 210, 240, 270] as const
+export const PLAYER_TURRET_LIMIT_DEGREES = PLAYER_BASE_TURRET_CONE_DEGREES / 2
 export const DRIFT_SPEED_MULTIPLIER = 0.6
 export const DRIFT_HULL_RESPONSE = 2.5
 export const TURRET_AIM_RESPONSE = 9
+
+export function resolveStrafeInputActive(
+	mode: "hold" | "toggle",
+	inputDown: boolean,
+	toggled: boolean
+) {
+	return mode === "hold" ? inputDown : toggled
+}
 
 export function getMovementModeSpeedMultiplier(
 	normalSpeedMultiplier: number,
@@ -11,6 +23,15 @@ export function getMovementModeSpeedMultiplier(
 	return strafeModeActive
 		? strafeSpeedMultiplier * DRIFT_SPEED_MULTIPLIER
 		: normalSpeedMultiplier
+}
+
+export function getPlayerTurretLimitDegrees(upgradeRank: number) {
+	const rank = Math.max(0, Math.floor(upgradeRank))
+	const coneDegrees = Math.min(
+		PLAYER_MAX_TURRET_CONE_DEGREES,
+		PLAYER_BASE_TURRET_CONE_DEGREES + rank * PLAYER_TURRET_CONE_STEP_DEGREES
+	)
+	return coneDegrees / 2
 }
 
 let playerTargetModeActive = false

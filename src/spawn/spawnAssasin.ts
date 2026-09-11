@@ -129,6 +129,7 @@ export function spawnAssasin(
 			hb,
 			elite: profile.elite,
 			damage: profile.damage * chassis.damageMultiplier,
+			shieldFireRateMultiplier: 1,
 			threatRank: ENEMY_THREAT_RANK.assassin,
 			targetPos: k.rand(k.vec2(k.width(), k.height())),
 			hunterChassis: chassisId,
@@ -202,9 +203,27 @@ export function spawnAssasin(
 		},
 		parts: [
 			{ obj: m, hitbox: 8, isBody: true, scoreOnDestroy: 0 },
-			{ obj: leftWing, hitbox: 7, isBody: false, scoreOnDestroy: 0 },
-			{ obj: rightWing, hitbox: 7, isBody: false, scoreOnDestroy: 0 },
-			{ obj: weapon, hitbox: 6, isBody: false, scoreOnDestroy: 0 },
+			{
+				obj: leftWing,
+				hitbox: 7,
+				isBody: false,
+				scoreOnDestroy: 0,
+				pullForce: profile.elite ? 90 : 75,
+			},
+			{
+				obj: rightWing,
+				hitbox: 7,
+				isBody: false,
+				scoreOnDestroy: 0,
+				pullForce: profile.elite ? 90 : 75,
+			},
+			{
+				obj: weapon,
+				hitbox: 6,
+				isBody: false,
+				scoreOnDestroy: 0,
+				pullForce: profile.elite ? 102 : 85,
+			},
 		],
 	});
 

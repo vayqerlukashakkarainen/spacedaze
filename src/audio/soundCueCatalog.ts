@@ -124,6 +124,17 @@ export const SEMANTIC_SOUND_CUES = {
 		group: "charge-zone-charge",
 		stacking: "ignore",
 	},
+	miniboss_detonation_charge: {
+		asset: "rail_lance_charge",
+		defaults: { speed: 0.54 },
+		group: "miniboss-detonation-charge",
+		stacking: "ignore",
+		positionalDefaults: {
+			minDistance: 100,
+			maxDistance: 900,
+			voiceLimit: 1,
+		},
+	},
 } as const satisfies Record<string, SoundCuePolicy>
 
 export type SemanticSoundCueId = keyof typeof SEMANTIC_SOUND_CUES
@@ -140,6 +151,12 @@ export const SOUND_CUE_POLICIES: Partial<Record<SoundCueId, SoundCuePolicy>> = {
 	room_cleared: { group: "room-cleared", stacking: "ignore" },
 	player_game_over: { group: "player-game-over", stacking: "ignore" },
 	low_health_warning: { group: "low-health-warning", stacking: "ignore" },
+	player_overheated: {
+		group: "player-overheated",
+		stacking: "restart",
+		cooldownSeconds: 0.1,
+	},
+	player_thruster_loop: { group: "player-thruster-loop", stacking: "ignore" },
 	target_lock: { group: "target-lock", stacking: "restart" },
 	lasso_throw: { group: "player-lasso", stacking: "restart" },
 	menu_spacejump_warp: { group: "space-transition", stacking: "restart" },
@@ -152,6 +169,10 @@ export const SOUND_CUE_POLICIES: Partial<Record<SoundCueId, SoundCuePolicy>> = {
 			maxDistance: 680,
 			voiceLimit: 1,
 		},
+	},
+	machine_boss_fight_start: {
+		group: "machine-boss-fight-start",
+		stacking: "restart",
 	},
 	shop_menu_open: { group: "shop-menu", stacking: "restart" },
 	shop_menu_close: { group: "shop-menu", stacking: "restart" },

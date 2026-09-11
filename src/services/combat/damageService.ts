@@ -18,6 +18,7 @@ import { playDamageHitSound } from "../audio/hitSoundService"
 import { playVisualHitKnockback } from "./visualHitKnockbackService"
 import { ensureEnemyLowHealthEffects } from "./enemyDamageEffectService"
 import type { CombatCredit } from "../progression/combatCredit"
+import { grantUltimateChargeForHit } from "../abilities/ultimateAbilityService"
 
 export interface DamageOptions {
 	critical?: boolean
@@ -98,6 +99,9 @@ export function applyDamage(
 		if (visualDirection) playVisualHitKnockback(target, visualDirection)
 	}
 	target.hp -= appliedDamage
+	if (!damagesPlayer && healthBefore > 0 && target.hp < healthBefore) {
+		grantUltimateChargeForHit(options.combatCredit, numberPos)
+	}
 	if (target.tags.includes(tags.enemy)) ensureEnemyLowHealthEffects(target)
 	if (damagesPlayer) {
 		showPlayerDamageDirection(

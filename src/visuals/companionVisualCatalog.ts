@@ -15,7 +15,7 @@ export const COMPANION_VISUALS: Record<CompanionVisualId, VisualRepresentation> 
 	salvager: { parts: [{ sprite: "drone_salvager" }], worldScale: 1 },
 	"hacked-ally": { parts: [{ sprite: "enemy_fighter_core" }], worldScale: 1 },
 	"active-module-carrier": {
-		parts: [{ sprite: "rocket1" }],
+		parts: [{ sprite: "missile_capsule" }],
 		worldScale: 1,
 	},
 	burt: { parts: [{ sprite: "companion_burt" }], worldScale: 1 },

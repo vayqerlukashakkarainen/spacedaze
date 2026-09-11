@@ -1,4 +1,4 @@
-import type { AudioPlay, GameObj, Vec2 } from "kaplay"
+import type { AudioPlay, GameObj, PosComp, Vec2 } from "kaplay"
 import { dialogue } from "../../content/dialogue/dialogueCatalog"
 import type { HorizontalDirectionalVisualComp } from "../../comp/horizontalDirectionalVisual"
 import { playerObj } from "../../game"
@@ -25,7 +25,6 @@ import {
 	completeNarrativePrologue,
 	narrativePrologueActive,
 	shouldShowHubIntroduction,
-	skipNarrativeIntroduction,
 } from "./narrativeService"
 import {
 	clearQuest,
@@ -88,10 +87,8 @@ const PROLOGUE_CUTSCENE: CutsceneDefinition = {
 		{
 			type: "dialogue",
 			lines: dialogue.prologue.spacejumpFailure,
-			skippable: true,
 			options: {
 				overlayOpacity: 0,
-				skipLabel: "SKIP INTRO",
 			},
 		},
 		{
@@ -127,7 +124,7 @@ let spaceJumpBackdrop: SpaceJumpBackdrop | undefined
 let hyperspeedLoop: AudioPlay | null | undefined
 let hiddenGameplayUi: { object: GameObj; wasHidden: boolean }[] = []
 
-export function beginPrologueExperience(onSkip: () => void) {
+export function beginPrologueExperience() {
 	cancelActiveCutscene(PROLOGUE_CUTSCENE_ID)
 	clearIntroOverlay()
 	clearPrologueSpaceJump()
@@ -135,12 +132,6 @@ export function beginPrologueExperience(onSkip: () => void) {
 	beginNarrativePrologue()
 	void playCutscene(PROLOGUE_CUTSCENE, {
 		onComplete: startPrologueCombat,
-		onSkip: () => {
-			setThreatTier(undefined)
-			clearQuest(PROLOGUE_QUEST_ID)
-			skipNarrativeIntroduction()
-			onSkip()
-		},
 		onCancel: () => {
 			setThreatTier(undefined)
 			clearQuest(PROLOGUE_QUEST_ID)
@@ -241,7 +232,7 @@ export async function showHubIntroductionIfNeeded() {
 			resolveActor(id) {
 				if (id === HUB_INTRODUCTION_PLAYER_ACTOR) return playerObj
 				if (id === HUB_INTRODUCTION_BURT_ACTOR) {
-					return k.get<GameObj>(BURT_TAG)[0]
+					return k.get<PosComp>(BURT_TAG)[0]
 				}
 				return undefined
 			},
@@ -476,7 +467,9 @@ function faceHubIntroductionActors(
 	const player = resolveActor(HUB_INTRODUCTION_PLAYER_ACTOR)
 	if (!burt || !player) return
 	if (burt.has("horizontalDirectionalVisual")) {
-		const directionalBurt = burt as GameObj<HorizontalDirectionalVisualComp>
+		const directionalBurt = burt as GameObj<
+			PosComp | HorizontalDirectionalVisualComp
+		>
 		directionalBurt.faceHorizontal(player.pos.x - burt.pos.x)
 	}
 	player.angle = burt.pos.sub(player.pos).angle() + 90
@@ -501,7 +494,7 @@ function startPrologueCombat() {
 
 function hideGameplayUi() {
 	restoreGameplayUi()
-	hiddenGameplayUi = k.get<GameObj>(tags.gameLoopUi).map((object) => ({
+	hiddenGameplayUi = k.get(tags.gameLoopUi).map((object) => ({
 		object,
 		wasHidden: object.hidden,
 	}))

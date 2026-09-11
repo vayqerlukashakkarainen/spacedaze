@@ -30,7 +30,7 @@ assert.deepEqual(
 )
 assert.deepEqual(
 	wreckHarvester.levels.map((level) => level.effects.modifiers?.[0].value),
-	[1, 1.5, 2, 2.5, 3]
+	[0.5, 0.75, 1, 1.25, 1.5]
 )
 
 console.log("Stacking reward tests passed")

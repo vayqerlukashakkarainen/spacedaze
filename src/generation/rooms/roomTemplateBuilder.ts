@@ -144,6 +144,21 @@ function applyRoomEnvironment(map: GenerationMap, room: RoomFloorRoom) {
 		cell.tags.add("room_environment_object")
 		cell.tags.add(`room_environment_${object.archetypeId}`)
 	}
+	for (const field of room.environment?.scrapFields ?? []) {
+		const centerCell = map.getCell(field.center)
+		centerCell?.tags.add("room_scrap_field_reward")
+		centerCell?.tags.add("room_environment_object")
+		for (const piece of field.scrap) {
+			if (piece.destroyed) continue
+			const cell = map.getCell(piece.coord)
+			if (!cell) continue
+			cell.solid = true
+			cell.hardness = 1
+			cell.density = 1
+			cell.tags.add("room_environment_structural")
+			cell.tags.add("room_scrap_field")
+		}
+	}
 }
 
 function placeRoomObstacles(

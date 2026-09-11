@@ -7,13 +7,20 @@
 - **Fighter and Hunter enemy ships** — Generated with PixelLab, then separated into destructible components and converted to pure black-and-white sprites with the local SpaceDaze art tools.
 
 - **Wake hull barricade and volatile fuel cell** — Generated with PixelLab for the room-environment system, then quantized against the existing asteroid palette with no dithering.
+- **Wake subfloor environment props** — Pressure tank, battery bank, sorting gantry, coolant canister, patchwork stall, signal nest, reactor pod, and breaker crusher generated with PixelLab at varied native footprints, then reduced to three grayscale levels and normalized with the local SpaceDaze art tools.
 - **Clampback, Fuse Rat, and Shredder Skiff enemy concepts** — Generated with PixelLab for the Wake Scrap District roster. The Shredder Skiff uses selected object `fe96940e-4f34-4f6f-b6f4-6a4facb44799`; generation records for all three are kept in the Wake enemy concept catalog.
 
 - **Mass Driver railgun mount** — Generated with PixelLab (object `51aa76f1-473b-44cc-84d1-6f032085352d`), then quantized against the existing Rail Lance palette with no dithering.
 
+- **Psionic Plate currency pickup** — Generated with PixelLab Pixen (job `3f83d567-6624-4515-847a-fc627d31417a`), then reduced to two colors without dithering (job `41cf5e3e-3070-4e07-a871-8a7f7d56f983`).
+
 ## Music
 
-- **On The Run** — Shirobon, from *Dimensions*. Added as the Floor 1 exploration track from the user's local prototype copy; its embedded metadata links to [Shirobon's Bandcamp](https://shirobon.bandcamp.com/). Distribution rights are not recorded in the source file and must be confirmed before shipping.
+- **Press X Twice** — Lexica. Licensed and downloaded by the user through Epidemic Sound. The game uses the bass, drums, instruments, and melody stems as synchronized adaptive layers; runtime copies are encoded as Ogg Vorbis.
+
+- **K.O.** — Lupus Nocte. Licensed and downloaded by the user through Epidemic Sound. Used as the full-mix main-boss battle track; the runtime copy is encoded as Ogg Vorbis.
+
+- **RocketThrustMaxx** — Maxx. Sourced from the original [CC0 archive](https://creazilla.com/media/audio/15456920/rocketthrustmaxx), also distributed through the user's linked [Pixabay page](https://pixabay.com/sound-effects/film-special-effects-rocketthrustmaxx-100019/), and adapted into the speed-reactive player-thruster loop.
 
 - **Flirt Flirt Oh It Hurts** — Bossfight, from *Caps On, Hats Off* (2012). Prototype copy downloaded from the [artist's Newgrounds upload](https://www.newgrounds.com/audio/listen/504114).
 
@@ -48,6 +55,8 @@
 - **beep.mp3** — athenspublic. Published through [Pixabay](https://pixabay.com/sound-effects/technology-beep-104060/) and sourced from the original [Freesound upload](https://freesound.org/people/athenspublic/sounds/266753/) for target-lock feedback. Trimmed and licensed under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
 
 - **Bamboo Whoosh** — DenielCZ. Distributed through [Pixabay](https://pixabay.com/sound-effects/film-special-effects-bamboo-whoosh-429156/) and trimmed for the lasso throw. Licensed under the [Pixabay Content License](https://pixabay.com/service/license-summary/).
+
+- **minigun_Overheat** — Marregheriti (Freesound), distributed through Pixabay's freesound_community account. Sourced from [Pixabay](https://pixabay.com/sound-effects/film-special-effects-minigun-overheat-84899/) and trimmed for immediate thruster and Pulse Repeater overheat feedback. Licensed under the [Pixabay Content License](https://pixabay.com/service/license-summary/).
 
 - **Happy Birthday to You Upbeat** — SergeQuadrado. Preview sourced from [Freesound](https://freesound.org/people/SergeQuadrado/sounds/541178/) for the Gloom and Jubilee hub encounter. Licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/); replace or separately license before commercial distribution.
 

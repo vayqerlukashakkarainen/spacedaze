@@ -14,8 +14,10 @@ import {
 	formatInputBinding,
 	getInputActionDefinition,
 	getInputBinding,
+	getStrafeInputMode,
 	INPUT_ACTIONS,
 	resetInputBindings,
+	setStrafeInputMode,
 	type InputActionId,
 	type InputController,
 } from "../services/input/inputBindingService"
@@ -143,6 +145,15 @@ export function createUiOptionsPanel(
 				bindingStatus = "DEFAULT BINDINGS RESTORED"
 				render()
 			},
+			onToggleStrafeMode: () => {
+				stopCapture()
+				const nextMode = getStrafeInputMode() === "hold"
+					? "toggle"
+					: "hold"
+				setStrafeInputMode(nextMode)
+				bindingStatus = `STRAFE INPUT: ${nextMode.toUpperCase()}`
+				render()
+			},
 		})
 	}
 
@@ -252,6 +263,7 @@ interface BindingsTabProps {
 	status: string
 	onCapture: (action: InputActionId) => void
 	onReset: () => void
+	onToggleStrafeMode: () => void
 }
 
 function addBindingsTab(
@@ -264,6 +276,7 @@ function addBindingsTab(
 		status,
 		onCapture,
 		onReset,
+		onToggleStrafeMode,
 	}: BindingsTabProps
 ) {
 	const scrollable = createUiScrollable({
@@ -291,6 +304,20 @@ function addBindingsTab(
 	})
 
 	let y = 88
+	addThemedText(content, {
+		pos: k.vec2(10, y + 10),
+		text: "STRAFE INPUT",
+		variant: "body",
+		width: rowWidth - 168,
+	})
+	createUiActionButton(content, {
+		pos: k.vec2(rowWidth - 150, y),
+		size: k.vec2(140, 32),
+		text: getStrafeInputMode().toUpperCase(),
+		selected: getStrafeInputMode() === "toggle",
+		onClick: onToggleStrafeMode,
+	})
+	y += 46
 	let previousGroup = ""
 	for (const action of INPUT_ACTIONS) {
 		if (action.group !== previousGroup) {

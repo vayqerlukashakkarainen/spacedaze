@@ -106,15 +106,10 @@ export function showEmotion(
 	let resolveCompleted: (reason: EmotionEndReason) => void = () => {}
 	let sound: AudioPlay | null = null
 
-	const visualContent = "sprite" in definition
-		? k.sprite(definition.sprite, {
-			width: screenSize,
-			height: screenSize,
-		})
-		: k.text(definition.text, {
-			font: "unscii",
-			size: 18,
-		})
+	const visualContent = k.sprite(definition.sprite, {
+		width: screenSize,
+		height: screenSize,
+	})
 	const visual = k.add([
 		k.pos(actor.pos),
 		visualContent,

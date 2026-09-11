@@ -12,6 +12,7 @@ import {
 	isSoundCueId,
 	SEMANTIC_SOUND_CUES,
 } from "./soundCueCatalog"
+import { getPlayerThrusterSoundMix } from "../services/audio/playerThrusterSound"
 
 const projectRoot = process.cwd()
 
@@ -99,6 +100,15 @@ assert.deepEqual(getSoundCuePolicy("rock_material_destroyed").asset, [
 	"asteroid_destroyed",
 	"rock_material_destroyed_02",
 ])
+assert.equal(getSoundCuePolicy("player_thruster_loop").stacking, "ignore")
+
+const idleThruster = getPlayerThrusterSoundMix(0, 130)
+const cruisingThruster = getPlayerThrusterSoundMix(130, 130)
+const overdriveThruster = getPlayerThrusterSoundMix(260, 130)
+assert.ok(cruisingThruster.volume > idleThruster.volume)
+assert.ok(overdriveThruster.volume > cruisingThruster.volume)
+assert.ok(cruisingThruster.speed > idleThruster.speed)
+assert.ok(overdriveThruster.speed > cruisingThruster.speed)
 
 assert.deepEqual(
 	directLiteralCalls,

@@ -81,6 +81,19 @@ export const MOBILITY_ABILITIES: readonly AbilityDefinition[] = [
 		weights: { crate: 70, enemy: 12, boss: 60 },
 	},
 	{
+		id: "phaseSurge" as MobilityAbilityId,
+		slot: "mobility",
+		name: "PHASE SURGE",
+		description: "Phase out for 2 seconds, becoming invulnerable and moving 40% faster. Weapons are disabled until re-entry.",
+		icon: "mobility_phase_surge",
+		minimumHubLevel: 2,
+		rarity: RewardRarity.Rare,
+		trigger: "press",
+		resource: { type: "charges", count: 1, recharge: 8 },
+		tags: ["movement", "speed", "evasive", "phase"],
+		weights: { crate: 62, enemy: 10, boss: 55 },
+	},
+	{
 		id: "retroBurst" as MobilityAbilityId,
 		slot: "mobility",
 		name: "RETRO BURST",
@@ -125,6 +138,45 @@ export const ULTIMATE_ABILITIES: readonly AbilityDefinition[] = [
 		resource: { type: "meter", required: 100 },
 		tags: ["ultimate", "phase", "area"],
 		weights: { crate: 24, enemy: 4, boss: 36 },
+	},
+	{
+		id: "gravitonCollapse" as UltimateAbilityId,
+		slot: "ultimate",
+		name: "GRAVITON COLLAPSE",
+		description: "Launch a singularity at the cursor that drags the room inward before violently throwing it apart.",
+		icon: "ultimate_graviton_collapse",
+		minimumHubLevel: 4,
+		rarity: RewardRarity.Legendary,
+		trigger: "press",
+		resource: { type: "meter", required: 100 },
+		tags: ["ultimate", "gravity", "area", "control"],
+		weights: { crate: 22, enemy: 4, boss: 34 },
+	},
+	{
+		id: "ghostFleet" as UltimateAbilityId,
+		slot: "ultimate",
+		name: "GHOST FLEET",
+		description: "Record your movement and fire, then summon three phase echoes that replay the maneuver.",
+		icon: "ultimate_ghost_fleet",
+		minimumHubLevel: 5,
+		rarity: RewardRarity.Legendary,
+		trigger: "press",
+		resource: { type: "meter", required: 100 },
+		tags: ["ultimate", "phase", "weapon", "echo"],
+		weights: { crate: 20, enemy: 3, boss: 32 },
+	},
+	{
+		id: "scrapColossus" as UltimateAbilityId,
+		slot: "ultimate",
+		name: "SCRAP COLOSSUS",
+		description: "Assemble nearby wreckage into a temporary allied warship with seeking scrap cannons and a devastating final charge.",
+		icon: "ultimate_scrap_colossus",
+		minimumHubLevel: 5,
+		rarity: RewardRarity.Legendary,
+		trigger: "press",
+		resource: { type: "meter", required: 100 },
+		tags: ["ultimate", "salvage", "summon", "weapon"],
+		weights: { crate: 20, enemy: 3, boss: 32 },
 	},
 ]
 
@@ -196,14 +248,18 @@ export function isAbilityDiscovered(ability: AbilityDefinition) {
 		isBlueprintDiscovered(getAbilityDiscoveryKey(ability))
 }
 
-export function discoverAbility(id: AbilityId) {
+export function hasUndiscoveredAbilities() {
+	return ABILITIES.some((ability) => !isAbilityDiscovered(ability))
+}
+
+export function discoverAbility(id: AbilityId, equipPrimary = true) {
 	const ability = getAbilityDefinition(id)
 	if (!ability) return false
 	const newDiscovery = ability.defaultUnlocked
 		? false
 		: discoverBlueprint(getAbilityDiscoveryKey(ability))
 	if (ability.slot === "primary") {
-		unlockWeapon(ability.id as WeaponId, newDiscovery)
+		unlockWeapon(ability.id as WeaponId, newDiscovery && equipPrimary)
 	}
 	return newDiscovery
 }

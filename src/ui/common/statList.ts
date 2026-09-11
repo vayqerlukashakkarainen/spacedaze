@@ -1,4 +1,4 @@
-import type { GameObj, Vec2 } from "kaplay"
+import type { Color, GameObj, Vec2 } from "kaplay"
 import { k } from "../../main"
 import { addThemedText, getScaledLineSpacing } from "./text"
 import { UI_FONT_SIZES } from "./theme"
@@ -10,6 +10,7 @@ const STAT_LINE_HEIGHT = 1.4
 export interface UiStatRow {
 	label: string
 	value: string
+	valueColor?: Color
 }
 
 interface UiStatListProps {
@@ -57,6 +58,7 @@ export function createUiStatList(parent: GameObj, props: UiStatListProps) {
 			pos: k.vec2(0, valueY),
 			variant: "caption",
 			size: UI_FONT_SIZES.small,
+			color: row.valueColor,
 			width: props.width,
 			align: "right",
 		})

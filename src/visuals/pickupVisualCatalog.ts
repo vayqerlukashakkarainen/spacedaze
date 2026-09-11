@@ -4,6 +4,7 @@ export type PickupVisualId =
 	| "health-orb"
 	| "reward"
 	| "room-key"
+	| "phase-core"
 	| "salvage-chest"
 	| "salvage-chest-open"
 	| "weapon-chest"
@@ -15,6 +16,7 @@ export const PICKUP_VISUALS: Record<PickupVisualId, VisualRepresentation> = {
 	"health-orb": { parts: [], worldScale: 0.3 },
 	reward: { parts: [], worldScale: 0.7 },
 	"room-key": { parts: [{ sprite: "room_phase_key" }], worldScale: 0.45 },
+	"phase-core": { parts: [{ sprite: "phase_core" }], worldScale: 1 },
 	"salvage-chest": {
 		parts: [{ sprite: "chest_salvage_world" }],
 		worldScale: 0.75,
@@ -39,7 +41,7 @@ export const SALVAGE_PICKUP_VISUALS = {
 	1: {
 		parts: [{ sprite: "salvage_shard" }],
 		worldScale: 0.6,
-		color: [255, 255, 255],
+		color: [90, 220, 145],
 	},
 	3: {
 		parts: [{ sprite: "salvage_plate" }],

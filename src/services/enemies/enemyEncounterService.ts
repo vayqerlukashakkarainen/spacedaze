@@ -27,6 +27,13 @@ import { spawnBoilerHulk } from "../../spawn/wake/spawnBoilerHulk"
 import { spawnClampback } from "../../spawn/wake/spawnClampback"
 import { spawnFuseRat } from "../../spawn/wake/spawnFuseRat"
 import { spawnShredderSkiff } from "../../spawn/wake/spawnShredderSkiff"
+import { spawnMagnetMaw } from "../../spawn/wake/spawnMagnetMaw"
+import { spawnRailbreakerRig } from "../../spawn/wake/spawnRailbreakerRig"
+import { spawnScrappersHut } from "../../spawn/wake/spawnScrappersHut"
+import {
+	getFloorPositionForDepth,
+	getFloorThemeIdForDepth,
+} from "../../levels/floorThemes/floorThemeDirectory"
 import { tags } from "../../tags"
 import {
 	getThreatSnapshot,
@@ -46,6 +53,7 @@ import {
 	selectEncounterDefinition,
 	type EncounterId,
 } from "./enemyEncounterCatalogService"
+import { createWakeEncounterEnemies } from "./wakeEncounterService"
 
 export function spawnPlannedEnemy(
 	id: ProgressionEnemyId,
@@ -69,7 +77,7 @@ export function spawnPlannedEnemy(
 		case "hivemind": return spawnHiveMind(pos, options)
 		case "mine-layer": return spawnMineLayer(pos, 5, options)
 		case "shield-drone": {
-			const target = k.get<GameObj>(tags.enemy).find((enemy) => enemy.exists())
+			const target = k.get(tags.enemy).find((enemy) => enemy.exists())
 			if (target) return spawnShieldDrone(pos, target, options)
 			return spawnShip1(pos, playerObj.pos.sub(pos).unit(), 2, 5, 1, 65, options)
 		}
@@ -83,15 +91,18 @@ export function spawnPlannedEnemy(
 		case "salvage-scavenger": return spawnSalvageScavenger(pos, 4, options)
 		case "suppressor": return spawnSuppressor(pos, 6, options)
 		case "breach-crawler": return spawnBreachCrawler(pos, 8, options)
-		case "wake-scrap-nipper": return spawnScrapNipper(pos, 2, options)
-		case "wake-rivet-gunner": return spawnRivetGunner(pos, 5, options)
-		case "wake-towhook-rig": return spawnTowhookRig(pos, 6, options)
-		case "wake-patch-tender": return spawnPatchTender(pos, 4, options)
-		case "wake-scrap-raiser": return spawnScrapRaiser(pos, 5, options)
-		case "wake-clampback": return spawnClampback(pos, 7, options)
-		case "wake-fuse-rat": return spawnFuseRat(pos, 4, options)
-		case "wake-shredder-skiff": return spawnShredderSkiff(pos, 8, options)
-		case "wake-boiler-hulk": return spawnBoilerHulk(pos, 20, options)
+		case "wake-scrap-nipper": return spawnScrapNipper(pos, 4, options)
+		case "wake-scrappers-hut": return spawnScrappersHut(pos, 18, options)
+		case "wake-rivet-gunner": return spawnRivetGunner(pos, 10, options)
+		case "wake-towhook-rig": return spawnTowhookRig(pos, 12, options)
+		case "wake-patch-tender": return spawnPatchTender(pos, 8, options)
+		case "wake-scrap-raiser": return spawnScrapRaiser(pos, 10, options)
+		case "wake-clampback": return spawnClampback(pos, 14, options)
+		case "wake-fuse-rat": return spawnFuseRat(pos, 8, options)
+		case "wake-shredder-skiff": return spawnShredderSkiff(pos, 16, options)
+		case "wake-boiler-hulk": return spawnBoilerHulk(pos, 40, options)
+		case "wake-magnet-maw": return spawnMagnetMaw(pos, 48, options)
+		case "wake-railbreaker-rig": return spawnRailbreakerRig(pos, 48, options)
 	}
 }
 
@@ -100,6 +111,7 @@ export function spawnThreatEncounter(
 	spacing: number,
 	options: {
 		allowTerrainEnemies?: boolean
+		matchFloorTheme?: boolean
 		tags?: string[]
 		threatTier?: number
 	} = {}
@@ -115,6 +127,28 @@ export function spawnThreatEncounter(
 	}
 	const isEnemyAvailable = (id: ProgressionEnemyId) =>
 		isEnemyProgressionUnlocked(id, progressionContext)
+	const normalOptions: EnemySpawnOptions = {
+		persistOffscreen: true,
+		tags: [...new Set([tags.runMap, tags.threatEnemy, ...(options.tags ?? [])])],
+	}
+	if (
+		options.matchFloorTheme === true &&
+		getFloorThemeIdForDepth(threat.depth) === "wake-scrap-district"
+	) {
+		const enemies = createWakeEncounterEnemies(
+			tier,
+			() => k.rand(),
+			getFloorPositionForDepth(threat.depth).subfloor
+		)
+		for (let index = 0; index < enemies.length; index++) {
+			spawnPlannedEnemy(
+				enemies[index],
+				formationPosition(center, spacing, index, enemies.length),
+				normalOptions
+			)
+		}
+		return `wake_floor_tier_${tier}`
+	}
 	const definition = selectEncounterDefinition(
 		tier,
 		() => k.rand(),
@@ -122,10 +156,6 @@ export function spawnThreatEncounter(
 		isEnemyAvailable
 	)
 	if (!definition) return undefined
-	const normalOptions: EnemySpawnOptions = {
-		persistOffscreen: true,
-		tags: [...new Set([tags.runMap, tags.threatEnemy, ...(options.tags ?? [])])],
-	}
 	const eliteOptions: EnemySpawnOptions = {
 		...normalOptions,
 		elite: true,

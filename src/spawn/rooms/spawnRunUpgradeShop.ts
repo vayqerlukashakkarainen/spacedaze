@@ -40,6 +40,7 @@ import { tags } from "../../tags"
 import { getCompanionVisual } from "../../visuals/companionVisualCatalog"
 import { requirePrimaryVisualSprite } from "../../visuals/visualRepresentation"
 import { spawnRewardPickup } from "../spawnPowerup"
+import { getPilotProtocolValue } from "../../services/hub/pilotProtocolService"
 
 const SHOPKEEPER_DIALOGUE_ID = "void-profit"
 const SHOPKEEPER_INTERACT_RADIUS = 86
@@ -123,11 +124,11 @@ function spawnRunShop(
 	objectTags: string[]
 ) {
 	const shopkeeper = spawnRunShopkeeper(pos.add(0, -70), objectTags)
-	const offsets = [
-		k.vec2(-145, 100),
-		k.vec2(0, 135),
-		k.vec2(145, 100),
-	]
+	const offerCount = room.shopOffers?.length ?? 0
+	const offsets = Array.from({ length: offerCount }, (_, index) => {
+		const centered = index - (offerCount - 1) / 2
+		return k.vec2(centered * 112, 110 + Math.abs(centered) * -12)
+	})
 	for (let index = 0; index < (room.shopOffers?.length ?? 0); index++) {
 		const offer = room.shopOffers![index]
 		if (offer.purchased) continue
@@ -190,7 +191,7 @@ function spawnRunShopkeeper(pos: Vec2, objectTags: string[]) {
 				: INTERACTION_PRIORITY.progressionDialogue
 		)
 		prompt.update(!talking && shopkeeper.isInRange)
-		const player = k.get<GameObj<PosComp>>(tags.player)[0]
+		const player = k.get<PosComp>(tags.player)[0]
 		if (!player?.exists()) return
 		const toPlayer = player.pos.sub(shopkeeper.pos)
 		if (toPlayer.len() > 0.01) shopkeeper.angle = toPlayer.angle() + 90
@@ -267,7 +268,7 @@ function ensureShopOffers(room: RoomFloorRoom) {
 	room.shopOffers = selectRunUpgradeShopOffers(
 		room.seed,
 		candidates,
-		3,
+		3 + getPilotProtocolValue("expandedMarket"),
 		pricing
 	)
 }
@@ -317,6 +318,7 @@ function spawnShopOffer(
 	if (!definition) return
 	const reward = createReward(offer.rewardId, offer.rarity)
 	if (!reward) return
+	let paidPrice = offer.price
 	let pickup: NonNullable<ReturnType<typeof spawnRewardPickup>>
 	pickup = spawnRewardPickup(pos, reward, {
 		stationary: true,
@@ -326,15 +328,18 @@ function spawnShopOffer(
 		persistent: true,
 		tags: objectTags,
 		interactionPromptLabel: () => ({
-			text: `BUY ${reward.name} FOR ${offer.price} DEBRIS`,
+			text: `BUY ${reward.name} FOR ${getEffectiveOfferPrice(offer)} DEBRIS`,
 			color: getOfferStatus(offer) === undefined
 				? k.rgb(...UI_COLORS.text)
 				: k.rgb(...UI_COLORS.danger),
 		}),
-		beforeCollect: () => beginPurchase(offer),
+		beforeCollect: () => {
+			paidPrice = getEffectiveOfferPrice(offer)
+			return beginPurchase(offer, paidPrice)
+		},
 		applyEffect: (purchasedReward, pickupPos) => {
 			if (applyReward(purchasedReward, pickupPos)) return true
-			addAvailableDebree(offer.price)
+			addAvailableDebree(paidPrice)
 			playRequirementErrorSound()
 			return false
 		},
@@ -357,20 +362,35 @@ function getOfferStatus(
 	if (!definition) return "UNAVAILABLE"
 	const lockReason = getRewardLockReason(definition)
 	if (lockReason) return lockReason.toUpperCase()
-	if (getScore() < offer.price) return `NEED ${offer.price - getScore()} MORE`
+	const price = getEffectiveOfferPrice(offer)
+	if (getScore() < price) return `NEED ${price - getScore()} MORE`
 	return undefined
 }
 
 function beginPurchase(
-	offer: NonNullable<RoomFloorRoom["shopOffers"]>[number]
+	offer: NonNullable<RoomFloorRoom["shopOffers"]>[number],
+	price = getEffectiveOfferPrice(offer)
 ) {
 	if (getOfferStatus(offer)) {
 		playRequirementErrorSound()
 		return false
 	}
-	if (!spendScore(offer.price)) {
+	const floor = getActiveRoomFloor()
+	if (!spendScore(price)) {
 		playRequirementErrorSound()
 		return false
 	}
+	if (getPilotProtocolValue("firstPurchaseDiscount") > 0 && floor) {
+		floor.shopDiscountUsed = true
+	}
 	return true
+}
+
+function getEffectiveOfferPrice(
+	offer: NonNullable<RoomFloorRoom["shopOffers"]>[number]
+) {
+	const floor = getActiveRoomFloor()
+	if (!floor || floor.shopDiscountUsed) return offer.price
+	const discount = getPilotProtocolValue("firstPurchaseDiscount")
+	return Math.max(1, Math.round(offer.price * (1 - discount / 100)))
 }

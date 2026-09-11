@@ -69,6 +69,7 @@ export function spawnShip1(
 			hb,
 			elite: profile.elite,
 			damage: profile.damage,
+			shieldFireRateMultiplier: 1,
 			threatRank: ENEMY_THREAT_RANK.fighter,
 		},
 		tags.enemy,
@@ -115,8 +116,20 @@ export function spawnShip1(
 				isBody: true,
 				scoreOnDestroy: am * profile.rewardMultiplier,
 			},
-			{ obj: wing1, hitbox: 8, isBody: false, scoreOnDestroy: 0 },
-			{ obj: wing2, hitbox: 8, isBody: false, scoreOnDestroy: 0 },
+			{
+				obj: wing1,
+				hitbox: 8,
+				isBody: false,
+				scoreOnDestroy: 0,
+				pullForce: profile.elite ? 78 : 65,
+			},
+			{
+				obj: wing2,
+				hitbox: 8,
+				isBody: false,
+				scoreOnDestroy: 0,
+				pullForce: profile.elite ? 78 : 65,
+			},
 		],
 	});
 

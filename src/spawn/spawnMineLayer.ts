@@ -3,8 +3,11 @@ import { snareable } from "../comp/snareable"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, layers, mainSoundVolume, velocityScale } from "../main"
 import { gameSoundService } from "../services/audio/gameSoundService"
+import { grantUltimateChargeForDestruction } from "../services/abilities/ultimateAbilityService"
 import { applyDamage } from "../services/combat/damageService"
+import { applyDefaultExplosionForce } from "../services/combat/explosionPulseService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
+import { damageDestructibleWallsInRadius } from "../services/world/destructibleWallService"
 import { getEnemyNavigationDirection } from "../services/enemies/enemyNavigationService"
 import { isPlayerDamageInvulnerable } from "../services/player/playerDamageState"
 import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
@@ -23,7 +26,7 @@ import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
 import { timescale } from "../comp/timescale"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
-import { spawnExplosionEffect } from "./spawnFlash"
+import { spawnExplosiveBarrelExplosionEffect } from "./spawnFlash"
 
 const ENEMY_MINE_WARNING_RADIUS = 96
 const ENEMY_MINE_TRIGGER_RADIUS = 34
@@ -173,6 +176,7 @@ function spawnEnemyMine(pos: Vec2, damage: number, extraTags?: string[]) {
 		k.scale(ENEMY_MINE_VISUAL.worldScale),
 		k.color(k.WHITE),
 		k.opacity(0.9),
+		k.health(1),
 		snareable({
 			mass: 0.45,
 			radius: 10,
@@ -182,11 +186,14 @@ function spawnEnemyMine(pos: Vec2, damage: number, extraTags?: string[]) {
 			armedElapsed: 0,
 			triggerElapsed: 0,
 			lifeSpan: 0,
+			detonated: false,
 		},
 		tags.props,
+		tags.roomVolatile,
 		tags.gameLoop,
 		...(extraTags ?? []),
 	])
+	mine.onDeath(() => detonateEnemyMine(mine, damage))
 
 	registerBatchedEntityUpdate("world", mine, () => {
 		const delta = k.dt()
@@ -234,7 +241,13 @@ function spawnEnemyMine(pos: Vec2, damage: number, extraTags?: string[]) {
 }
 
 function detonateEnemyMine(mine: GameObj, damage: number) {
+	if (mine.detonated) return
+	mine.detonated = true
 	const explosionPos = mine.pos.clone()
+	grantUltimateChargeForDestruction("environment", explosionPos)
+	damageDestructibleWallsInRadius(explosionPos, 52, damage, {
+		explosive: true,
+	})
 	if (
 		!isPlayerDamageInvulnerable() &&
 		playerObj.exists() &&
@@ -245,7 +258,8 @@ function detonateEnemyMine(mine: GameObj, damage: number) {
 			source: { name: "MINE LAYER", sprite: "room_proximity_mine" },
 		})
 	}
-	spawnExplosionEffect(explosionPos, 52, { persistentSmoke: true })
+	applyDefaultExplosionForce(explosionPos, 52, { excludeIds: [mine.id] })
+	spawnExplosiveBarrelExplosionEffect(explosionPos, 52)
 	gameSoundService.playPositional("explosive_blast", explosionPos, {
 		volume: mainSoundVolume * 0.8,
 		maxDistance: 650,

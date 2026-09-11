@@ -30,6 +30,21 @@ interface MusicOptions {
 	continueIfPlaying?: boolean;
 }
 
+export interface MusicStemDefinition {
+	musicId: string
+	calmVolume: number
+	combatVolume: number
+}
+
+interface StemmedMusicOptions extends MusicOptions {
+	combatIntensity?: number
+}
+
+interface ActiveMusicStem extends MusicStemDefinition {
+	audio: AudioPlay
+	mixVolume: number
+}
+
 interface PendingMusic {
 	musicId: string;
 	options?: MusicOptions;
@@ -74,10 +89,13 @@ const AUDIO_SETTINGS_KEY = "spacedaze_audio_settings";
 const playingSounds: PlayingSound[] = [];
 let currentMusic: AudioPlay | null = null;
 let currentMusicId: string | null = null;
+let currentMusicStems: ActiveMusicStem[] = []
 let currentMusicBaseVolume = 1;
 let currentMusicDuckingMultiplier = 1;
 let currentMusicFade: KEventController | null = null;
 let currentMusicDuckingFade: KEventController | null = null;
+let currentMusicStemFade: KEventController | null = null
+let currentMusicStemSync: KEventController | null = null
 let ambientMusic: AudioPlay | null = null;
 let ambientMusicId: string | null = null;
 let ambientMusicBaseVolume = 0;
@@ -99,6 +117,8 @@ const POSITIONAL_VOLUME_EPSILON = 0.004;
 const POSITIONAL_PAN_EPSILON = 0.008;
 const DEFAULT_POSITIONAL_VOICE_LIMIT = 16;
 const MAX_POSITIONAL_EFFECT_VOICES = 32;
+const STEM_SYNC_INTERVAL = 2
+const STEM_SYNC_TOLERANCE = 0.06
 
 function clampVolume(value: number) {
 	return Math.max(0, Math.min(1, value));
@@ -170,6 +190,18 @@ function cancelMusicDuckingFade() {
 	currentMusicDuckingFade = null;
 }
 
+function cancelMusicStemFade() {
+	if (!currentMusicStemFade) return
+	currentMusicStemFade.cancel()
+	currentMusicStemFade = null
+}
+
+function cancelMusicStemSync() {
+	if (!currentMusicStemSync) return
+	currentMusicStemSync.cancel()
+	currentMusicStemSync = null
+}
+
 function cancelAmbientMusicFade() {
 	if (!ambientMusicFade) return;
 	ambientMusicFade.cancel();
@@ -181,6 +213,48 @@ function currentMusicOutputVolume() {
 		currentMusicDuckingMultiplier *
 		audioSettings.musicVolume *
 		masterVolume();
+}
+
+function stemMusicOutputVolume(stem: ActiveMusicStem) {
+	return currentMusicBaseVolume *
+		stem.mixVolume *
+		currentMusicDuckingMultiplier *
+		audioSettings.musicVolume *
+		masterVolume()
+}
+
+function syncStemMusicVolumes() {
+	for (const stem of currentMusicStems) {
+		stem.audio.volume = stemMusicOutputVolume(stem)
+	}
+}
+
+function stopStemmedMusic() {
+	cancelMusicStemFade()
+	cancelMusicStemSync()
+	for (const stem of currentMusicStems) stem.audio.stop()
+	currentMusicStems = []
+}
+
+function startStemMusicSync() {
+	cancelMusicStemSync()
+	let elapsedSeconds = 0
+	const stems = currentMusicStems
+	currentMusicStemSync = k.onUpdate(() => {
+		if (currentMusicStems !== stems || stems.length < 2) {
+			cancelMusicStemSync()
+			return
+		}
+		elapsedSeconds += k.dt()
+		if (elapsedSeconds < STEM_SYNC_INTERVAL) return
+		elapsedSeconds %= STEM_SYNC_INTERVAL
+		const leaderTime = stems[0].audio.time()
+		for (let index = 1; index < stems.length; index++) {
+			const audio = stems[index].audio
+			if (Math.abs(audio.time() - leaderTime) <= STEM_SYNC_TOLERANCE) continue
+			audio.seek(leaderTime)
+		}
+	})
 }
 
 function ambientMusicOutputVolume() {
@@ -526,6 +600,7 @@ export const audioService = {
 			currentMusic.paused = false;
 			return currentMusic;
 		}
+		stopStemmedMusic()
 		// Stop current music if playing
 		if (currentMusic) {
 			runtimeDebug.log("audio", "music:replaced", {
@@ -544,6 +619,112 @@ export const audioService = {
 		runtimeDebug.log("audio", "music:started", { id: musicId });
 
 		return currentMusic;
+	},
+
+	playStemmedMusic(
+		musicId: string,
+		stems: readonly MusicStemDefinition[],
+		options: StemmedMusicOptions = {}
+	): AudioPlay | null {
+		if (stems.length === 0) return null
+		runtimeDebug.log("audio", "music:stemmed-play-request", {
+			id: musicId,
+			stems: stems.map((stem) => stem.musicId),
+		})
+		syncMasterVolume()
+		cancelMusicFade()
+		optionalMusicRequest++
+		currentMusicBaseVolume = options.volume ?? 1
+		if (browserNeedsAudioUnlock()) {
+			runtimeDebug.log("audio", "music:stemmed-deferred-for-unlock", {
+				id: musicId,
+			})
+			return null
+		}
+		pendingMusic = null
+		stopListeningForAudioUnlock()
+		if (
+			options.continueIfPlaying &&
+			currentMusicId === musicId &&
+			currentMusicStems.length > 0
+		) {
+			audioService.fadeMusicStemIntensity(options.combatIntensity ?? 1, 0)
+			for (const stem of currentMusicStems) stem.audio.paused = false
+			return currentMusicStems[0].audio
+		}
+
+		if (currentMusic) {
+			currentMusic.stop()
+			currentMusic = null
+		}
+		stopStemmedMusic()
+		stopAmbientMusic()
+		const combatIntensity = clampVolume(options.combatIntensity ?? 1)
+		const activeStems = stems.map((stem) => {
+			const mixVolume = stem.calmVolume +
+				(stem.combatVolume - stem.calmVolume) * combatIntensity
+			return {
+				...stem,
+				mixVolume,
+				audio: k.play(stem.musicId, {
+					loop: options.loop,
+					paused: true,
+					volume: 0,
+				}),
+			}
+		})
+		currentMusicStems = activeStems
+		currentMusicId = musicId
+		syncStemMusicVolumes()
+		for (const stem of currentMusicStems) {
+			stem.audio.seek(0)
+			stem.audio.paused = false
+		}
+		startStemMusicSync()
+		runtimeDebug.log("audio", "music:stemmed-started", { id: musicId })
+		return currentMusicStems[0].audio
+	},
+
+	fadeMusicStemIntensity(intensity: number, durationSeconds: number) {
+		if (currentMusicStems.length === 0) return false
+		const targetIntensity = clampVolume(intensity)
+		const stems = currentMusicStems
+		const startVolumes = stems.map((stem) => stem.mixVolume)
+		const targetVolumes = stems.map((stem) =>
+			stem.calmVolume +
+			(stem.combatVolume - stem.calmVolume) * targetIntensity
+		)
+		cancelMusicStemFade()
+		if (durationSeconds <= 0) {
+			for (let index = 0; index < stems.length; index++) {
+				stems[index].mixVolume = targetVolumes[index]
+			}
+			syncStemMusicVolumes()
+			return true
+		}
+
+		let elapsedSeconds = 0
+		let fadeController: KEventController
+		fadeController = k.onUpdate(() => profileSection("external:audioFade", () => {
+			if (currentMusicStems !== stems) {
+				fadeController.cancel()
+				if (currentMusicStemFade === fadeController) currentMusicStemFade = null
+				return
+			}
+			elapsedSeconds += k.dt()
+			const progress = clampVolume(elapsedSeconds / durationSeconds)
+			const eased = progress * progress * (3 - 2 * progress)
+			for (let index = 0; index < stems.length; index++) {
+				stems[index].mixVolume = startVolumes[index] +
+					(targetVolumes[index] - startVolumes[index]) * eased
+			}
+			syncStemMusicVolumes()
+			if (progress < 1) return
+			fadeController.cancel()
+			if (currentMusicStemFade === fadeController) currentMusicStemFade = null
+		}))
+		currentMusicStemFade = fadeController
+		return true
 	},
 
 	playAmbientMusic(
@@ -643,30 +824,31 @@ export const audioService = {
 			durationSeconds,
 		});
 		cancelMusicFade();
-		if (!currentMusic) return;
+		if (!currentMusic && currentMusicStems.length === 0) return;
 		if (durationSeconds <= 0) {
 			audioService.stopMusic();
 			return;
 		}
 
 		const fadingMusic = currentMusic;
-		const startVolume = fadingMusic.volume;
+		const fadingStems = currentMusicStems
+		const startVolume = currentMusicBaseVolume;
 		let elapsedSeconds = 0;
 		let fadeController: KEventController;
 		fadeController = k.onUpdate(() => profileSection("external:audioFade", () => {
-			if (currentMusic !== fadingMusic) {
+			if (currentMusic !== fadingMusic || currentMusicStems !== fadingStems) {
 				fadeController.cancel();
 				if (currentMusicFade === fadeController) currentMusicFade = null;
 				return;
 			}
 			elapsedSeconds += k.dt();
 			const progress = clampVolume(elapsedSeconds / durationSeconds);
-			fadingMusic.volume = startVolume * (1 - progress);
+			currentMusicBaseVolume = startVolume * (1 - progress)
+			if (fadingMusic) fadingMusic.volume = currentMusicOutputVolume();
+			syncStemMusicVolumes()
 			if (progress < 1) return;
 
-			fadingMusic.stop();
-			currentMusic = null;
-			currentMusicId = null;
+			audioService.stopMusic()
 			fadeController.cancel();
 			if (currentMusicFade === fadeController) currentMusicFade = null;
 		}));
@@ -676,20 +858,22 @@ export const audioService = {
 	fadeMusicBaseVolume(volume: number, durationSeconds: number) {
 		const targetVolume = clampVolume(volume);
 		cancelMusicFade();
-		if (!currentMusic || durationSeconds <= 0) {
+		if ((!currentMusic && currentMusicStems.length === 0) || durationSeconds <= 0) {
 			currentMusicBaseVolume = targetVolume;
 			if (currentMusic) {
 				currentMusic.volume = currentMusicOutputVolume();
 			}
+			syncStemMusicVolumes()
 			return;
 		}
 
 		const fadingMusic = currentMusic;
+		const fadingStems = currentMusicStems
 		const startVolume = currentMusicBaseVolume;
 		let elapsedSeconds = 0;
 		let fadeController: KEventController;
 		fadeController = k.onUpdate(() => profileSection("external:audioFade", () => {
-			if (currentMusic !== fadingMusic) {
+			if (currentMusic !== fadingMusic || currentMusicStems !== fadingStems) {
 				fadeController.cancel();
 				if (currentMusicFade === fadeController) currentMusicFade = null;
 				return;
@@ -699,7 +883,8 @@ export const audioService = {
 			const eased = progress * progress * (3 - 2 * progress);
 			currentMusicBaseVolume = startVolume +
 				(targetVolume - startVolume) * eased;
-			fadingMusic.volume = currentMusicOutputVolume();
+			if (fadingMusic) fadingMusic.volume = currentMusicOutputVolume();
+			syncStemMusicVolumes()
 			if (progress < 1) return;
 
 			fadeController.cancel();
@@ -711,20 +896,26 @@ export const audioService = {
 	fadeMusicDucking(multiplier: number, durationSeconds: number) {
 		const targetMultiplier = clampVolume(multiplier);
 		cancelMusicDuckingFade();
-		if ((!currentMusic && !ambientMusic) || durationSeconds <= 0) {
+		if ((!currentMusic && currentMusicStems.length === 0 && !ambientMusic) || durationSeconds <= 0) {
 			currentMusicDuckingMultiplier = targetMultiplier;
 			if (currentMusic) currentMusic.volume = currentMusicOutputVolume();
+			syncStemMusicVolumes()
 			if (ambientMusic) ambientMusic.volume = ambientMusicOutputVolume();
 			return;
 		}
 
 		const duckedMusic = currentMusic;
+		const duckedStems = currentMusicStems
 		const duckedAmbientMusic = ambientMusic;
 		const startMultiplier = currentMusicDuckingMultiplier;
 		let elapsedSeconds = 0;
 		let fadeController: KEventController;
 		fadeController = k.onUpdate(() => profileSection("external:audioFade", () => {
-			if (currentMusic !== duckedMusic || ambientMusic !== duckedAmbientMusic) {
+			if (
+				currentMusic !== duckedMusic ||
+				currentMusicStems !== duckedStems ||
+				ambientMusic !== duckedAmbientMusic
+			) {
 				fadeController.cancel();
 				if (currentMusicDuckingFade === fadeController) {
 					currentMusicDuckingFade = null;
@@ -737,6 +928,7 @@ export const audioService = {
 			currentMusicDuckingMultiplier = startMultiplier +
 				(targetMultiplier - startMultiplier) * eased;
 			if (duckedMusic) duckedMusic.volume = currentMusicOutputVolume();
+			syncStemMusicVolumes()
 			if (duckedAmbientMusic) {
 				duckedAmbientMusic.volume = ambientMusicOutputVolume();
 			}
@@ -753,20 +945,21 @@ export const audioService = {
 	stopMusic() {
 		runtimeDebug.log("audio", "music:stop-request", {
 			id: currentMusicId,
-			hasMusic: currentMusic !== null,
+			hasMusic: currentMusic !== null || currentMusicStems.length > 0,
 		});
 		optionalMusicRequest++;
 		cancelMusicFade();
 		stopAmbientMusic();
+		stopStemmedMusic()
 		pendingMusic = null;
 		stopListeningForAudioUnlock();
 		if (currentMusic) {
 			const stoppedMusicId = currentMusicId;
 			currentMusic.stop();
 			currentMusic = null;
-			currentMusicId = null;
 			runtimeDebug.log("audio", "music:stopped", { id: stoppedMusicId });
 		}
+		currentMusicId = null;
 	},
 
 	pauseMusic() {
@@ -775,6 +968,7 @@ export const audioService = {
 			runtimeDebug.log("audio", "music:paused", { id: currentMusicId });
 		}
 		if (ambientMusic) ambientMusic.paused = true;
+		for (const stem of currentMusicStems) stem.audio.paused = true
 	},
 
 	resumeMusic() {
@@ -783,12 +977,14 @@ export const audioService = {
 			runtimeDebug.log("audio", "music:resumed", { id: currentMusicId });
 		}
 		if (ambientMusic) ambientMusic.paused = false;
+		for (const stem of currentMusicStems) stem.audio.paused = false
 	},
 
 	setMusicSpeed(speed: number) {
 		if (currentMusic) {
 			currentMusic.speed = speed;
 		}
+		for (const stem of currentMusicStems) stem.audio.speed = speed
 	},
 
 	setMusicVolume(volume: number) {
@@ -797,6 +993,7 @@ export const audioService = {
 			currentMusic.volume = currentMusicOutputVolume();
 		}
 		if (ambientMusic) ambientMusic.volume = ambientMusicOutputVolume();
+		syncStemMusicVolumes()
 		saveAudioSettings();
 	},
 
@@ -821,6 +1018,7 @@ export const audioService = {
 			currentMusic.volume = currentMusicOutputVolume();
 		}
 		if (ambientMusic) ambientMusic.volume = ambientMusicOutputVolume();
+		syncStemMusicVolumes()
 		for (const sound of playingSounds) updatePlayingSound(sound, true);
 		saveAudioSettings();
 	},
@@ -862,7 +1060,11 @@ export const audioService = {
 	},
 
 	getCurrentMusic(): AudioPlay | null {
-		return currentMusic;
+		return currentMusic ?? currentMusicStems[0]?.audio ?? null;
+	},
+
+	isStemmedMusicPlaying() {
+		return currentMusicStems.length > 0
 	},
 
 	getVoiceStats(): AudioVoiceStats {

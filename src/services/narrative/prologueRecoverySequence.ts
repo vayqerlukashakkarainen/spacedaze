@@ -1,4 +1,10 @@
-import type { GameObj, Vec2 } from "kaplay"
+import type {
+	GameObj,
+	OpacityComp,
+	PosComp,
+	ScaleComp,
+	Vec2,
+} from "kaplay"
 import { dialogue } from "../../content/dialogue/dialogueCatalog"
 import {
 	horizontalDirectionalVisual,
@@ -52,6 +58,10 @@ const PART_SPRITES = [
 	"particle4",
 ] as const
 
+type BurtObject = GameObj<
+	PosComp | ScaleComp | OpacityComp | HorizontalDirectionalVisualComp
+>
+
 let recoveryGeneration = 0
 let evacuationController: GameObj | undefined
 let deathPosition: Vec2 | undefined
@@ -73,7 +83,7 @@ export function beginPrologueEnemyEvacuation(pos: Vec2) {
 	evacuationController = k.add([
 		{
 			update() {
-				const enemies = k.get<GameObj>(tags.enemy)
+				const enemies = k.get(tags.enemy)
 				for (const enemy of enemies) {
 					if (!enemy.exists()) continue
 					enemy.paused = true
@@ -311,7 +321,9 @@ export async function playHubRepairSequence(
 		phaseStationX: Math.round(phaseStationPosition.x),
 		phaseStationY: Math.round(phaseStationPosition.y),
 	})
-	const existingHubBurt = k.get<GameObj<HorizontalDirectionalVisualComp>>(
+	const existingHubBurt = k.get<
+		PosComp | ScaleComp | OpacityComp | HorizontalDirectionalVisualComp
+	>(
 		BURT_TAG
 	)[0]
 	const burt = existingHubBurt ?? spawnBurt(hubEntryPosition)
@@ -433,8 +445,8 @@ function spawnBurt(pos: Vec2) {
 	])
 }
 
-async function gatherShipParts(burt: GameObj, generation: number) {
-	const parts = k.get<GameObj>(tags.prologueShipPart).slice(0, PART_SPRITES.length)
+async function gatherShipParts(burt: BurtObject, generation: number) {
+	const parts = k.get(tags.prologueShipPart).slice(0, PART_SPRITES.length)
 	await Promise.all(parts.map(async (part, index) => {
 		tracePrologue("parts:gather-part-start", { id: part.id, index })
 		await waitSeconds(index * 0.11, generation)
@@ -464,7 +476,7 @@ function addCarriedParts(burt: GameObj) {
 }
 
 async function installShipParts(
-	burt: GameObj<HorizontalDirectionalVisualComp>,
+	burt: BurtObject,
 	repairPosition: Vec2,
 	generation: number
 ) {
@@ -514,10 +526,10 @@ async function installShipParts(
 }
 
 function registerBurtPlayerAcknowledgement(
-	burt: GameObj<HorizontalDirectionalVisualComp>
+	burt: BurtObject
 ) {
 	burt.onUpdate(() => {
-		const player = k.get<GameObj>(tags.player)[0]
+		const player = k.get(tags.player)[0]
 		if (!player?.exists()) return
 		const toPlayer = player.pos.sub(burt.pos)
 		if (toPlayer.len() > BURT_ACKNOWLEDGE_DISTANCE) return
@@ -583,7 +595,9 @@ function moveObject(
 		if (!object.exists()) return
 		const destination = typeof target === "function" ? target() : target
 		if (object.has("horizontalDirectionalVisual")) {
-			const directionalVisual = object as GameObj<HorizontalDirectionalVisualComp>
+			const directionalVisual = object as GameObj<
+				PosComp | HorizontalDirectionalVisualComp
+			>
 			if (progress < 1) {
 				directionalVisual.showDirectionalMovement(destination.sub(object.pos))
 			} else {
@@ -599,7 +613,7 @@ function moveObject(
 }
 
 async function scanBattlefield(
-	burt: GameObj<HorizontalDirectionalVisualComp>,
+	burt: BurtObject,
 	generation: number
 ) {
 	burt.faceHorizontal(-1)
@@ -672,7 +686,7 @@ function waitUntil(condition: () => boolean, generation: number) {
 }
 
 function hasEnemyOnScreen() {
-	return k.get<GameObj>(tags.enemy).some((enemy) =>
+	return k.get(tags.enemy).some((enemy) =>
 		enemy.exists() && isInsideScreen(enemy.pos, 0)
 	)
 }

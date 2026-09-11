@@ -50,6 +50,8 @@ export const HUNTER_VISUALS: Record<HunterVisualId, VisualRepresentation> = {
 export type EnemyVisualId = ProgressionEnemyId |
 	"impact-ace" |
 	"federation-dreadnought" |
+	"wake-yardmaster" |
+	"wake-last-beacon" |
 	"stationary-cannon-platform" |
 	"enemy-proximity-mine" |
 	"range-keeper" |
@@ -127,6 +129,10 @@ export const ENEMY_VISUALS: Record<EnemyVisualId, EnemyVisualRepresentation> = {
 		],
 		worldScale: 0.75,
 	},
+	"wake-scrappers-hut": {
+		parts: [{ sprite: "enemy_wake_scrappers_hut" }],
+		worldScale: 1,
+	},
 	"wake-rivet-gunner": {
 		parts: [
 			{ sprite: "enemy_wake_rivet_gunner_core" },
@@ -189,6 +195,24 @@ export const ENEMY_VISUALS: Record<EnemyVisualId, EnemyVisualRepresentation> = {
 		],
 		worldScale: 1,
 	},
+	"wake-magnet-maw": {
+		parts: [
+			{ sprite: "enemy_wake_magnet_maw_platform_core" },
+			{ sprite: "enemy_wake_magnet_maw_crane" },
+			{ sprite: "enemy_wake_magnet_maw_left_coil" },
+			{ sprite: "enemy_wake_magnet_maw_right_coil" },
+		],
+		worldScale: 1,
+	},
+	"wake-railbreaker-rig": {
+		parts: [
+			{ sprite: "enemy_wake_railbreaker_rig_core" },
+			{ sprite: "enemy_wake_railbreaker_rig_ram" },
+			{ sprite: "enemy_wake_railbreaker_rig_left_thruster" },
+			{ sprite: "enemy_wake_railbreaker_rig_right_thruster" },
+		],
+		worldScale: 1,
+	},
 	"impact-ace": {
 		parts: [{ sprite: "enemy_impact_ace" }],
 		worldScale: 1,
@@ -202,6 +226,21 @@ export const ENEMY_VISUALS: Record<EnemyVisualId, EnemyVisualRepresentation> = {
 		],
 		worldScale: 1.25,
 		phaseSprites: ["boss1_core", "boss1_core_phase2", "boss1_core_phase3"],
+	},
+	"wake-yardmaster": {
+		parts: [
+			{ sprite: "boss_wake_yardmaster" },
+			{ sprite: "boss_wake_yardmaster_arm" },
+			{ sprite: "enemy_wake_boiler_hulk_vent" },
+		],
+		worldScale: 1,
+	},
+	"wake-last-beacon": {
+		parts: [
+			{ sprite: "boss_wake_last_beacon" },
+			{ sprite: "boss_wake_last_beacon_relay" },
+		],
+		worldScale: 1,
 	},
 	"stationary-cannon-platform": {
 		parts: [{ sprite: "enemy_stationary_cannon_platform" }],

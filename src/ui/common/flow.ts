@@ -1,4 +1,4 @@
-import type { GameObj, Vec2 } from "kaplay"
+import type { GameObj, PosComp, Vec2 } from "kaplay"
 import { k } from "../../main"
 import {
 	addThemedText,
@@ -35,7 +35,7 @@ export function createUiVerticalFlow(
 
 	return {
 		obj: container,
-		addItem<T extends GameObj>(item: T, height: number, gapAfter = defaultGap) {
+		addItem<T extends GameObj<PosComp>>(item: T, height: number, gapAfter = defaultGap) {
 			item.pos = k.vec2(item.pos.x, cursorY)
 			cursorY += height + gapAfter
 			notifyHeightChange()
@@ -107,7 +107,7 @@ export function createUiHorizontalFlow(
 
 	return {
 		obj: container,
-		addItem<T extends GameObj>(item: T, width: number, gapAfter = defaultGap) {
+		addItem<T extends GameObj<PosComp>>(item: T, width: number, gapAfter = defaultGap) {
 			item.pos = k.vec2(cursorX, item.pos.y)
 			cursorX += width + gapAfter
 			return item

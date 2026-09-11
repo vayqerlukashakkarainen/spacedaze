@@ -1,3 +1,4 @@
+import type { PosComp } from "kaplay"
 import { interactable, INTERACTION_PRIORITY } from "../../comp/interactable"
 import { dialogue } from "../../content/dialogue/dialogueCatalog"
 import { isSnareMotionActive, snareable } from "../../comp/snareable"
@@ -111,6 +112,7 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 		)?.id,
 		isVisible: () => !talking && !watcher.isInRange,
 		offset: k.vec2(0, -52),
+		cameraInterest: true,
 	})
 
 	registerBatchedEntityUpdate("world", watcher, () => {
@@ -193,7 +195,7 @@ export function spawnHubRangeKeeper(firingRange: HubFiringRange) {
 		), {
 			resolveActor: (id) => {
 				if (id === "ringWatcher") return watcher
-				if (id === "player") return k.get(tags.player)[0]
+				if (id === "player") return k.get<PosComp>(tags.player)[0]
 				return undefined
 			},
 		}).then((result) => {
@@ -284,6 +286,7 @@ function spawnHostileRangeKeeper(pos: ReturnType<typeof k.vec2>, angle: number) 
 		{
 			hb: 12 * profile.scale,
 			damage: profile.damage,
+			shieldFireRateMultiplier: 1,
 			fireTimer: 0.4,
 			moveDirection: k.vec2(0, 1),
 			strafeDirection: k.chance(0.5) ? -1 : 1,

@@ -1,4 +1,4 @@
-import { Color, Vec2 } from "kaplay";
+import { Color, GameObj, Vec2 } from "kaplay";
 import type { ExplosionSoundPoolId } from "../services/audio/explosionSoundPoolService";
 import type { SoundCueId } from "../audio/soundCueCatalog"
 import type { CombatCredit } from "../services/progression/combatCredit"
@@ -212,6 +212,8 @@ export interface ReturnModifier {
 	delay: number;
 	speedMultiplier: number;
 	turnDuration?: number;
+	trackPlayer?: boolean;
+	afterBounces?: boolean;
 }
 
 export interface GrowthModifier {
@@ -249,30 +251,86 @@ export interface MineModifier {
 	duration: number;
 	chance: number;
 	placementDistance: number;
+	placementCount?: number;
+	placementDuration?: number;
+	followPlayer?: boolean;
 	armDelay: number;
 	triggerRadius: number;
 	explosionRadius: number;
 	damageMultiplier: number;
+	maxActive?: number;
+	replaceOldest?: boolean;
+}
+
+export interface HitComboModifier {
+	key: string;
+	requiredHits: number;
+	finisherDamageMultiplier: number;
+	duration: number;
+	color: [number, number, number];
 }
 
 // Main Configuration
 
+export type ProjectileModifierVisualKey =
+	| "emp"
+	| "stun"
+	| "chain"
+	| "volatile"
+	| "mine"
+	| "proximity"
+	| "splash"
+	| "gravity"
+	| "lifesteal"
+	| "damageTick"
+	| "paint"
+	| "split"
+	| "fragment"
+	| "criticalShatter"
+	| "echo"
+	| "duplicate"
+	| "piercing"
+	| "bounce"
+	| "knockback"
+	| "growth"
+	| "execution"
+	| "hitCombo"
+	| "seek"
+	| "returning"
+	| "slow"
+	| "accelerate"
+	| "curve"
+	| "wiggle"
+	| "spiral"
+	| "spin";
+
 export interface ProjectileConfig {
 	// Core properties
 	pos: Vec2;
+	launchSweepOrigin?: Vec2;
 	dir: Vec2;
 	rotation: number;
 	sprite: string;
 	tint?: Color;
 	effectTint?: Color;
+	loadedModifierVisuals?: ProjectileModifierVisualKey[];
 	flashLikeThruster?: boolean;
 	flashMinOpacity?: number;
 	visualWobble?: number;
 	visualScale?: number;
 	visualLengthScale?: number;
+	visualPulse?: {
+		amplitude: number;
+		frequency: number;
+		phase?: number;
+	};
 	explosionDelay?: number;
 	persistOffscreen?: boolean;
 	ignoreWorldCollision?: boolean;
+	onWorldCollision?: (
+		projectile: GameObj,
+		collision: { position: Vec2; normal: Vec2 }
+	) => void;
 	suppressHitRecoil?: boolean;
 	speed: number;
 	tags: string[];
@@ -318,6 +376,9 @@ export interface ProjectileConfig {
 	execution?: ExecutionModifier;
 	paint?: PaintModifier;
 	mine?: MineModifier;
+	hitCombo?: HitComboModifier;
+	componentDamageMultiplier?: number;
+	impactFragment?: FragmentModifier;
 	procState?: ProjectileProcState;
 
 	// Audio

@@ -1,4 +1,5 @@
 import { UpgradeDefinition, UpgradeLevel } from "../types/upgradeTypes"
+import { FIVE_LEVEL_PROJECTILE_MODIFIER_CHANCES } from "../services/combat/playerProjectileModifierChance"
 
 const STACK_NAMES = [
 	"Mark I",
@@ -15,7 +16,8 @@ function statLevel(
 	sprite: string,
 	stat: string,
 	value: number,
-	price: number
+	price: number,
+	modifierChance?: number
 ): UpgradeLevel {
 	return {
 		name: STACK_NAMES[index],
@@ -23,9 +25,22 @@ function statLevel(
 		price,
 		sprite,
 		effects: {
-			modifiers: [{ stat, value, type: "base" }],
+			modifiers: [
+				{ stat, value, type: "base" },
+				...(modifierChance === undefined
+					? []
+					: [{
+						stat: "projectileModifierChance",
+						value: modifierChance,
+						type: "base" as const,
+					}]),
+			],
 		},
 	}
+}
+
+function chanceLabel(index: number) {
+	return Math.round(FIVE_LEVEL_PROJECTILE_MODIFIER_CHANCES[index] * 100)
 }
 
 export const armorPiercing: UpgradeDefinition = {
@@ -36,11 +51,12 @@ export const armorPiercing: UpgradeDefinition = {
 	levels: [1, 2, 3, 4, 5].map((pierces, index) =>
 		statLevel(
 			index,
-			`Projectiles pierce ${pierces} ${pierces === 1 ? "enemy" : "enemies"} and retain more damage per stack`,
+			`${chanceLabel(index)}% chance to load armor-piercing rounds that pierce ${pierces} ${pierces === 1 ? "enemy" : "enemies"} and retain more damage per stack`,
 			"armor_piercing_upg1",
 			"projectilePierces",
 			pierces,
-			18 + index * 4
+			18 + index * 4,
+			FIVE_LEVEL_PROJECTILE_MODIFIER_CHANCES[index]
 		)
 	),
 }
@@ -96,7 +112,7 @@ export const ricochetRounds: UpgradeDefinition = {
 	type: "passive",
 	levels: RICOCHET_DAMAGE_RETENTION.map((retention, index) => ({
 		name: STACK_NAMES[index],
-		desc: `Projectiles bounce ${index + 1} ${index === 0 ? "time" : "times"} and retain ${retention}% damage after each bounce`,
+		desc: `${chanceLabel(index)}% chance to load ricochet rounds that bounce ${index + 1} ${index === 0 ? "time" : "times"} and retain ${retention}% damage after each bounce`,
 		price: 22 + index * 6,
 		sprite: "ricochet_rounds_upg1",
 		effects: {
@@ -109,6 +125,11 @@ export const ricochetRounds: UpgradeDefinition = {
 				{
 					stat: "projectileBounceDamageRetention",
 					value: retention / 100,
+					type: "base",
+				},
+				{
+					stat: "projectileModifierChance",
+					value: FIVE_LEVEL_PROJECTILE_MODIFIER_CHANCES[index],
 					type: "base",
 				},
 			],
@@ -148,11 +169,12 @@ export const cryoRounds: UpgradeDefinition = {
 	levels: [0.15, 0.25, 0.35, 0.45, 0.55].map((slow, index) =>
 		statLevel(
 			index,
-			`Projectile hits slow enemies by ${Math.round(slow * 100)}% for ${1.25 + index * 0.25} seconds`,
+			`${chanceLabel(index)}% chance to load cryogenic ammunition that slows enemies by ${Math.round(slow * 100)}% for ${1.25 + index * 0.25} seconds`,
 			"cryo_rounds_upg1",
 			"projectileSlowPercentage",
 			slow,
-			18 + index * 4
+			18 + index * 4,
+			FIVE_LEVEL_PROJECTILE_MODIFIER_CHANCES[index]
 		)
 	),
 }
@@ -167,13 +189,13 @@ export const stunRounds: UpgradeDefinition = {
 		const durationLabel = duration.toFixed(2).replace(/0$/, "")
 		return {
 			name: STACK_NAMES[index],
-			desc: `${Math.round(chance * 100)}% chance for projectile hits to stun enemies for ${durationLabel} seconds`,
+			desc: `${Math.round(chance * 100)}% chance to load a stun round that stuns enemies for ${durationLabel} seconds`,
 			price: 18 + index * 4,
 			sprite: "stun_rounds_upg1",
 			effects: {
 				modifiers: [
 					{
-						stat: "projectileStunChance",
+						stat: "projectileModifierChance",
 						value: chance,
 						type: "base" as const,
 					},
@@ -204,7 +226,7 @@ export const empRounds: UpgradeDefinition = {
 			effects: {
 				modifiers: [
 					{
-						stat: "projectileEmpChance",
+						stat: "projectileModifierChance",
 						value: chance,
 						type: "base" as const,
 					},
@@ -232,11 +254,12 @@ export const corrosivePayload: UpgradeDefinition = {
 	levels: [0.25, 0.5, 0.75, 1, 1.25].map((damageRatio, index) =>
 		statLevel(
 			index,
-			`Projectile hits deal ${Math.round(damageRatio * 100)}% projectile damage every 0.5 seconds for ${2 + index * 0.25} seconds`,
+			`${chanceLabel(index)}% chance to load corrosive payloads that deal ${Math.round(damageRatio * 100)}% projectile damage every 0.5 seconds for ${2 + index * 0.25} seconds`,
 			"corrosive_payload_upg1",
 			"projectileDotDamage",
 			damageRatio,
-			20 + index * 5
+			20 + index * 5,
+			FIVE_LEVEL_PROJECTILE_MODIFIER_CHANCES[index]
 		)
 	),
 }
@@ -249,11 +272,12 @@ export const arcCapacitor: UpgradeDefinition = {
 	levels: [2, 3, 4, 5, 6].map((targets, index) =>
 		statLevel(
 			index,
-			`Projectile hits arc across ${targets} total targets at ${55 + index * 5}% projectile damage`,
+			`${chanceLabel(index)}% chance to load arc rounds that chain across ${targets} total targets at ${55 + index * 5}% projectile damage`,
 			"arc_capacitor_upg1",
 			"projectileChainCount",
 			targets,
-			24 + index * 6
+			24 + index * 6,
+			FIVE_LEVEL_PROJECTILE_MODIFIER_CHANCES[index]
 		)
 	),
 }
@@ -266,11 +290,12 @@ export const lifesteal: UpgradeDefinition = {
 	levels: [0.05, 0.075, 0.1, 0.125, 0.15].map((healthRatio, index) =>
 		statLevel(
 			index,
-			`Projectile hits return ${healthRatio * 100}% of damage dealt as hull when the siphon reaches you`,
+			`${chanceLabel(index)}% chance to load lifesteal rounds that return ${healthRatio * 100}% of damage dealt as hull when the siphon reaches you`,
 			"hull_upg1",
 			"projectileLifesteal",
 			healthRatio,
-			24 + index * 7
+			24 + index * 7,
+			FIVE_LEVEL_PROJECTILE_MODIFIER_CHANCES[index]
 		)
 	),
 }
@@ -283,11 +308,12 @@ export const splitChamber: UpgradeDefinition = {
 	levels: [2, 3, 4, 5, 6].map((count, index) =>
 		statLevel(
 			index,
-			`Blaster shots split into ${count} projectiles dealing ${Math.round((1.2 + index * 0.1) / count * 100)}% projectile damage each`,
+			`${chanceLabel(index)}% chance for blaster shots to split into ${count} projectiles dealing ${Math.round((1.2 + index * 0.1) / count * 100)}% projectile damage each`,
 			"split_chamber_upg1",
 			"projectileSplitCount",
 			count,
-			26 + index * 7
+			26 + index * 7,
+			FIVE_LEVEL_PROJECTILE_MODIFIER_CHANCES[index]
 		)
 	),
 }
@@ -300,13 +326,36 @@ export const singularityPayload: UpgradeDefinition = {
 	levels: [50, 75, 100, 130, 165].map((strength, index) =>
 		statLevel(
 			index,
-			`Projectiles pull nearby enemies with ${strength} gravity strength`,
+			`${chanceLabel(index)}% chance to load singularity payloads that pull nearby enemies with ${strength} gravity strength`,
 			"singularity_payload_upg1",
 			"projectileGravityStrength",
 			strength,
-			32 + index * 8
+			32 + index * 8,
+			FIVE_LEVEL_PROJECTILE_MODIFIER_CHANCES[index]
 		)
 	),
+}
+
+export const probabilityAmplifier: UpgradeDefinition = {
+	toolKey: "probabilityAmplifier",
+	toolName: "Probability amplifier",
+	category: "combat",
+	type: "passive",
+	levels: [
+		{
+			name: "Rigged Odds",
+			desc: "All projectile modifier load chances gain 15 percentage points",
+			price: 65,
+			sprite: "split_chamber_upg1",
+			effects: {
+				modifiers: [{
+					stat: "projectileModifierChanceBonus",
+					value: 0.15,
+					type: "base",
+				}],
+			},
+		},
+	],
 }
 
 export const targetingMatrix: UpgradeDefinition = {

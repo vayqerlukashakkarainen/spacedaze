@@ -44,7 +44,7 @@ const rarityPrices: Record<string, number> = {
 
 export function recordRunReward(reward: InventoryReward) {
 	if (reward.progression.persistence === "permanent") return
-	if (reward.upgradeKey === "blaster") return
+	if (reward.id === "phaseRecallCharge") return
 	const key = reward.weaponId
 		? "primaryWeapon"
 		: reward.activeModuleId

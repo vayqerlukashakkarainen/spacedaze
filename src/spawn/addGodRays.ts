@@ -1,4 +1,4 @@
-import type { GameObj } from "kaplay"
+import type { Color, GameObj } from "kaplay"
 import { k } from "../main"
 
 interface GodRayProps {
@@ -6,10 +6,12 @@ interface GodRayProps {
 	outerRadius: number
 	rayCount?: number
 	opacity?: number
+	color?: Color
 }
 
 export function addGodRays(parent: GameObj, props: GodRayProps) {
 	const rayCount = props.rayCount ?? 10
+	const color = props.color ?? k.WHITE
 	return parent.add([
 		k.pos(0, 0),
 		k.rotate(k.rand(0, 360)),
@@ -21,7 +23,7 @@ export function addGodRays(parent: GameObj, props: GodRayProps) {
 				k.drawCircle({
 					pos: k.vec2(0, 0),
 					radius: props.innerRadius * 1.4 * pulse,
-					color: k.WHITE,
+					color,
 					opacity: 0.1 * this.opacity,
 					anchor: "center",
 				})
@@ -35,7 +37,7 @@ export function addGodRays(parent: GameObj, props: GodRayProps) {
 							k.Vec2.fromAngle(angle).scale(length * pulse),
 							k.Vec2.fromAngle(angle + halfWidth).scale(props.innerRadius),
 						],
-						color: k.WHITE,
+						color,
 						opacity: (index % 2 === 0 ? 0.42 : 0.24) * this.opacity,
 						opacities: [0.9, 0.08, 0.9],
 					})

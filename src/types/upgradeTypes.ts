@@ -7,7 +7,8 @@ export type StatCategory =
 	| "combat"
 	| "resources"
 	| "survival"
-	| "special";
+	| "special"
+	| "alteration";
 
 export type UpgradeType =
 	| "stat" // Modifies a stat value

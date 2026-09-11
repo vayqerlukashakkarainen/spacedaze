@@ -1,4 +1,4 @@
-import type { Vec2 } from "kaplay"
+import type { GameObj, PosComp, Vec2 } from "kaplay"
 import { playerObj } from "../game"
 import { k, velocityScale } from "../main"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
@@ -25,6 +25,10 @@ import { handleEnemyCombat, registerEnemyLifecycle } from "./newEnemyShared"
 
 const SUPPRESSOR_VISUAL = getEnemyVisual("suppressor")
 
+type Suppressor = GameObj<PosComp> & {
+	damage: number
+}
+
 export function spawnSuppressor(pos: Vec2, hp = 6, options: EnemySpawnOptions = {}) {
 	const profile = createEnemySpawnProfile(hp, 1, SUPPRESSOR_VISUAL.worldScale, options)
 	const suppressor = k.add([
@@ -34,6 +38,7 @@ export function spawnSuppressor(pos: Vec2, hp = 6, options: EnemySpawnOptions = 
 		{
 			hb: 14 * profile.scale,
 			damage: profile.damage,
+			shieldFireRateMultiplier: 1,
 			moveDirection: k.vec2(0, 1),
 			facingDirection: k.vec2(0, 1),
 			fireTimer: k.rand(0.7, 1.4),
@@ -146,7 +151,7 @@ export function spawnSuppressor(pos: Vec2, hp = 6, options: EnemySpawnOptions = 
 	return suppressor
 }
 
-function fireSuppressorFan(suppressor: ReturnType<typeof k.add>, direction: Vec2, wide: boolean) {
+function fireSuppressorFan(suppressor: Suppressor, direction: Vec2, wide: boolean) {
 	const angles = wide ? [-28, -14, 0, 14, 28] : [-12, 0, 12]
 	for (const offset of angles) {
 		const shotDirection = k.Vec2.fromAngle(direction.angle() + offset)

@@ -75,6 +75,14 @@ import { equipAbilityWithWorldDrop } from "../services/abilities/abilitySwapServ
 import { playerObj } from "../game";
 import { getRewardStatComparisonRows } from "./rewardStatComparison";
 import { spawnRewardPickup } from "../spawn/spawnPowerup";
+import {
+	CHEST_OPENING_MODE,
+	DIRECT_CHEST_FAILED_ATTEMPTS,
+	DIRECT_CHEST_SUCCESSFUL_HITS,
+	getDirectChestOpeningProfile,
+	getHighestChestRewardRarity,
+	type DirectChestOpeningProfile,
+} from "./chestOpeningMode"
 
 interface TimingZone {
 	start: number; // 0-1
@@ -175,6 +183,7 @@ function isRarityAtLeast(rarity: Rarity, minimum: Rarity) {
 
 export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 	const center = k.center();
+	const directOpening = CHEST_OPENING_MODE === "direct"
 	const challengeTypes: ChestChallengeType[] = [
 		"linear",
 		"bezier",
@@ -276,9 +285,11 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			rerollExcludedIds: [] as string[],
 			claimedDiscoveryIds: [] as string[],
 			fixedDiscoveries: [] as ChestReward[],
+			rewardsPrepared: false,
 		},
 		k.state("initial", [
 			"initial",
+			"directOpening",
 			"timingGame",
 			"explosion",
 			"reveal",
@@ -326,6 +337,48 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 	const claimDiscoveryRewards = (rewards: readonly ChestReward[]) => {
 		for (const reward of rewards) claimDiscoveryReward(reward);
 	};
+	const prepareRewardsForReveal = (
+		successfulHits: number,
+		failedAttempts: number
+	) => {
+		const normalizedHits = directOpening
+			? successfulHits
+			: normalizeChestChallengeHits(challengeConfig.type, successfulHits)
+		chestController.normalizedHits = normalizedHits
+		const result = generateRewards(
+			normalizedHits,
+			failedAttempts,
+			chestController.fixedDiscoveries.length > 0
+				? getAbilityRewardDefinitionIds()
+				: []
+		)
+		if (!weaponCache && chestController.fixedDiscoveries.length === 0) {
+			chestController.fixedDiscoveries = result.discoveries.slice(0, 1)
+		}
+		if (weaponCache) {
+			chestController.rewards = result.rewards
+		} else {
+			const selectableSlotCount = Math.max(
+				0,
+				result.rewards.length - chestController.fixedDiscoveries.length
+			)
+			chestController.rewards = [
+				...chestController.fixedDiscoveries,
+				...result.choices.slice(0, selectableSlotCount),
+			]
+		}
+		for (const reward of chestController.rewards) {
+			recordTelemetryRewardOffered(reward.id, {
+				source: "chest",
+				category: reward.kind,
+				rarity: reward.rarity,
+			})
+		}
+		chestController.totalFailures = result.failures
+		chestController.quality = result.quality
+		chestController.rewardsPrepared = true
+		return chestController.rewards.length > 0
+	}
 	let sequenceFinished = false;
 	const finishSequence = () => {
 		if (sequenceFinished) return;
@@ -520,6 +573,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			k.pos(0, 0),
 			k.anchor("center"),
 			k.scale(1),
+			k.animate(),
 			shake(),
 		]);
 
@@ -533,7 +587,79 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			k.animate(),
 		]);
 
-		chestController.enterState("timingGame");
+		chestController.enterState(
+			directOpening ? "directOpening" : "timingGame"
+		);
+	});
+
+	chestController.onStateEnter("directOpening", async () => {
+		if (!chestController.uiContainer || !chestController.crateSprite) return
+		if (!prepareRewardsForReveal(
+			DIRECT_CHEST_SUCCESSFUL_HITS,
+			DIRECT_CHEST_FAILED_ATTEMPTS
+		)) {
+			finishSequence()
+			void playWorldChestOpenAnimation()
+			return
+		}
+
+		const rarity = getHighestChestRewardRarity(chestController.rewards)
+		const profile = getDirectChestOpeningProfile(rarity)
+		const rarityColor = getRewardDisplayColor(
+			chestController.rewards.find((reward) => reward.rarity === rarity) ??
+				chestController.rewards[0]
+		)
+		const chargeEffect = addDirectChestChargeEffect(
+			chestController.uiContainer,
+			rarityColor,
+			profile
+		)
+		const revealShakeRamp = profile.shake > 0.2
+			? startRevealShakeRamp(
+				profile.duration,
+				profile.shake,
+				chestController.borderBox ?? undefined
+			)
+			: undefined
+
+		chestController.crateSprite.animate(
+			"scale",
+			[
+				k.vec2(1),
+				k.vec2(1.02, 0.98),
+				k.vec2(profile.chargeScale, profile.chargeScale),
+			],
+			{
+				duration: profile.duration,
+				loops: 1,
+				timing: [0, 0.28, 1],
+				easing: k.easings.easeInCubic,
+			}
+		)
+		gameSoundService.play("chest_open_charge", {
+			volume: mainSoundVolume * profile.soundVolume,
+			detune: profile.soundDetune,
+			speed: profile.soundSpeed,
+		})
+		if (rarity === Rarity.Epic || rarity === Rarity.Legendary) {
+			const riserSound = rarity === Rarity.Legendary
+				? "reward_riser_legendary"
+				: "reward_riser_epic"
+			const riser = audioService.playSound(riserSound, {
+				volume: mainSoundVolume * (rarity === Rarity.Legendary ? 0.78 : 0.52),
+			})
+			riser.speed = rarity === Rarity.Legendary ? 0.5 : 0.68
+		}
+
+		await k.wait(profile.duration)
+		if (!chestController.exists() || chestController.state !== "directOpening") {
+			chargeEffect.cancel()
+			revealShakeRamp?.cancel()
+			return
+		}
+		chargeEffect.cancel()
+		revealShakeRamp?.cancel()
+		completeChestExplosion(rarity)
 	});
 
 	// State: Timing Game
@@ -1057,22 +1183,54 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		});
 	});
 
-	const completeChestExplosion = () => {
-		if (!chestController.explosionStarted) return;
+	const completeChestExplosion = (directRarity?: Rarity) => {
+		if (!chestController.explosionStarted && directRarity === undefined) return;
 		chestController.explosionStarted = false;
+		const directProfile = directRarity === undefined
+			? undefined
+			: getDirectChestOpeningProfile(directRarity)
+		const directColor = directRarity === undefined
+			? undefined
+			: REWARD_RARITY_COLORS[directRarity]
 
 		spawnCurrencyBurst(chestController.pos, {
-			particleCount: 96,
+			particleCount: directProfile?.burstParticleCount ?? 96,
 			fixed: true,
 			tags: ["chestUI"],
 		});
-		spawnChestExplosionEffect(chestController.pos);
-		k.shake(7);
+		spawnChestExplosionEffect(
+			chestController.pos,
+			directColor,
+			directProfile?.chargeScale
+		);
+		k.shake(directProfile ? 1.5 + directProfile.shake : 7);
 		if (chestController.borderBox?.shake) {
-			chestController.borderBox.shake(5);
+			chestController.borderBox.shake(
+				directProfile ? 0.8 + directProfile.shake * 0.55 : 5
+			);
 		}
 
-		gameSoundService.play("explosion4", { volume: mainSoundVolume });
+		if (directProfile) {
+			gameSoundService.play("powerup1", {
+				volume: mainSoundVolume * 0.85,
+				detune: directProfile.soundDetune + 240,
+			})
+			if (
+				directRarity !== undefined &&
+				isRarityAtLeast(directRarity, Rarity.Rare)
+			) {
+				gameSoundService.play("explosion2", {
+					volume: mainSoundVolume * k.lerp(
+						0.25,
+						0.7,
+						directProfile.shake / 5.5
+					),
+					detune: directRarity === Rarity.Legendary ? 260 : 120,
+				})
+			}
+		} else {
+			gameSoundService.play("explosion4", { volume: mainSoundVolume });
+		}
 
 		if (chestController.crateSprite) {
 			k.destroy(chestController.crateSprite);
@@ -1106,42 +1264,12 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 
 	// State: Reveal
 	chestController.onStateEnter("reveal", async () => {
-		const normalizedHits = normalizeChestChallengeHits(
-			challengeConfig.type,
-			chestController.successfulHits
-		);
-		chestController.normalizedHits = normalizedHits;
-		const result = generateRewards(
-			normalizedHits,
-			chestController.failedAttempts,
-			chestController.fixedDiscoveries.length > 0
-				? getAbilityRewardDefinitionIds()
-				: []
-		);
-		if (!weaponCache && chestController.fixedDiscoveries.length === 0) {
-			chestController.fixedDiscoveries = result.discoveries.slice(0, 1);
+		if (!chestController.rewardsPrepared) {
+			prepareRewardsForReveal(
+				chestController.successfulHits,
+				chestController.failedAttempts
+			)
 		}
-		if (weaponCache) {
-			chestController.rewards = result.rewards;
-		} else {
-			const selectableSlotCount = Math.max(
-				0,
-				result.rewards.length - chestController.fixedDiscoveries.length
-			);
-			chestController.rewards = [
-				...chestController.fixedDiscoveries,
-				...result.choices.slice(0, selectableSlotCount),
-			];
-		}
-		for (const reward of chestController.rewards) {
-			recordTelemetryRewardOffered(reward.id, {
-				source: "chest",
-				category: reward.kind,
-				rarity: reward.rarity,
-			});
-		}
-		chestController.totalFailures = result.failures;
-		chestController.quality = result.quality;
 
 		if (chestController.rewards.length === 0) {
 			finishSequence();
@@ -1190,7 +1318,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			const reward = chestController.rewards[index];
 			const profile = REWARD_REVEAL_PROFILES[reward.rarity];
 			const target = k.vec2(layout.cardX(index), layout.iconY);
-			const revealShakeRamp = reward.rarity === Rarity.Legendary
+			const revealShakeRamp = directOpening
+				? undefined
+				: reward.rarity === Rarity.Legendary
 				? startRevealShakeRamp(
 						profile.suspense,
 						7.5,
@@ -1203,14 +1333,14 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 							chestController.borderBox ?? undefined
 						)
 					: undefined;
-			if (profile.riserSound) {
+			if (!directOpening && profile.riserSound) {
 				const riser = audioService.playSound(profile.riserSound, {
 					volume: mainSoundVolume * 0.85,
 				});
 				if (reward.rarity === Rarity.Epic) riser.speed = 0.62;
 				if (reward.rarity === Rarity.Legendary) riser.speed = 0.5;
 			}
-			await k.wait(profile.suspense);
+			await k.wait(directOpening ? 0.035 : profile.suspense);
 			if (!chestController.uiContainer?.exists()) return;
 			revealShakeRamp?.cancel();
 
@@ -1297,8 +1427,9 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				profile
 			);
 
-			await k.wait(
-				profile.duration * 0.35 + profile.postRevealHold
+			await k.wait(directOpening
+				? 0.05
+				: profile.duration * 0.35 + profile.postRevealHold
 			);
 			if (!weaponCache) claimDiscoveryReward(reward);
 		}
@@ -1386,7 +1517,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 		const selectableRewards = [...chestController.rewards];
 		const choiceCount = selectableRewards.length;
 		const slotCount = chestController.rewards.length;
-		const performanceLabel = chestController.totalFailures > 0
+		const performanceLabel = !directOpening && chestController.totalFailures > 0
 			? `${chestController.totalFailures} FAILURE${chestController.totalFailures === 1 ? "" : "S"}`
 			: undefined;
 		const panelWidth = Math.min(900, k.width() - 48);
@@ -1451,6 +1582,7 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				interactionPromptStyle: abilityReward ? "key" : undefined,
 				telemetrySource: "chest",
 				recordOffer: false,
+				seekPlayer: true,
 				onCollected: () => rewardCollectedCallback?.(),
 				launch: {
 					endOffset: k.vec2(0, -48),
@@ -1498,11 +1630,13 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 			chestController.multiplierText = null;
 			chestController.timingBarObj = null;
 			chestController.rewardSprite = null;
+			chestController.rewards = [];
+			chestController.rewardsPrepared = false;
 			chestController.enterState("initial");
 		};
 		const tokenLabel = rerollTokenCount === 1 ? "TOKEN" : "TOKENS";
 		const actionGap = 12;
-		const actionCount = 2;
+		const actionCount = directOpening ? 1 : 2;
 		const actionWidth = Math.min(
 			240,
 			(panelWidth - 64 - actionGap * (actionCount - 1)) / actionCount
@@ -1521,21 +1655,27 @@ export function startChestOpeningSequence(onSequenceComplete?: () => void) {
 				promptAction: "reroll",
 				onClick: rerollRewards,
 			});
-			createUiActionButton(panel, {
-				pos: k.vec2(actionStartX + actionWidth + actionGap, panelHeight - 50),
-				size: k.vec2(actionWidth, 32),
-				text: `RETRY  //  ${CHEST_RETRY_COST} SALVAGE`,
-				disabled: availableSalvage < CHEST_RETRY_COST,
-				requirementsMet: availableSalvage >= CHEST_RETRY_COST,
-				onDisabledClick: playRequirementErrorSound,
-				promptAction: "retry",
-				onClick: retryChallenge,
-			});
+			if (!directOpening) {
+				createUiActionButton(panel, {
+					pos: k.vec2(actionStartX + actionWidth + actionGap, panelHeight - 50),
+					size: k.vec2(actionWidth, 32),
+					text: `RETRY  //  ${CHEST_RETRY_COST} SALVAGE`,
+					disabled: availableSalvage < CHEST_RETRY_COST,
+					requirementsMet: availableSalvage >= CHEST_RETRY_COST,
+					onDisabledClick: playRequirementErrorSound,
+					promptAction: "retry",
+					onClick: retryChallenge,
+				});
+			}
 		}
 		if (choiceCount > 0 && rerollTokenCount > 0) {
 			acceptControllers.push(k.onKeyPress("r", rerollRewards));
 		}
-		if (choiceCount > 0 && availableSalvage >= CHEST_RETRY_COST) {
+		if (
+			!directOpening &&
+			choiceCount > 0 &&
+			availableSalvage >= CHEST_RETRY_COST
+		) {
 			acceptControllers.push(k.onKeyPress("t", retryChallenge));
 		}
 
@@ -2242,6 +2382,86 @@ function cubicBezierPoint(
 		.add(p3.scale(t * t * t));
 }
 
+function addDirectChestChargeEffect(
+	container: GameObj,
+	colorValues: readonly [number, number, number],
+	profile: DirectChestOpeningProfile
+) {
+	const rarityColor = new k.Color(...colorValues)
+	const effect = container.add([
+		k.pos(0, 0),
+		k.z(-2),
+		{
+			chargeProgress: 0,
+			rotation: 0,
+			draw() {
+				const progress = k.clamp(this.chargeProgress, 0, 1)
+				const eased = progress * progress * (3 - 2 * progress)
+				const pulse = 0.92 + Math.sin(k.time() * 13) * 0.08
+				const innerRadius = k.lerp(32, 18, eased)
+				const outerRadius = profile.rayLength * k.lerp(0.34, 1, eased)
+				for (let index = 0; index < profile.rayCount; index++) {
+					const angle = this.rotation + index * (360 / profile.rayCount)
+					const halfWidth = index % 2 === 0 ? 5 : 3
+					k.drawPolygon({
+						pts: [
+							k.Vec2.fromAngle(angle - halfWidth).scale(innerRadius),
+							k.Vec2.fromAngle(angle).scale(outerRadius * pulse),
+							k.Vec2.fromAngle(angle + halfWidth).scale(innerRadius),
+						],
+						color: index % 3 === 0 ? k.WHITE : rarityColor,
+						opacity: k.lerp(0.04, 0.44, eased) *
+							(index % 2 === 0 ? 1 : 0.62),
+					})
+				}
+
+				const sparkCount = Math.min(
+					14,
+					Math.max(4, Math.ceil(profile.particleRate / 3))
+				)
+				for (let index = 0; index < sparkCount; index++) {
+					const phase = (progress * 2.5 + index / sparkCount) % 1
+					const angle = index * (360 / sparkCount) - this.rotation * 1.7
+					const radius = k.lerp(profile.rayLength * 0.72, 12, phase)
+					k.drawRect({
+						pos: k.Vec2.fromAngle(angle).scale(radius),
+						width: index % 3 === 0 ? 3 : 2,
+						height: index % 3 === 0 ? 3 : 2,
+						anchor: "center",
+						color: index % 2 === 0 ? k.WHITE : rarityColor,
+						opacity: k.lerp(0.18, 0.92, phase) * eased,
+					})
+				}
+
+				k.drawCircle({
+					pos: k.vec2(0),
+					radius: k.lerp(46, 24, eased),
+					fill: false,
+					outline: {
+						width: 1 + eased * 2,
+						color: rarityColor,
+						opacity: 0.2 + eased * 0.68,
+					},
+				})
+			}
+		},
+	])
+	const cancelUpdate = registerBatchedUiUpdate("overlay", effect, () => {
+		effect.chargeProgress = k.clamp(
+			effect.chargeProgress + k.dt() / profile.duration,
+			0,
+			1
+		)
+		effect.rotation += k.lerp(9, 32, effect.chargeProgress) * k.dt()
+	})
+	return {
+		cancel() {
+			cancelUpdate()
+			if (effect.exists()) k.destroy(effect)
+		},
+	}
+}
+
 function spawnRewardRevealBurst(
 	pos: Vec2,
 	colorValues: readonly [number, number, number],
@@ -2303,12 +2523,17 @@ function spawnRewardRevealBurst(
 	);
 }
 
-function spawnChestExplosionEffect(pos: Vec2) {
+function spawnChestExplosionEffect(
+	pos: Vec2,
+	colorValues: readonly [number, number, number] = [255, 255, 255],
+	scaleMultiplier: number = 1
+) {
+	const flashColor = new k.Color(...colorValues)
 	const flash = k.add([
 		k.pos(pos),
-		k.circle(42),
+		k.circle(42 * scaleMultiplier),
 		k.anchor("center"),
-		k.color(k.WHITE),
+		k.color(flashColor),
 		k.opacity(0.9),
 		k.scale(0.35),
 		k.animate(),
@@ -2317,7 +2542,7 @@ function spawnChestExplosionEffect(pos: Vec2) {
 		k.lifespan(0.32, { fade: 0.24 }),
 		"chestUI",
 	]);
-	flash.animate("scale", [k.vec2(0.35), k.vec2(2.4)], {
+	flash.animate("scale", [k.vec2(0.35), k.vec2(2.4 * scaleMultiplier)], {
 		duration: 0.3,
 		loops: 1,
 		easing: k.easings.easeOutCubic,

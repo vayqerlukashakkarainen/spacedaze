@@ -6,6 +6,7 @@ import {
 	AnchorComp,
 	ZComp,
 	Anchor,
+	ScaleComp,
 } from "kaplay";
 import { k, layers } from "../main";
 import { tags } from "../tags";
@@ -33,7 +34,9 @@ interface SpawnBuildingOptions {
 
 export function spawnBuilding(
 	options: SpawnBuildingOptions
-): GameObj<PosComp | SpriteComp | AnchorComp | ZComp | InteractableComp> {
+): GameObj<
+	PosComp | SpriteComp | AnchorComp | ZComp | ScaleComp | InteractableComp
+> {
 	const {
 		pos,
 		sprite,

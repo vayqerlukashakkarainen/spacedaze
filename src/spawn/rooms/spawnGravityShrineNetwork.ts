@@ -60,6 +60,7 @@ export function spawnGravityShrineNetwork(
 			k.outline(2, k.rgb(...GRAVITY_COLOR)),
 			k.anchor("center"),
 			k.opacity(0.72),
+			k.scale(1),
 			k.layer(layers.gameEffects),
 		])
 		const gravity = spawnGravityPull({

@@ -12,7 +12,7 @@ export const scrapArmor: Tool = singleLevelTool(
 export const afterburnerWake: Tool = singleLevelTool(
 	"Afterburner wake",
 	"Plasma Trail",
-	"Overclocked thrusters leave a burning wake that damages enemies",
+	"Overclocked thrusters leave a burning wake that deals 100% primary damage",
 	"overclock_thrusters_upg1",
 	28,
 	{ allOf: [{ toolKey: "thrusterOverdrive" }] }
@@ -49,8 +49,14 @@ export const enemyHacker: Tool = singleLevelTool(
 
 export const phaseEcho: Tool = singleLevelTool(
 	"Phase echo", "Phase Echo",
-	"Phase jump leaves a decoy that pulls enemies in and detonates",
+	"Phase jump leaves a decoy that pulls enemies in and detonates for 400% primary damage",
 	"phase_echo_upg1", 36, { allOf: [{ toolKey: "spaceJump" }] }
+)
+
+export const phaseWake: Tool = singleLevelTool(
+	"Phase wake", "Phase Wake",
+	"Phase jump leaves a wake that slows hostiles and accelerates you when crossed again",
+	"phase_wake_upg1", 38, { allOf: [{ toolKey: "spaceJump" }] }
 )
 
 export const salvageBattery: Tool = singleLevelTool(
@@ -62,7 +68,7 @@ export const salvageBattery: Tool = singleLevelTool(
 
 export const reactivePlating: Tool = singleLevelTool(
 	"Reactive plating", "Reactive Plating",
-	"Hull damage releases a close-range armor blast, with a short cooldown",
+	"Hull damage releases a close-range blast for 300% primary damage, with a short cooldown",
 	"reactive_plating_upg1", 34
 )
 
@@ -88,20 +94,20 @@ export const droneFusion: Tool = singleLevelTool(
 
 export const sawSatellite: Tool = singleLevelTool(
 	"Saw satellite", "Saw Satellite",
-	"A toothed satellite orbits the ship, damaging enemies and cutting down hostile projectiles",
+	"A toothed satellite orbits the ship, dealing 150% primary damage per hit and cutting down hostile projectiles",
 	"saw_satellite_upg1", 36
 )
 
 export const kineticRam: Tool = singleLevelTool(
 	"Kinetic ram", "Kinetic Ram",
-	"Boosting collisions and Phase Jump paths deal heavy impact damage",
+	"Boosting collisions and Phase Jump paths deal 300% primary damage, scaled by movement speed",
 	"kinetic_ram_upg1", 38,
 	{ anyOf: [{ toolKey: "thrusterOverdrive" }, { toolKey: "spaceJump" }] }
 )
 
 export const nearMissCapacitor: Tool = singleLevelTool(
 	"Near-miss capacitor", "Near-Miss Capacitor",
-	"Graze five hostile projectiles to discharge a damaging defensive shockwave",
+	"Graze five hostile projectiles to discharge a shockwave for 400% primary damage",
 	"near_miss_capacitor_upg1", 40
 )
 

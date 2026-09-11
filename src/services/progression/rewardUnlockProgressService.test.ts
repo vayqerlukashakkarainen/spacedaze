@@ -16,7 +16,9 @@ const {
 	meetsRewardUnlockRequirements,
 	recordRewardFloorReached,
 	recordRewardKill,
+	recordRewardRunCompleted,
 	resetRewardUnlockProgress,
+	unlockRewardRequirementsForDebug,
 } = await import("./rewardUnlockProgressService")
 
 resetRewardUnlockProgress()
@@ -26,13 +28,25 @@ const pulseRequirements = getRewardUnlockRequirements({
 	kind: "weapon",
 	minimumHubLevel: 1,
 })
+assert.equal(getRewardUnlockRequirements({
+	id: "weapon:standardBlaster",
+	kind: "weapon",
+}), undefined)
 assert.equal(meetsRewardUnlockRequirements(pulseRequirements), false)
 for (let index = 0; index < 14; index++) {
 	recordRewardKill({ kind: "primary", id: "standardBlaster" })
 }
 assert.equal(meetsRewardUnlockRequirements(pulseRequirements), false)
 recordRewardKill({ kind: "primary", id: "standardBlaster" })
+assert.equal(meetsRewardUnlockRequirements(pulseRequirements), false)
+for (let index = 0; index < 4; index++) recordRewardRunCompleted()
+assert.equal(meetsRewardUnlockRequirements(pulseRequirements), false)
+recordRewardRunCompleted()
 assert.equal(meetsRewardUnlockRequirements(pulseRequirements), true)
+assert.match(
+	describeRewardUnlockRequirement(pulseRequirements!.allOf[0]),
+	/RUNS COMPLETED  5 \/ 5/
+)
 
 const twinNeedleRequirements = getRewardUnlockRequirements({
 	id: "weapon:twinNeedle",
@@ -48,10 +62,24 @@ for (let index = 0; index < 10; index++) {
 	})
 }
 assert.equal(meetsRewardUnlockRequirements(twinNeedleRequirements), true)
+const twinNeedleDepthRequirement = twinNeedleRequirements!.allOf.find(
+	(requirement) => requirement.metric === "maxDepth"
+)
+assert.ok(twinNeedleDepthRequirement)
 assert.match(
-	describeRewardUnlockRequirement(twinNeedleRequirements!.allOf[0]),
+	describeRewardUnlockRequirement(twinNeedleDepthRequirement),
 	/REACH FLOOR 1\.2/
 )
+
+const phaseBoomerangRequirements = getRewardUnlockRequirements({
+	id: "weapon:phaseBoomerang",
+	kind: "weapon",
+	minimumHubLevel: 2,
+})
+assert.equal(phaseBoomerangRequirements?.anyOf?.length, 2)
+assert.equal(meetsRewardUnlockRequirements(phaseBoomerangRequirements), false)
+recordRewardFloorReached(3)
+assert.equal(meetsRewardUnlockRequirements(phaseBoomerangRequirements), true)
 
 const breachRequirements = getRewardUnlockRequirements({
 	id: "weapon:breachCannon",
@@ -77,5 +105,22 @@ for (let index = 0; index < 12; index++) {
 	})
 }
 assert.equal(meetsRewardUnlockRequirements(breachChargeRequirements), true)
+
+resetRewardUnlockProgress()
+const debugRequirements = [
+	pulseRequirements,
+	twinNeedleRequirements,
+	phaseBoomerangRequirements,
+	breachRequirements,
+	breachChargeRequirements,
+]
+unlockRewardRequirementsForDebug(debugRequirements)
+for (const requirements of debugRequirements) {
+	assert.equal(
+		meetsRewardUnlockRequirements(requirements),
+		true,
+		"unlockall should satisfy every mastery requirement"
+	)
+}
 
 console.log("Reward unlock progress service tests passed")

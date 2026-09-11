@@ -1,4 +1,4 @@
-import { Vec2 } from "kaplay";
+import { GameObj, OpacityComp, ScaleComp, Vec2 } from "kaplay";
 import { playerObj } from "../../game";
 import { dt, k, layers, mainSoundVolume } from "../../main";
 import { gameSoundService } from "../../services/audio/gameSoundService"
@@ -22,7 +22,6 @@ interface ShrineProps {
 	pos: Vec2;
 	radius: number;
 	captureTime: number;
-	level?: number;
 	enemySpawnDelay?: number;
 	enemySpawnInterval?: number;
 	enemySpawnDistance?: number;
@@ -103,7 +102,7 @@ export function spawnShrine(props: ShrineProps) {
 		]);
 	const chargeFeedback = createChargeZoneFeedback();
 	let completedLight: ReturnType<typeof addLocalLight> | undefined;
-	let completedCore: ReturnType<typeof shrine.add> | undefined;
+	let completedCore: GameObj<ScaleComp | OpacityComp> | undefined;
 
 	registerBatchedEntityUpdate("world", shrine, () => {
 		if (shrine.deactivated) return;
@@ -242,8 +241,8 @@ export function spawnShrine(props: ShrineProps) {
 				...(props.tags ?? []),
 			]);
 			spawnThreatEncounter(spawnPos, props.enemySpawnSpacing ?? 48, {
+				matchFloorTheme: true,
 				tags: props.tags,
-				threatTier: props.level,
 			});
 		}
 	}

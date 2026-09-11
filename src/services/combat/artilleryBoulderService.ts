@@ -22,7 +22,7 @@ export function spawnArtilleryBoulder(
 	const arcDirection = travel.len() > 0
 		? travel.unit().normal()
 		: k.vec2(1, 0)
-	const arcSide = k.rand() < 0.5 ? -1 : 1
+	const arcSide = k.rand(0, 1) < 0.5 ? -1 : 1
 	const boulder = k.add([
 		k.pos(start),
 		k.sprite(sprite),

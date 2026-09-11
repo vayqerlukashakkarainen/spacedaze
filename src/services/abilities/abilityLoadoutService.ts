@@ -5,9 +5,14 @@ export type AbilitySlot = "primary" | "secondary" | "mobility" | "ultimate"
 export type MobilityAbilityId =
 	| "thrusterOverdrive"
 	| "phaseJump"
+	| "phaseSurge"
 	| "retroBurst"
 	| "gravitySling"
-export type UltimateAbilityId = "phaseNova"
+export type UltimateAbilityId =
+	| "phaseNova"
+	| "gravitonCollapse"
+	| "ghostFleet"
+	| "scrapColossus"
 export type AbilityId =
 	| WeaponId
 	| ActiveModuleId

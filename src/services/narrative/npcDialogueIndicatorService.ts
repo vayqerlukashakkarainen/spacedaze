@@ -7,6 +7,7 @@ import {
 	type EmotionHandle,
 } from "./emotionService"
 import { hasSeenNpcDialogue } from "./npcDialogueService"
+import { registerHubCameraInterest } from "../hub/hubCameraInterestService"
 
 export interface NpcDialogueIndicatorOptions {
 	actor: GameObj<PosComp>
@@ -15,12 +16,28 @@ export interface NpcDialogueIndicatorOptions {
 	isVisible?: () => boolean
 	offset?: Vec2
 	color?: Color
+	cameraInterest?: boolean
 }
 
 export function registerNpcDialogueIndicator(
 	options: NpcDialogueIndicatorOptions
 ) {
 	let indicator: EmotionHandle | undefined
+	const hasUnseenDialogue = () => {
+		const dialogueId = options.getDialogueId()
+		return dialogueId !== undefined &&
+			!hasSeenNpcDialogue(options.npcId, dialogueId)
+	}
+	const hasPendingDialogue = () =>
+		hasUnseenDialogue() && (options.isVisible?.() ?? true)
+	const unregisterCameraInterest = options.cameraInterest
+		? registerHubCameraInterest(options.actor, {
+			radius: 280,
+			strength: 0.38,
+			priority: 1.15,
+			isActive: hasUnseenDialogue,
+		})
+		: undefined
 	const unregister = registerBatchedEntityUpdate(
 		"world",
 		options.actor,
@@ -28,6 +45,7 @@ export function registerNpcDialogueIndicator(
 	)
 	const destroyController = options.actor.onDestroy(() => {
 		unregister()
+		unregisterCameraInterest?.()
 		indicator?.cancel()
 		indicator = undefined
 	})
@@ -35,6 +53,7 @@ export function registerNpcDialogueIndicator(
 
 	return () => {
 		unregister()
+		unregisterCameraInterest?.()
 		destroyController.cancel()
 		indicator?.cancel()
 		indicator = undefined
@@ -42,10 +61,7 @@ export function registerNpcDialogueIndicator(
 
 	function syncIndicator() {
 		if (!options.actor.exists()) return
-		const dialogueId = options.getDialogueId()
-		const shouldShow = dialogueId !== undefined &&
-			(options.isVisible?.() ?? true) &&
-			!hasSeenNpcDialogue(options.npcId, dialogueId)
+		const shouldShow = hasPendingDialogue()
 		const currentEmotion = actorEmotion(options.actor)
 		if (!shouldShow) {
 			if (currentEmotion === "dialogue") indicator?.cancel()

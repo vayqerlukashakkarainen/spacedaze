@@ -7,11 +7,14 @@ import { checkProjectileComponentIntersection, playerObj } from "../game"
 import { k, layers, subSoundVolume } from "../main"
 import {
 	ABILITIES,
+	discoverAbility,
 	isAbilityDiscovered,
 	type AbilityDefinition,
 } from "../services/abilities/abilityRegistry"
 import type { AbilitySlot } from "../services/abilities/abilityLoadoutService"
 import { spawnAbilityLoadoutPickup } from "../services/abilities/abilitySwapService"
+import { getAbilityTierRarity } from "../services/abilities/abilityTierService"
+import { grantUltimateChargeForDestruction } from "../services/abilities/ultimateAbilityService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import {
 	getHubLevel,
@@ -19,8 +22,10 @@ import {
 } from "../services/hub/hubProgressService"
 import {
 	getRewardDefinition,
+	getRewardDisplayColor,
 	getRewardLockReason,
 	getRewardUnlockProgress,
+	ALTERATION_REWARD_COLOR,
 	REWARD_RARITY_COLORS,
 	RewardRarity,
 	type RewardDefinition,
@@ -60,6 +65,20 @@ import {
 } from "../upg"
 import { loadPlayer } from "../player"
 import { showPopover } from "../services/ui/popoverService"
+import {
+	getAvailableDebree,
+} from "../services/economy/debreeEconomyService"
+import {
+	addPhaseCores,
+	getPhaseCores,
+	spendPhaseCores,
+} from "../services/economy/phaseCoreService"
+import { playRequirementErrorSound } from "../services/audio/uiSoundService"
+import {
+	getArmorerWeaponCost,
+	hasArmorerIntroduction,
+} from "../services/hub/armorerService"
+import { saveGame } from "../util"
 
 const RANGE_WIDTH = 660
 const TARGET_OFFSET_Y = 230
@@ -72,16 +91,24 @@ const LOCKED_PICKUP_ICON_SIZE = 24 * LOCKED_PICKUP_SCALE
 const LOCKED_PICKUP_FRAME_SIZE = 36 * LOCKED_PICKUP_SCALE
 const UPGRADE_GALLERY_TOP = -210
 const UPGRADE_GALLERY_COLUMNS = 6
-const UPGRADE_GALLERY_LABEL_X = 270
-const UPGRADE_GALLERY_START_X = 340
+const UPGRADE_GALLERY_LABEL_X = 390
+const UPGRADE_GALLERY_START_X = 460
 const UPGRADE_GALLERY_COLUMN_SPACING = 42
 const UPGRADE_GALLERY_ROW_SPACING = 36
 const UPGRADE_GALLERY_CATEGORY_GAP = 10
 const UPGRADE_TOOLTIP_WIDTH = 180
-const UPGRADE_DESCRIPTION_LINE_HEIGHT = 1.55
-const RANGE_CULL_RADIUS = 680
+const UPGRADE_TOOLTIP_MIN_HEIGHT = 28
+const UPGRADE_TOOLTIP_VERTICAL_PADDING = 8
+const UPGRADE_TOOLTIP_CONTENT_GAP = 4
+const UPGRADE_TOOLTIP_TITLE_SIZE = 6
+const UPGRADE_TOOLTIP_META_SIZE = 5
+const UPGRADE_TOOLTIP_DESCRIPTION_SIZE = 6
+const UPGRADE_TOOLTIP_LINE_HEIGHT = 1.55
+const RANGE_CULL_RADIUS = 800
 const TRAINING_SWARM_COUNT = 5
 const TRAINING_FUEL_CELL_RESPAWN_DELAY = 3
+const PRIMARY_WEAPON_ROW_OFFSET_X = 55
+const PRIMARY_WEAPON_ROW_Y = -150
 const COMPOSITE_TARGET_OFFSET_X = 130
 const COMPOSITE_TARGET_HP = 90
 const COMPOSITE_PART_HP = 14
@@ -99,7 +126,7 @@ const SLOT_ROWS: readonly {
 	y: number
 	color: readonly [number, number, number]
 }[] = [
-	{ slot: "primary", label: "PRIMARY", y: -150, color: UI_COLORS.success },
+	{ slot: "primary", label: "PRIMARY", y: PRIMARY_WEAPON_ROW_Y, color: UI_COLORS.success },
 	{ slot: "secondary", label: "SECONDARY", y: -70, color: UI_COLORS.warning },
 	{ slot: "mobility", label: "MOBILITY", y: 10, color: [70, 150, 255] },
 	{ slot: "ultimate", label: "ULTIMATE", y: 90, color: UI_COLORS.danger },
@@ -115,6 +142,11 @@ const UPGRADE_CATEGORIES: readonly {
 	{ category: "survival", label: "SURVIVAL", color: UI_COLORS.success },
 	{ category: "resources", label: "RESOURCES", color: UI_COLORS.warning },
 	{ category: "special", label: "SPECIAL", color: UI_COLORS.accent },
+	{
+		category: "alteration",
+		label: "ALTERATIONS",
+		color: ALTERATION_REWARD_COLOR,
+	},
 ]
 
 export interface HubFiringRangeProps {
@@ -124,16 +156,21 @@ export interface HubFiringRangeProps {
 
 export interface HubFiringRange {
 	targetPos: Vec2
+	primaryWeaponsPos: Vec2
 	getPrimaryTarget: () => GameObj | undefined
 }
 
 interface TrainingPreviewPickup {
 	object: GameObj
 	title: string
-	description?: string
+	meta?: string
+	description?: TrainingPreviewTextSource
 	textColor: readonly [number, number, number]
+	showTooltip: boolean
 	interactionPrompt?: { update(visible: boolean): void }
 }
+
+type TrainingPreviewTextSource = string | (() => string)
 
 interface TrainingPreviewTooltipPool {
 	update(pickup: TrainingPreviewPickup | undefined): void
@@ -147,9 +184,11 @@ interface TrainingPreviewProps {
 	abilitySlot?: AbilitySlot
 	minimumHubLevel: number
 	rewardDefinition?: RewardDefinition
+	meta?: string
 	availableTitle: string
-	availableDescription?: string
+	availableDescription?: TrainingPreviewTextSource
 	availableTextColor?: readonly [number, number, number]
+	showTooltip?: boolean
 	onInteract?: () => void
 	interactionPromptPool?: ReturnType<typeof createNpcInteractionPromptPool>
 	interactionPromptLabel?: string
@@ -191,12 +230,14 @@ export function spawnHubFiringRange(
 	let interactiveAbilityPickups: GameObj[] = []
 	let previewPickups: TrainingPreviewPickup[] = []
 	const refreshEquipment = () => {
-		const unlocked = ABILITIES.filter(isAbilityDiscovered)
+		const discovered = ABILITIES.filter(isAbilityDiscovered)
 		const nextSignature = [
 			getHubLevel(),
 			getHubLifetimeDeposited(),
+			getAvailableDebree(),
+			hasArmorerIntroduction(),
 			isTrainingUpgradeGrantForDebugEnabled(),
-			...unlocked.map((ability) => ability.id),
+			...discovered.map((ability) => ability.id),
 		].join("|")
 		if (nextSignature === discoverySignature) return
 		discoverySignature = nextSignature
@@ -269,6 +310,10 @@ export function spawnHubFiringRange(
 
 	return {
 		targetPos,
+		primaryWeaponsPos: props.pos.add(
+			PRIMARY_WEAPON_ROW_OFFSET_X,
+			PRIMARY_WEAPON_ROW_Y
+		),
 		getPrimaryTarget: () => primaryTarget?.exists()
 			? primaryTarget
 			: undefined,
@@ -326,6 +371,7 @@ function spawnCompositeTrainingAsteroid(
 		skipDefaultBodyDeath: true,
 		onBodyDeath: () => {
 			const deathPos = target.pos.clone()
+			grantUltimateChargeForDestruction("trainingTarget", deathPos)
 			spawnEnemyDeathEffect(deathPos, 0.9, "normal", {
 				particleScale: 0.8,
 			})
@@ -417,6 +463,7 @@ function spawnCompositeTrainingTarget(
 		skipDefaultBodyDeath: true,
 		onBodyDeath: () => {
 			const deathPos = target.pos.clone()
+			grantUltimateChargeForDestruction("trainingTarget", deathPos)
 			spawnEnemyDeathEffect(deathPos, 0.75, "normal", {
 				particleScale: 0.7,
 			})
@@ -440,6 +487,8 @@ function spawnCompositeTrainingTarget(
 				hitbox: 7 * visual.worldScale,
 				isBody: false,
 				scoreOnDestroy: 0,
+				pullForce: 65,
+				pullDuration: 0.6,
 			})),
 		],
 	})
@@ -466,6 +515,7 @@ function spawnTrainingFuelCell(
 ) {
 	return spawnExplodingFuelCell(pos, {
 		onExplode: () => {
+			grantUltimateChargeForDestruction("trainingTarget", pos)
 			k.wait(TRAINING_FUEL_CELL_RESPAWN_DELAY, () => {
 				if (!isHubSessionActive()) return
 				spawnTrainingFuelCell(pos, isHubSessionActive)
@@ -515,6 +565,7 @@ function spawnTrainingSwarmEnemy(
 			patrol,
 			suppressRewards: true,
 			onDeath: () => {
+				grantUltimateChargeForDestruction("trainingTarget", center)
 				k.wait(TARGET_RESPAWN_DELAY, () => {
 					if (!isHubSessionActive()) return
 					spawnTrainingSwarmEnemy(center, index, isHubSessionActive)
@@ -581,14 +632,17 @@ function spawnUpgradePreview(
 ): TrainingPreviewPickup | undefined {
 	const firstLevel = upgrade.levels[0]
 	if (!firstLevel) return
+	const isDefaultUpgrade = upgrade.toolKey === "blasterParallel"
 	const canGrant = isTrainingUpgradeGrantForDebugEnabled() &&
-		isToolKey(upgrade.toolKey)
+		isToolKey(upgrade.toolKey) &&
+		!isDefaultUpgrade
 	return spawnTrainingPreviewPickup({
 		position,
 		icon: getTrainingUpgradePreviewSprite(firstLevel.sprite),
 		kind: "upgrade",
 		minimumHubLevel: getUpgradeMinimumHubLevel(upgrade),
 		rewardDefinition: getRewardDefinition(upgrade.toolKey),
+		meta: isDefaultUpgrade ? "DEFAULT" : undefined,
 		availableTitle: upgrade.toolName.toUpperCase(),
 		availableDescription: firstLevel.desc,
 		onInteract: canGrant ? () => grantTrainingUpgrade(upgrade) : undefined,
@@ -645,9 +699,16 @@ function spawnAbilityRow(
 	const spacing = Math.min(PICKUP_SPACING, (RANGE_WIDTH - 150) / abilities.length)
 	const startX = -(abilities.length - 1) * spacing / 2
 	abilities.forEach((ability, index) => {
-		const position = rangePos.add(startX + index * spacing + 55, row.y)
+		const position = rangePos.add(
+			startX + index * spacing + PRIMARY_WEAPON_ROW_OFFSET_X,
+			row.y
+		)
 		if (!isAbilityDiscovered(ability)) {
-			const lockedPickup = spawnLockedAbilityPickup(ability, position)
+			const lockedPickup = spawnLockedAbilityPickup(
+				ability,
+				position,
+				interactionPromptPool
+			)
 			displayObjects.push(lockedPickup.object)
 			previewPickups.push(lockedPickup)
 			return
@@ -659,6 +720,9 @@ function spawnAbilityRow(
 			interactionPromptPool
 		)
 		if (pickup) {
+			pickup.use(k.color(...REWARD_RARITY_COLORS[
+				getAbilityTierRarity(ability.id, ability.rarity)
+			]))
 			displayObjects.push(pickup)
 			interactiveAbilityPickups.push(pickup)
 		}
@@ -667,19 +731,83 @@ function spawnAbilityRow(
 
 function spawnLockedAbilityPickup(
 	ability: AbilityDefinition,
-	position: Vec2
+	position: Vec2,
+	interactionPromptPool: ReturnType<typeof createNpcInteractionPromptPool>
 ): TrainingPreviewPickup {
+	const rewardDefinition = getRewardDefinition(
+		`${ability.slot}:${ability.id}`
+	)
+	const requirementsReached = rewardDefinition
+		? getRewardUnlockProgress(rewardDefinition) >= 1
+		: getHubLevel() >= ability.minimumHubLevel
+	const armorerAvailable = ability.slot === "primary" &&
+		hasArmorerIntroduction()
+	const canPurchase = armorerAvailable && requirementsReached
+	const cost = getArmorerWeaponCost(ability.minimumHubLevel)
 	return spawnTrainingPreviewPickup({
 		position,
 		icon: ability.icon,
 		kind: getAbilityRewardKind(ability.slot),
 		abilitySlot: ability.slot,
 		minimumHubLevel: ability.minimumHubLevel,
-		rewardDefinition: getRewardDefinition(
-			`${ability.slot}:${ability.id}`
-		),
-		availableTitle: "AVAILABLE FOR DROP",
+		rewardDefinition,
+		availableTitle: canPurchase ? ability.name : "AVAILABLE FOR DROP",
+		availableDescription: ability.slot !== "primary"
+			? undefined
+			: armorerAvailable
+				? () => {
+					const available = getPhaseCores()
+					return `ARMORER PRICE [phaseCore]${cost} PHASE CORE${cost === 1 ? "" : "S"}[/phaseCore]  //  [phaseCore]${available}[/phaseCore] AVAILABLE`
+				}
+				: "TALK TO THE ARMORER TO RECONSTRUCT CLEARED WEAPON PATTERNS",
 		availableTextColor: UI_COLORS.success,
+		showTooltip: !canPurchase,
+		onInteract: canPurchase
+			? () => purchaseArmorerWeapon(ability, rewardDefinition, cost)
+			: undefined,
+		interactionPromptPool,
+		interactionPromptLabel: "",
+	})
+}
+
+function purchaseArmorerWeapon(
+	ability: AbilityDefinition,
+	rewardDefinition: RewardDefinition | undefined,
+	cost: number
+) {
+	if (ability.slot !== "primary" || isAbilityDiscovered(ability)) return
+	if (
+		!hasArmorerIntroduction() ||
+		!rewardDefinition ||
+		getRewardUnlockProgress(rewardDefinition) < 1
+	) {
+		playRequirementErrorSound()
+		return
+	}
+	if (!spendPhaseCores(cost)) {
+		playRequirementErrorSound()
+		showPopover({
+			title: "INSUFFICIENT PHASE CORES",
+			message: `${getPhaseCores()} / ${cost}`,
+			description: `THE ARMORER NEEDS ${cost - getPhaseCores()} MORE PHASE CORE${cost - getPhaseCores() === 1 ? "" : "S"}`,
+			sprite: "phase_core",
+			color: k.rgb(...UI_COLORS.danger),
+			duration: 2.4,
+		})
+		return
+	}
+	if (!discoverAbility(ability.id, false)) {
+		addPhaseCores(cost)
+		return
+	}
+	saveGame("slot1")
+	showPopover({
+		title: "WEAPON RECONSTRUCTED",
+		message: ability.name,
+		description: `${cost} PHASE CORE${cost === 1 ? "" : "S"} SPENT  //  PRIMARY ADDED TO ARSENAL`,
+		sprite: ability.icon,
+		color: k.rgb(...REWARD_RARITY_COLORS[RewardRarity.Legendary]),
+		duration: 4.5,
 	})
 }
 
@@ -690,6 +818,11 @@ function spawnTrainingPreviewPickup(
 		? getRewardUnlockProgress(props.rewardDefinition)
 		: getHubLevel() >= props.minimumHubLevel ? 1 : 0
 	const requirementsReached = unlockProgress >= 1
+	const iconColor = requirementsReached
+		? props.rewardDefinition
+			? getRewardDisplayColor(props.rewardDefinition)
+			: UI_COLORS.text
+		: UI_COLORS.muted
 	const pickup = k.add([
 		k.pos(props.position),
 		k.sprite(props.icon, {
@@ -697,7 +830,7 @@ function spawnTrainingPreviewPickup(
 			height: LOCKED_PICKUP_ICON_SIZE,
 		}),
 		k.anchor("center"),
-		k.color(...(requirementsReached ? UI_COLORS.text : UI_COLORS.muted)),
+		k.color(...iconColor),
 		k.opacity(requirementsReached ? 0.82 : 0.58),
 		k.layer(layers.game),
 		{
@@ -723,23 +856,22 @@ function spawnTrainingPreviewPickup(
 		fillOpacity: requirementsReached ? 0.12 : 0.06,
 		outlineOpacity: 1,
 		lineWidth: 1,
-		progress: requirementsReached ? undefined : unlockProgress,
-		progressColor: UI_COLORS.accent,
-		progressLineWidth: 2,
 		z: -1,
 	})
 	pickupFrame.use(k.layer(layers.gameEffects))
-	const progressBar = createUiProgressBar(pickup, {
-		pos: k.vec2(
-			-LOCKED_PICKUP_FRAME_SIZE / 2,
-			LOCKED_PICKUP_FRAME_SIZE / 2 + 4
-		),
-		width: LOCKED_PICKUP_FRAME_SIZE,
-		height: 2,
-		value: unlockProgress,
-		color: requirementsReached ? UI_COLORS.success : UI_COLORS.accent,
-	})
-	progressBar.obj.use(k.layer(layers.gameEffects))
+	if (!requirementsReached) {
+		const progressBar = createUiProgressBar(pickup, {
+			pos: k.vec2(
+				-LOCKED_PICKUP_FRAME_SIZE / 2,
+				LOCKED_PICKUP_FRAME_SIZE / 2 + 4
+			),
+			width: LOCKED_PICKUP_FRAME_SIZE,
+			height: 2,
+			value: unlockProgress,
+			color: UI_COLORS.accent,
+		})
+		progressBar.obj.use(k.layer(layers.gameEffects))
+	}
 
 	const title = requirementsReached
 		? props.availableTitle
@@ -752,10 +884,16 @@ function spawnTrainingPreviewPickup(
 	return {
 		object: pickup,
 		title,
+		meta: props.meta ?? (props.rewardDefinition
+			? props.rewardDefinition.progression.persistence === "permanent"
+				? "PERMANENT"
+				: "PER RUN"
+			: undefined),
 		description,
 		textColor: requirementsReached
 			? props.availableTextColor ?? UI_COLORS.text
 			: UI_COLORS.text,
+		showTooltip: props.showTooltip ?? true,
 		interactionPrompt,
 	}
 }
@@ -771,10 +909,25 @@ function getAbilityRewardKind(slot: AbilitySlot): RewardKind {
 }
 
 function createTrainingPreviewTooltipPool(): TrainingPreviewTooltipPool {
+	const descriptionStyles = {
+		phaseCore: {
+			color: k.rgb(...UI_COLORS.phaseCore),
+			override: true,
+		},
+		affordable: {
+			color: k.rgb(...UI_COLORS.success),
+			override: true,
+		},
+		unaffordable: {
+			color: k.rgb(...UI_COLORS.danger),
+			override: true,
+		},
+	}
 	interface TooltipSlot {
 		root: GameObj
 		background: GameObj
 		title: GameObj
+		meta: GameObj
 		description: GameObj
 		pickup: TrainingPreviewPickup | undefined
 		reveal: number
@@ -790,7 +943,7 @@ function createTrainingPreviewTooltipPool(): TrainingPreviewTooltipPool {
 		root.hidden = true
 		const background = createUiSurface(root, {
 			pos: k.vec2(),
-			size: k.vec2(UPGRADE_TOOLTIP_WIDTH, 50),
+			size: k.vec2(UPGRADE_TOOLTIP_WIDTH, UPGRADE_TOOLTIP_MIN_HEIGHT),
 			anchor: "center",
 			tone: "raised",
 			opacity: 0,
@@ -799,9 +952,12 @@ function createTrainingPreviewTooltipPool(): TrainingPreviewTooltipPool {
 		const title = root.add([
 			k.text("", {
 				font: "unscii",
-				size: 6,
+				size: UPGRADE_TOOLTIP_TITLE_SIZE,
 				width: UPGRADE_TOOLTIP_WIDTH,
 				align: "center",
+				lineSpacing: getUpgradeTooltipLineSpacing(
+					UPGRADE_TOOLTIP_TITLE_SIZE
+				),
 			}),
 			k.pos(),
 			k.anchor("center"),
@@ -810,16 +966,33 @@ function createTrainingPreviewTooltipPool(): TrainingPreviewTooltipPool {
 			k.scale(0.9),
 			k.z(1),
 		])
+		const meta = root.add([
+			k.text("", {
+				font: "unscii",
+				size: UPGRADE_TOOLTIP_META_SIZE,
+				width: UPGRADE_TOOLTIP_WIDTH,
+				align: "center",
+				lineSpacing: getUpgradeTooltipLineSpacing(
+					UPGRADE_TOOLTIP_META_SIZE
+				),
+			}),
+			k.pos(),
+			k.anchor("center"),
+			k.color(...REWARD_RARITY_COLORS[RewardRarity.Legendary]),
+			k.opacity(0),
+			k.scale(0.9),
+			k.z(1),
+		])
 		const description = root.add([
 			k.text("", {
 				font: "unscii",
-				size: 6,
+				size: UPGRADE_TOOLTIP_DESCRIPTION_SIZE,
 				width: UPGRADE_TOOLTIP_WIDTH - 12,
 				align: "center",
-				lineSpacing: getScaledLineSpacing(
-					6,
-					UPGRADE_DESCRIPTION_LINE_HEIGHT
+				lineSpacing: getUpgradeTooltipLineSpacing(
+					UPGRADE_TOOLTIP_DESCRIPTION_SIZE
 				),
+				styles: descriptionStyles,
 			}),
 			k.pos(0, 7),
 			k.anchor("center"),
@@ -832,6 +1005,7 @@ function createTrainingPreviewTooltipPool(): TrainingPreviewTooltipPool {
 			root,
 			background,
 			title,
+			meta,
 			description,
 			pickup: undefined,
 			reveal: 0,
@@ -861,17 +1035,68 @@ function createTrainingPreviewTooltipPool(): TrainingPreviewTooltipPool {
 	}
 
 	function assignTooltip(slot: TooltipSlot, pickup: TrainingPreviewPickup) {
-		const showDescription = pickup.description !== undefined
+		const resolvedDescription = resolveTrainingPreviewText(pickup.description)
+		const showDescription = resolvedDescription !== undefined
+		const showMeta = pickup.meta !== undefined
 		slot.pickup = pickup
 		slot.visible = true
 		slot.root.hidden = false
 		slot.background.hidden = false
-		slot.background.height = showDescription ? 50 : 28
 		slot.title.text = pickup.title
-		slot.title.pos.y = showDescription ? -13 : 0
 		slot.title.color = k.rgb(...pickup.textColor)
+		slot.meta.hidden = !showMeta
+		slot.meta.text = pickup.meta ?? ""
 		slot.description.hidden = !showDescription
-		slot.description.text = pickup.description ?? ""
+		slot.description.text = resolvedDescription ?? ""
+		layoutTooltip(slot)
+	}
+
+	function layoutTooltip(slot: TooltipSlot) {
+		const blocks = [
+			{
+				obj: slot.title,
+					height: measureTooltipText(
+						slot.title.text,
+						UPGRADE_TOOLTIP_TITLE_SIZE,
+						UPGRADE_TOOLTIP_WIDTH,
+						getUpgradeTooltipLineSpacing(UPGRADE_TOOLTIP_TITLE_SIZE)
+					),
+			},
+			...(slot.meta.hidden ? [] : [{
+				obj: slot.meta,
+					height: measureTooltipText(
+						slot.meta.text,
+						UPGRADE_TOOLTIP_META_SIZE,
+						UPGRADE_TOOLTIP_WIDTH,
+						getUpgradeTooltipLineSpacing(UPGRADE_TOOLTIP_META_SIZE)
+					),
+			}]),
+			...(slot.description.hidden ? [] : [{
+				obj: slot.description,
+				height: measureTooltipText(
+					slot.description.text,
+					UPGRADE_TOOLTIP_DESCRIPTION_SIZE,
+					UPGRADE_TOOLTIP_WIDTH - 12,
+					getUpgradeTooltipLineSpacing(
+						UPGRADE_TOOLTIP_DESCRIPTION_SIZE
+					),
+					descriptionStyles
+				),
+			}]),
+		]
+		const contentHeight = blocks.reduce((total, block) =>
+			total + block.height, 0) +
+			Math.max(0, blocks.length - 1) * UPGRADE_TOOLTIP_CONTENT_GAP
+		const height = Math.max(
+			UPGRADE_TOOLTIP_MIN_HEIGHT,
+			contentHeight + UPGRADE_TOOLTIP_VERTICAL_PADDING * 2
+		)
+		slot.background.height = height
+		let cursor = -height / 2 + UPGRADE_TOOLTIP_VERTICAL_PADDING
+		for (const block of blocks) {
+			block.obj.pos.y = cursor + block.height / 2
+			cursor += block.height + UPGRADE_TOOLTIP_CONTENT_GAP
+		}
 	}
 
 	function updateTooltip(slot: TooltipSlot) {
@@ -887,21 +1112,53 @@ function createTrainingPreviewTooltipPool(): TrainingPreviewTooltipPool {
 		}
 		const pickup = slot.pickup
 		if (!pickup) return
+		const description = resolveTrainingPreviewText(pickup.description) ?? ""
+		if (slot.description.text !== description) {
+			slot.description.text = description
+			layoutTooltip(slot)
+		}
 		const easedReveal = slot.reveal * slot.reveal * (3 - 2 * slot.reveal)
-		const showDescription = pickup.description !== undefined
 		slot.root.hidden = false
 		if (pickup.object.exists()) {
 			slot.root.pos = pickup.object.pos.add(
 				0,
-				(showDescription ? -49 : -39) + (1 - easedReveal) * 5
+				-(slot.background.height / 2 + 24) + (1 - easedReveal) * 5
 			)
 		}
 		slot.background.opacity = easedReveal * 0.8
 		slot.title.opacity = easedReveal
 		slot.title.scale = k.vec2(0.9 + easedReveal * 0.1)
+		slot.meta.opacity = pickup.meta ? easedReveal : 0
+		slot.meta.scale = k.vec2(0.9 + easedReveal * 0.1)
 		slot.description.opacity = easedReveal
 		slot.description.scale = k.vec2(0.9 + easedReveal * 0.1)
 	}
+}
+
+function getUpgradeTooltipLineSpacing(size: number) {
+	return getScaledLineSpacing(size, UPGRADE_TOOLTIP_LINE_HEIGHT)
+}
+
+function measureTooltipText(
+	text: string,
+	size: number,
+	width: number,
+	lineSpacing?: number,
+	styles?: Parameters<typeof k.formatText>[0]["styles"]
+) {
+	return k.formatText({
+		text,
+		font: "unscii",
+		size,
+		width,
+		align: "center",
+		lineSpacing,
+		styles,
+	}).height
+}
+
+function resolveTrainingPreviewText(source: TrainingPreviewTextSource | undefined) {
+	return typeof source === "function" ? source() : source
 }
 
 function updateTrainingPreviewReveals(
@@ -924,6 +1181,7 @@ function updateTrainingPreviewReveals(
 	if (!interactionPromptVisible) {
 		for (const pickup of pickups) {
 			if (!pickup.object.exists()) continue
+			if (!pickup.showTooltip) continue
 			const distance = pickup.object.pos.dist(playerObj.pos)
 			if (distance >= nearestDistance) continue
 			nearest = pickup

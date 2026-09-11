@@ -36,6 +36,29 @@ for (let seed = 1; seed <= 100; seed++) {
 				`${object.id} should not replace hex-grid terrain solidity`
 			)
 		}
+		for (const field of room.environment?.scrapFields ?? []) {
+			const centerCell = template.map.getCell(field.center)
+			assert(centerCell !== undefined && !centerCell.solid, `${field.id} reward cell is blocked`)
+			assert(
+				!template.spawnSlots.some((slot) => hexKey(slot) === hexKey(field.center)) &&
+				!template.contentSlots.some((slot) => hexKey(slot) === hexKey(field.center)),
+				`${field.id} reward cell overlaps generated content`
+			)
+			for (const piece of field.scrap) {
+				const cell = template.map.getCell(piece.coord)
+				assert(cell !== undefined && cell.solid, `${piece.id} is not impassable`)
+				assert(
+					cell!.tags.has("room_scrap_field") &&
+					cell!.tags.has("room_environment_structural"),
+					`${piece.id} is missing scrap-field terrain tags`
+				)
+				assert(
+					!template.spawnSlots.some((slot) => hexKey(slot) === hexKey(piece.coord)) &&
+					!template.contentSlots.some((slot) => hexKey(slot) === hexKey(piece.coord)),
+					`${piece.id} overlaps generated content`
+				)
+			}
+		}
 		for (const door of template.doors) {
 			const cell = template.map.getCell(door.coord)
 			assert(cell !== undefined && !cell.solid, `${room.id} door is blocked`)

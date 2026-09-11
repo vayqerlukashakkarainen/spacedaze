@@ -4,9 +4,11 @@ import {
 	DRIFT_SPEED_MULTIPLIER,
 	easeAngle,
 	getMovementModeSpeedMultiplier,
+	getPlayerTurretLimitDegrees,
 	getPlayerTargetModeAimPosition,
 	getSignedAngleDelta,
 	isPlayerTargetModeActive,
+	resolveStrafeInputActive,
 	PLAYER_TURRET_LIMIT_DEGREES,
 	setPlayerTargetModeAimPosition,
 	setPlayerTargetModeActive,
@@ -15,11 +17,20 @@ import {
 import { calculateInterceptTime } from "../player/targetInterceptService"
 
 assert.equal(PLAYER_TURRET_LIMIT_DEGREES, 45)
+assert.equal(getPlayerTurretLimitDegrees(0), 45)
+assert.equal(getPlayerTurretLimitDegrees(1), 60)
+assert.equal(getPlayerTurretLimitDegrees(3), 90)
+assert.equal(getPlayerTurretLimitDegrees(6), 135)
+assert.equal(getPlayerTurretLimitDegrees(99), 135)
 assert.equal(DRIFT_SPEED_MULTIPLIER, 0.6)
 assert.equal(getMovementModeSpeedMultiplier(1.15, 1, false), 1.15)
 assert.equal(getMovementModeSpeedMultiplier(1.15, 1, true), 0.6)
 assert.equal(getMovementModeSpeedMultiplier(1, 1.15, false), 1)
 assert.equal(getMovementModeSpeedMultiplier(1, 1.15, true), 0.69)
+assert.equal(resolveStrafeInputActive("hold", true, false), true)
+assert.equal(resolveStrafeInputActive("hold", false, true), false)
+assert.equal(resolveStrafeInputActive("toggle", false, true), true)
+assert.equal(resolveStrafeInputActive("toggle", true, false), false)
 
 setPlayerTargetModeActive(true)
 assert.equal(isPlayerTargetModeActive(), true)
@@ -41,6 +52,10 @@ assert.equal(shouldTurnHullForStationaryAim(0, 44, true), false)
 assert.equal(shouldTurnHullForStationaryAim(0, 46, true), true)
 assert.equal(shouldTurnHullForStationaryAim(0, 90, false), false)
 assert.equal(shouldTurnHullForStationaryAim(350, 50, true), true)
+assert.equal(shouldTurnHullForStationaryAim(0, 89, true, 90), false)
+assert.equal(shouldTurnHullForStationaryAim(0, 91, true, 90), true)
+assert.equal(shouldTurnHullForStationaryAim(350, 100, true, 120), false)
+assert.equal(shouldTurnHullForStationaryAim(350, 120, true, 120), true)
 
 const easedAcrossWrap = easeAngle(350, 10, 4, 0.25)
 assert.ok(easedAcrossWrap > 350 && easedAcrossWrap < 370)

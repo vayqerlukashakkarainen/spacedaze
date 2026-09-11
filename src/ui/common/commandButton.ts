@@ -19,6 +19,7 @@ export interface UiCommandButtonProps {
 	selected?: boolean
 	danger?: boolean
 	disabled?: boolean
+	canInteract?: () => boolean
 }
 
 export function createUiCommandButton(
@@ -70,10 +71,12 @@ export function createUiCommandButton(
 
 	if (!disabled) {
 		button.onClick(() => {
+			if (props.canInteract && !props.canInteract()) return
 			playUiClickSound()
 			props.onClick()
 		})
 		button.onHover(() => {
+			if (props.canInteract && !props.canInteract()) return
 			uiState.isOverUI = true
 			button.color = k.rgb(...(emphasized ? UI_COLORS.text : UI_COLORS.panelHover))
 			playUiHoverSound()

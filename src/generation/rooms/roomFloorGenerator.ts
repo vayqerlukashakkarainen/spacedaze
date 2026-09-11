@@ -15,6 +15,7 @@ import {
 import type { FloorThemeId } from "../../levels/floorThemes/floorThemeDirectory"
 import { createWakeEncounterEnemies } from "../../services/enemies/wakeEncounterService"
 import type {
+	RoomEnemyArrivalMode,
 	RoomEncounterPlan,
 	RoomFloor,
 	RoomFloorGenerationOptions,
@@ -51,23 +52,24 @@ export function generateRoomFloor(
 	const connections = connectAdjacentRooms(coords)
 	const distances = calculateDistances(coords, connections)
 	const exitIndex = selectFarthestRoom(coords, distances)
-	const floorPosition = getFloorPositionForDepth(normalizedDepth)
 	const assignment = assignRoomKinds(
 		coords,
 		connections,
 		distances,
 		exitIndex,
 		options.milestoneBoss === true,
-		floorPosition.subfloor >= 2,
+		options.endless !== true,
 		options.lassoComponentAvailable === true,
+		options.lassoTrialAvailable === true,
 		options.scrapCircuitAvailable === true,
+		options.thrusterPuzzleAvailable === true,
 		options.cargoPuzzleAvailable === true,
 		rng
 	)
 	const kinds = assignment.kinds
 	if (options.endless) {
 		kinds.fill("combat")
-		kinds[0] = "start"
+		kinds[0] = "chill"
 	}
 	const maxDistance = Math.max(...distances)
 	const themeId = getFloorThemeIdForDepth(normalizedDepth)
@@ -84,9 +86,13 @@ export function generateRoomFloor(
 			distanceFromStart: distances[index],
 			connections: connections[index].map((neighborIndex) => roomId(coords[neighborIndex])),
 			state: index === 0 ? "active" : connections[index].includes(0) ? "discovered" : "unseen",
+			intelLevel: index === 0 ? 3 : connections[index].includes(0) ? 1 : 0,
 			contentCompleted: false,
 			keyRequired: kind === "reward" || kind === "shop" || kind === "droneShop",
 			keyUnlocked: false,
+			bossId: kind === "boss"
+				? selectBossId(themeId, roomSeed)
+				: undefined,
 			encounter: roomUsesStandardEncounter(kind)
 				? createEncounterPlan(
 					roomSeed,
@@ -100,8 +106,44 @@ export function generateRoomFloor(
 		}
 	})
 
+	const dangerousRooms = rng.shuffle(rooms.filter((room) =>
+		room.kind === "combat" && room.distanceFromStart >= 2
+	)).slice(0, rooms.length >= 28 ? 2 : 1)
+	for (let index = 0; index < dangerousRooms.length; index++) {
+		const room = dangerousRooms[index]
+		room.dangerLevel = 3
+		room.dangerReward = index % 2 === 0 ? "doubleChest" : "salvageBurst"
+		if (room.encounter) {
+			room.encounter.difficultyBudget = Math.round(room.encounter.difficultyBudget * 1.8)
+			room.encounter.rewardTier = 3
+			for (const enemy of room.encounter.enemies) enemy.elite = true
+			const reinforcementCandidates = room.encounter.enemies.filter((enemy) =>
+				enemy.enemyId !== "wake-scrappers-hut"
+			)
+			const reinforcements = reinforcementCandidates.slice(
+				0,
+				Math.min(3, reinforcementCandidates.length)
+			)
+			for (let extra = 0; extra < reinforcements.length; extra++) {
+				const source = reinforcements[extra]
+				room.encounter.enemies.push({
+					...source,
+					id: `${source.id}-danger-${extra}`,
+					wave: source.wave + 1,
+					spawnSlot: extra,
+					defeated: false,
+					arrivalMode: "phaseJump",
+				})
+			}
+		}
+	}
+
 	for (const room of rooms) {
-		room.environment = planRoomEnvironment(room, themeId)
+		room.environment = planRoomEnvironment(
+			room,
+			themeId,
+			getFloorPositionForDepth(normalizedDepth).subfloor
+		)
 	}
 
 	return {
@@ -125,6 +167,16 @@ export function generateRoomFloor(
 			}]
 			: [],
 	}
+}
+
+function selectBossId(themeId: FloorThemeId, seed: number) {
+	if (themeId !== "wake-scrap-district") return "federation-dreadnought" as const
+	const wakeBosses = [
+		"federation-dreadnought",
+		"wake-yardmaster",
+		"wake-last-beacon",
+	] as const
+	return wakeBosses[Math.abs(seed) % wakeBosses.length]
 }
 
 export function extendEndlessRoomFloor(
@@ -207,13 +259,21 @@ export function extendEndlessRoomFloor(
 				neighbor.seed
 			)
 		}
-		room.environment = planRoomEnvironment(room, floor.themeId)
+		room.environment = planRoomEnvironment(
+			room,
+			floor.themeId,
+			getFloorPositionForDepth(floor.depth).subfloor
+		)
 		floor.rooms.push(room)
 		floor.exitRoomId = room.id
 		addedRooms.push(room)
 	}
 
-	source.environment = planRoomEnvironment(source, floor.themeId)
+	source.environment = planRoomEnvironment(
+		source,
+		floor.themeId,
+		getFloorPositionForDepth(floor.depth).subfloor
+	)
 	return addedRooms
 }
 
@@ -223,11 +283,16 @@ function growRoomGraph(targetCount: number, rng: SeededRNG) {
 	const degrees = [0]
 
 	while (coords.length < targetCount) {
+		const origin = coords[0]
+		const canExpandTo = (coord: HexCoord) =>
+			!occupied.has(hexKey(coord)) &&
+			(coords.length === 1 || hexDistance(coord, origin) > 1)
 		const parentCandidates = coords
 			.map((coord, index) => ({ coord, index }))
 			.filter(({ coord, index }) =>
+				(coords.length === 1 || index !== 0) &&
 				degrees[index] < MAX_ROOM_DEGREE &&
-				hexNeighbors(coord).some((neighbor) => !occupied.has(hexKey(neighbor)))
+				hexNeighbors(coord).some(canExpandTo)
 			)
 		if (parentCandidates.length === 0) break
 
@@ -239,7 +304,7 @@ function growRoomGraph(targetCount: number, rng: SeededRNG) {
 		)
 		const parent = rng.choice(weightedParents)
 		const openNeighbors = rng.shuffle(
-			hexNeighbors(parent.coord).filter((neighbor) => !occupied.has(hexKey(neighbor)))
+			hexNeighbors(parent.coord).filter(canExpandTo)
 		)
 		const selected = openNeighbors[0]
 		if (!selected) continue
@@ -301,12 +366,14 @@ function assignRoomKinds(
 	milestoneBoss: boolean,
 	allowMiniBoss: boolean,
 	allowLassoComponent: boolean,
+	allowLassoTrial: boolean,
 	allowScrapCircuit: boolean,
+	allowThrusterPuzzle: boolean,
 	allowCargoPuzzle: boolean,
 	rng: SeededRNG
 ) {
 	const kinds = coords.map((): RoomFloorKind => "combat")
-	kinds[0] = "start"
+	kinds[0] = "chill"
 	kinds[exitIndex] = milestoneBoss ? "boss" : "exit"
 	const candidates = coords
 		.map((_, index) => index)
@@ -354,6 +421,14 @@ function assignRoomKinds(
 	)
 	const droneShop = takeRoom(true, droneShopCandidates)
 	if (droneShop !== undefined) kinds[droneShop] = "droneShop"
+	if (allowThrusterPuzzle) {
+		const thrusterPuzzle = takeRoom(true)
+		if (thrusterPuzzle !== undefined) kinds[thrusterPuzzle] = "thrusterPuzzle"
+	}
+	if (allowLassoTrial) {
+		const lassoTrial = takeRoom(true)
+		if (lassoTrial !== undefined) kinds[lassoTrial] = "lassoTrial"
+	}
 	if (allowLassoComponent && rng.nextBool(0.35)) {
 		const lassoComponent = takeRoom(true)
 		if (lassoComponent !== undefined) kinds[lassoComponent] = "lassoComponent"
@@ -472,15 +547,33 @@ function createEncounterPlan(
 		tier,
 		difficultyBudget,
 		rewardTier: clamp(1 + Math.floor((tier - 1) / 2), 1, 3),
-		enemies: enemyIds.map((enemyId, index) => ({
-			id: `enemy-${seed}-${index}`,
-			enemyId,
-			wave: Math.floor(index / maxWaveSize),
-			spawnSlot: index % maxWaveSize,
-			elite: tier >= 2 && rng.nextBool(ELITE_CHANCE_BY_TIER[tier]),
-			defeated: false,
-		})),
+		enemies: enemyIds.map((enemyId, index) => {
+			const wave = Math.floor(index / maxWaveSize)
+			return {
+				id: `enemy-${seed}-${index}`,
+				enemyId,
+				wave,
+				spawnSlot: index % maxWaveSize,
+				elite: tier >= 2 && rng.nextBool(ELITE_CHANCE_BY_TIER[tier]),
+				defeated: false,
+				arrivalMode: selectEnemyArrivalMode(enemyId, wave, index, rng),
+			}
+		}),
 	}
+}
+
+function selectEnemyArrivalMode(
+	enemyId: ProgressionEnemyId,
+	wave: number,
+	index: number,
+	rng: SeededRNG
+): RoomEnemyArrivalMode {
+	if (enemyId === "wake-scrappers-hut") return "resident"
+	if (wave > 0) return "phaseJump"
+	if (enemyId === "mine-layer" || enemyId === "breach-crawler") {
+		return "resident"
+	}
+	return index === 0 || rng.nextBool(0.5) ? "resident" : "phaseJump"
 }
 
 function selectTemplateId(kind: RoomFloorKind, degree: number, seed: number) {

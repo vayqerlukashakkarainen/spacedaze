@@ -1,7 +1,7 @@
 import type { HubFacilityId } from "./hubProgressService"
 
-export const HUB_HALF_WIDTH = 1400
-export const HUB_HALF_HEIGHT = 1140
+export const HUB_HALF_WIDTH = 1700
+export const HUB_HALF_HEIGHT = 1350
 
 export const HUB_FACILITY_OFFSETS: Readonly<
 	Record<HubFacilityId, readonly [number, number]>

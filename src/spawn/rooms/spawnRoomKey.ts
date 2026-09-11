@@ -48,6 +48,7 @@ export function spawnRoomKeyPickup(
 		k.circle(17, { fill: false }),
 		k.anchor("center"),
 		k.opacity(0.7),
+		k.scale(1),
 		k.outline(1, k.rgb(...UI_COLORS.warning)),
 		k.layer(layers.gameEffects),
 		k.z(-1),

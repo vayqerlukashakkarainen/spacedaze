@@ -4,6 +4,11 @@ import { updatePlayerHealthBar } from "../../ui/gameUi"
 import { registerBatchedEntityUpdate } from "../core/entityUpdateService"
 import { recordTelemetryHealing } from "../runs/runTelemetryService"
 import { spawnHealingNumber } from "../../spawn/spawnDamageNumber"
+import { session } from "../../player"
+import {
+	getPilotProtocolRank,
+	isPilotProtocolActive,
+} from "../hub/pilotProtocolService"
 
 const HEALTH_COLOR = [70, 255, 120] as const
 const HEALTH_PULSE_DURATION = 0.6
@@ -18,8 +23,16 @@ export function recoverPlayerHealth(target: GameObj, amount: number) {
 	) return 0
 
 	const previousHealth = target.hp
+	const overflow = Math.max(0, previousHealth + amount - target.maxHP)
 	target.hp = Math.min(target.maxHP, target.hp + amount)
 	const recovered = target.hp - previousHealth
+	if (overflow > 0 && isPilotProtocolActive("repairPlating")) {
+		const armorLimit = getPilotProtocolRank("repairPlating")
+		session.scrapArmorCharges = Math.min(
+			armorLimit,
+			session.scrapArmorCharges + Math.max(1, Math.floor(overflow / 10))
+		)
+	}
 	if (recovered <= 0) return 0
 
 	updatePlayerHealthBar(target.hp)

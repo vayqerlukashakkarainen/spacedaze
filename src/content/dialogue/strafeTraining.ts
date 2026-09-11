@@ -29,7 +29,8 @@ export const strafeTrainingDialogue = defineDialogue({
 			},
 		],
 	},
-	tutorial(strafeBinding: string) {
+	tutorial(strafeBinding: string, inputMode: "hold" | "toggle" = "hold") {
+		const action = inputMode === "toggle" ? "Tap" : "Hold"
 		return defineDialogue({
 			explanation: [
 				{
@@ -38,7 +39,7 @@ export const strafeTrainingDialogue = defineDialogue({
 				},
 				{
 					speaker: "BURT",
-					text: `Hold ${strafeBinding} for strafe control. Your hull drifts, but your weapons stay on the cursor.`,
+					text: `${action} ${strafeBinding} for strafe control. Your hull drifts, but your weapons stay on the cursor.`,
 				},
 				{
 					speaker: "BURT",
@@ -46,7 +47,7 @@ export const strafeTrainingDialogue = defineDialogue({
 				},
 				{
 					speaker: "BURT",
-					text: `Try it on me. Hold ${strafeBinding}, keep your cursor on me, and fire. I reinforced the important parts.`,
+					text: `Try it on me. ${action} ${strafeBinding}, keep your cursor on me, and fire. I reinforced the important parts.`,
 				},
 			],
 			targetPracticeComplete: [

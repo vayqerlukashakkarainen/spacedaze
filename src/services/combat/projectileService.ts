@@ -9,6 +9,7 @@ import {
 import { audioService } from "../audio/audioService";
 import { gameSoundService } from "../audio/gameSoundService"
 import { timescale } from "../../comp/timescale";
+import { snareable } from "../../comp/snareable";
 import { playerObj, projectiles } from "../../game";
 import { tags } from "../../tags";
 import { applyPlayerStatusEffect } from "../player/playerStatusEffectService";
@@ -46,6 +47,7 @@ import type {
 	FragmentModifier,
 	GravityModifier,
 	GrowthModifier,
+	HitComboModifier,
 	ImpactModifier,
 	KnockbackModifier,
 	LifestealModifier,
@@ -56,6 +58,7 @@ import type {
 	PiercingModifier,
 	ProximityModifier,
 	ProjectileConfig,
+	ProjectileModifierVisualKey,
 	ReturnModifier,
 	SeekModifier,
 	SlowModifier,
@@ -83,6 +86,15 @@ import {
 } from "../../upg";
 import { applyDamage } from "./damageService";
 import {
+	refreshCombatStatusTint,
+	setCombatStatusTint,
+} from "./combatStatusTintService"
+import {
+	ensurePaintTargetVisual,
+	showGravityPullTargetVisual,
+	spawnExecutionTargetFeedback,
+} from "./combatModifierTargetVisualService"
+import {
 	applyEnemyPartDamageFlash,
 	applyEnemyProjectileImpact,
 } from "./combatImpactService";
@@ -96,7 +108,6 @@ import { profileSection } from "../debug/frameProfilerService";
 import { runLoop } from "../runs/runLoopService";
 import { registerBatchedEntityUpdate } from "../core/entityUpdateService";
 import {
-	findClosestSpatial,
 	findSpatialNearby,
 	querySpatialNearby,
 } from "../core/runtimeSpatialIndexService";
@@ -123,12 +134,16 @@ import { PROJECTILE_VISUALS } from "../../visuals/projectileVisualCatalog";
 import { updateRocketGuidance } from "./rocketGuidanceService"
 import { applyEnemyEmpDisruption } from "../enemies/enemyEmpService"
 import type { CombatCredit } from "../progression/combatCredit"
+import { resolveProjectileModifierColors } from "../../visuals/projectileModifierVisualCatalog"
+import type {
+	DamageableCombatTarget,
+	PositionedCombatTarget,
+} from "./combatTarget"
 
 const DEFAULT_PROJECTILE_PROC_BUDGET = 32;
 const PLAYER_PROJECTILE_SCALE = PROJECTILE_VISUALS.player.worldScale;
 const PLAYER_BULLET_SCALE_MULTIPLIER = 2;
 const STANDARD_SCALE_PROJECTILE_SPRITES = new Set([
-	"impact_driver_arc_projectile",
 	"plasma_mortar_projectile",
 ]);
 const ENEMY_PROJECTILE_SPEED_MULTIPLIER = 0.8;
@@ -136,6 +151,38 @@ const KNOCKBACK_PUSH_DURATION = 0.32;
 const KNOCKBACK_FULL_STEER_STRENGTH = 60;
 const STUN_TIMESCALE_MODIFIER_ID = -73_502;
 let projectileUpdateController: GameObj | undefined;
+const activeMineGroups = new Map<string, GameObj[]>();
+const activeMineDeploymentSequences: MineDeploymentSequence[] = [];
+
+export function placeProjectileInFrontOfMuzzle(
+	config: ProjectileConfig,
+	muzzlePos: Vec2,
+	gap = 0
+) {
+	const direction = config.dir.len() > 0.001
+		? config.dir.unit()
+		: k.Vec2.fromAngle(config.rotation - 90)
+	const spriteHeight = k.getSprite(config.sprite)?.data?.height ?? 0
+	const halfLength = spriteHeight * getProjectileVisualScale(config) *
+		(config.visualLengthScale ?? 1) / 2
+	config.launchSweepOrigin = muzzlePos.clone()
+	config.pos = muzzlePos.add(direction.scale(halfLength + Math.max(0, gap)))
+}
+
+function getProjectileVisualScale(config: ProjectileConfig) {
+	const isPlayerProjectile = config.tags.includes(tags.friendly)
+	const playerBulletScaleMultiplier =
+		isPlayerProjectile &&
+		config.tags.includes(tags.blaster) &&
+		!STANDARD_SCALE_PROJECTILE_SPRITES.has(config.sprite)
+			? PLAYER_BULLET_SCALE_MULTIPLIER
+			: 1
+	return isPlayerProjectile
+		? PLAYER_PROJECTILE_SCALE *
+			(config.visualScale ?? 1) *
+			playerBulletScaleMultiplier
+		: PROJECTILE_VISUALS.enemy.worldScale * (config.visualScale ?? 1)
+}
 
 interface KnockbackImpulse {
 	direction: Vec2;
@@ -144,14 +191,105 @@ interface KnockbackImpulse {
 	steerAmount: number;
 }
 
+interface MineDeploymentSequence {
+	config: ProjectileConfig;
+	mine: MineModifier;
+	damage: number;
+	remaining: number;
+	elapsed: number;
+	nextPlacementAt: number;
+	placementInterval: number;
+}
+
 interface ChainLightningRuntime extends ChainModifier {
 	chainedTargets: Set<number>;
 	chainsUsed: number;
 	combatCredit?: CombatCredit;
 }
 
+function resolveLoadedModifierRolls(config: ProjectileConfig) {
+	if (!config.loadedModifierVisuals?.length) return config;
+
+	const resolvedConfig: ProjectileConfig = {
+		...config,
+		loadedModifierVisuals: [...config.loadedModifierVisuals],
+	};
+	const resolveChanceModifier = (
+		modifier: ProjectileModifierVisualKey,
+		chance: number | undefined,
+		onSuccess: () => void,
+		onFailure: () => void
+	) => {
+		if (!resolvedConfig.loadedModifierVisuals?.includes(modifier)) return;
+		if (chance !== undefined && k.chance(chance)) {
+			onSuccess();
+			return;
+		}
+		onFailure();
+		resolvedConfig.loadedModifierVisuals =
+			resolvedConfig.loadedModifierVisuals.filter(
+				(loadedModifier) => loadedModifier !== modifier
+			);
+	};
+
+	resolveChanceModifier(
+		"stun",
+		resolvedConfig.stun?.chance,
+		() => {
+			resolvedConfig.stun = { ...resolvedConfig.stun!, chance: 1 };
+		},
+		() => {
+			resolvedConfig.stun = undefined;
+		}
+	);
+	resolveChanceModifier(
+		"emp",
+		resolvedConfig.emp?.chance,
+		() => {
+			resolvedConfig.emp = { ...resolvedConfig.emp!, chance: 1 };
+		},
+		() => {
+			resolvedConfig.emp = undefined;
+		}
+	);
+	resolveChanceModifier(
+		"mine",
+		resolvedConfig.mine?.chance,
+		() => {
+			resolvedConfig.mine = { ...resolvedConfig.mine!, chance: 1 };
+		},
+		() => {
+			resolvedConfig.mine = undefined;
+		}
+	);
+
+	return resolvedConfig;
+}
+
 export function spawnProjectile(config: ProjectileConfig): GameObj {
+	config = resolveLoadedModifierRolls(config);
+	const launchSweepOrigin = config.launchSweepOrigin?.clone()
+	config.launchSweepOrigin = undefined
 	config.procState ??= { remaining: DEFAULT_PROJECTILE_PROC_BUDGET };
+	const friendlyProjectile = config.tags.includes(tags.friendly);
+	const modifierColors = friendlyProjectile
+		? resolveProjectileModifierColors(config)
+		: [];
+	const modifierColor = modifierColors[0];
+		const projectileTint = modifierColor
+			? k.rgb(modifierColor[0], modifierColor[1], modifierColor[2])
+		: friendlyProjectile
+			? k.WHITE
+			: config.tint ??
+			(config.tags.includes(tags.enemy) ? k.rgb(255, 150, 150) : k.WHITE);
+	if (friendlyProjectile) {
+		config.tint = projectileTint;
+		config.effectTint = projectileTint;
+	}
+	const shaderColors = modifierColors
+		.slice(0, 4)
+		.map((color) => k.rgb(color[0], color[1], color[2]));
+	const modifierBlendPhase = k.rand(0, 4);
 	// Calculate final speed
 	const hostileSpeedMultiplier = config.tags.includes(tags.enemy)
 		? ENEMY_PROJECTILE_SPEED_MULTIPLIER
@@ -161,17 +299,7 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 		(config.speedMultiplier ?? 1) *
 		hostileSpeedMultiplier;
 	const damagesDestructibleWalls = config.tags.includes(tags.friendly);
-	const playerBulletScaleMultiplier =
-		config.tags.includes(tags.friendly) &&
-		config.tags.includes(tags.blaster) &&
-		!STANDARD_SCALE_PROJECTILE_SPRITES.has(config.sprite)
-			? PLAYER_BULLET_SCALE_MULTIPLIER
-			: 1;
-	const projectileScale = damagesDestructibleWalls
-		? PLAYER_PROJECTILE_SCALE *
-			(config.visualScale ?? 1) *
-			playerBulletScaleMultiplier
-		: PROJECTILE_VISUALS.enemy.worldScale * (config.visualScale ?? 1);
+	const projectileScale = getProjectileVisualScale(config)
 	const projectileLengthScale = config.visualLengthScale ?? 1;
 
 	// Build component list
@@ -182,11 +310,20 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 		...(config.persistOffscreen ? [] : [k.offscreen({ destroy: true })]),
 		k.anchor("center"),
 		k.sprite(config.sprite),
-		k.color(
-			config.tint ??
-				(config.tags.includes(tags.enemy) ? k.rgb(255, 150, 150) : k.WHITE)
-		),
-		...(config.visualWobble !== undefined
+		k.color(shaderColors.length > 0 ? k.WHITE : projectileTint),
+		...(shaderColors.length > 0
+			? [
+				k.shader("projectileModifierBlend", () => ({
+					u_time: k.time(),
+					u_phase: modifierBlendPhase,
+					u_colorCount: shaderColors.length,
+					u_colorA: shaderColors[0],
+					u_colorB: shaderColors[1] ?? shaderColors[0],
+					u_colorC: shaderColors[2] ?? shaderColors[0],
+					u_colorD: shaderColors[3] ?? shaderColors[0],
+				})),
+			]
+			: config.visualWobble !== undefined
 			? [
 				k.shader("ringDistortion", () => ({
 					u_time: k.time(),
@@ -200,7 +337,8 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 			speed: finalSpeed,
 			dir: config.dir,
 			lifetime: 0,
-			previousPos: config.pos.clone(),
+			previousPos: launchSweepOrigin ?? config.pos.clone(),
+			launchSweepOrigin,
 		},
 		...[...config.tags, tags.projectile, tags.gameLoop],
 	];
@@ -242,12 +380,20 @@ export function spawnProjectile(config: ProjectileConfig): GameObj {
 	applyExecutionModifier(proj, config.execution);
 	applyPaintModifier(proj, config.paint);
 	applyMineModifier(proj, config.mine);
+	applyHitComboModifier(proj, config.hitCombo);
+	proj.componentDamageMultiplier = config.componentDamageMultiplier;
+	if (config.impactFragment) {
+		proj.impactFragmentConfig = { ...config.impactFragment };
+	}
 	proj.projectileConfig = config;
 	if (proj.chainConfig) proj.chainConfig.combatCredit = config.combatCredit;
 	proj.procState = config.procState;
 	proj.damagesDestructibleWalls = damagesDestructibleWalls;
 	proj.projectileVisualScale = projectileScale;
 	proj.projectileVisualLengthScale = projectileLengthScale;
+	proj.projectileVisualPulsePhase = config.visualPulse
+		? config.visualPulse.phase ?? k.rand(0, Math.PI * 2)
+		: 0;
 
 	// Play fire sound
 	if (config.fireSound) {
@@ -313,6 +459,7 @@ function ensureProjectileUpdateController() {
 		if (!runLoop.isEnabled()) updateProjectileBatch();
 	});
 	controller.onDestroy(() => {
+		activeMineDeploymentSequences.length = 0;
 		if (projectileUpdateController?.id === controller.id) {
 			projectileUpdateController = undefined;
 		}
@@ -321,6 +468,7 @@ function ensureProjectileUpdateController() {
 
 export function updateProjectileBatch() {
 	profileSection("projectiles", () => {
+		updateMineDeploymentSequences();
 		const lastProjectileIndex = projectiles.length - 1;
 		for (let index = lastProjectileIndex; index >= 0; index--) {
 			const proj = projectiles[index];
@@ -335,7 +483,8 @@ function updateProjectile(proj: GameObj) {
 	const activeGrid = config.ignoreWorldCollision
 		? undefined
 		: gridRegistry.get(ACTIVE_RUN_GRID_KEY);
-	const previousPos = proj.pos.clone();
+	const previousPos = proj.launchSweepOrigin?.clone() ?? proj.pos.clone();
+	proj.launchSweepOrigin = undefined
 	proj.previousPos = previousPos;
 	proj.lifetime += k.dt() * proj.getTimescale();
 	if (config.flashLikeThruster) {
@@ -395,20 +544,41 @@ function updateProjectile(proj: GameObj) {
 		}
 	}
 	if (proj.wiggleConfig?.trailPoints) updateWiggleTrail(proj);
-	const wallCollision = activeGrid
+	const wallCollision = activeGrid &&
+		!proj.returnConfig?.returning &&
+		!proj.returnConfig?.returned
 		? findSolidCellCollision(activeGrid, previousPos, proj.pos)
 		: undefined;
 	if (wallCollision) {
+		const explosiveWallImpact = config.combatCredit?.explosive === true &&
+			proj.splashDamage !== undefined &&
+			proj.splashRadius !== undefined;
 		let hitDestructibleWall = false;
 		if (proj.damagesDestructibleWalls) {
 			hitDestructibleWall = damageDestructibleWall(
 				ACTIVE_RUN_GRID_KEY,
 				wallCollision.coord,
 				Math.max(proj.impactDamage ?? proj.splashDamage ?? 1, 1),
-				wallCollision.safePos
+				wallCollision.safePos,
+				{ explosive: config.combatCredit?.explosive === true }
 			) !== undefined;
 		}
 		proj.pos = wallCollision.safePos;
+		config.onWorldCollision?.(proj, {
+			position: wallCollision.safePos.clone(),
+			normal: wallCollision.normal.clone(),
+		});
+		if (!proj.exists()) return;
+		if (explosiveWallImpact) {
+			proj.splashResolvedOnImpact = true;
+			createProjectileExplosion(proj, {
+				pos: proj.pos,
+				radius: proj.splashRadius,
+				damage: proj.splashDamage,
+				damageFalloff: proj.splashFalloff ?? 0,
+				falloffDistance: proj.splashFalloffDist ?? 0,
+			});
+		}
 		if (
 			!tryBounceProjectile(
 				proj,
@@ -714,7 +884,6 @@ function applyStunModifier(proj: GameObj, config?: StunModifier) {
 function applyEmpModifier(proj: GameObj, config?: EmpModifier) {
 	if (!config || !k.chance(config.chance)) return
 	proj.empConfig = { ...config }
-	proj.color = k.rgb(75, 205, 255)
 }
 
 function applyKnockbackModifier(proj: GameObj, config?: KnockbackModifier) {
@@ -801,6 +970,11 @@ function applyMineModifier(proj: GameObj, config?: MineModifier) {
 	};
 }
 
+function applyHitComboModifier(proj: GameObj, config?: HitComboModifier) {
+	if (!config) return;
+	proj.hitComboConfig = { ...config };
+}
+
 // Update Functions
 
 function updateTrail(proj: GameObj) {
@@ -881,6 +1055,7 @@ function setSeekingTarget(proj: GameObj, target: GameObj) {
 
 function updateMovement(proj: GameObj) {
 	let speed = proj.speed * proj.getTimescale();
+	const renderScale = getProjectileRenderScale(proj);
 	if (
 		proj.targetUnit &&
 		proj.targetTags &&
@@ -933,8 +1108,8 @@ function updateMovement(proj: GameObj) {
 			speed,
 			correctedDesiredRot + wiggleAngle,
 			k.vec2(
-				proj.projectileVisualScale,
-				proj.projectileVisualScale * proj.projectileVisualLengthScale
+				renderScale,
+				renderScale * proj.projectileVisualLengthScale
 			)
 		);
 	} else {
@@ -958,11 +1133,21 @@ function updateMovement(proj: GameObj) {
 			proj.angle,
 			proj.angle,
 			k.vec2(
-				proj.projectileVisualScale,
-				proj.projectileVisualScale * proj.projectileVisualLengthScale
+				renderScale,
+				renderScale * proj.projectileVisualLengthScale
 			)
 		);
 	}
+}
+
+function getProjectileRenderScale(proj: GameObj) {
+	const pulse = (proj.projectileConfig as ProjectileConfig).visualPulse;
+	if (!pulse) return proj.projectileVisualScale;
+	return proj.projectileVisualScale * (
+		1 + Math.cos(
+			proj.lifetime * pulse.frequency + proj.projectileVisualPulsePhase
+		) * pulse.amplitude
+	);
 }
 
 function getWiggleAngle(proj: GameObj) {
@@ -1156,6 +1341,9 @@ function updateGravity(proj: GameObj) {
 		targetTags: config.targetTags,
 		targetTagMode: "and",
 		excludeIds: [proj.id],
+		onPull: (target, sample) => {
+			showGravityPullTargetVisual(target, sample.strength)
+		},
 	});
 }
 
@@ -1221,10 +1409,8 @@ function detonateMine(proj: GameObj) {
 		damageFalloff: proj.splashFalloff ?? 0.35,
 		falloffDistance: proj.splashFalloffDist ?? 0.5,
 		persistentSmoke: true,
+		visualStyle: "explosiveBarrel",
 	});
-	debreeRocketEmitter.emitter.position = proj.pos;
-	debreeRocketEmitter.emitter.direction = proj.angle - 90;
-	debreeRocketEmitter.emit(6);
 	spawnShrapnelGardenVolley(proj)
 	audioService.playSound(randomExplosion(), { volume: subSoundVolume });
 	k.shake(4);
@@ -1275,7 +1461,55 @@ function updateMinePlacement(proj: GameObj, config: ProjectileConfig) {
 
 	mine.placementChecked = true;
 	if (!k.chance(mine.chance)) return false;
-	return deployMine(proj, config);
+	const placementCount = Math.max(1, Math.floor(mine.placementCount ?? 1));
+	const placementDuration = Math.max(0, mine.placementDuration ?? 0);
+	const position = mine.followPlayer && playerObj?.exists()
+		? playerObj.pos.clone()
+		: proj.pos.clone();
+	const damage = proj.impactDamage ?? proj.splashDamage ?? 1;
+	const deployed = deployMine(position, damage, config, mine);
+	if (!deployed || placementCount <= 1) return deployed;
+	const placementInterval = placementDuration / (placementCount - 1);
+	activeMineDeploymentSequences.push({
+		config,
+		mine: { ...mine },
+		damage,
+		remaining: placementCount - 1,
+		elapsed: 0,
+		nextPlacementAt: placementInterval,
+		placementInterval,
+	});
+	return true;
+}
+
+function updateMineDeploymentSequences() {
+	const delta = k.dt() * (
+		typeof playerObj?.getTimescale === "function"
+			? playerObj.getTimescale()
+			: 1
+	);
+	for (let index = activeMineDeploymentSequences.length - 1; index >= 0; index--) {
+		const sequence = activeMineDeploymentSequences[index];
+		sequence.elapsed += delta;
+		if (sequence.elapsed < sequence.nextPlacementAt) continue;
+		if (!playerObj?.exists()) {
+			activeMineDeploymentSequences.splice(index, 1);
+			continue;
+		}
+		const position = sequence.mine.followPlayer
+			? playerObj.pos.clone()
+			: sequence.config.pos.clone();
+		if (!deployMine(position, sequence.damage, sequence.config, sequence.mine)) {
+			activeMineDeploymentSequences.splice(index, 1);
+			continue;
+		}
+		sequence.remaining--;
+		if (sequence.remaining <= 0) {
+			activeMineDeploymentSequences.splice(index, 1);
+			continue;
+		}
+		sequence.nextPlacementAt += sequence.placementInterval;
+	}
 }
 
 function updateEcho(proj: GameObj, config: ProjectileConfig) {
@@ -1306,13 +1540,45 @@ function updateEcho(proj: GameObj, config: ProjectileConfig) {
 
 function updateReturning(proj: GameObj) {
 	const config = proj.returnConfig;
-	if (config.returned || proj.lifetime < config.delay) return;
+	if (config.returned) {
+		if (!config.trackPlayer || !playerObj?.exists()) return;
+		const towardPlayer = playerObj.pos.sub(proj.pos);
+		const arrivalDistance = Math.max(
+			4,
+			proj.speed * k.dt() * velocityScale() * proj.getTimescale()
+		)
+		if (towardPlayer.len() <= arrivalDistance) {
+			proj.pos = playerObj.pos.clone()
+			proj.suppressDestroyFlash = true;
+			proj.suppressOnDestroyEffects = true;
+			k.destroy(proj);
+			return;
+		}
+		proj.dir = towardPlayer.unit();
+		proj.angle = k.rad2deg(k.Vec2.toAngle(proj.dir)) + 90;
+		return;
+	}
+	const hasPendingBounces = (proj.bouncesRemaining ?? 0) > 0
+	if (
+		proj.lifetime < config.delay &&
+		(!config.afterBounces || hasPendingBounces)
+	) return;
 
 	if (!config.returning) {
 		config.returning = true;
+		if (config.afterBounces) proj.bouncesRemaining = 0;
 		proj.speed *= config.speedMultiplier;
 		proj.targetUnit = null;
 		if (proj.hitTargets) proj.hitTargets.clear();
+		if (proj.lifespanDuration && playerObj?.exists()) {
+			const turnDuration = Math.max(0.08, config.turnDuration ?? 0.28)
+			const returnTravelDuration = proj.pos.dist(playerObj.pos) /
+				Math.max(1, proj.speed)
+			proj.lifespanDuration = Math.max(
+				proj.lifespanDuration,
+				proj.lifetime + turnDuration + returnTravelDuration + 0.75
+			)
+		}
 		spawnFlash(proj.pos, 3, k.rgb(100, 190, 255));
 	}
 
@@ -1328,9 +1594,12 @@ function updateReturning(proj: GameObj) {
 
 	if (config.turnProgress < 180) return;
 	config.returned = true;
-	const towardOrigin = config.origin.sub(proj.pos);
-	if (towardOrigin.len() > 0) {
-		proj.dir = towardOrigin.unit();
+	const returnTarget = config.trackPlayer && playerObj?.exists()
+		? playerObj.pos
+		: config.origin;
+	const towardReturnTarget = returnTarget.sub(proj.pos);
+	if (towardReturnTarget.len() > 0) {
+		proj.dir = towardReturnTarget.unit();
 		proj.angle = k.rad2deg(k.Vec2.toAngle(proj.dir)) + 90;
 	}
 }
@@ -1369,16 +1638,22 @@ function updateGrowth(proj: GameObj) {
 	}
 }
 
-function deployMine(proj: GameObj, config: ProjectileConfig) {
+function deployMine(
+	position: Vec2,
+	damage: number,
+	config: ProjectileConfig,
+	mine: MineModifier
+) {
 	if (!consumeProcBudget(config, 1)) {
 		return false;
 	}
 
-	const mine = proj.mineConfig;
-	const damage = proj.impactDamage ?? proj.splashDamage ?? 1;
 	const mineConfig: ProjectileConfig = {
 		...config,
-		pos: proj.pos.clone(),
+		combatCredit: config.combatCredit
+			? { ...config.combatCredit, explosive: true }
+			: { kind: "primary", id: "mine", explosive: true },
+		pos: position.clone(),
 		dir: k.vec2(0),
 		speed: 0,
 		fireSound: undefined,
@@ -1407,11 +1682,19 @@ function deployMine(proj: GameObj, config: ProjectileConfig) {
 	};
 	const mineObj = spawnProjectile(mineConfig);
 	mineObj.isDeployedMine = true;
+	mineObj.use(k.health(1));
+	mineObj.use(snareable({
+		mass: 0.45,
+		radius: 10,
+		releaseDrag: 1.25,
+	}));
+	mineObj.onDeath(() => detonateMine(mineObj));
+	registerActiveMine(mineObj, config, mine);
 	if (getEffectiveUpgradeLevel("shrapnelGarden") !== undefined && config.split) {
 		mineObj.shrapnelGardenConfig = {
 			projectile: {
 				...config,
-				pos: proj.pos.clone(),
+				pos: position.clone(),
 				mine: undefined,
 				split: undefined,
 				proximity: undefined,
@@ -1425,12 +1708,43 @@ function deployMine(proj: GameObj, config: ProjectileConfig) {
 	}
 	mineObj.mineArmDelay = mine.armDelay;
 	mineObj.scale = mineObj.scale.scale(1.35);
-	mineObj.color = k.rgb(105, 105, 105);
 	return true;
 }
 
-function handleFragmentation(proj: GameObj, config: ProjectileConfig) {
-	const fragment = proj.fragmentConfig;
+function registerActiveMine(
+	mineObj: GameObj,
+	config: ProjectileConfig,
+	mine: MineModifier
+) {
+	const maxActive = Math.max(0, Math.floor(mine.maxActive ?? 0));
+	if (maxActive === 0 || !config.combatCredit?.id) return;
+	const groupKey = `${config.combatCredit.kind}:${config.combatCredit.id}`;
+	const active = (activeMineGroups.get(groupKey) ?? []).filter((candidate) =>
+		candidate.exists()
+	);
+	if (mine.replaceOldest) {
+		while (active.length >= maxActive) {
+			const oldest = active.shift();
+			if (oldest?.exists()) detonateMine(oldest);
+		}
+	}
+	active.push(mineObj);
+	activeMineGroups.set(groupKey, active);
+	mineObj.onDestroy(() => {
+		const remaining = (activeMineGroups.get(groupKey) ?? []).filter(
+			(candidate) => candidate.exists() && candidate.id !== mineObj.id
+		);
+		if (remaining.length > 0) activeMineGroups.set(groupKey, remaining);
+		else activeMineGroups.delete(groupKey);
+	});
+}
+
+function handleFragmentation(
+	proj: GameObj,
+	config: ProjectileConfig,
+	fragment: FragmentModifier = proj.fragmentConfig,
+	inheritSourceModifiers = false
+) {
 	const count = consumeProcSlots(config, fragment.count);
 	if (count <= 0) return;
 	const damage = proj.impactDamage ?? config.impact?.damage ?? 1;
@@ -1444,15 +1758,18 @@ function handleFragmentation(proj: GameObj, config: ProjectileConfig) {
 			dir: k.Vec2.fromAngle(angle - 90),
 			rotation: angle,
 			fireSound: undefined,
-			fragment: undefined,
-			echo: undefined,
-			mine: undefined,
-			split: undefined,
-			onDestroy: undefined,
+			fragment: inheritSourceModifiers ? config.fragment : undefined,
+			impactFragment: undefined,
+			echo: inheritSourceModifiers ? config.echo : undefined,
+			mine: inheritSourceModifiers ? config.mine : undefined,
+			split: inheritSourceModifiers ? config.split : undefined,
+			onDestroy: inheritSourceModifiers ? config.onDestroy : undefined,
 			impact: {
 				damage: damage * fragment.damageMultiplier,
 			},
-			lifespan: { duration: 0.7 },
+			lifespan: inheritSourceModifiers
+				? config.lifespan
+				: { duration: 0.7 },
 		});
 		ignoreSourceTarget(shard, proj.lastHitTargetId);
 	}
@@ -1568,18 +1885,16 @@ function findNextBounceDirection(projectile: GameObj, currentTarget: GameObj) {
 	const excludedTargetIds = new Set<number>(projectile.hitTargets ?? []);
 	excludedTargetIds.add(currentTarget.id);
 	const targetTags = projectile.tags.includes(tags.friendly)
-		? [tags.enemy, tags.unit]
+		? [tags.enemy]
 		: [tags.player];
-	const nextTarget = findClosestSpatial(
+	const nextTarget = findClosestProjectileTarget(
 		projectile.pos,
 		projectile.bounceSeekDistance,
-		{
-			allTags: targetTags,
-			excludeIds: excludedTargetIds,
-		}
+		targetTags,
+		excludedTargetIds
 	);
 	if (!nextTarget?.pos) return;
-	const direction = nextTarget.pos.sub(projectile.pos);
+	const direction = getTargetWorldPosition(nextTarget).sub(projectile.pos);
 	return direction.len() > 0.001 ? direction.unit() : undefined;
 }
 
@@ -1702,6 +2017,9 @@ function handleOnDestroy(proj: GameObj, config: ProjectileConfig) {
 				if (config.impact) newConfig.impact = config.impact;
 				if (config.splash) newConfig.splash = config.splash;
 				if (config.crit) newConfig.crit = config.crit;
+				newConfig.loadedModifierVisuals = config.loadedModifierVisuals
+					? [...config.loadedModifierVisuals]
+					: undefined;
 			}
 
 			spawnProjectile(newConfig);
@@ -1775,7 +2093,7 @@ function triggerProjectileLifesteal(
 // Damage Application Helper (called from collision detection)
 
 export function applyProjectileDamage(
-	target: GameObj,
+	target: DamageableCombatTarget,
 	projectile: GameObj
 ): boolean {
 	if (!target.exists() || typeof target.hp !== "number") return true;
@@ -1828,8 +2146,11 @@ export function applyProjectileDamage(
 			if (target.tags.includes(tags.part)) {
 				const componentShearMultiplier =
 					getToolUpgradeLvlValue("componentShear") ?? 1;
-				damage *= componentShearMultiplier;
-				componentShearProc = componentShearMultiplier > 1;
+				const weaponComponentMultiplier =
+					projectile.componentDamageMultiplier ?? 1;
+				damage *= componentShearMultiplier * weaponComponentMultiplier;
+				componentShearProc = componentShearMultiplier > 1 ||
+					weaponComponentMultiplier > 1;
 			} else if (target.tags.includes(tags.enemy)) {
 				damage *= getToolUpgradeLvlValue("coreBreach") ?? 1;
 			}
@@ -1866,10 +2187,14 @@ export function applyProjectileDamage(
 				projectile.executionConfig.healthThreshold
 		) {
 			damage *= projectile.executionConfig.damageMultiplier;
+			spawnExecutionTargetFeedback(target)
 		}
 		if (projectile.paintConfig && target.projectilePaintStacks > 0) {
 			damage *= 1 + target.projectilePaintStacks *
 				projectile.paintConfig.damagePerStack;
+		}
+		if (projectile.hitComboConfig) {
+			damage *= resolveHitCombo(target, projectile.hitComboConfig);
 		}
 
 		// Apply crit
@@ -1904,6 +2229,14 @@ export function applyProjectileDamage(
 		});
 		if (damageApplied && componentShearProc) {
 			applyEnemyPartDamageFlash(target);
+		}
+		if (damageApplied && projectile.impactFragmentConfig) {
+			handleFragmentation(
+				projectile,
+				projectile.projectileConfig as ProjectileConfig,
+				projectile.impactFragmentConfig,
+				true
+			);
 		}
 		if (
 			damageApplied &&
@@ -1997,6 +2330,10 @@ export function applyProjectileDamage(
 		projectile.piercesRemaining--;
 		projectile.impactDamage *= projectile.pierceReduction;
 		shouldDestroy = false;
+	}
+	if (projectile.returnConfig) {
+		projectile.hitTargets?.add(target.id)
+		shouldDestroy = false
 	}
 
 	// Handle chain
@@ -2287,6 +2624,7 @@ function applyDamageTickEffect(target: GameObj, config: any) {
 		if (config.combatCredit) {
 			target.damageTickEffect.combatCredit = config.combatCredit;
 		}
+		setCombatStatusTint(target, "damageOverTime", true)
 		return;
 	}
 
@@ -2305,6 +2643,7 @@ function applyDamageTickEffect(target: GameObj, config: any) {
 		volatile: config.volatile,
 		combatCredit: config.combatCredit,
 	};
+	setCombatStatusTint(target, "damageOverTime", true)
 
 	if (!target.hasVolatileDeathHook) {
 		target.hasVolatileDeathHook = true;
@@ -2328,6 +2667,7 @@ function applyDamageTickEffect(target: GameObj, config: any) {
 					target.hasShader = false;
 				}
 				target.damageTickEffect = null;
+				setCombatStatusTint(target, "damageOverTime", false)
 				return;
 			}
 
@@ -2376,6 +2716,7 @@ function applySlowEffect(target: GameObj, config: any) {
 			target.slowEffect.stasisBurst = config.stasisBurst;
 			target.slowEffect.procState = config.procState;
 		}
+		setCombatStatusTint(target, "chilled", true)
 		return;
 	}
 
@@ -2401,6 +2742,7 @@ function applySlowEffect(target: GameObj, config: any) {
 		stasisBurst: config.stasisBurst,
 		procState: config.procState,
 	};
+	setCombatStatusTint(target, "chilled", true)
 
 	if (!target.hasStasisDeathHook) {
 		target.hasStasisDeathHook = true;
@@ -2455,6 +2797,7 @@ function applySlowEffect(target: GameObj, config: any) {
 				}
 
 				target.slowEffect = null;
+				setCombatStatusTint(target, "chilled", false)
 			}
 		});
 	}
@@ -2474,6 +2817,7 @@ export function applyStunEffect(target: GameObj, config: StunModifier) {
 			duration
 		);
 		target.timescaleModifiers.set(STUN_TIMESCALE_MODIFIER_ID, 0);
+		setCombatStatusTint(target, "stunned", true)
 		return;
 	}
 
@@ -2482,12 +2826,14 @@ export function applyStunEffect(target: GameObj, config: StunModifier) {
 		particleTimer: 0,
 	};
 	target.timescaleModifiers.set(STUN_TIMESCALE_MODIFIER_ID, 0);
+	setCombatStatusTint(target, "stunned", true)
 	if (target.hasStunUpdate) return;
 	target.hasStunUpdate = true;
 	registerBatchedEntityUpdate("effects", target, () => {
 		if (!target.stunEffect) return;
 		target.stunEffect.remaining -= k.dt();
 		target.stunEffect.particleTimer += k.dt();
+		refreshCombatStatusTint(target)
 		if (target.stunEffect.particleTimer >= 0.1) {
 			target.stunEffect.particleTimer = 0;
 			sparkEmitter.emitter.position = target.pos;
@@ -2496,6 +2842,7 @@ export function applyStunEffect(target: GameObj, config: StunModifier) {
 		if (target.stunEffect.remaining > 0) return;
 		target.timescaleModifiers?.delete(STUN_TIMESCALE_MODIFIER_ID);
 		target.stunEffect = null;
+		setCombatStatusTint(target, "stunned", false)
 	});
 }
 
@@ -2559,12 +2906,13 @@ function triggerStasisBurst(target: GameObj, effect: any) {
 	});
 }
 
-function applyPaintEffect(target: GameObj, config: PaintModifier) {
+function applyPaintEffect(target: PositionedCombatTarget, config: PaintModifier) {
 	target.projectilePaintStacks = Math.min(
 		config.maxStacks,
 		(target.projectilePaintStacks ?? 0) + 1
 	);
 	target.projectilePaintRemaining = config.duration;
+	ensurePaintTargetVisual(target)
 	spawnFlash(target.pos, 2 + target.projectilePaintStacks, k.rgb(255, 220, 80));
 
 	if (target.hasProjectilePaintUpdate) return;
@@ -2577,4 +2925,29 @@ function applyPaintEffect(target: GameObj, config: PaintModifier) {
 		target.projectilePaintRemaining = 0;
 		target.projectilePaintStacks = 0;
 	});
+}
+
+function resolveHitCombo(target: GameObj, config: HitComboModifier) {
+	const combos = target.projectileHitCombos as Record<
+		string,
+		{ hits: number; expiresAt: number }
+	> | undefined;
+	const activeCombos = combos ?? {};
+	const previous = activeCombos[config.key];
+	const previousHits = previous && previous.expiresAt > k.time()
+		? previous.hits
+		: 0;
+	const nextHits = previousHits + 1;
+	if (nextHits >= config.requiredHits) {
+		delete activeCombos[config.key];
+		spawnFlash(target.pos, 6, k.rgb(...config.color));
+		return config.finisherDamageMultiplier;
+	}
+	activeCombos[config.key] = {
+		hits: nextHits,
+		expiresAt: k.time() + config.duration,
+	};
+	target.projectileHitCombos = activeCombos;
+	spawnFlash(target.pos, 2 + nextHits, k.rgb(...config.color));
+	return 1;
 }

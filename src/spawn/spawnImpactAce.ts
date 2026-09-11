@@ -1,4 +1,11 @@
-import type { Vec2 } from "kaplay"
+import type {
+	GameObj,
+	OpacityComp,
+	PosComp,
+	RotateComp,
+	ScaleComp,
+	Vec2,
+} from "kaplay"
 import { checkProjectileIntersection, playerObj } from "../game"
 import { k, mainSoundVolume, velocityScale } from "../main"
 import { starsEmitterDir, trailEmitter } from "../particles"
@@ -20,7 +27,7 @@ import { applyDirectionalSteeringLean, easeDirection, registerHitAnimation } fro
 import { tags } from "../tags"
 import { getEnemyVisual } from "../visuals/enemyVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
-import { timescale } from "../comp/timescale"
+import { timescale, type TimescaleComp } from "../comp/timescale"
 import { enemyOnDeath, onEnemyHit } from "./enemyShared"
 import { spawnMiniBossDeathSequence } from "./spawnEnemyDeathEffect"
 import { isEnemyEmpDisrupted } from "../services/enemies/enemyEmpService"
@@ -45,6 +52,27 @@ interface ImpactAceOptions extends EnemySpawnOptions {
 	onDefeated?: (pos: Vec2) => void
 }
 
+interface ImpactAceRuntimeState {
+	hb: number
+	damage: number
+	baseScale: number
+	moveDirection: Vec2
+	lockedDirection: Vec2
+	state: ImpactAceState
+	stateTimer: number
+	phaseIndex: number
+	chargesRemaining: number
+	trailTimer: number
+	nextAttackMode: ImpactAceMode
+	shotTimer: number
+	deathSequenceActive: boolean
+	chargeLine?: GameObj<OpacityComp>
+}
+
+type ImpactAceObject = GameObj<
+	PosComp | RotateComp | ScaleComp | OpacityComp | TimescaleComp
+> & ImpactAceRuntimeState
+
 export function spawnImpactAce(
 	pos: Vec2,
 	runDepth: number,
@@ -62,6 +90,7 @@ export function spawnImpactAce(
 		k.pos(pos),
 		k.sprite(IMPACT_ACE_SPRITE),
 		k.color(k.WHITE),
+		k.opacity(1),
 		k.rotate(initialDirection.angle() + 90),
 		k.anchor("center"),
 		k.health(profile.hp),
@@ -83,6 +112,7 @@ export function spawnImpactAce(
 			nextAttackMode: "ramming" as ImpactAceMode,
 			shotTimer: 0,
 			deathSequenceActive: false,
+			chargeLine: undefined as GameObj<OpacityComp> | undefined,
 		},
 		tags.enemy,
 		tags.unit,
@@ -100,6 +130,7 @@ export function spawnImpactAce(
 		k.opacity(0),
 		k.z(-1),
 	])
+	ace.chargeLine = chargeLine
 
 	registerHitAnimation(ace)
 	registerBossEncounter(ace, definition.id, {
@@ -288,7 +319,7 @@ export function spawnImpactAce(
 }
 
 function beginTelegraph(
-	ace: ReturnType<typeof k.add>,
+	ace: ImpactAceObject,
 	startingCombo: boolean
 ) {
 	ace.lockedDirection = directionToPlayer(ace.pos)
@@ -301,11 +332,11 @@ function beginTelegraph(
 	)
 }
 
-function beginCharge(ace: ReturnType<typeof k.add>, scale: number) {
+function beginCharge(ace: ImpactAceObject, scale: number) {
 	ace.moveDirection = ace.lockedDirection
 	ace.opacity = 1
 	ace.scale = k.vec2(scale)
-	ace.children[0].opacity = 0
+	if (ace.chargeLine) ace.chargeLine.opacity = 0
 	setState(ace, "charge")
 	starsEmitterDir.emitter.position = ace.pos.sub(ace.lockedDirection.scale(16 * scale))
 	starsEmitterDir.emitter.direction = ace.lockedDirection.angle() + 180
@@ -317,29 +348,29 @@ function beginCharge(ace: ReturnType<typeof k.add>, scale: number) {
 	)
 }
 
-function finishCharge(ace: ReturnType<typeof k.add>) {
+function finishCharge(ace: ImpactAceObject) {
 	if (ace.phaseIndex >= 2) fireRadialBurst(ace)
 	ace.chargesRemaining = Math.max(0, ace.chargesRemaining - 1)
 	setState(ace, "recover")
 }
 
-function finishRammingMode(ace: ReturnType<typeof k.add>) {
+function finishRammingMode(ace: ImpactAceObject) {
 	ace.opacity = 1
 	ace.scale = k.vec2(ace.baseScale)
-	ace.children[0].opacity = 0
+	if (ace.chargeLine) ace.chargeLine.opacity = 0
 	ace.nextAttackMode = ace.phaseIndex >= 1 ? "station" : "ramming"
 	setState(ace, "approach")
 }
 
 function beginStationCharge(
-	ace: ReturnType<typeof k.add>,
+	ace: ImpactAceObject,
 	playerDirection: Vec2
 ) {
 	ace.lockedDirection = playerDirection
 	ace.chargesRemaining = 0
 	ace.opacity = 1
 	ace.scale = k.vec2(ace.baseScale)
-	ace.children[0].opacity = 0
+	if (ace.chargeLine) ace.chargeLine.opacity = 0
 	setState(ace, "stationCharge")
 	gameSoundService.playPositional(
 		"wormhole_rampup",
@@ -349,7 +380,7 @@ function beginStationCharge(
 }
 
 function beginStationFire(
-	ace: ReturnType<typeof k.add>,
+	ace: ImpactAceObject,
 	scale: number
 ) {
 	ace.opacity = 1
@@ -364,7 +395,7 @@ function beginStationFire(
 }
 
 function updateStationFacing(
-	ace: ReturnType<typeof k.add>,
+	ace: ImpactAceObject,
 	playerDirection: Vec2,
 	delta: number,
 	response: number
@@ -379,7 +410,7 @@ function updateStationFacing(
 }
 
 function fireStationShot(
-	ace: ReturnType<typeof k.add>,
+	ace: ImpactAceObject,
 	scale: number
 ) {
 	const targetDirection = directionToPlayer(ace.pos)
@@ -429,7 +460,7 @@ function getStationWindDownDuration(phaseIndex: number) {
 	return phaseIndex >= 2 ? 0.42 : 0.68
 }
 
-function fireRadialBurst(ace: ReturnType<typeof k.add>) {
+function fireRadialBurst(ace: ImpactAceObject) {
 	for (let index = 0; index < 10; index++) {
 		const direction = k.Vec2.fromAngle(index * 36)
 		const projectile = spawnEnemyBlaster(
@@ -446,7 +477,7 @@ function fireRadialBurst(ace: ReturnType<typeof k.add>) {
 }
 
 function moveAce(
-	ace: ReturnType<typeof k.add>,
+	ace: ImpactAceObject,
 	speed: number,
 	speedMultiplier: number
 ) {
@@ -456,7 +487,7 @@ function moveAce(
 }
 
 function faceAce(
-	ace: ReturnType<typeof k.add>,
+	ace: ImpactAceObject,
 	movementDirection: Vec2,
 	targetDirection: Vec2,
 	scale: number
@@ -478,7 +509,7 @@ function directionToPlayer(pos: Vec2) {
 	return delta.len() > 0 ? delta.unit() : k.vec2(0, 1)
 }
 
-function setState(ace: ReturnType<typeof k.add>, state: ImpactAceState) {
+function setState(ace: ImpactAceObject, state: ImpactAceState) {
 	ace.state = state
 	ace.stateTimer = 0
 }
@@ -487,7 +518,7 @@ function emitChargeTrail(
 	pos: Vec2,
 	direction: Vec2,
 	scale: number,
-	ace: ReturnType<typeof k.add>,
+	ace: ImpactAceObject,
 	delta: number
 ) {
 	ace.trailTimer += delta

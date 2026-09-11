@@ -27,6 +27,14 @@ export function grantExtraLifeCharge() {
 	return getExtraLifeSnapshot()
 }
 
+export function refillExtraLifeCharge(amount: number = 1) {
+	if (!runActive || capacity <= 0 || !Number.isFinite(amount) || amount <= 0) {
+		return getExtraLifeSnapshot()
+	}
+	remaining = Math.min(capacity, remaining + Math.floor(amount))
+	return getExtraLifeSnapshot()
+}
+
 export function consumeExtraLife(): ExtraLifeSnapshot | undefined {
 	if (remaining <= 0) return undefined
 	remaining--

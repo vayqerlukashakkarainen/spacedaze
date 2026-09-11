@@ -80,6 +80,7 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 		getDialogueId: () => DIALOGUE_ID,
 		isVisible: () => !encounterStarted && !gloom.isInRange,
 		offset: k.vec2(0, -42),
+		cameraInterest: true,
 	})
 	registerNpcDialogueIndicator({
 		actor: jubilee,
@@ -88,6 +89,7 @@ export function spawnHubBirthdayPair(center: ReturnType<typeof k.vec2>) {
 		isVisible: () =>
 			!encounterStarted && jubileeAlive && !jubilee.isInRange,
 		offset: k.vec2(0, -42),
+		cameraInterest: true,
 	})
 
 	registerBatchedEntityUpdate("world", gloom, () => {
@@ -291,6 +293,7 @@ function spawnPostBirthdayGloom(pos: ReturnType<typeof k.vec2>) {
 		getDialogueId: () => POST_BIRTHDAY_DIALOGUE_ID,
 		isVisible: () => !talking && !gloom.isInRange,
 		offset: k.vec2(0, -42),
+		cameraInterest: true,
 	})
 	registerBatchedEntityUpdate("world", gloom, () => {
 		prompt.update(!talking && gloom.isInRange)
@@ -348,7 +351,7 @@ function spawnBirthdayDroid(
 	sprite: string,
 	angle: number,
 	onInteract: () => void,
-	interactionPriority = INTERACTION_PRIORITY.dialogue
+	interactionPriority: number = INTERACTION_PRIORITY.dialogue
 ) {
 	return k.add([
 		k.pos(pos),

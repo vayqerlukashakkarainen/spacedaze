@@ -1,3 +1,5 @@
+import type { SoundCueId } from "../../audio/soundCueCatalog"
+
 export type BossKind = "miniBoss" | "boss"
 
 export interface BossPhaseDefinition {
@@ -15,10 +17,15 @@ export interface BossDefinition {
 	healthPerRunDepth: number
 	minRunDepth: number
 	rewardMultiplier: number
+	fightStartSound?: SoundCueId
 	phases: readonly BossPhaseDefinition[]
 }
 
-export type BossId = "impact-ace" | "federation-dreadnought"
+export type BossId =
+	| "impact-ace"
+	| "federation-dreadnought"
+	| "wake-yardmaster"
+	| "wake-last-beacon"
 
 export const BOSS_REGISTRY: Readonly<Record<BossId, BossDefinition>> = {
 	"impact-ace": {
@@ -41,10 +48,11 @@ export const BOSS_REGISTRY: Readonly<Record<BossId, BossDefinition>> = {
 		name: "THE CLAIMKEEPER",
 		subtitle: "FEDERATION SALVAGE DREADNOUGHT",
 		kind: "boss",
-		baseHealth: 120,
-		healthPerRunDepth: 20,
+		baseHealth: 600,
+		healthPerRunDepth: 100,
 		minRunDepth: 3,
 		rewardMultiplier: 1,
+		fightStartSound: "machine_boss_fight_start",
 		phases: [
 			{
 				id: "collection-protocol",
@@ -61,6 +69,38 @@ export const BOSS_REGISTRY: Readonly<Record<BossId, BossDefinition>> = {
 				name: "DEAD-MAN REACTOR",
 				healthThreshold: 0.3,
 			},
+		],
+	},
+	"wake-yardmaster": {
+		id: "wake-yardmaster",
+		name: "THE YARDMASTER",
+		subtitle: "WAKE AUTONOMOUS SALVAGE FOREMAN",
+		kind: "boss",
+		baseHealth: 750,
+		healthPerRunDepth: 110,
+		minRunDepth: 1,
+		rewardMultiplier: 1,
+		fightStartSound: "machine_boss_fight_start",
+		phases: [
+			{ id: "clear-the-yard", name: "CLEAR THE YARD", healthThreshold: 1 },
+			{ id: "no-material-wasted", name: "NO MATERIAL WASTED", healthThreshold: 0.67 },
+			{ id: "foreman-override", name: "FOREMAN OVERRIDE", healthThreshold: 0.3 },
+		],
+	},
+	"wake-last-beacon": {
+		id: "wake-last-beacon",
+		name: "THE LAST BEACON",
+		subtitle: "DISTRICT EMERGENCY SIGNAL",
+		kind: "boss",
+		baseHealth: 700,
+		healthPerRunDepth: 100,
+		minRunDepth: 1,
+		rewardMultiplier: 1,
+		fightStartSound: "machine_boss_fight_start",
+		phases: [
+			{ id: "evacuation-route", name: "EVACUATION ROUTE", healthThreshold: 1 },
+			{ id: "unknown-craft", name: "UNKNOWN CRAFT DETECTED", healthThreshold: 0.67 },
+			{ id: "nobody-left", name: "NOBODY LEFT TO WARN", healthThreshold: 0.3 },
 		],
 	},
 }

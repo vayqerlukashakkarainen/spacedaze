@@ -13,6 +13,7 @@ import { showDebreeDepositPanel } from "../ui/debreeDepositPanel"
 import { spawnCurrencyBurst } from "./spawnCurrencyBurst"
 import { getWorldVisual } from "../visuals/worldVisualCatalog"
 import { requirePrimaryVisualSprite } from "../visuals/visualRepresentation"
+import { spawnDepositAttendant } from "./npcs/spawnDepositAttendant"
 
 const DEPOSIT_RADIUS = 88
 const FOUNDATION_VISUAL = getWorldVisual("debris-foundation")
@@ -51,6 +52,7 @@ export function spawnDebreeDeposit(
 		{ runtimeCullRadius: 120 },
 		...(options.tags ?? []),
 	]) as GameObj<PosComp | InteractableComp>
+	spawnDepositAttendant(pos, options.tags)
 
 	function playDepositEffect(deposited: number) {
 		saveGame("slot1")
@@ -102,7 +104,7 @@ export function spawnDebreeDeposit(
 	})
 
 	registerBatchedEntityUpdate("world", station, () => {
-		const player = k.get<GameObj<PosComp>>(tags.player)[0]
+		const player = k.get<PosComp>(tags.player)[0]
 		const stationAvailable = available()
 		const hasDebree = getCarriedDebree() > 0
 		const playerInRange = player?.exists() === true &&

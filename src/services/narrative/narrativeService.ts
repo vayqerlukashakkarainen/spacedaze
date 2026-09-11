@@ -208,21 +208,18 @@ export function shouldShowLassoTutorial() {
 	return progress.lassoUnlocked && !progress.lassoTutorialComplete
 }
 
+export function hasPendingHubProgression() {
+	return shouldOfferStrafeTraining() ||
+		shouldSpawnStrafeTrainingModule() ||
+		shouldOfferLassoConstruction() ||
+		shouldSpawnBuiltLasso()
+}
+
 export function completeLassoTutorial() {
 	if (!progress.lassoUnlocked) return false
 	progress.lassoTutorialComplete = true
 	saveProgress()
 	return true
-}
-
-export function skipNarrativeIntroduction() {
-	prologueActive = false
-	progress.prologueComplete = true
-	progress.hubIntroductionComplete = true
-	if (progress.burtHubLocation === "home") {
-		progress.burtHubLocation = "phaseStation"
-	}
-	saveProgress()
 }
 
 export function resetNarrativeProgress() {

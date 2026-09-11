@@ -1,6 +1,6 @@
 import type { KAPLAYCtx } from "kaplay"
 
-const INITIAL_ASSET_COUNT = 177
+const INITIAL_ASSET_COUNT = 178
 const TRACKED_LOADERS = new Set([
 	"loadBitmapFont",
 	"loadMusic",
@@ -9,6 +9,11 @@ const TRACKED_LOADERS = new Set([
 	"loadSprite",
 	"loadSpriteAtlas",
 ])
+const LOADING_BRAND = "LUHAKK GAMES"
+const BITMAP_GLYPH_SIZE = 8
+const LOADING_BRAND_SCALE = 4
+const FIRST_BITMAP_CHARACTER = 32
+const LOADING_PROGRESS_REVEAL_DELAY = 2000
 
 export interface LoadingScreen {
 	assetStarted(label: string): void
@@ -25,12 +30,19 @@ function getElement<T extends HTMLElement>(id: string) {
 
 export function createLoadingScreen(): LoadingScreen {
 	const root = getElement<HTMLDivElement>("loading-screen")
+	renderLoadingBrand(getElement<HTMLCanvasElement>("loading-brand"))
 	const current = getElement<HTMLDivElement>("loading-current")
 	const bar = getElement<HTMLDivElement>("loading-bar")
 	const percent = getElement<HTMLDivElement>("loading-percent")
+	const progress = getElement<HTMLDivElement>("loading-progress")
 	const track = root.querySelector<HTMLElement>(".loading-track")
 	let completedAssets = 0
 	let hidden = false
+	const revealProgressTimer = window.setTimeout(() => {
+		if (hidden) return
+		root.classList.add("is-progress-visible")
+		progress.setAttribute("aria-hidden", "false")
+	}, LOADING_PROGRESS_REVEAL_DELAY)
 
 	function renderProgress(progress: number) {
 		const percentage = Math.round(Math.min(Math.max(progress, 0), 1) * 100)
@@ -56,6 +68,7 @@ export function createLoadingScreen(): LoadingScreen {
 		finish() {
 			if (hidden) return
 			hidden = true
+			window.clearTimeout(revealProgressTimer)
 			current.textContent = "Ready"
 			renderProgress(1)
 			requestAnimationFrame(() => {
@@ -64,6 +77,32 @@ export function createLoadingScreen(): LoadingScreen {
 			})
 		},
 	}
+}
+
+function renderLoadingBrand(canvas: HTMLCanvasElement) {
+	const context = canvas.getContext("2d")
+	if (!context) return
+	context.imageSmoothingEnabled = false
+	const atlas = new Image()
+	atlas.src = "/fonts/unscii_8x8.png"
+	atlas.addEventListener("load", () => {
+		context.clearRect(0, 0, canvas.width, canvas.height)
+		for (let index = 0; index < LOADING_BRAND.length; index++) {
+			const glyphIndex = LOADING_BRAND.charCodeAt(index) -
+				FIRST_BITMAP_CHARACTER
+			context.drawImage(
+				atlas,
+				glyphIndex * BITMAP_GLYPH_SIZE,
+				0,
+				BITMAP_GLYPH_SIZE,
+				BITMAP_GLYPH_SIZE,
+				index * BITMAP_GLYPH_SIZE * LOADING_BRAND_SCALE,
+				0,
+				BITMAP_GLYPH_SIZE * LOADING_BRAND_SCALE,
+				BITMAP_GLYPH_SIZE * LOADING_BRAND_SCALE
+			)
+		}
+	})
 }
 
 function describeAsset(loader: string, args: unknown[]) {

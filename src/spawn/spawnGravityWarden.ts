@@ -38,6 +38,7 @@ export function spawnGravityWarden(
 		{
 			hb: 14 * profile.scale,
 			damage: profile.damage,
+			shieldFireRateMultiplier: 1,
 			moveDirection: k.vec2(0, 1),
 			fieldTimer: k.rand(1.2, 2.2),
 			fieldActive: 0,

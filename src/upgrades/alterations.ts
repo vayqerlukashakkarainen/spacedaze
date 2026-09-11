@@ -12,7 +12,7 @@ function alteration(config: AlterationConfig): UpgradeDefinition {
 	return {
 		toolKey: config.toolKey,
 		toolName: config.toolName,
-		category: "special",
+		category: "alteration",
 		type: "passive",
 		alteration: true,
 		requirements: config.requirements,

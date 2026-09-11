@@ -8,13 +8,16 @@ import {
 	getCurrentFloorRoom,
 	getFloorKeyCount,
 	getFloorCargoPuzzleForRoom,
+	getRemainingFloorDepositCount,
 	getRoomFloorSnapshot,
+	isFloorRoomConnectionSealed,
 	isFloorRoomKeyLocked,
 	markCurrentFloorRoomCleared,
 	markCurrentRoomContentCompleted,
 	markFloorEnemyDefeated,
 	rollCurrentRoomClearKeyDrop,
 	rollFloorEnemyKeyDrop,
+	sealFloorStartRoomExit,
 	teleportToFloorRoom,
 	unlockFloorRoomWithKey,
 } from "./roomFloorService"
@@ -26,7 +29,7 @@ function assert(condition: boolean, message: string) {
 
 const floor = beginRoomFloor(38191, 2, { roomCount: 12 })
 const start = getCurrentFloorRoom()!
-assert(start.kind === "start", "A room floor must begin in its start room")
+assert(start.kind === "chill", "A room floor must begin in a chill room")
 const neighbor = floor.rooms.find((room) => start.connections.includes(room.id))!
 assert(enterFloorRoom(neighbor.id) === undefined, "An active room should block its exits")
 markCurrentFloorRoomCleared()
@@ -37,6 +40,30 @@ assert(start.state === "cleared", "Leaving a safe start room should clear it")
 assert(
 	neighbor.connections.every((id) => floor.rooms.find((room) => room.id === id)?.state !== "unseen"),
 	"Entering a room should discover its neighbors"
+)
+
+const sealedFloor = beginRoomFloor(48302, 2, { roomCount: 12 })
+const sealedStart = getCurrentFloorRoom()!
+const sealedNeighbor = sealedFloor.rooms.find(
+	(room) => sealedStart.connections.includes(room.id)
+)!
+assert(
+	sealedStart.connections.length === 1,
+	"A floor start room should have exactly one exit"
+)
+markCurrentFloorRoomCleared()
+assert(
+	enterFloorRoom(sealedNeighbor.id)?.id === sealedNeighbor.id,
+	"The sole start-room exit should be usable before it seals"
+)
+assert(sealFloorStartRoomExit(), "Leaving the start room should seal its exit")
+assert(
+	isFloorRoomConnectionSealed(sealedNeighbor.id, sealedStart.id),
+	"The sealed start-room connection should be recognized from either side"
+)
+assert(
+	enterFloorRoom(sealedStart.id) === undefined,
+	"A sealed start-room exit should block re-entry"
 )
 
 const combatFloor = beginRoomFloor(9341, 1, { roomCount: 10 })
@@ -127,8 +154,19 @@ assert(
 
 const depositFloor = beginRoomFloor(29117, 2, { roomCount: 12 })
 const depositRoom = depositFloor.rooms.find((room) => room.kind === "deposit")!
+const initialDepositCount = depositFloor.rooms.filter(
+	(room) => room.kind === "deposit"
+).length
+assert(
+	getRemainingFloorDepositCount() === initialDepositCount,
+	"Every unspent salvage relay should count as a remaining deposit"
+)
 depositFloor.currentRoomId = depositRoom.id
 assert(markCurrentRoomContentCompleted(), "A salvage relay should accept its first deposit")
+assert(
+	getRemainingFloorDepositCount() === initialDepositCount - 1,
+	"Spending a salvage relay should reduce the remaining deposit count"
+)
 assert(!markCurrentRoomContentCompleted(), "A spent salvage relay should reject another deposit")
 
 const jumpFloor = beginRoomFloor(58124, 2, { roomCount: 10 })

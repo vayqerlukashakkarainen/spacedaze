@@ -20,6 +20,7 @@ import {
 	addWakeEnemyPart,
 	composeWakeEnemy,
 	handleWakeCompositeCombat,
+	updateWakeEnemyMalfunction,
 } from "./wakeEnemyShared"
 
 type ClampbackPhase = "advance" | "windup" | "recover"
@@ -74,7 +75,7 @@ export function spawnClampback(
 		tags.gameLoop,
 		...(options.tags ?? []),
 	])
-	const clampHp = Math.max(2, Math.round(profile.hp * 0.48))
+	const clampHp = 2 * Math.max(2, Math.round(profile.hp / 2 * 0.48))
 	const leftClamp = addWakeEnemyPart(
 		clampback,
 		leftClampVisual.sprite,
@@ -90,18 +91,21 @@ export function spawnClampback(
 			obj: leftClamp,
 			hitbox: 7 * profile.scale,
 			hitboxOffset: k.vec2(-10, 1).scale(profile.scale),
+			pullForce: 75,
 			onDestroyed: () => handleClampDestroyed(clampback),
 		},
 		{
 			obj: rightClamp,
 			hitbox: 7 * profile.scale,
 			hitboxOffset: k.vec2(10, 1).scale(profile.scale),
+			pullForce: 75,
 			onDestroyed: () => handleClampDestroyed(clampback),
 		},
 	], 8, 1.35)
 
 	registerBatchedEntityUpdate("enemies", clampback, () => {
 		const delta = k.dt() * clampback.getTimescale()
+		if (updateWakeEnemyMalfunction(clampback, delta)) return
 		const playerOffset = playerObj.pos.sub(clampback.pos)
 		const distance = playerOffset.len()
 		const playerDirection = distance > 0

@@ -1,6 +1,7 @@
 import type { Color, GameObj, Vec2 } from "kaplay"
-import { k, layers } from "../main"
+import { k, layers, mainSoundVolume } from "../main"
 import { explosionEmitter } from "../particles"
+import { gameSoundService } from "../services/audio/gameSoundService"
 import { registerBatchedEntityUpdate } from "../services/core/entityUpdateService"
 import { tags } from "../tags"
 import { spawnExplosionEffect, spawnFlash } from "./spawnFlash"
@@ -49,6 +50,11 @@ export function spawnMiniBossDeathSequence(
 	const color = options.color ?? k.rgb(125, 220, 255)
 	const rays: GameObj[] = []
 	let core: GameObj | undefined
+	const chargeSound = gameSoundService.playPositional(
+		"miniboss_detonation_charge",
+		() => body.exists() ? body.pos : deathPos,
+		{ volume: mainSoundVolume * 0.72 }
+	)
 	const controller = k.add([
 		k.pos(deathPos),
 		{
@@ -160,6 +166,7 @@ export function spawnMiniBossDeathSequence(
 
 		if (controller.elapsed < MINI_BOSS_DEATH_DURATION) return
 		controller.completed = true
+		gameSoundService.stop(chargeSound, "miniboss-detonated")
 		restoreMiniBossTransform(body, deathPos, deathAngle)
 		cleanupMiniBossCharge(rays, core)
 		k.destroy(controller)
@@ -170,6 +177,7 @@ export function spawnMiniBossDeathSequence(
 
 	controller.onDestroy(() => {
 		if (controller.completed) return
+		gameSoundService.stop(chargeSound, "miniboss-death-sequence-cancelled")
 		restoreMiniBossTransform(body, deathPos, deathAngle)
 		cleanupMiniBossCharge(rays, core)
 	})
@@ -177,6 +185,10 @@ export function spawnMiniBossDeathSequence(
 }
 
 function spawnMiniBossFinalBlast(pos: Vec2, radius: number, color: Color) {
+	gameSoundService.playPositional("explosive_blast", pos, {
+		volume: mainSoundVolume,
+		maxDistance: 960,
+	})
 	k.flash(k.WHITE, 0.28)
 	spawnExplosionEffect(pos, radius * 3, {
 		ringIntensity: 0.85,
@@ -301,9 +313,10 @@ function spawnDeathFragment(
 	)
 	const speed = k.rand(38, 92) * intensity
 	const lifetime = k.rand(0.65, 1.15)
+	const sprite = FRAGMENT_SPRITES[k.randi(FRAGMENT_SPRITES.length)]
 	const fragment = k.add([
 		k.pos(pos.add(direction.scale(k.rand(1, 5)))),
-		k.sprite(k.choose(FRAGMENT_SPRITES)),
+		k.sprite(sprite),
 		k.anchor("center"),
 		k.rotate(k.rand(0, 360)),
 		k.scale(k.rand(0.32, 0.72) * intensity),
